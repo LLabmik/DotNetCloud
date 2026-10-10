@@ -32,6 +32,15 @@ public sealed class FileNodeViewModel
     /// <summary>Last modified timestamp.</summary>
     public DateTime UpdatedAt { get; init; }
 
+    /// <summary>Creation timestamp (UTC). Used as the fallback "photo creation time".</summary>
+    public DateTime CreatedAt { get; init; }
+
+    /// <summary>
+    /// EXIF-derived capture timestamp for media nodes (UTC), or <c>null</c> when unavailable.
+    /// Photo listings display <see cref="CapturedAt"/> when set, otherwise <see cref="CreatedAt"/>.
+    /// </summary>
+    public DateTime? CapturedAt { get; init; }
+
     /// <summary>Current version number (used for cache-busting content URLs).</summary>
     public int CurrentVersion { get; init; }
 

@@ -44,6 +44,9 @@ public sealed class FileNodeConfiguration : IEntityTypeConfiguration<FileNode>
             .IsRequired()
             .HasDefaultValueSql("CURRENT_TIMESTAMP");
 
+        // Optional EXIF-derived capture timestamp for media (image/video) nodes.
+        builder.Property(n => n.CapturedAtUtc);
+
         // Self-referencing parent-child relationship
         builder.HasOne(n => n.Parent)
             .WithMany(n => n.Children)

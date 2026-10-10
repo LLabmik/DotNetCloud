@@ -50,10 +50,12 @@ public interface IThumbnailService
     /// <param name="mimeType">MIME type of the file (e.g. <c>"image/jpeg"</c>).</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>
-    /// A tuple containing the image stream and MIME type (<c>"image/jpeg"</c>),
-    /// or <c>(null, null)</c> when the file type is unsupported or generation fails.
+    /// A tuple containing the image stream, MIME type (<c>"image/jpeg"</c>), and — when the
+    /// thumbnail was generated from a raster image — the EXIF capture timestamp (UTC) read from
+    /// the image, or <c>null</c> when unavailable. Stream and MIME type are <c>(null, null)</c>
+    /// when the file type is unsupported or generation fails.
     /// </returns>
-    Task<(Stream? Data, string? ContentType)> GetOrGenerateThumbnailAsync(
+    Task<(Stream? Data, string? ContentType, DateTime? CapturedAtUtc)> GetOrGenerateThumbnailAsync(
         Guid fileNodeId,
         ThumbnailSize size,
         string storagePath,
@@ -69,7 +71,11 @@ public interface IThumbnailService
     /// <param name="storagePath">Absolute path of the assembled file on disk.</param>
     /// <param name="mimeType">MIME type of the file (e.g. <c>"image/jpeg"</c>).</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    Task GenerateThumbnailAsync(
+    /// <returns>
+    /// The EXIF capture timestamp (UTC) read from the image, or <c>null</c> when the file is not a
+    /// raster image or carries no usable EXIF date.
+    /// </returns>
+    Task<DateTime?> GenerateThumbnailAsync(
         Guid fileNodeId,
         string storagePath,
         string mimeType,
@@ -84,7 +90,11 @@ public interface IThumbnailService
     /// <param name="contentStream">Readable stream containing the file content.</param>
     /// <param name="mimeType">MIME type of the file (e.g. <c>"image/jpeg"</c>).</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    Task GenerateThumbnailFromStreamAsync(
+    /// <returns>
+    /// The EXIF capture timestamp (UTC) read from the image, or <c>null</c> when the stream is not a
+    /// supported raster image or carries no usable EXIF date.
+    /// </returns>
+    Task<DateTime?> GenerateThumbnailFromStreamAsync(
         Guid fileNodeId,
         Stream contentStream,
         string mimeType,

@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.RateLimiting;
 using DotNetCloud.Modules.Files.DTOs;
 using DotNetCloud.Modules.Files.Options;
 using DotNetCloud.Modules.Files.Services;
+using DotNetCloud.Modules.Files.Data.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
@@ -26,6 +27,7 @@ public class FilesController : FilesControllerBase
     private readonly IVersionService _versionService;
     private readonly IShareService _shareService;
     private readonly IThumbnailService _thumbnailService;
+    private readonly IMediaCaptureTimeService _mediaCaptureTimeService;
     private readonly IEnumerable<IMediaMetadataExtractor> _metadataExtractors;
     private readonly ILogger<FilesController> _logger;
     private readonly FileSystemOptions _fileSystemOptions;
@@ -41,6 +43,7 @@ public class FilesController : FilesControllerBase
         IVersionService versionService,
         IShareService shareService,
         IThumbnailService thumbnailService,
+        IMediaCaptureTimeService mediaCaptureTimeService,
         IEnumerable<IMediaMetadataExtractor> metadataExtractors,
         ILogger<FilesController> logger,
         IOptions<FileSystemOptions> fileSystemOptions,
@@ -52,6 +55,7 @@ public class FilesController : FilesControllerBase
         _versionService = versionService;
         _shareService = shareService;
         _thumbnailService = thumbnailService;
+        _mediaCaptureTimeService = mediaCaptureTimeService;
         _metadataExtractors = metadataExtractors;
         _logger = logger;
         _fileSystemOptions = fileSystemOptions.Value;
@@ -530,8 +534,15 @@ public class FilesController : FilesControllerBase
                 await fileStream.CopyToAsync(tmpWrite, HttpContext.RequestAborted);
             }
 
-            var (thumbnailData, contentType) = await _thumbnailService.GetOrGenerateThumbnailAsync(
+            var (thumbnailData, contentType, capturedAtUtc) = await _thumbnailService.GetOrGenerateThumbnailAsync(
                 nodeId, thumbnailSize, tmpPath, node.MimeType ?? "application/octet-stream", HttpContext.RequestAborted);
+
+            // Generation decodes the image, so this is where EXIF capture time is harvested for
+            // pre-existing media that never passed through the upload handler.
+            if (capturedAtUtc is { } captured)
+            {
+                await _mediaCaptureTimeService.TrySetCaptureTimeAsync(nodeId, captured, HttpContext.RequestAborted);
+            }
 
             if (thumbnailData is null)
                 return NotFound(ErrorEnvelope("not_found", "Thumbnail not found or format not supported."));

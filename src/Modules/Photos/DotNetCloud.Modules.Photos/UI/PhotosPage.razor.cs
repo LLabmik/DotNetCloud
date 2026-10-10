@@ -1206,8 +1206,12 @@ public partial class PhotosPage : ComponentBase, IAsyncDisposable
     private string GetPhotoDownloadUrl(Guid photoId)
         => $"/api/v1/photos/{photoId}/download";
 
-    private static string FormatDate(DateTime dt)
-        => dt.ToString("MMM d, yyyy");
+    /// <summary>
+    /// Formats a photo's creation time (EXIF date taken, or upload date when unavailable)
+    /// as <c>"MMM d, yyyy · h:mm tt"</c> for grid tiles, the list view, and the lightbox.
+    /// </summary>
+    private static string FormatDateTime(DateTime dt)
+        => dt.ToString("MMM d, yyyy · h:mm tt");
 
     private static string FormatSize(long bytes)
     {

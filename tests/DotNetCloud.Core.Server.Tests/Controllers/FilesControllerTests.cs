@@ -3,6 +3,7 @@ using DotNetCloud.Core.Authorization;
 using DotNetCloud.Core.Capabilities;
 using DotNetCloud.Modules.Files.Host.Controllers;
 using DotNetCloud.Modules.Files.DTOs;
+using DotNetCloud.Modules.Files.Data.Services;
 using DotNetCloud.Modules.Files.Options;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -690,6 +691,7 @@ public sealed class FilesControllerTests
                 VersionService.Object,
                 ShareService.Object,
                 ThumbnailService.Object,
+                Mock.Of<IMediaCaptureTimeService>(),
                 Enumerable.Empty<IMediaMetadataExtractor>(),
                 Mock.Of<ILogger<FilesController>>(),
                 Options.Create(new FileSystemOptions()),
