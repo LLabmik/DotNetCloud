@@ -129,6 +129,150 @@ public sealed class FileUploadComponentTests
         component.ApplyError(-1, "error");
     }
 
+    [TestMethod]
+    public void ApplyProgress_UnchangedValues_ReturnsFalse()
+    {
+        // Arrange — a repeated (throttled) report must not trigger another render.
+        var component = new TestableFileUploadComponent();
+        component.AddTestFile("large.mp4", 1_000_000_000, "video/mp4");
+
+        // Act
+        Assert.IsTrue(component.ApplyProgress(0, 50, "Uploading..."));
+        var repeated = component.ApplyProgress(0, 50, "Uploading...");
+
+        // Assert
+        Assert.IsFalse(repeated);
+        Assert.AreEqual(50, component.QueuedFiles[0].Progress);
+    }
+
+    [TestMethod]
+    public void ApplyProgress_NewPercentOrStatus_ReturnsTrue()
+    {
+        var component = new TestableFileUploadComponent();
+        component.AddTestFile("large.mp4", 1_000_000_000, "video/mp4");
+
+        Assert.IsTrue(component.ApplyProgress(0, 50, "Uploading..."));
+        Assert.IsTrue(component.ApplyProgress(0, 51, "Uploading..."));
+        Assert.IsTrue(component.ApplyProgress(0, 51, "Finalizing..."));
+    }
+
+    [TestMethod]
+    public void ApplyProgress_InvalidIndex_ReturnsFalse()
+    {
+        var component = new TestableFileUploadComponent();
+
+        Assert.IsFalse(component.ApplyProgress(-1, 50, "test"));
+        Assert.IsFalse(component.ApplyProgress(999, 50, "test"));
+    }
+
+    // ── Completion state machine ────────────────────────────────────────
+    // Regression coverage for the "dialog stuck after a >1 GB upload" bug: the per-file JS
+    // callbacks must settle the queue even when the long-running uploadFile() interop call
+    // that started the upload is abandoned by the circuit.
+
+    [TestMethod]
+    public void TryFinishUploading_AllFilesComplete_ClearsUploadingState()
+    {
+        // Arrange
+        var component = new TestableFileUploadComponent();
+        component.AddTestFile("large.mp4", 1_000_000_000, "video/mp4");
+        component.SetIsUploading(true);
+        component.QueuedFiles[0].Status = UploadStatus.Complete;
+
+        // Act
+        var finished = component.InvokeTryFinishUploading();
+
+        // Assert
+        Assert.IsTrue(finished);
+        Assert.IsFalse(component.IsUploadingState);
+    }
+
+    [TestMethod]
+    public void TryFinishUploading_FileStillUploading_RemainsUploading()
+    {
+        // Arrange
+        var component = new TestableFileUploadComponent();
+        component.AddTestFile("large.mp4", 1_000_000_000, "video/mp4");
+        component.SetIsUploading(true);
+        component.QueuedFiles[0].Status = UploadStatus.Uploading;
+
+        // Act
+        var finished = component.InvokeTryFinishUploading();
+
+        // Assert
+        Assert.IsFalse(finished);
+        Assert.IsTrue(component.IsUploadingState);
+    }
+
+    [TestMethod]
+    public void TryFinishUploading_PausedFile_RemainsUploading()
+    {
+        // Arrange
+        var component = new TestableFileUploadComponent();
+        component.AddTestFile("large.mp4", 1_000_000_000, "video/mp4");
+        component.SetIsUploading(true);
+        component.QueuedFiles[0].Status = UploadStatus.Paused;
+
+        // Act
+        var finished = component.InvokeTryFinishUploading();
+
+        // Assert
+        Assert.IsFalse(finished);
+        Assert.IsTrue(component.IsUploadingState);
+    }
+
+    [TestMethod]
+    public void TryFinishUploading_OneOfTwoFilesStillPending_RemainsUploading()
+    {
+        // Arrange
+        var component = new TestableFileUploadComponent();
+        component.AddTestFile("a.bin", 100, "application/octet-stream");
+        component.AddTestFile("b.bin", 200, "application/octet-stream");
+        component.SetIsUploading(true);
+        component.QueuedFiles[0].Status = UploadStatus.Complete;
+        component.QueuedFiles[1].Status = UploadStatus.Pending;
+
+        // Act
+        var finished = component.InvokeTryFinishUploading();
+
+        // Assert
+        Assert.IsFalse(finished);
+        Assert.IsTrue(component.IsUploadingState);
+    }
+
+    [TestMethod]
+    public void TryFinishUploading_FailedFile_ClearsUploadingState()
+    {
+        // Arrange
+        var component = new TestableFileUploadComponent();
+        component.AddTestFile("broken.bin", 100, "application/octet-stream");
+        component.SetIsUploading(true);
+        component.QueuedFiles[0].Status = UploadStatus.Failed;
+
+        // Act
+        var finished = component.InvokeTryFinishUploading();
+
+        // Assert
+        Assert.IsTrue(finished);
+        Assert.IsFalse(component.IsUploadingState);
+    }
+
+    [TestMethod]
+    public void TryFinishUploading_AlreadyFinished_ReturnsFalse()
+    {
+        // Arrange — a late (duplicate) JS callback must not re-notify the parent.
+        var component = new TestableFileUploadComponent();
+        component.AddTestFile("a.bin", 100, "application/octet-stream");
+        component.QueuedFiles[0].Status = UploadStatus.Complete;
+
+        // Act
+        var finished = component.InvokeTryFinishUploading();
+
+        // Assert
+        Assert.IsFalse(finished);
+        Assert.IsFalse(component.IsUploadingState);
+    }
+
     // ── Queue management tests ──────────────────────────────────────────
 
     [TestMethod]
@@ -169,6 +313,19 @@ public sealed class FileUploadComponentTests
     private sealed class TestableFileUploadComponent : FileUploadComponent
     {
         public IReadOnlyList<UploadFileItem> QueuedFiles => Files;
+
+        public bool IsUploadingState => IsUploading;
+
+        public void SetIsUploading(bool value)
+        {
+            var field = typeof(FileUploadComponent)
+                .GetField("_isUploading", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)
+                ?? throw new InvalidOperationException("_isUploading field not found.");
+
+            field.SetValue(this, value);
+        }
+
+        public bool InvokeTryFinishUploading() => TryFinishUploading();
 
         public void AddTestFile(string name, long size, string contentType)
         {
