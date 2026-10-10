@@ -116,6 +116,7 @@
 | Phase 2.10.1                         | 1       | 1         | 0           | 0       |
 | Phase 2.10.3                         | 1       | 1         | 0           | 0       |
 | Phase 2.10.4                         | 1       | 1         | 0           | 0       |
+| Phase 2.10.5                         | 1       | 1         | 0           | 0       |
 | Phase 2.11                           | 3       | 3         | 0           | 0       |
 | Phase 2.12                           | 2       | 2         | 0           | 0       |
 | Phase 2.13                           | 3       | 3         | 0           | 0       |
@@ -1718,6 +1719,29 @@ Also fixed Android music play order (2026-09-04, `fix/android-music-play-order`)
 **Dependencies:** phase-2.10.3
 **Blocking Issues:** None
 **Notes:** ⚠️ **Process lesson:** verify what is _installed_ before re-debugging shipped code — compare an on-device log line against the source and check install time against APK build time. phase-2.10.3's "on-device verified" claim was made against a build that the phone no longer had (its 2026-09-28 install was a pre-fix revision), which is why the operator saw the burst again. ⚠️ Alarms armed by a pre-fix build remain uncancellable (random per-process request codes) — a reboot purges them, so an upgrade needs one reboot before the fix can be trusted. Left-swipe and `Dismiss` leave the occurrence recorded as delivered, which is what makes the dismissal final; `Snooze` deliberately re-delivers once and is not tracked in the armed-alarm bookkeeping (a reboot mid-snooze drops it).
+
+---
+
+### Step: phase-2.10.5 - Android Music Alphabet Rail Polish
+
+**Status:** completed ✅
+**Duration:** ~2 hours
+**Description:** The letter index rail beside the Artists / Albums / Tracks lists was hard to use. Its letters inherit the app-wide Open Sans font, whose capital `J` hook is too shallow to read at 13 px, so `I` and `J` looked identical; and tapping a letter gave no visual acknowledgement — when the target letter was not yet loaded, further pages were fetched silently (the page's only spinner sits behind the lists).
+
+**Deliverables:**
+
+- ✓ Rail letters rendered in Android's `monospace` family — capital `I` gains top/bottom serifs and `J` a clear hook, so the two are unmistakable (no new font asset)
+- ✓ Rail column widened 28 px → 32 px for a comfortable pill/tap target
+- ✓ `MusicViewModel.SelectedLetter` is set **synchronously** at the start of `ScrollToCharacter`, so the tapped letter highlights instantly; cleared by a new `OnCurrentViewChanged` hook when the view switches
+- ✓ New `AlphabetLetterHighlightConverter` (`IMultiValueConverter`) drives a rounded accent pill (`#0EA5E9` background, `#0F172A` glyph) for the selected letter; registered as `AlphabetLetterHighlight` in the page's resource dictionary
+- ✓ New `MusicViewModel.IsLetterJumpLoading` drives a centred, `InputTransparent` overlay spinner that appears only while a letter tap is fetching further pages — the same flag joins the three `LoadMore*` re-entrancy guards so infinite scroll cannot double-fetch during a jump
+- ✓ Initial auto-scroll to the first `A` also seeds `SelectedLetter`
+- ✓ 4 new unit tests in `MusicViewModelTests` (exact-match highlight; paged load raises the spinner and scrolls; scoped view highlights without fetching; view change clears the highlight); **Android suite 514 pass / 1 skip / 0 fail**; arm64 Debug build 0 warnings / 0 errors
+- ✓ On-device E2E (R5CWC356B2K, 2026-10-10, arm64 Debug `--no-incremental`): the initial load seeded the `A` pill; tapping **`M`** — a letter whose items were not yet loaded — repainted the pill from `A` to `M` **instantly** and showed the centred spinner through the paged fetch (the arc advanced across consecutive frames), after which the list settled on the `M` artists with the spinner gone; switching to the **Albums** tab left its rail unhighlighted. A zoomed rail capture shows `I` with top/bottom serifs and `J` with a bottom hook
+
+**Dependencies:** phase-2.10.1
+**Blocking Issues:** None
+**Notes:** The spinner is deliberately bound to the dedicated `IsLetterJumpLoading` rather than the generic `IsLoading`, so it appears exactly for server-backed letter jumps and does not regress initial-load or infinite-scroll behaviour. The highlight persists until another letter is tapped (cleared on view switch), acting as a "you are here" marker.
 
 ---
 

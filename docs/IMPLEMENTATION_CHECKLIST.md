@@ -3910,6 +3910,9 @@ Zero-tap sign-in (Apr 2027) and the API 36 target bump are tracked separately (d
 - ✓ Implement search guards: infinite scroll disabled during search, tab-switch closes search, back navigates away from search first
 - ✓ Add 16 unit tests for search toggle, close/restore, endpoint routing, error handling, tab-switch closure
 - ✓ Android back button mirrors the in-page back affordances (contextual ◀/← arrow, search panel, EQ screen, save-preset dialog) instead of leaving the app — see "System Back Navigation" below
+- ✓ Alphabet index rail: letters use Android's `monospace` family (capital `I` has serifs, `J` has a hook) and the rail column is widened to 32 px, so `I` and `J` are visually distinct
+- ✓ Alphabet index rail tap feedback: the tapped letter highlights immediately (accent pill via `AlphabetLetterHighlightConverter`) and a centred overlay spinner shows while further pages load from the server (`IsLetterJumpLoading`); the highlight clears when the view switches
+- ✓ Alphabet index rail — on-device confirmed 2026-10-10 (R5CWC356B2K): I/J distinct in the rail, tapping an unloaded letter highlights it instantly with a centred spinner while pages load, and the highlight clears on tab switch
 
 #### Chat Alert Sound (Android)
 

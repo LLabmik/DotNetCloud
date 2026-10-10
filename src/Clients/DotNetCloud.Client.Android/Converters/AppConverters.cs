@@ -400,6 +400,41 @@ public sealed class TrackIsCurrentConverter : IMultiValueConverter
 }
 
 /// <summary>
+/// Resolves the highlight colors for a letter in the Music alphabet rail. Expects
+/// values = [the rail letter, the currently selected letter]. Returns the pill
+/// background by default, or the letter's text color when
+/// <c>ConverterParameter = "fg"</c>.
+/// </summary>
+public sealed class AlphabetLetterHighlightConverter : IMultiValueConverter
+{
+    /// <summary>Background of the currently selected rail letter.</summary>
+    public static readonly Color SelectedBackground = Color.FromArgb("#0EA5E9");
+
+    /// <summary>Text color of the selected rail letter (dark, for contrast on the accent pill).</summary>
+    public static readonly Color SelectedText = Color.FromArgb("#0F172A");
+
+    /// <summary>Text color of an unselected rail letter.</summary>
+    public static readonly Color UnselectedText = Color.FromArgb("#94A3B8");
+
+    /// <inheritdoc />
+    public object Convert(object[] values, Type targetType, object parameter, CultureInfo culture)
+    {
+        var letter = values.Length > 0 ? values[0] as string : null;
+        var selected = values.Length > 1 ? values[1] as string : null;
+        var isSelected = !string.IsNullOrEmpty(letter) && string.Equals(letter, selected, StringComparison.Ordinal);
+
+        if (parameter is string p && p.Equals("fg", StringComparison.OrdinalIgnoreCase))
+            return isSelected ? SelectedText : UnselectedText;
+
+        return isSelected ? SelectedBackground : Colors.Transparent;
+    }
+
+    /// <inheritdoc />
+    public object[] ConvertBack(object value, Type[] targetTypes, object parameter, CultureInfo culture) =>
+        throw new NotSupportedException();
+}
+
+/// <summary>
 /// Resolves the folder tag shown on a note card. Expects values = [note.FolderId, the caller's
 /// folders]; returns the folder name, the shared-folder fallback for a folder outside the caller's
 /// own list, or an empty string when the note is unfiled.

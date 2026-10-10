@@ -63,6 +63,8 @@ public sealed class MusicViewModelTests
         Assert.IsNull(_vm.CurrentTrack);
         Assert.IsFalse(_vm.IsPlaying);
         Assert.IsFalse(_vm.IsLoading);
+        Assert.IsNull(_vm.SelectedLetter);
+        Assert.IsFalse(_vm.IsLetterJumpLoading);
         Assert.AreEqual(0, _vm.Artists.Count);
         Assert.AreEqual(0, _vm.Albums.Count);
         Assert.AreEqual(0, _vm.Tracks.Count);
@@ -75,6 +77,97 @@ public sealed class MusicViewModelTests
         Assert.AreEqual("🔁", _vm.RepeatIcon);
         Assert.AreEqual("Off", _vm.RepeatLabel);
         Assert.IsFalse(_vm.IsRepeatActive);
+    }
+
+    // ── Alphabet rail (letter-tap feedback) ────────────────────────────
+
+    [TestMethod]
+    public async Task ScrollToCharacterCommand_ExactMatch_HighlightsLetterImmediately()
+    {
+        var artist = new ArtistDto { Id = Guid.NewGuid(), Name = "Zz Top", CreatedAt = DateTime.UtcNow };
+        _vm.Artists = new ObservableCollection<ArtistDto>([artist]);
+
+        object? scrolledTo = null;
+        _vm.ScrollToRequested += (item, _) => scrolledTo = item;
+
+        await _vm.ScrollToCharacterCommand.ExecuteAsync("Z");
+
+        Assert.AreEqual("Z", _vm.SelectedLetter);
+        Assert.IsFalse(_vm.IsLetterJumpLoading);
+        Assert.AreSame(artist, scrolledTo);
+        // The item was already loaded — no extra page should be fetched.
+        _music.Verify(x => x.ListArtistsAsync(
+            It.IsAny<string>(), It.IsAny<string>(), It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
+    [TestMethod]
+    public async Task ScrollToCharacterCommand_LetterNotLoaded_LoadsPagesShowsSpinnerAndScrolls()
+    {
+        _vm.Artists = new ObservableCollection<ArtistDto>(
+            Enumerable.Range(0, 5).Select(i => new ArtistDto
+            {
+                Id = Guid.NewGuid(),
+                Name = $"Artist {i}",
+                CreatedAt = DateTime.UtcNow
+            }));
+
+        var zebra = new ArtistDto { Id = Guid.NewGuid(), Name = "Zebra", CreatedAt = DateTime.UtcNow };
+        // The jump starts at the NEXT page (skip = PageSize), not the first.
+        _music.Setup(x => x.ListArtistsAsync(ServerUrl, "test-access-token", 50, 50, It.IsAny<CancellationToken>()))
+            .ReturnsAsync([zebra]);
+
+        var loadingStates = new List<bool>();
+        _vm.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(MusicViewModel.IsLetterJumpLoading))
+                loadingStates.Add(_vm.IsLetterJumpLoading);
+        };
+
+        object? scrolledTo = null;
+        _vm.ScrollToRequested += (item, _) => scrolledTo = item;
+
+        await _vm.ScrollToCharacterCommand.ExecuteAsync("Z");
+
+        Assert.AreEqual("Z", _vm.SelectedLetter);
+        Assert.IsFalse(_vm.IsLetterJumpLoading);
+        Assert.IsTrue(loadingStates.Contains(true), "the spinner should have been shown while loading");
+        Assert.AreSame(zebra, scrolledTo);
+    }
+
+    [TestMethod]
+    public async Task ScrollToCharacterCommand_ScopedView_HighlightsButDoesNotFetch()
+    {
+        var artist = new ArtistDto { Id = Guid.NewGuid(), Name = "Solo", CreatedAt = DateTime.UtcNow };
+        _music.Setup(x => x.ListArtistsAsync(ServerUrl, "test-access-token", 0, 50, It.IsAny<CancellationToken>()))
+            .ReturnsAsync([artist]);
+        await _vm.LoadArtistsCommand.ExecuteAsync(null);
+
+        var album = new MusicAlbumDto { Id = Guid.NewGuid(), Title = "Only Album", ArtistId = artist.Id, ArtistName = "Solo", CreatedAt = DateTime.UtcNow };
+        _music.Setup(x => x.ListAlbumsByArtistAsync(ServerUrl, "test-access-token", artist.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync([album]);
+        await _vm.SelectArtistCommand.ExecuteAsync(artist);
+
+        Assert.AreEqual(MusicView.Albums, _vm.CurrentView);
+
+        await _vm.ScrollToCharacterCommand.ExecuteAsync("Z");
+
+        Assert.AreEqual("Z", _vm.SelectedLetter);
+        Assert.IsFalse(_vm.IsLetterJumpLoading);
+        // Scoped view: every album is already in memory, so no paged fetch.
+        _music.Verify(x => x.ListAlbumsAsync(
+            It.IsAny<string>(), It.IsAny<string>(), It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
+    [TestMethod]
+    public void CurrentViewChanged_ClearsSelectedLetter()
+    {
+        _vm.SelectedLetter = "J";
+
+        _vm.CurrentView = MusicView.Albums;
+
+        Assert.IsNull(_vm.SelectedLetter);
     }
 
     // ── Repeat ─────────────────────────────────────────────────────────

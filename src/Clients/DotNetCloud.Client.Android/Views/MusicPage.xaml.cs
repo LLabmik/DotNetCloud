@@ -68,6 +68,7 @@ public partial class MusicPage : ContentPage
                 // Allow the CollectionView to complete its initial layout
                 // before scrolling.
                 await Task.Delay(300);
+                _vm.SelectedLetter = "A";
                 OnScrollToRequested(firstA, MusicView.Artists);
             }
         }
