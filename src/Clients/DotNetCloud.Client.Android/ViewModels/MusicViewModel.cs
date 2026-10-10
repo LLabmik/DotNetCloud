@@ -337,6 +337,26 @@ public sealed partial class MusicViewModel : ObservableObject
     [ObservableProperty]
     private ObservableCollection<string> _trackAlphabet = [];
 
+    /// <summary>
+    /// The rail letter the user last tapped (Artists/Albums/Tracks strips). Drives the pill
+    /// highlight in the index rail; cleared whenever the active view changes.
+    /// </summary>
+    [ObservableProperty]
+    private string? _selectedLetter;
+
+    /// <summary>
+    /// True while a rail-letter tap is fetching further server pages to reach that letter.
+    /// Drives the centred loading overlay on the Music page.
+    /// </summary>
+    [ObservableProperty]
+    private bool _isLetterJumpLoading;
+
+    partial void OnCurrentViewChanged(MusicView value)
+    {
+        // Each view has its own rail — drop the previous view's letter highlight.
+        SelectedLetter = null;
+    }
+
     // ── Back-navigation visibility ─────────────────────────────────
 
     /// <summary>True when albums view is scoped to a specific artist (show back-arrow to artists).</summary>
@@ -886,7 +906,7 @@ public sealed partial class MusicViewModel : ObservableObject
     [RelayCommand]
     private async Task LoadMoreArtistsAsync()
     {
-        if (IsSearchOpen || !_hasMoreArtists || IsLoading)
+        if (IsSearchOpen || !_hasMoreArtists || IsLoading || IsLetterJumpLoading)
             return;
 
         var (serverUrl, token) = await GetCredentialsAsync();
@@ -931,7 +951,7 @@ public sealed partial class MusicViewModel : ObservableObject
     [RelayCommand]
     private async Task LoadMoreAlbumsAsync()
     {
-        if (IsSearchOpen || !_hasMoreAlbums || IsLoading)
+        if (IsSearchOpen || !_hasMoreAlbums || IsLoading || IsLetterJumpLoading)
             return;
 
         // When viewing albums scoped to a specific artist, don't load all albums
@@ -993,7 +1013,7 @@ public sealed partial class MusicViewModel : ObservableObject
     /// </summary>
     private async Task FetchNextTracksPageAsync()
     {
-        if (IsSearchOpen || !_hasMoreTracks || IsLoading || _tracksPageFetchInProgress)
+        if (IsSearchOpen || !_hasMoreTracks || IsLoading || _tracksPageFetchInProgress || IsLetterJumpLoading)
             return;
 
         // When viewing tracks scoped to a specific album or playlist, there is no
@@ -1972,6 +1992,10 @@ public sealed partial class MusicViewModel : ObservableObject
 
         var c = char.ToUpperInvariant(character[0]);
 
+        // Highlight the tapped letter immediately (before any await) so the rail gives
+        // instant feedback even while further pages are still being fetched.
+        SelectedLetter = c.ToString();
+
         // Try exact match in already-loaded items first
         var target = FindExactMatch(c);
         if (target is not null)
@@ -1984,8 +2008,9 @@ public sealed partial class MusicViewModel : ObservableObject
         if (IsScopedView)
             return;
 
-        // Load more pages until we find an item starting with this character
-        IsLoading = true;
+        // Load more pages until we find an item starting with this character. This is the
+        // only path that touches the server, so it alone drives the loading overlay.
+        IsLetterJumpLoading = true;
         ErrorMessage = null;
         try
         {
@@ -1995,7 +2020,7 @@ public sealed partial class MusicViewModel : ObservableObject
         }
         finally
         {
-            Dispatch(() => IsLoading = false);
+            Dispatch(() => IsLetterJumpLoading = false);
         }
     }
 

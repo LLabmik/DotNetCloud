@@ -163,6 +163,7 @@
             <conv:IsViewSelectedConverter x:Key="IsViewSelectedConverter"/>
             <conv:TabSelectedConverter x:Key="TabSelectedConverter"/>
             <conv:TrackIsCurrentConverter x:Key="TrackIsCurrentConverter"/>
+            <conv:AlphabetLetterHighlightConverter x:Key="AlphabetLetterHighlight"/>
         </ResourceDictionary>
     </ContentPage.Resources>
 
@@ -426,7 +427,7 @@
             <!-- Artists view: alphabet strip + collection -->
             <Grid Grid.Row="2"
                   IsVisible="{Binding CurrentView, Converter={StaticResource IsViewSelectedConverter}, ConverterParameter=Artists}"
-                  ColumnDefinitions="28,*">
+                  ColumnDefinitions="32,*">
                 <!-- Alphabet strip -->
                 <CollectionView Grid.Column="0"
                                 ItemsSource="{Binding ArtistAlphabet}"
@@ -435,19 +436,41 @@
                                 VerticalOptions="Fill">
                     <CollectionView.ItemTemplate>
                         <DataTemplate x:DataType="x:String">
-                            <Label Text="{Binding .}"
-                                   FontSize="13"
-                                   TextColor="#94A3B8"
-                                   HorizontalOptions="Center"
-                                   VerticalOptions="Center"
-                                   Padding="2,6"
-                                   HeightRequest="32">
-                                <Label.GestureRecognizers>
+                            <Border StrokeThickness="0"
+                                    Margin="2,1"
+                                    HeightRequest="30"
+                                    WidthRequest="28"
+                                    Padding="0"
+                                    HorizontalOptions="Center"
+                                    VerticalOptions="Center"
+                                    StrokeShape="RoundRectangle 6">
+                                <Border.BackgroundColor>
+                                    <MultiBinding Converter="{StaticResource AlphabetLetterHighlight}">
+                                        <Binding Path="."/>
+                                        <Binding Path="BindingContext.SelectedLetter"
+                                                Source="{x:Reference MusicPageRoot}"/>
+                                    </MultiBinding>
+                                </Border.BackgroundColor>
+                                <Border.GestureRecognizers>
                                     <TapGestureRecognizer
                                         Command="{Binding Source={RelativeSource AncestorType={x:Type ContentPage}}, Path=BindingContext.ScrollToCharacterCommand}"
                                         CommandParameter="{Binding .}"/>
-                                </Label.GestureRecognizers>
-                            </Label>
+                                </Border.GestureRecognizers>
+                                <Label Text="{Binding .}"
+                                       FontFamily="monospace"
+                                       FontSize="13"
+                                       HorizontalOptions="Center"
+                                       VerticalOptions="Center">
+                                    <Label.TextColor>
+                                        <MultiBinding Converter="{StaticResource AlphabetLetterHighlight}"
+                                                ConverterParameter="fg">
+                                            <Binding Path="."/>
+                                            <Binding Path="BindingContext.SelectedLetter"
+                                                    Source="{x:Reference MusicPageRoot}"/>
+                                        </MultiBinding>
+                                    </Label.TextColor>
+                                </Label>
+                            </Border>
                         </DataTemplate>
                     </CollectionView.ItemTemplate>
                 </CollectionView>
@@ -496,7 +519,7 @@
             <!-- Albums view: alphabet strip + collection -->
             <Grid Grid.Row="2"
                   IsVisible="{Binding CurrentView, Converter={StaticResource IsViewSelectedConverter}, ConverterParameter=Albums}"
-                  ColumnDefinitions="28,*">
+                  ColumnDefinitions="32,*">
                 <!-- Alphabet strip -->
                 <CollectionView Grid.Column="0"
                                 ItemsSource="{Binding AlbumAlphabet}"
@@ -505,19 +528,41 @@
                                 VerticalOptions="Fill">
                     <CollectionView.ItemTemplate>
                         <DataTemplate x:DataType="x:String">
-                            <Label Text="{Binding .}"
-                                   FontSize="13"
-                                   TextColor="#94A3B8"
-                                   HorizontalOptions="Center"
-                                   VerticalOptions="Center"
-                                   Padding="2,6"
-                                   HeightRequest="32">
-                                <Label.GestureRecognizers>
+                            <Border StrokeThickness="0"
+                                    Margin="2,1"
+                                    HeightRequest="30"
+                                    WidthRequest="28"
+                                    Padding="0"
+                                    HorizontalOptions="Center"
+                                    VerticalOptions="Center"
+                                    StrokeShape="RoundRectangle 6">
+                                <Border.BackgroundColor>
+                                    <MultiBinding Converter="{StaticResource AlphabetLetterHighlight}">
+                                        <Binding Path="."/>
+                                        <Binding Path="BindingContext.SelectedLetter"
+                                                Source="{x:Reference MusicPageRoot}"/>
+                                    </MultiBinding>
+                                </Border.BackgroundColor>
+                                <Border.GestureRecognizers>
                                     <TapGestureRecognizer
                                         Command="{Binding Source={RelativeSource AncestorType={x:Type ContentPage}}, Path=BindingContext.ScrollToCharacterCommand}"
                                         CommandParameter="{Binding .}"/>
-                                </Label.GestureRecognizers>
-                            </Label>
+                                </Border.GestureRecognizers>
+                                <Label Text="{Binding .}"
+                                       FontFamily="monospace"
+                                       FontSize="13"
+                                       HorizontalOptions="Center"
+                                       VerticalOptions="Center">
+                                    <Label.TextColor>
+                                        <MultiBinding Converter="{StaticResource AlphabetLetterHighlight}"
+                                                ConverterParameter="fg">
+                                            <Binding Path="."/>
+                                            <Binding Path="BindingContext.SelectedLetter"
+                                                    Source="{x:Reference MusicPageRoot}"/>
+                                        </MultiBinding>
+                                    </Label.TextColor>
+                                </Label>
+                            </Border>
                         </DataTemplate>
                     </CollectionView.ItemTemplate>
                 </CollectionView>
@@ -567,7 +612,7 @@
             <!-- Tracks view: alphabet strip + collection -->
             <Grid Grid.Row="2"
                   IsVisible="{Binding CurrentView, Converter={StaticResource IsViewSelectedConverter}, ConverterParameter=Tracks}"
-                  ColumnDefinitions="28,*">
+                  ColumnDefinitions="32,*">
                 <!-- Alphabet strip -->
                 <CollectionView Grid.Column="0"
                                 ItemsSource="{Binding TrackAlphabet}"
@@ -576,19 +621,41 @@
                                 VerticalOptions="Fill">
                     <CollectionView.ItemTemplate>
                         <DataTemplate x:DataType="x:String">
-                            <Label Text="{Binding .}"
-                                   FontSize="13"
-                                   TextColor="#94A3B8"
-                                   HorizontalOptions="Center"
-                                   VerticalOptions="Center"
-                                   Padding="2,6"
-                                   HeightRequest="32">
-                                <Label.GestureRecognizers>
+                            <Border StrokeThickness="0"
+                                    Margin="2,1"
+                                    HeightRequest="30"
+                                    WidthRequest="28"
+                                    Padding="0"
+                                    HorizontalOptions="Center"
+                                    VerticalOptions="Center"
+                                    StrokeShape="RoundRectangle 6">
+                                <Border.BackgroundColor>
+                                    <MultiBinding Converter="{StaticResource AlphabetLetterHighlight}">
+                                        <Binding Path="."/>
+                                        <Binding Path="BindingContext.SelectedLetter"
+                                                Source="{x:Reference MusicPageRoot}"/>
+                                    </MultiBinding>
+                                </Border.BackgroundColor>
+                                <Border.GestureRecognizers>
                                     <TapGestureRecognizer
                                         Command="{Binding Source={RelativeSource AncestorType={x:Type ContentPage}}, Path=BindingContext.ScrollToCharacterCommand}"
                                         CommandParameter="{Binding .}"/>
-                                </Label.GestureRecognizers>
-                            </Label>
+                                </Border.GestureRecognizers>
+                                <Label Text="{Binding .}"
+                                       FontFamily="monospace"
+                                       FontSize="13"
+                                       HorizontalOptions="Center"
+                                       VerticalOptions="Center">
+                                    <Label.TextColor>
+                                        <MultiBinding Converter="{StaticResource AlphabetLetterHighlight}"
+                                                ConverterParameter="fg">
+                                            <Binding Path="."/>
+                                            <Binding Path="BindingContext.SelectedLetter"
+                                                    Source="{x:Reference MusicPageRoot}"/>
+                                        </MultiBinding>
+                                    </Label.TextColor>
+                                </Label>
+                            </Border>
                         </DataTemplate>
                     </CollectionView.ItemTemplate>
                 </CollectionView>
@@ -609,7 +676,8 @@
                                 <Grid.BackgroundColor>
                                     <MultiBinding Converter="{StaticResource TrackIsCurrentConverter}">
                                         <Binding Path="."/>
-                                        <Binding Path="BindingContext.CurrentTrack" Source="{x:Reference MusicPageRoot}"/>
+                                        <Binding Path="BindingContext.CurrentTrack"
+                                                Source="{x:Reference MusicPageRoot}"/>
                                     </MultiBinding>
                                 </Grid.BackgroundColor>
                                 <Label
@@ -912,6 +980,26 @@
 
                 </VerticalStackLayout>
             </ScrollView>
+
+            <!-- Letter-jump loading overlay: declared last so it paints above the lists.
+                 InputTransparent so the user can keep tapping rail letters while it shows. -->
+            <Grid Grid.Row="2"
+                  IsVisible="{Binding IsLetterJumpLoading}"
+                  InputTransparent="True">
+                <Border BackgroundColor="#CC1E293B"
+                        StrokeThickness="0"
+                        StrokeShape="RoundRectangle 12"
+                        Padding="18"
+                        HorizontalOptions="Center"
+                        VerticalOptions="Center">
+                    <ActivityIndicator IsRunning="{Binding IsLetterJumpLoading}"
+                                       Color="#0EA5E9"
+                                       WidthRequest="44"
+                                       HeightRequest="44"
+                                       HorizontalOptions="Center"
+                                       VerticalOptions="Center"/>
+                </Border>
+            </Grid>
         </Grid>
     </Grid>
 </ContentPage>
