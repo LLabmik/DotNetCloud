@@ -526,6 +526,15 @@ public class Program
             .AddInteractiveServerComponents(options =>
             {
                 options.DetailedErrors = true;
+
+                // The Files upload dialog drives an entire upload through a single JS interop
+                // call (dotnetcloudUpload.uploadFile only returns once the file has been hashed
+                // and every 4 MB chunk PUT has completed). The framework default abandons such a
+                // call after one minute, which stranded the dialog in its "uploading" state (the
+                // close button is disabled while uploading) for files larger than ~1 GB even
+                // though the upload itself completed in the background. Allow long calls; the
+                // per-file JS callbacks, not this await, settle the dialog's completion state.
+                options.JSInteropDefaultCallTimeout = TimeSpan.FromHours(1);
             })
             .AddInteractiveWebAssemblyComponents()
             .AddAuthenticationStateSerialization();

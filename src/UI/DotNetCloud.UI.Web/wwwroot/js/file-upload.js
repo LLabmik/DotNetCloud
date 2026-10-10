@@ -32,6 +32,16 @@ window.dotnetcloudUpload = (function () {
   let _maxUploadSizeBytes = null;
 
   /**
+   * Minimum gap between two percentage-only progress reports for one file.
+   *
+   * A multi-GB file is hundreds of 4 MB chunks, and every report costs a JS -> .NET interop
+   * message plus a Blazor render batch sent back to the browser. Reporting on every chunk
+   * floods the circuit with traffic (and, during hashing, with duplicate values). Status-text
+   * changes always go through, so the phases and the terminal 100% are never lost.
+   */
+  const PROGRESS_MIN_INTERVAL_MS = 200;
+
+  /**
    * Per-file upload state for pause/resume/cancel support.
    * @type {Map<number, { abortController: AbortController|null, paused: boolean, cancelled: boolean, sessionId: string|null, lastChunkIndex: number }>}
    */
@@ -114,6 +124,43 @@ window.dotnetcloudUpload = (function () {
   }
 
   /**
+   * Creates a throttled progress reporter for a single file.
+   *
+   * Reports are de-duplicated by whole percentage and rate limited to one message per
+   * <see>PROGRESS_MIN_INTERVAL_MS</see>; a status-text change ("Preparing...", "Paused",
+   * "Finalizing...", "Complete", ...) is always sent because it is meaningful and rare.
+   *
+   * @param {number} fileIndex
+   * @param {any} dotNetRef - DotNetObjectReference for progress callbacks
+   * @returns {(percent: number, statusText: string) => Promise<void>}
+   */
+  function createProgressReporter(fileIndex, dotNetRef) {
+    let lastPercent = -1;
+    let lastStatus = null;
+    let lastReportedAt = 0;
+
+    return async function report(percent, statusText) {
+      const pct = Math.max(0, Math.min(100, Math.round(percent)));
+      const statusChanged = statusText !== lastStatus;
+
+      if (!statusChanged) {
+        if (pct === lastPercent) return;
+        if (Date.now() - lastReportedAt < PROGRESS_MIN_INTERVAL_MS) return;
+      }
+
+      lastPercent = pct;
+      lastStatus = statusText;
+      lastReportedAt = Date.now();
+      await dotNetRef.invokeMethodAsync(
+        "OnJsUploadProgress",
+        fileIndex,
+        pct,
+        statusText,
+      );
+    };
+  }
+
+  /**
    * Upload a single file by its index in the pending list.
    * @param {number} fileIndex
    * @param {string} userId - GUID of the authenticated user
@@ -144,6 +191,8 @@ window.dotnetcloudUpload = (function () {
     state.cancelled = false;
     state.paused = false;
     _uploadState.set(fileIndex, state);
+
+    const report = createProgressReporter(fileIndex, dotNetRef);
 
     try {
       // 0. Client-side size validation
@@ -188,23 +237,13 @@ window.dotnetcloudUpload = (function () {
       }
 
       // 1. Chunk & hash the file on the client
-      await dotNetRef.invokeMethodAsync(
-        "OnJsUploadProgress",
-        fileIndex,
-        0,
-        "Preparing...",
-      );
-      const chunks = await chunkAndHash(file, fileIndex, dotNetRef);
+      await report(0, "Preparing...");
+      const chunks = await chunkAndHash(file, report);
 
       const chunkHashes = chunks.map((c) => c.hash);
 
       // 2. Initiate upload session (or resume existing one)
-      await dotNetRef.invokeMethodAsync(
-        "OnJsUploadProgress",
-        fileIndex,
-        5,
-        "Starting upload...",
-      );
+      await report(5, "Starting upload...");
       const apiBase = "/api/v1/files";
       const targetParentId = await resolveTargetParentId(
         pending.relativePath,
@@ -280,9 +319,7 @@ window.dotnetcloudUpload = (function () {
 
         // Check for pause
         if (state.paused) {
-          await dotNetRef.invokeMethodAsync(
-            "OnJsUploadProgress",
-            fileIndex,
+          await report(
             10 + Math.round((uploaded / Math.max(1, totalMissing)) * 80),
             "Paused",
           );
@@ -330,21 +367,11 @@ window.dotnetcloudUpload = (function () {
         // Progress: 10-90% for chunk uploads
         const pct =
           10 + Math.round((uploaded / Math.max(1, totalMissing)) * 80);
-        await dotNetRef.invokeMethodAsync(
-          "OnJsUploadProgress",
-          fileIndex,
-          pct,
-          "Uploading...",
-        );
+        await report(pct, "Uploading...");
       }
 
       // 4. Complete upload
-      await dotNetRef.invokeMethodAsync(
-        "OnJsUploadProgress",
-        fileIndex,
-        95,
-        "Finalizing...",
-      );
+      await report(95, "Finalizing...");
 
       const completeResp = await fetch(
         `${apiBase}/upload/${sessionId}/complete`,
@@ -360,12 +387,7 @@ window.dotnetcloudUpload = (function () {
         throw new Error(`Complete failed (${completeResp.status}): ${errText}`);
       }
 
-      await dotNetRef.invokeMethodAsync(
-        "OnJsUploadProgress",
-        fileIndex,
-        100,
-        "Complete",
-      );
+      await report(100, "Complete");
       await dotNetRef.invokeMethodAsync("OnJsUploadComplete", fileIndex);
       _uploadState.delete(fileIndex);
     } catch (err) {
@@ -373,12 +395,7 @@ window.dotnetcloudUpload = (function () {
         // Aborted by pause or cancel — don't report as error
         const st = _uploadState.get(fileIndex);
         if (st && st.paused) {
-          await dotNetRef.invokeMethodAsync(
-            "OnJsUploadProgress",
-            fileIndex,
-            _getLastProgress(fileIndex),
-            "Paused",
-          );
+          await report(_getLastProgress(fileIndex), "Paused");
         } else if (st && st.cancelled) {
           if (st.sessionId) await cancelUploadSession(st.sessionId);
           await dotNetRef.invokeMethodAsync(
@@ -463,9 +480,9 @@ window.dotnetcloudUpload = (function () {
 
   /**
    * Read a File in CHUNK_SIZE slices and SHA-256 hash each.
-   * Reports hashing progress (0-5%) via callback.
+   * Reports throttled hashing progress (0-5%) through the file's reporter.
    */
-  async function chunkAndHash(file, fileIndex, dotNetRef) {
+  async function chunkAndHash(file, report) {
     const totalChunks = Math.ceil(file.size / CHUNK_SIZE) || 1;
     const chunks = [];
 
@@ -485,12 +502,7 @@ window.dotnetcloudUpload = (function () {
 
       // Hashing progress: 0-5%
       const pct = Math.round(((i + 1) / totalChunks) * 5);
-      await dotNetRef.invokeMethodAsync(
-        "OnJsUploadProgress",
-        fileIndex,
-        pct,
-        "Hashing...",
-      );
+      await report(pct, "Hashing...");
     }
 
     return chunks;

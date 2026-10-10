@@ -8,6 +8,18 @@
 
 ---
 
+## Recent Fix — Files upload dialog wedged after a >1 GB upload (2026-10-10, `fix/large-file-uploads`)
+
+> Reported: "Large file uploads (> 1 GB) are still acting strange (may be an error in background) after upload (Page goes dead until I refresh the page)".
+
+- ✓ **Root cause** — the dialog's close button is `disabled="@IsUploading"`, and `_isUploading` was cleared **only** by `CheckOverallCompletion()` running once the awaited `dotnetcloudUpload.uploadFile(...)` JS interop call returned. That single call performs the _whole_ upload (SHA-256 hashing plus every 4 MB chunk `PUT`), so it is long: the reproduced 1.33 GB upload's call ran **23:37:34.6 → 23:39:04 (~90 s)**. Blazor Server abandons a JS interop call after `CircuitOptions.JSInteropDefaultCallTimeout` (framework default **1 minute**), so the circuit gave up at ~23:38:34 while JavaScript kept uploading; the server logged a clean `Upload session … completed` and `Converted version … to whole-file storage (332 chunk(s) released)` at 23:39:04. `CheckOverallCompletion()` then still saw the file as `Uploading`, returned early and left `_isUploading == true` forever — X disabled, modal overlay blocking the page ("dead until refresh"). The captured error was never shown because the alert renders only when `!IsUploading` — the "error in background".
+- ✓ **Fix (1)** — `Core.Server/Program.cs`: `AddInteractiveServerComponents(options => options.JSInteropDefaultCallTimeout = TimeSpan.FromHours(1))`. A multi-GB upload is legitimate long work, not a lost interop response.
+- ✓ **Fix (2)** — `FileUploadComponent`: the per-file JS callbacks (`OnJsUploadComplete` / `OnJsUploadError`) now settle the dialog — the callback, not the long await, is the authoritative signal — via a new pure, unit-testable `TryFinishUploading()` transition that fires `OnUploadComplete` exactly once. Callbacks arriving after the dialog is torn down are safe (`_disposed` + `SafeStateHasChanged()`), because JavaScript keeps uploading after the modal is removed.
+- ✓ **Progress chatter throttled** — while hashing, `chunkAndHash` reported progress **once per 4 MB chunk** (332 calls for the 1.33 GB file) even though hashing only ever produces **6 distinct percentages (0–5 %)**: each call is a JS→.NET interop message *plus* a Blazor render batch sent back to the browser, so ~326 of them were pure duplicates (the upload loop had the same shape). A new `createProgressReporter()` de-duplicates by whole percentage and rate limits percentage-only updates to one per 200 ms, while a status-text change (`Preparing…`, `Starting upload…`, `Paused`, `Finalizing…`, `Complete`) is always sent, so no phase and no terminal 100 % is lost. On the .NET side `ApplyProgress` now reports whether anything changed and `OnJsUploadProgress` renders only when it did. The `file-upload.js` cache-buster was bumped to `?v=20261010-01` — without that the browser keeps serving the cached script.
+- ✓ **Tests (total)** — 6 new `FileUploadComponentTests` for the completion state machine (all complete → clears; still uploading / paused / one-of-two pending → stays; failed → clears; already finished → no double completion) plus 3 for progress de-duplication (unchanged report → no render; new percent or status → render; invalid index → false). Files.Tests **947 pass / 0 fail**; Core.Server.Tests **799 pass / 2 skip**.
+- ✓ **Deployed (mint22)** — `sudo ./scripts/deploy.sh --force --verify`: **15/15 targets**, 202 s, all assembly hashes verified, migrations up to date, v0.6.13, `/health/ready` Healthy 14/14; `JSInteropDefaultCallTimeout` present in the deployed `DotNetCloud.Core.Server.dll`, `TryFinishUploading`/`SafeStateHasChanged` in the deployed `DotNetCloud.Modules.Files.dll`.
+- ✓ **Operator-confirmed live (2026-10-10)** — the same 1.33 GB `.mp4` re-uploaded through the web UI: the dialog settles on its own, no page refresh needed. The capture shows the second session (`01a1242d-…`) initiated → converted (332 chunks released) → completed, and the post-upload quota refresh arriving from the browser (it never arrived in the failing run). ✓ **Operator also confirmed the throttle (2026-10-10):** "much better!" — the per-chunk callback flood during hashing is gone.
+
 ## Recent Fix — Collabora showed the user GUID instead of a display name (2026-09-30, `fix/collabora-user-name`)
 
 > Reported: "Collabora shared editing is working, but it is showing a Guid for the people editing instead of their display name."
@@ -4955,7 +4967,7 @@ content-addressed chunks, so reads stream the blob directly with no temp-file re
   retention, sweep, integrity audit, storage-engine write/enumerate/length, model default
 - ✓ CLI 180 tests green — storage manifest, backup archive exclusions, `--config-dir` argument handling, sudo re-exec
   argument construction (config directory + muxer entry assembly)
-**Verification:**
+  **Verification:**
 
 - ✓ `dotnet build DotNetCloud.CI.slnf` zero errors with the NuGet audit enabled (`SixLabors.ImageSharp` bumped
   4.0.0 → 4.1.2 to clear the seven advisories published 2026-10-07)

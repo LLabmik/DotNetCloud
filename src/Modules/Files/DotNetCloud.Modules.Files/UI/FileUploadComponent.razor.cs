@@ -37,6 +37,7 @@ public partial class FileUploadComponent : ComponentBase, IDisposable
     private readonly List<UploadFileItem> _files = [];
     private bool _isDragging;
     private bool _isUploading;
+    private bool _disposed;
     private string? _errorMessage;
     private DotNetObjectReference<FileUploadComponent>? _jsRef;
 
@@ -159,7 +160,7 @@ public partial class FileUploadComponent : ComponentBase, IDisposable
 
         _errorMessage = null;
         _isUploading = true;
-        StateHasChanged();
+        SafeStateHasChanged();
 
         await UploadPendingFilesAsync();
     }
@@ -182,13 +183,17 @@ public partial class FileUploadComponent : ComponentBase, IDisposable
 
                 file.Status = UploadStatus.Uploading;
                 file.StatusText = "Starting...";
-                StateHasChanged();
+                SafeStateHasChanged();
 
+                // NB: this call only returns when the whole file has been hashed and uploaded —
+                // potentially many minutes for a multi-GB file — and the circuit may abandon it
+                // (JSInteropDefaultCallTimeout). Completion therefore must not depend on it:
+                // the JS callbacks below drive the dialog's final state.
                 await JS!.InvokeVoidAsync(
                     "dotnetcloudUpload.uploadFile",
                     i, userId, parentIdStr, _jsRef);
 
-                StateHasChanged();
+                SafeStateHasChanged();
             }
 
             CheckOverallCompletion();
@@ -203,55 +208,89 @@ public partial class FileUploadComponent : ComponentBase, IDisposable
     /// <summary>Evaluates whether all uploads are finished and updates state accordingly.</summary>
     private void CheckOverallCompletion()
     {
-        var hasPaused = _files.Any(f => f.Status == UploadStatus.Paused);
-        var hasActive = _files.Any(f => f.Status is UploadStatus.Uploading or UploadStatus.Pending);
-
-        if (hasPaused || hasActive)
-        {
-            // Keep the uploading UI visible while files are paused or active
+        if (!TryFinishUploading())
             return;
-        }
 
-        if (_files.All(f => f.Status == UploadStatus.Complete))
+        if (_files.Count > 0 && _files.All(f => f.Status == UploadStatus.Complete))
         {
-            _isUploading = false;
             _ = OnUploadComplete.InvokeAsync();
         }
         else if (_files.Any(f => f.Status == UploadStatus.Failed))
         {
             _errorMessage ??= "One or more files failed to upload.";
-            _isUploading = false;
-        }
-        else
-        {
-            _isUploading = false;
         }
 
-        StateHasChanged();
+        SafeStateHasChanged();
+    }
+
+    /// <summary>
+    /// Pure re-evaluation of the upload queue (no rendering and no callbacks, so it is
+    /// unit-testable). Returns <see langword="true"/> when the queue has just stopped
+    /// uploading; <see langword="false"/> while any file is pending, uploading or paused
+    /// (or when the queue had already finished).
+    /// </summary>
+    internal bool TryFinishUploading()
+    {
+        if (!_isUploading)
+            return false;
+
+        var stillActive = _files.Any(f => f.Status is UploadStatus.Pending
+            or UploadStatus.Uploading or UploadStatus.Paused);
+
+        if (stillActive)
+        {
+            // Keep the uploading UI visible while files are paused or active
+            return false;
+        }
+
+        _isUploading = false;
+        return true;
+    }
+
+    /// <summary>
+    /// Renders only while the component is alive. An upload keeps running in JavaScript even
+    /// after its dialog is torn down, so late callbacks must not touch a disposed renderer.
+    /// </summary>
+    private void SafeStateHasChanged()
+    {
+        if (!_disposed)
+            StateHasChanged();
     }
 
     /// <summary>JS callback: per-file progress update.</summary>
     [JSInvokable]
     public void OnJsUploadProgress(int fileIndex, int percent, string statusText)
     {
-        ApplyProgress(fileIndex, percent, statusText);
-        InvokeAsync(StateHasChanged);
+        if (_disposed)
+            return;
+
+        // A large file reports progress hundreds of times (throttled in JS); skip the render
+        // when a report repeats the values already displayed.
+        if (ApplyProgress(fileIndex, percent, statusText))
+            InvokeAsync(SafeStateHasChanged);
     }
 
     /// <summary>JS callback: file upload completed successfully.</summary>
     [JSInvokable]
     public void OnJsUploadComplete(int fileIndex)
     {
+        if (_disposed)
+            return;
+
         ApplyComplete(fileIndex);
+
+        // This callback — not the (potentially abandoned) uploadFile() interop call — is the
+        // authoritative completion signal, so the dialog always settles even for a multi-GB
+        // upload whose starting interop call the circuit gave up on.
         InvokeAsync(async () =>
         {
-            StateHasChanged();
+            CheckOverallCompletion();
             await Task.Delay(1500);
             if (fileIndex >= 0 && fileIndex < _files.Count
                 && _files[fileIndex].Status == UploadStatus.Complete)
             {
                 _files[fileIndex].DismissedFromView = true;
-                StateHasChanged();
+                SafeStateHasChanged();
             }
         });
     }
@@ -260,16 +299,25 @@ public partial class FileUploadComponent : ComponentBase, IDisposable
     [JSInvokable]
     public void OnJsUploadError(int fileIndex, string error)
     {
+        if (_disposed)
+            return;
+
         ApplyError(fileIndex, error);
-        InvokeAsync(StateHasChanged);
+        InvokeAsync(CheckOverallCompletion);
     }
 
-    internal void ApplyProgress(int fileIndex, int percent, string statusText)
+    internal bool ApplyProgress(int fileIndex, int percent, string statusText)
     {
         if (fileIndex < 0 || fileIndex >= _files.Count)
-            return;
-        _files[fileIndex].Progress = percent;
-        _files[fileIndex].StatusText = statusText;
+            return false;
+
+        var file = _files[fileIndex];
+        if (file.Progress == percent && file.StatusText == statusText)
+            return false;
+
+        file.Progress = percent;
+        file.StatusText = statusText;
+        return true;
     }
 
     internal void ApplyComplete(int fileIndex)
@@ -311,7 +359,7 @@ public partial class FileUploadComponent : ComponentBase, IDisposable
         await JS!.InvokeVoidAsync("dotnetcloudUpload.pauseUpload", fileIndex);
         file.Status = UploadStatus.Paused;
         file.StatusText = "Paused";
-        StateHasChanged();
+        SafeStateHasChanged();
     }
 
     /// <summary>Resumes a paused upload from where it left off.</summary>
@@ -325,7 +373,7 @@ public partial class FileUploadComponent : ComponentBase, IDisposable
 
         file.Status = UploadStatus.Uploading;
         file.StatusText = "Resuming...";
-        StateHasChanged();
+        SafeStateHasChanged();
 
         _jsRef ??= DotNetObjectReference.Create(this);
         var userId = await GetUserIdAsync();
@@ -399,6 +447,7 @@ public partial class FileUploadComponent : ComponentBase, IDisposable
     /// <summary>Disposes the JS interop reference.</summary>
     public void Dispose()
     {
+        _disposed = true;
         _jsRef?.Dispose();
         GC.SuppressFinalize(this);
     }
