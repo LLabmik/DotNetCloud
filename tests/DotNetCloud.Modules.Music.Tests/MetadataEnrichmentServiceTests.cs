@@ -712,13 +712,10 @@ public class MetadataEnrichmentServiceTests
             .ReturnsAsync(new List<MusicBrainzReleaseGroupResult>());
 
         var progressReports = new List<EnrichmentProgress>();
-        var progress = new Progress<EnrichmentProgress>(p => progressReports.Add(p));
+        var progress = new SynchronousProgress<EnrichmentProgress>(progressReports.Add);
 
         var service = CreateService();
         await service.EnrichAlbumsWithoutArtAsync(_caller.UserId, progress);
-
-        // Allow progress callbacks to fire (Progress<T> uses SynchronizationContext)
-        await Task.Delay(100);
 
         Assert.IsTrue(progressReports.Count >= 2, $"Expected at least 2 progress reports, got {progressReports.Count}");
         Assert.IsTrue(progressReports.Any(p => p.CurrentItem == "Album 1"));
@@ -826,7 +823,7 @@ public class MetadataEnrichmentServiceTests
             .ReturnsAsync(new List<MusicBrainzRecordingResult>());
 
         var phases = new List<string>();
-        var progress = new Progress<EnrichmentProgress>(p =>
+        var progress = new SynchronousProgress<EnrichmentProgress>(p =>
         {
             if (!phases.Contains(p.Phase))
                 phases.Add(p.Phase);
@@ -834,8 +831,6 @@ public class MetadataEnrichmentServiceTests
 
         var service = CreateService();
         await service.EnrichAllAsync(_caller.UserId, progress);
-
-        await Task.Delay(100);
 
         Assert.IsTrue(phases.Any(p => p.Contains("artist", StringComparison.OrdinalIgnoreCase)),
             $"Expected artist phase, got phases: {string.Join(", ", phases)}");
