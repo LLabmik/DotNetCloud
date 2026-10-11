@@ -70,22 +70,12 @@ public class WopiController : FilesControllerBase
     [HttpGet("files/{fileId:guid}")]
     public async Task<IActionResult> CheckFileInfoAsync(Guid fileId, [FromQuery] string access_token)
     {
-        Console.Error.WriteLine($"[WOPI] CheckFileInfo reached: fileId={fileId}, hasToken={!string.IsNullOrEmpty(access_token)}, tokenLen={access_token?.Length ?? 0}");
-        Console.Error.Flush();
         var tokenContext = _tokenService.ValidateToken(access_token ?? string.Empty, fileId);
-        Console.Error.WriteLine($"[WOPI] ValidateToken result: {(tokenContext is null ? "NULL" : $"UserId={tokenContext.UserId}")}");
-        Console.Error.Flush();
         if (tokenContext is null)
             return Unauthorized();
 
         if (!await ValidateProofAsync(access_token ?? string.Empty))
-        {
-            Console.Error.WriteLine("[WOPI] Proof validation FAILED");
-            Console.Error.Flush();
             return Unauthorized();
-        }
-        Console.Error.WriteLine("[WOPI] Proof validation passed");
-        Console.Error.Flush();
 
         // Enforce concurrent session limit
         if (!_sessionTracker.TryBeginSession(fileId, tokenContext.UserId))
@@ -96,8 +86,6 @@ public class WopiController : FilesControllerBase
 
         var caller = WopiCaller(tokenContext.UserId);
         var result = await _wopiService.CheckFileInfoAsync(fileId, caller);
-        Console.Error.WriteLine($"[WOPI] CheckFileInfo result: {(result is null ? "NULL" : "OK")}");
-        Console.Error.Flush();
 
         if (result is null)
         {

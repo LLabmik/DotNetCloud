@@ -28,6 +28,7 @@ public partial class AppShell : Shell
         Routing.RegisterRoute("EventEdit", typeof(EventEditPage));
         Routing.RegisterRoute("ImageViewer", typeof(ImageViewerPage));
         Routing.RegisterRoute("ChatImageViewer", typeof(Views.ChatImageViewerPage));
+        Routing.RegisterRoute("DocumentEditor", typeof(DocumentEditorPage));
         Routing.RegisterRoute("NoteEdit", typeof(NoteEditPage));
         Routing.RegisterRoute("DmUserPicker", typeof(DmUserPickerPage));
 

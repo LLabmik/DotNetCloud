@@ -157,6 +157,25 @@ internal sealed class WopiService : IWopiService
         var manifestHash = ContentHasher.ComputeManifestHash(chunkHashes);
         long totalSize = chunks.Sum(c => (long)c.Data.Length);
 
+        // Byte-identical saves must not grow the version history. Collabora autosaves every
+        // AutoSaveIntervalSeconds and flushes again on close, so without this guard a single editing
+        // session adds several identical FileVersion rows. Refresh UpdatedAt so the returned
+        // LastModifiedTime still advances (hosts treat a stale value as a failed save and retry), but
+        // leave the version counter, size and content hash untouched, and skip the chunk storage and
+        // change events — nothing about the content changed.
+        if (!string.IsNullOrEmpty(node.ContentHash)
+            && string.Equals(node.ContentHash, manifestHash, StringComparison.Ordinal))
+        {
+            node.UpdatedAt = DateTime.UtcNow;
+            await _db.SaveChangesAsync(cancellationToken);
+
+            _logger.LogInformation(
+                "WOPI PutFile: {FileId} ({FileName}) content unchanged (v{Version}, {Size} bytes, hash {Hash}); skipped new version.",
+                fileId, node.Name, node.CurrentVersion, node.Size, manifestHash);
+
+            return node.UpdatedAt.ToString("O");
+        }
+
         // Store new chunks (deduplication: skip existing) and track by hash for mapping
         var chunksByHash = new Dictionary<string, FileChunk>(chunkHashes.Count);
         foreach (var (hash, data) in chunks)

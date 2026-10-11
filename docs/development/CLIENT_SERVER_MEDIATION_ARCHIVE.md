@@ -1,3 +1,156 @@
+## Archived: Client agent (`monolith`) — Android on-device re-verification of WOPI items 4 & 5 (2026-10-11)
+
+**Status:** completed ✅ — both client-side confirmations (items 4 and 5) verified on device; nothing outstanding client-side.
+**Branch:** `feature/android-sync` (@ `b9bb94b8`) · **From:** `monolith` (Windows 11, Android MAUI client only) · **Device:** `R5CWC356B2K` / SM-S928U · **Target:** `https://cloud.dotnetcloud.net` (v0.6.13)
+**Source plan:** `docs/ANDROID_COLLABORA_EDIT_PLAN.md` §11.2
+
+### Why
+
+The server agent's fix pass for the five WOPI findings left exactly two client-side confirmations: (4) the `_DotNetCloud → Shared With Me` folder should now list direct user shares, and (5) a byte-identical save should no longer grow the version counter.
+
+### What was done
+
+- Rebuilt the Android client from the branch (`dotnet publish -f net10.0-android -c Debug -p:RuntimeIdentifier=android-arm64`) and re-installed it with `adb install -r` **before** verifying, because the APK on the device (2026-10-10 23:39) predated the Android commit (2026-10-11 00:17). `deploy-android.ps1` reported 0 warnings / 0 errors.
+- **Item 4 (✅):** Files tab → `_DotNetCloud` → `Shared With Me` listed **`ShareTest.docx`** (5.5 KB) and **`Test.docx`** (previously the folder was empty). Tapping `ShareTest.docx` opened the in-app Collabora editor with Collabora's own **Read-only** badge; the WebView URL's token decodes to `{"UserId":"587d777a-…","FileId":"01a0d909-…","CanWrite":false,"ExpiresAt":"2026-10-11T14:23:43Z"}` and header-less `CheckFileInfo` returns `"UserCanWrite":false`, `"SupportsUpdate":false`, `Size 5617`, `Version 6_639259448720853437`.
+- **Item 5 (✅):** `Test.docx` (`Documents`, `b55ba0f8-37c3-4ba3-bfc5-466880e08840`) baseline `22_639272959505314067` / `Size 5546`. (a) Open + close **with no edits** → identical value (no `PutFile` at all). (b) A **byte-identical `PutFile`** posted with the app session's own token → HTTP `200`, returned `lastModifiedTime 2026-10-11T06:37:06.2413743Z`, and the counter stayed `23` while the ticks advanced (`23_639272971449389805` → `23_639272974262413743`) with `Size 5570` and manifest hash `ce1452ab…` unchanged — only `UpdatedAt` refreshed. (c) A **real** edit typed in the editor ("Android-edit-2026-10-11- test") → `22` → `23`, `Size 5546` → `5570`, new manifest hash, and the reopened document displayed the added line. (d) A further no-edit open/close cycle changed nothing.
+- Kept the WOPI version observation client-side by reading `CheckFileInfo.Version` with the token the app's own editor session minted (WebView DevTools socket via `adb forward tcp:9222 localabstract:webview_devtools_remote_<pid>` → `GET http://localhost:9222/json/list`).
+- Test hygiene: screenshots taken into `/sdcard` were picked up by the app's media auto-upload and pushed to `AutoUpload/2026/10`; switched screenshots to `/data/local/tmp`, deleted the uploaded copy (`AutoUpload/2026/10` back to 75 items) and the `/sdcard` leftovers.
+
+### Observations (not defects, no code change)
+
+- `CheckFileInfo.SHA256` is the chunk **manifest** hash (`ContentHasher.ComputeManifestHash`), not a raw file digest — it must not be compared against the SHA-256 of downloaded bytes; compare `Version` / `Size`.
+- Entering the read-only `Shared With Me` folder **through the tree** does not set the app's read-only location flag, so New Document / New folder / Upload remain visible there (the pinned entry hides them); the server still refuses the writes. Recorded as an observation only.
+
+### Verification
+
+| Check | Evidence |
+| --- | --- |
+| Build/install | `deploy-android.ps1 -DeviceSerial R5CWC356B2K -Configuration Debug` → 0 warnings / 0 errors, APK installed over the existing debug build with app data preserved, app launched |
+| Item 4 | `_DotNetCloud → Shared With Me` listed `ShareTest.docx` + `Test.docx`; editor opened with the **Read-only** badge; token `CanWrite:false`; `CheckFileInfo.UserCanWrite:false` |
+| Item 5 | identical `PutFile` → `200`, counter `23` → `23`, ticks advanced, size/hash unchanged; real edit → `22` → `23`, `Size 5546` → `5570`; no-edit open/close → no change |
+| Session release | `DELETE /api/v1/wopi/token/{fileId}` → `204` on every editor close |
+| Side-effect cleanup | cloud `AutoUpload/2026/10` 76 → 75 items; `/sdcard` + `/data/local/tmp` screenshot leftovers removed; `adb forward` removed |
+
+---
+
+## Archived: Server agent (`cloud.kimball.home`) — WOPI findings from the Android Collabora verification (2026-10-11)
+
+**Status:** completed ✅ + deployed + live-verified on `cloud.kimball.home` (deploy **15/15**, `/health/ready` Healthy **14/14**, version **0.6.13**; Files tests **967 pass / 0 fail**; `DotNetCloud.CI.slnf` Release build 0 warnings).
+**Branch:** `feature/android-sync` · **From:** `cloud.kimball.home` (server agent) · **Target:** `cloud.dotnetcloud.net`
+**Raised by:** the client agent (`monolith`) while verifying the Android Collabora editor plan on device (`R5CWC356B2K`) — `docs/ANDROID_COLLABORA_EDIT_PLAN.md` §11.2 / §5.5.1.
+
+### Why
+
+The five findings surfaced as the Android Collabora editor plan was verified against production. Three were
+diagnostic questions (a flapping `404`, a 1-byte `Size` vs `contents` delta, the concurrency-cap semantics),
+one was a real server gap (the `_DotNetCloud → Shared With Me` folder not listing direct user shares), and one
+was a policy question (version churn on identical saves).
+
+### What changed (implementation)
+
+- **Item 1 — diagnostic.** Root cause confirmed from the module-host log + YARP proxy log: every `404` was
+  `GET /api/v1/wopi/files/=<token>` — the access token placed in the `{fileId}` path segment. The route is
+  constrained to `{fileId:guid}`, so no endpoint matched and ASP.NET returned an empty-body `404` with no
+  application code running (hence no `WopiController` log line). **Not a server fault.** Also removed leftover
+  `Console.Error.WriteLine` debug spam from `WopiController` and `WopiTokenService` (it logged at `ERR`/`STDERR`).
+- **Item 2 — diagnostic.** `CheckFileInfo.Size` is `FileNode.Size`; `GetFile` streams the latest `FileVersion`.
+  Both are written in the same `SaveChanges`, so they agree at any point in time. The observed `5545` vs `5546`
+  spanned a concurrent close-flush save (`v20` 5545 → `v21` 5546). No code change.
+- **Item 3 — decision + test.** The cap stays **global** and keyed on `(fileId, userId)` (a Collabora resource
+  guard, matching `docs/admin/COLLABORA.md`), not per-document. Documented in `WOPI.md` / `COLLABORA.md`; new
+  controller test `CheckFileInfo_AtConcurrencyCapacity_Returns503`.
+- **Item 4 — fix.** `FileService` now builds the Shared-With-Me folder from a new
+  `ListSharedWithMeFileNodesAsync` (team/group mounted access ∪ direct `ShareType.User` shares, de-duplicated by
+  node id). Used by the folder, the Files module folder, and the child count, so the tree matches the sidebar.
+- **Item 5 — fix (operator-chosen).** `WopiService.PutFileAsync` short-circuits when the computed manifest hash
+  equals `node.ContentHash`: no `FileVersion`, counter/size/hash untouched, no change events, chunk storage
+  skipped, and only `UpdatedAt` refreshed (so the returned `LastModifiedTime` still advances).
+
+### Contract
+
+- `GET /api/v1/wopi/files/{fileId}`: malformed path segment (not a GUID) → `404` empty; missing/invalid token →
+  `401`; valid token + resolved node/permission → `200`; proof mismatch → `401`; cap reached → `503`.
+- `PutFile` with unchanged content → `200` with a fresh `LastModifiedTime`, **no** new version.
+- `MaxConcurrentSessions` counts every active `(file,user)` session instance-wide.
+
+### Verification
+
+| Check | Evidence |
+| --- | --- |
+| Deploy | `deploy.sh --force --verify` → **15/15 targets**, all assemblies hash-verified, elapsed 421 s, v0.6.13 |
+| `/health/ready` | **Healthy** — 14/14 modules + database |
+| Deployed symbols | `ListSharedWithMeFileNodesAsync` / `ListDirectUserShareNodesAsync` present in the deployed `DotNetCloud.Modules.Files.Data.dll`; no `[WOPI]` debug literals in the deployed `dotnetcloud.files.dll`; zero new `[WOPI]` STDERR lines |
+| Item 1 live | valid token → **200**; bogus token on a valid route → **401**; malformed `files/=<token>` → **404** |
+| Item 2 live | `CheckFileInfo.Size` **5546** == contents **5546** bytes |
+| Item 4 data | `ShareTest.docx` owned by another user, direct `ShareType.User` share to the caller, not deleted |
+| Item 5 live | re-POSTing the file's own bytes → **200**, log `content unchanged (v22, 5546 bytes, hash b6e784d2…); skipped new version.`, DB still **8 versions (max 22)** |
+| Tests / build | Files.Tests **967 pass / 0 fail**; `DotNetCloud.CI.slnf` Release build **0 warnings** |
+
+### Deliberate non-changes
+
+- No Android client change (the client half is the `monolith` agent's; items 1–3 need none).
+- No version-number bump.
+- The global session cap was **kept** rather than re-keyed per file; the live 20-session load test was not run
+  (it would hold real slots for 8 h 30 m on production).
+
+### Pending (`monolith`) — NOT yet done
+
+- On-device verification of **item 4** (`_DotNetCloud → Shared With Me` lists `ShareTest.docx`, opens view-only)
+  and **item 5** (an unchanged save does not advance the version counter). Tracked as the 🔄 Active Handoff —
+  Client in `CLIENT_SERVER_MEDIATION_HANDOFF.md`.
+
+---
+
+## Archived: Client agent (`monolith`) — Android: Collabora Online document editing in the Files tab, verified on-device (2026-10-11)
+
+**Status:** completed ✅ on the client side — implemented, unit-tested and verified on the phone against production Collabora. **Awaiting the operator's commit approval** (nothing pushed yet). The five server-side findings from the same verification are an **active handoff** for `cloud.kimball.home` (see `CLIENT_SERVER_MEDIATION_HANDOFF.md` → *Active Handoff — Server: five WOPI findings…*), so this branch's own work is complete while those items stay open on the server side.
+**Branch:** `feature/android-sync` · **Phone:** `R5CWC356B2K` (SM-S928U) · **Target:** `cloud.dotnetcloud.net` (Collabora 26.04.5.1)
+**Plan:** `docs/ANDROID_COLLABORA_EDIT_PLAN.md` (decisions, design, §11.2 results) · **Tracking:** `docs/IMPLEMENTATION_CHECKLIST.md`, `docs/MASTER_PROJECT_PLAN.md`
+
+### Why
+
+The operator asked for office documents to be editable from the Android app's Files tab. Collabora/WOPI already powered the Blazor web UI, but the app had no way to reach it: the Blazor shell needs the Identity **cookie**, which the app never has (it authenticates by OIDC PKCE in the system browser and keeps bearer tokens in the Keystore). The WOPI token endpoint already accepts the bearer and returns a **self-authenticating** `editorUrl`, so loading that URL top-level in a WebView needs no cookie and no second login. Saves go straight to the server through Collabora's `PutFile` — no local copy, nothing mirrored to the device (Android has no server→device sync at all).
+
+### What landed (`DotNetCloud.Client.Android`)
+
+- `Files/IWopiRestClient.cs` + `Files/HttpWopiRestClient.cs` — discovery, token mint, session `DELETE`, envelope-**and**-raw tolerant, on the shared `AuthenticatedHttpClientHandler`; discovery failures degrade to `WopiDiscovery.Unavailable` instead of throwing.
+- `Files/WopiDtos.cs` — `WopiDiscovery` / `WopiEditorSession` (`AccessTokenTtl` is Unix **milliseconds**).
+- `Services/CollaboraEditability.cs` — pure, Android-free: `IsEditable` (discovery extension **and** not a native-editor type), `CreatableExtensions` (preferred `docx|xlsx|pptx|odt|ods|odp` order), `MimeTypeFor`.
+- `ViewModels/DocumentEditorViewModel.cs` + `Views/DocumentEditorPage.xaml(.cs)` — token mint, "Opening…" overlay, error overlay with Retry / Open-in-browser, idempotent session end on disappear.
+- `Platforms/Android/EditorWebViewClient.cs` — surfaces main-frame `onReceivedHttpError` (MAUI's client only reports transport failures), installed **immediately before** the editor URL is assigned.
+- `ViewModels/FileBrowserViewModel.cs` + `Views/FileBrowserPage.xaml` — tap-to-edit branch, **New Document** button (discovery-gated), pinned **Shared With Me** entry with a "view only" chip, and a shares tree that hides create/upload and disables swipe-to-delete.
+- `Files/IFileRestClient.cs` + `HttpFileRestClient.cs` — `CreateDocumentAsync` (zero-byte via the chunked-upload pipeline) and `GetSharedWithMeAsync` (raw array response).
+
+### Result
+
+| Check | Evidence |
+| --- | --- |
+| Office document opens in-app | `Test.docx` rendered in the embedded WebView with its saved content; `POST /api/v1/wopi/token/{id}` → editor URL → `/browser/22ce52fb51/cool.html` — no cookie, no second login |
+| **Edit starts behind the pencil** | mobile Collabora opens in a read-only-ish state; tapping the pencil FAB enters edit mode (caret, keyboard, formatting bars). *This is why injected keystrokes appear to be ignored.* |
+| Save creates a real `FileVersion` | `CheckFileInfo.Version` = `{CurrentVersion}_{UpdatedAt.Ticks}`: `18_639272886867172411` / `Size 5529` / `SHA256 dd0d41be…` → after typing "Saved via Android app" and saving → `20_…` / `Size 5545` / `SHA256 54569eca…`; reopened and the text was there |
+| Each save adds a version | a byte-identical `PutFile` advanced the counter with an unchanged content hash; the editor's close-flush adds one more (hence 18 → 20 for one edit + close) |
+| Read-only share opens view-only | `ShareTest.docx` (via the new Shared With Me entry) showed Collabora's own **Read-only** badge and its minted token decoded to `{"…","CanWrite":false,…}` |
+| Session released on close | `DELETE /api/v1/wopi/token/{id}` on close (and on page disappear) |
+| New Document + collision | action sheet listed the preferred work formats first then the remaining Collabora types; two default-named creates produced `Untitled.docx` then **`Untitled (1).docx`**, each `upload/initiate` → `upload/{id}/complete` → `wopi/token/{id}`; both test files deleted afterwards |
+| HTTP error no longer dead-ends | driving the WebView to a URL returning **404** produced the app's **own** overlay ("The document could not be found on the server." + Retry / Open-in-browser) instead of Chromium's raw error page; **Retry** re-minted and reloaded |
+| Non-office files unchanged | a `.epub` still uses download-and-open |
+| Build / tests | arm64 Debug **0 warnings / 0 errors**; `DotNetCloud.Client.Android.Tests` **551 pass / 0 fail / 1 skip**; new: `CollaboraEditabilityTests` (13), `HttpWopiRestClientTests` (10), `HttpFileRestClientSharedWithMeTests` (6), `DocumentEditorViewModelTests` (8) |
+
+### Gotchas worth keeping (all cost real time here)
+
+1. **MAUI replaces the WebView client after `HandlerChanged`** — `MapWebViewClient` runs with the handler's mappers and wiped a client installed in `HandlerChanged`. Install it immediately **before** assigning `Source`.
+2. **Chromium reports the error *document's* load as success** — an HTTP error needs `onReceivedHttpError` **and** a "failure is sticky" guard, or the trailing `Navigated(Success)` clears the error instantly.
+3. **`SwipeView.IsEnabled = false` disables the whole row** (Android's disabled alpha greys the text *and* swallows the tap) — guard the `SwipeItem` instead.
+4. **Shell cannot convert `Guid` query values** — pass `NodeId`/`Name` as strings (existing app convention).
+5. **The server's `_DotNetCloud → Shared With Me` folder does not list direct user shares** (team/group mounted access only; the Files module host doesn't register `ISharedWithMeModuleRegistry`) — **in both clients**. The app works around it with a pinned entry that lists `GET /api/v1/files/shared-with-me`; the folder path itself is a server item.
+6. **Diagnosing a WebView on-device**: `adb forward tcp:9222 localabstract:webview_devtools_remote_<pid>` then `curl http://localhost:9222/json/list`; `Page.navigate` (CDP) is a safe way to force an HTTP-error load, and the WOPI token in the page URL is a base64 JSON payload (`CanWrite` is readable straight out of it).
+
+### Not exercised (and why)
+
+- **The 20-session concurrency cap end-to-end**: it is a **global** server-side guard (`MaxConcurrentSessions=20` across all `(file,user)` sessions) and one phone holds at most one slot per file, so reaching it needs a server-side load test — handed off. The cap logic itself is covered by `WopiSessionTrackerTests` (10/10 green) and the client's release path is verified live.
+- **Server DB-side confirmation of the new `FileVersion`** (version-history row): read from the client through `CheckFileInfo.Version` instead; the operator can cross-check the history in the web UI.
+- **A pre-existing document modified destructively**: only scratch test documents were touched (`Test.docx` gained one line, its history advanced 18 → 22; two `Untitled*.docx` created and deleted in `Temp`).
+
 ## Archived: Client agent (`monolith`) — Android chat composer enforces the admin-configured message length (2026-09-28)
 
 **Status:** completed ✅ — the client half of the chat-admin-settings handoff is implemented and verified on-device; the server half (the `GET /api/v1/chat/limits` endpoint) was already written, unit-tested and deployed to **mint22 dev**.

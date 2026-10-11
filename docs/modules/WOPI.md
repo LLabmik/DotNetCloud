@@ -65,6 +65,26 @@ Returns file metadata that Collabora needs:
 
 Also begins a session slot for concurrent session tracking.
 
+#### CheckFileInfo request contract
+
+`{fileId}` in the route is constrained to a **GUID**. A request whose path segment is not a GUID
+(for example the access token accidentally placed in the path) does **not** match the route and returns an
+empty-body `404` from the ASP.NET pipeline — no WOPI code runs, so no `WopiController` log line appears.
+Distinguish the outcomes:
+
+| Situation | Status |
+| --- | --- |
+| Path segment is not a GUID (route not matched) | `404`, empty body, no application code |
+| Missing/invalid/expired `access_token` | `401` |
+| Token valid but the node or the caller's permission cannot be resolved | `404` |
+| `X-WOPI-Proof` present and the signature does not verify | `401` |
+| Concurrent-session cap reached | `503` (slot not consumed) |
+| OK | `200` |
+
+Proof-key validation is **skipped** when a request carries no `X-WOPI-Proof`/`X-WOPI-TimeStamp` headers
+(the documented "allows non-Collabora clients" path), so a plain `curl` with a valid `access_token`
+against a correctly-formed URL returns `200`.
+
 ### GetFile
 
 ```
@@ -73,13 +93,25 @@ GET /api/v1/wopi/files/{fileId}/contents?access_token={token}
 
 Returns the file content as a byte stream. Reads from the storage engine via the download service.
 
+> **`Size` vs. streamed bytes.** `CheckFileInfo.Size` is `FileNode.Size`; `GetFile` streams the **latest
+> `FileVersion`**. Both are written in the same commit, so they always agree *at a given point in time*.
+> They can legitimately differ when Collabora saves (`PutFile`) **between** the two calls: the metadata
+> was read against the previous version while the content stream already reflects the new one (a one-byte
+> difference such as `5545` vs `5546` is exactly this race, not an off-by-one). Hosts should compare
+> `Version`/`LastModifiedTime` rather than assume `Size` is stable across calls.
+
 ### PutFile
 
 ```
 POST /api/v1/wopi/files/{fileId}/contents?access_token={token}
 ```
 
-Saves the edited document content. Creates a new file version using the chunked upload pipeline to maintain deduplication and version history.
+Saves the edited document content using the chunked upload pipeline (deduplication + version history).
+
+A new `FileVersion` is created **only when the content actually changed**: a byte-identical save (e.g. a
+Collabora autosave or close-flush with no edits) skips the version, leaves the version counter, size and
+content hash untouched, publishes no change events, and only refreshes `LastModifiedTime`. See
+`docs/modules/VERSIONING.md` → *Saves that skip versioning*.
 
 ---
 
@@ -150,10 +182,19 @@ When `EnableProofKeyValidation` is `true` (default in production), incoming WOPI
 
 The `IWopiSessionTracker` limits how many documents can be edited simultaneously:
 
-- Default limit: 20 concurrent sessions (configurable via `MaxConcurrentSessions`)
-- Sessions are tracked per file + user pair
-- When the limit is reached, new CheckFileInfo requests return `503 Service Unavailable`
-- Sessions are released when editing ends (via `DELETE /api/v1/wopi/token/{fileId}`)
+- Default limit: 20 concurrent sessions (configurable via `MaxConcurrentSessions`, `0` = unlimited)
+- **The cap is server-wide and keyed on the `(fileId, userId)` pair** — it is a Collabora *resource
+  guard*, not a per-document lock. One user holds at most one slot per file, but a second user opening
+  the same file consumes a second slot, so a busy instance can refuse the 21st *distinct* session even
+  when every document has a single editor.
+- When the limit is reached, `CheckFileInfo` returns `503 Service Unavailable` (the slot is **not**
+  consumed).
+- Sessions expire after `TokenLifetimeMinutes + 30` of inactivity (8 h 30 m by default); a module-host
+  restart clears the in-memory dictionary.
+- Sessions are released when editing ends (via `DELETE /api/v1/wopi/token/{fileId}`).
+
+> **Load-testing the cap:** because the key includes the file, reaching the cap requires ~
+> `MaxConcurrentSessions` distinct `(file, user)` sessions — a single editor holds at most one slot per file.
 
 ---
 

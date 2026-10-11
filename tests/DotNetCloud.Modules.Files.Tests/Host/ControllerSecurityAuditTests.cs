@@ -2,6 +2,7 @@ using System.Security.Claims;
 using DotNetCloud.Core.Capabilities;
 using DotNetCloud.Modules.Files.Data;
 using DotNetCloud.Modules.Files.Data.Services;
+using DotNetCloud.Modules.Files.DTOs;
 using DotNetCloud.Modules.Files.Host.Controllers;
 using Microsoft.EntityFrameworkCore;
 using DotNetCloud.Modules.Files.Options;
@@ -59,6 +60,76 @@ public class ControllerSecurityAuditTests
 
         Assert.ThrowsExactly<DotNetCloud.Core.Errors.ForbiddenException>(
             () => controller.EndSessionAsync(Guid.CreateVersion7()));
+    }
+
+    #endregion
+
+    #region WopiController: concurrent-session cap returns 503
+
+    [TestMethod]
+    public async Task CheckFileInfo_AtConcurrencyCapacity_Returns503()
+    {
+        // WopiSessionTracker.TryBeginSession returns false when the (file,user) cap is reached;
+        // CheckFileInfo must translate that into 503 (the Collabora "server busy" signal).
+        var fileId = Guid.CreateVersion7();
+        var userId = Guid.CreateVersion7();
+
+        var tokenMock = ValidToken(fileId, userId);
+        var trackerMock = new Mock<IWopiSessionTracker>();
+        trackerMock.Setup(t => t.TryBeginSession(fileId, userId)).Returns(false);
+
+        var controller = CreateWopiController(sessionTrackerMock: trackerMock, tokenServiceMock: tokenMock);
+        SetAnonymousRequestContext(controller);
+
+        var result = await controller.CheckFileInfoAsync(fileId, "token");
+
+        var statusResult = result as StatusCodeResult;
+        Assert.IsNotNull(statusResult);
+        Assert.AreEqual(503, statusResult!.StatusCode);
+    }
+
+    [TestMethod]
+    public async Task CheckFileInfo_WithinCapacity_StartsSessionAndReturnsOk()
+    {
+        var fileId = Guid.CreateVersion7();
+        var userId = Guid.CreateVersion7();
+
+        var tokenMock = ValidToken(fileId, userId);
+        var trackerMock = new Mock<IWopiSessionTracker>();
+        trackerMock.Setup(t => t.TryBeginSession(fileId, userId)).Returns(true);
+
+        var wopiMock = new Mock<IWopiService>();
+        wopiMock.Setup(s => s.CheckFileInfoAsync(fileId, It.IsAny<DotNetCloud.Core.Authorization.CallerContext>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new WopiCheckFileInfoResponse
+            {
+                BaseFileName = "Test.docx",
+                OwnerId = Guid.CreateVersion7().ToString(),
+                Size = 10,
+                Version = "1_1",
+                LastModifiedTime = DateTime.UtcNow.ToString("O"),
+            });
+
+        var controller = CreateWopiController(sessionTrackerMock: trackerMock, wopiServiceMock: wopiMock, tokenServiceMock: tokenMock);
+        SetAnonymousRequestContext(controller);
+
+        var result = await controller.CheckFileInfoAsync(fileId, "token");
+
+        Assert.IsInstanceOfType<OkObjectResult>(result);
+        trackerMock.Verify(t => t.TryBeginSession(fileId, userId), Times.Once);
+    }
+
+    private static Mock<IWopiTokenService> ValidToken(Guid fileId, Guid userId)
+    {
+        var tokenMock = new Mock<IWopiTokenService>();
+        tokenMock.Setup(t => t.ValidateToken(It.IsAny<string>(), fileId))
+            .Returns(new WopiTokenContext
+            {
+                UserId = userId,
+                FileId = fileId,
+                CanWrite = true,
+                ExpiresAt = DateTime.UtcNow.AddHours(1),
+            });
+        return tokenMock;
     }
 
     #endregion
@@ -321,11 +392,13 @@ public class ControllerSecurityAuditTests
     #region Helpers
 
     private static WopiController CreateWopiController(
-        Mock<IWopiSessionTracker>? sessionTrackerMock = null)
+        Mock<IWopiSessionTracker>? sessionTrackerMock = null,
+        Mock<IWopiService>? wopiServiceMock = null,
+        Mock<IWopiTokenService>? tokenServiceMock = null)
     {
         return new WopiController(
-            Mock.Of<IWopiService>(),
-            Mock.Of<IWopiTokenService>(),
+            wopiServiceMock?.Object ?? Mock.Of<IWopiService>(),
+            tokenServiceMock?.Object ?? Mock.Of<IWopiTokenService>(),
             Mock.Of<ICollaboraDiscoveryService>(),
             Mock.Of<IWopiProofKeyValidator>(),
             sessionTrackerMock?.Object ?? Mock.Of<IWopiSessionTracker>(),
@@ -395,6 +468,21 @@ public class ControllerSecurityAuditTests
     }
 
     private static void SetUnauthenticatedUser(ControllerBase controller)
+    {
+        var services = new ServiceCollection();
+        services.AddSingleton<ILoggerFactory>(NullLoggerFactory.Instance);
+
+        controller.ControllerContext = new ControllerContext
+        {
+            HttpContext = new DefaultHttpContext
+            {
+                RequestServices = services.BuildServiceProvider()
+            }
+        };
+    }
+
+    /// <summary>Sets a minimal anonymous HTTP context — WOPI endpoints authenticate via the access_token query parameter.</summary>
+    private static void SetAnonymousRequestContext(ControllerBase controller)
     {
         var services = new ServiceCollection();
         services.AddSingleton<ILoggerFactory>(NullLoggerFactory.Instance);

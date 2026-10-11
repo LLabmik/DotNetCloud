@@ -14,18 +14,38 @@ namespace DotNetCloud.Client.Android.ViewModels;
 public sealed partial class FileBrowserViewModel : ObservableObject
 {
     private readonly IFileRestClient _fileApi;
+    private readonly IWopiRestClient _wopiApi;
     private readonly IServerConnectionStore _serverStore;
     private readonly ISecureTokenStore _tokenStore;
     private readonly IThumbnailCache _thumbnailCache;
     private readonly IMediaAutoUploadService _autoUploadService;
     private readonly ILogger<FileBrowserViewModel> _logger;
 
-    private readonly Stack<(Guid? FolderId, string Name)> _navigationStack = new();
+    private readonly Stack<NavEntry> _navigationStack = new();
     private CancellationTokenSource? _thumbnailLoadCts;
+
+    /// <summary>
+    /// Synthetic node id for the "Shared With Me" row pinned at the top of the user's own root. It is
+    /// never sent to the server — the row switches the browser into the share listing.
+    /// </summary>
+    private static readonly Guid SharedWithMeEntryId = new("f1e3a9c4-6d2b-4c8e-9a71-0b5d8c3f2e60");
+
+    /// <summary>Ids of shared nodes the server granted read-only access to (display only).</summary>
+    private HashSet<Guid> _readOnlySharedNodes = [];
+
+    /// <summary>Extensions Collabora reports as supported; empty until discovery succeeds.</summary>
+    private IReadOnlyList<string> _supportedExtensions = [];
+
+    /// <summary>Extensions offered by the "New Document" action; empty disables the button.</summary>
+    private IReadOnlyList<string> _creatableExtensions = [];
+
+    /// <summary>True once discovery has been attempted, so it runs at most once per view model.</summary>
+    private bool _collaboraCapabilitiesLoaded;
 
     /// <summary>Initializes a new <see cref="FileBrowserViewModel"/>.</summary>
     public FileBrowserViewModel(
         IFileRestClient fileApi,
+        IWopiRestClient wopiApi,
         IServerConnectionStore serverStore,
         ISecureTokenStore tokenStore,
         IThumbnailCache thumbnailCache,
@@ -33,13 +53,14 @@ public sealed partial class FileBrowserViewModel : ObservableObject
         ILogger<FileBrowserViewModel> logger)
     {
         _fileApi = fileApi;
+        _wopiApi = wopiApi;
         _serverStore = serverStore;
         _tokenStore = tokenStore;
         _thumbnailCache = thumbnailCache;
         _autoUploadService = autoUploadService;
         _logger = logger;
 
-        _navigationStack.Push((null, "My Files"));
+        _navigationStack.Push(new NavEntry(null, "My Files", SharedWithMe: false));
     }
 
     /// <summary>All visible file/folder items, bound to the UI.</summary>
@@ -99,6 +120,31 @@ public sealed partial class FileBrowserViewModel : ObservableObject
     [ObservableProperty]
     private string? _uploadFileName;
 
+    // ── Document editing (Collabora) ────────────────────────────────
+
+    /// <summary>
+    /// Whether the "New Document" action is offered. True only when server discovery reports Collabora
+    /// as available with at least one editable document format.
+    /// </summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowNewDocument))]
+    private bool _canCreateDocument;
+
+    /// <summary>
+    /// True while browsing the shares tree, where the caller cannot create, upload or delete — the
+    /// nodes belong to the sharer.
+    /// </summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsWritableLocation))]
+    [NotifyPropertyChangedFor(nameof(ShowNewDocument))]
+    private bool _isReadOnlyLocation;
+
+    /// <summary>True when the current location accepts new folders, uploads and documents.</summary>
+    public bool IsWritableLocation => !IsReadOnlyLocation;
+
+    /// <summary>Whether the "New Document" toolbar button should be shown.</summary>
+    public bool ShowNewDocument => CanCreateDocument && IsWritableLocation;
+
     // ── Auto-upload status ──────────────────────────────────────────
 
     /// <summary>Status text for the auto-upload banner (e.g. "Watching for new photos", "Uploading 3 of 12").</summary>
@@ -129,8 +175,17 @@ public sealed partial class FileBrowserViewModel : ObservableObject
 
     // ── Navigation ───────────────────────────────────────────────────
 
-    /// <summary>Current folder ID (null = root).</summary>
-    private Guid? CurrentFolderId => _navigationStack.Count > 0 ? _navigationStack.Peek().FolderId : null;
+    /// <summary>
+    /// One level of browser navigation. <paramref name="SharedWithMe"/> distinguishes the shares tree
+    /// from the caller's own tree, which matters because both roots have a null folder id.
+    /// </summary>
+    private sealed record NavEntry(Guid? FolderId, string Name, bool SharedWithMe);
+
+    /// <summary>Current navigation level.</summary>
+    private NavEntry CurrentEntry => _navigationStack.Peek();
+
+    /// <summary>Current folder ID (null = root of the current tree).</summary>
+    private Guid? CurrentFolderId => CurrentEntry.FolderId;
 
     /// <summary>Breadcrumb trail from root to current folder.</summary>
     public ObservableCollection<BreadcrumbItem> Breadcrumbs { get; } = [new(null, "My Files")];
@@ -158,35 +213,73 @@ public sealed partial class FileBrowserViewModel : ObservableObject
                         await Task.Delay(800, ct);
 
                     var (serverUrl, token) = await GetCredentialsAsync(ct);
-                    var items = await FetchWithRetryAsync(
-                        () => _fileApi.ListChildrenAsync(serverUrl, token, CurrentFolderId, ct), ct);
+                    var entry = CurrentEntry;
 
-                    // Sort: folders first, then by name
-                    var sorted = items
-                        .OrderByDescending(i => string.Equals(i.NodeType, "Folder", StringComparison.OrdinalIgnoreCase))
-                        .ThenBy(i => i.Name, StringComparer.OrdinalIgnoreCase)
-                        .ToList();
+                    List<FileItem> sorted;
+                    if (entry.SharedWithMe)
+                    {
+                        // Shares are a flat list (the server's shared-with-me folder only carries
+                        // team/group mounted access), so there is no child count or parent here.
+                        var shares = await FetchWithRetryAsync(
+                            () => _fileApi.GetSharedWithMeAsync(serverUrl, token, ct), ct);
+
+                        _readOnlySharedNodes = shares
+                            .Where(s => s.IsReadOnly)
+                            .Select(s => s.NodeId)
+                            .ToHashSet();
+
+                        sorted = shares
+                            .Select(s => new FileItem(
+                                s.NodeId,
+                                s.Name,
+                                s.NodeType,
+                                s.Size,
+                                s.MimeType,
+                                ParentId: null,
+                                UpdatedAt: s.SharedAt,
+                                ChildCount: IsFolder(s.NodeType) ? -1 : 0))
+                            .OrderByDescending(i => IsFolder(i.NodeType))
+                            .ThenBy(i => i.Name, StringComparer.OrdinalIgnoreCase)
+                            .ToList();
+                    }
+                    else
+                    {
+                        var items = await FetchWithRetryAsync(
+                            () => _fileApi.ListChildrenAsync(serverUrl, token, entry.FolderId, ct), ct);
+
+                        // Sort: folders first, then by name
+                        sorted = items
+                            .OrderByDescending(i => IsFolder(i.NodeType))
+                            .ThenBy(i => i.Name, StringComparer.OrdinalIgnoreCase)
+                            .ToList();
+                    }
 
                     Items.Clear();
 
-                    // Pin the AutoUpload folder at the top when browsing root.
-                    if (CurrentFolderId is null)
+                    // Pin the AutoUpload folder and the Shared With Me entry at the top of the user's root.
+                    if (!entry.SharedWithMe && entry.FolderId is null)
                     {
                         var uploadFolderName = Preferences.Default.Get(
                             SettingsViewModel.PrefUploadFolderName,
                             SettingsViewModel.DefaultUploadFolderName);
                         var pinned = sorted.FirstOrDefault(f =>
                             string.Equals(f.Name, uploadFolderName, StringComparison.OrdinalIgnoreCase) &&
-                            string.Equals(f.NodeType, "Folder", StringComparison.OrdinalIgnoreCase));
+                            IsFolder(f.NodeType));
                         if (pinned is not null)
                         {
                             Items.Add(new FileItemViewModel(pinned) { IsPinned = true });
                             sorted.Remove(pinned);
                         }
+
+                        Items.Add(CreateSharedWithMeEntry());
                     }
 
                     foreach (var item in sorted)
-                        Items.Add(new FileItemViewModel(item));
+                        Items.Add(new FileItemViewModel(item)
+                        {
+                            IsShared = entry.SharedWithMe,
+                            IsReadOnly = _readOnlySharedNodes.Contains(item.Id)
+                        });
 
                     HasCompletedInitialLoad = true;
 
@@ -195,6 +288,9 @@ public sealed partial class FileBrowserViewModel : ObservableObject
 
                     // Load quota in background
                     _ = LoadQuotaAsync(serverUrl, token, ct);
+
+                    // Load Collabora capabilities in background (cached; drives tap-to-edit + New Document)
+                    _ = EnsureCollaboraCapabilitiesAsync(serverUrl, token, ct);
                     return;
                 }
                 catch (Exception ex) when ((ex is TaskCanceledException or OperationCanceledException) && Items.Count > 0)
@@ -229,16 +325,23 @@ public sealed partial class FileBrowserViewModel : ObservableObject
         }
     }
 
-    /// <summary>Navigates into a folder or opens a file for download.</summary>
+    /// <summary>
+    /// Navigates into a folder, opens an image in the viewer, opens a Collabora-supported document in
+    /// the embedded editor, or downloads anything else.
+    /// </summary>
     [RelayCommand]
     private async Task SelectItemAsync(FileItemViewModel item, CancellationToken ct)
     {
-        if (string.Equals(item.NodeType, "Folder", StringComparison.OrdinalIgnoreCase))
+        if (item.IsSharedWithMeEntry)
         {
-            _navigationStack.Push((item.Id, item.Name));
-            CurrentFolderName = item.Name;
-            CanGoBack = _navigationStack.Count > 1;
-            UpdateBreadcrumbs();
+            _navigationStack.Push(new NavEntry(null, "Shared With Me", SharedWithMe: true));
+            ApplyCurrentEntry();
+            await LoadFilesAsync(ct);
+        }
+        else if (IsFolder(item.NodeType))
+        {
+            _navigationStack.Push(new NavEntry(item.Id, item.Name, CurrentEntry.SharedWithMe));
+            ApplyCurrentEntry();
             await LoadFilesAsync(ct);
         }
         else if (item.IsImage)
@@ -251,9 +354,158 @@ public sealed partial class FileBrowserViewModel : ObservableObject
                 ["FolderId"] = CurrentFolderId?.ToString() ?? ""
             });
         }
+        else if (await CanEditInCollaboraAsync(item, ct))
+        {
+            await OpenDocumentEditorAsync(item);
+        }
         else
         {
             await DownloadAndOpenFileAsync(item, ct);
+        }
+    }
+
+    private static bool IsFolder(string nodeType) =>
+        string.Equals(nodeType, "Folder", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>Builds the pinned row that switches the browser into the share listing.</summary>
+    private FileItemViewModel CreateSharedWithMeEntry() => new(new FileItem(
+        SharedWithMeEntryId, "Shared With Me", "Folder", 0, null, null, DateTime.UtcNow, 0))
+    {
+        IsSharedWithMeEntry = true
+    };
+
+    /// <summary>
+    /// Whether the item should open in the embedded Collabora editor rather than being downloaded and
+    /// handed to another app. Discovery is fetched at most once; a failed or empty result leaves the
+    /// files tab behaving exactly as it did before.
+    /// </summary>
+    private async Task<bool> CanEditInCollaboraAsync(FileItemViewModel item, CancellationToken ct)
+    {
+        try
+        {
+            var (serverUrl, token) = await GetCredentialsAsync(ct);
+            await EnsureCollaboraCapabilitiesAsync(serverUrl, token, ct);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "Collabora capability check failed; using download-and-open.");
+            return false;
+        }
+
+        return CollaboraEditability.IsEditable(item.Name, _supportedExtensions);
+    }
+
+    /// <summary>Pushes the document editor page for a file.</summary>
+    private static Task OpenDocumentEditorAsync(FileItemViewModel item) =>
+        Shell.Current.GoToAsync("DocumentEditor", new Dictionary<string, object>
+        {
+            ["NodeId"] = item.Id.ToString(),
+            ["Name"] = item.Name
+        });
+
+    /// <summary>
+    /// Loads Collabora capability information once per view model and caches it. A cancelled load
+    /// leaves the cache unset so the next attempt can retry.
+    /// </summary>
+    private async Task EnsureCollaboraCapabilitiesAsync(string serverUrl, string token, CancellationToken ct)
+    {
+        if (_collaboraCapabilitiesLoaded)
+            return;
+
+        try
+        {
+            var discovery = await _wopiApi.GetDiscoveryAsync(serverUrl, token, ct);
+            _supportedExtensions = discovery.SupportedExtensions;
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            return;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "Collabora discovery failed; document editing stays disabled.");
+            _supportedExtensions = [];
+        }
+
+        _collaboraCapabilitiesLoaded = true;
+        _creatableExtensions = CollaboraEditability.CreatableExtensions(_supportedExtensions);
+
+        await MainThread.InvokeOnMainThreadAsync(() => CanCreateDocument = _creatableExtensions.Count > 0);
+    }
+
+    /// <summary>
+    /// Creates a blank document in the current folder and opens it in Collabora. The name is made
+    /// unique against the current listing first, mirroring the Blazor web UI's "New Document" flow.
+    /// </summary>
+    [RelayCommand]
+    private async Task NewDocumentAsync(CancellationToken ct)
+    {
+        if (_creatableExtensions.Count == 0)
+            return;
+
+        var extension = await PickDocumentExtensionAsync();
+        if (extension is null)
+            return;
+
+        var name = await Shell.Current.DisplayPromptAsync(
+            "New Document", "Enter a name:", accept: "Create", cancel: "Cancel", initialValue: "Untitled");
+
+        if (name is null)
+            return;
+
+        var trimmed = name.Trim();
+        var fileName = EnsureUniqueName(
+            BuildDocumentFileName(trimmed.Length == 0 ? "Untitled" : trimmed, extension));
+
+        try
+        {
+            var (serverUrl, token) = await GetCredentialsAsync(ct);
+            var created = await _fileApi.CreateDocumentAsync(
+                serverUrl, token, fileName, CurrentFolderId,
+                CollaboraEditability.MimeTypeFor(extension), ct);
+
+            await OpenDocumentEditorAsync(new FileItemViewModel(created));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to create document {FileName}.", fileName);
+            await Shell.Current.DisplayAlertAsync("Error", ApiExceptionHelper.GetUserFriendlyMessage(ex), "OK");
+        }
+    }
+
+    /// <summary>Asks which of the Collabora-creatable formats to create, or returns the only one.</summary>
+    private async Task<string?> PickDocumentExtensionAsync()
+    {
+        if (_creatableExtensions.Count == 1)
+            return _creatableExtensions[0];
+
+        var labels = _creatableExtensions.Select(ext => $".{ext}").ToArray();
+        var choice = await Shell.Current.DisplayActionSheetAsync("New Document", "Cancel", null, labels);
+
+        return string.IsNullOrEmpty(choice) || choice == "Cancel" ? null : choice.TrimStart('.');
+    }
+
+    private static string BuildDocumentFileName(string name, string extension)
+    {
+        var suffix = $".{extension}";
+        return name.EndsWith(suffix, StringComparison.OrdinalIgnoreCase) ? name : name + suffix;
+    }
+
+    /// <summary>Appends " (n)" before the extension until the name is unused in the current folder.</summary>
+    private string EnsureUniqueName(string fileName)
+    {
+        var existing = Items.Select(i => i.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        if (!existing.Contains(fileName))
+            return fileName;
+
+        var extension = System.IO.Path.GetExtension(fileName);
+        var baseName = System.IO.Path.GetFileNameWithoutExtension(fileName);
+
+        for (var suffix = 1; ; suffix++)
+        {
+            var candidate = $"{baseName} ({suffix}){extension}";
+            if (!existing.Contains(candidate))
+                return candidate;
         }
     }
 
@@ -265,10 +517,7 @@ public sealed partial class FileBrowserViewModel : ObservableObject
             return;
 
         _navigationStack.Pop();
-        var current = _navigationStack.Peek();
-        CurrentFolderName = current.Name;
-        CanGoBack = _navigationStack.Count > 1;
-        UpdateBreadcrumbs();
+        ApplyCurrentEntry();
         await LoadFilesAsync(ct);
     }
 
@@ -276,18 +525,26 @@ public sealed partial class FileBrowserViewModel : ObservableObject
     [RelayCommand]
     private async Task NavigateToBreadcrumbAsync(BreadcrumbItem crumb, CancellationToken ct)
     {
-        // Pop the stack until we reach the target breadcrumb
-        while (_navigationStack.Count > 0 && _navigationStack.Peek().FolderId != crumb.FolderId)
+        // Match by position, not by folder id: the user's root and the shares root both have a null
+        // folder id, so an id match would stop at the wrong level.
+        var targetIndex = Breadcrumbs.IndexOf(crumb);
+        if (targetIndex < 0)
+            return;
+
+        while (_navigationStack.Count > targetIndex + 1)
             _navigationStack.Pop();
 
-        if (_navigationStack.Count == 0)
-            _navigationStack.Push((null, "My Files"));
-
-        var current = _navigationStack.Peek();
-        CurrentFolderName = current.Name;
-        CanGoBack = _navigationStack.Count > 1;
-        UpdateBreadcrumbs();
+        ApplyCurrentEntry();
         await LoadFilesAsync(ct);
+    }
+
+    /// <summary>Mirrors the top of the navigation stack into the bound header/breadcrumb state.</summary>
+    private void ApplyCurrentEntry()
+    {
+        CurrentFolderName = CurrentEntry.Name;
+        CanGoBack = _navigationStack.Count > 1;
+        IsReadOnlyLocation = CurrentEntry.SharedWithMe;
+        UpdateBreadcrumbs();
     }
 
     /// <summary>Rebuilds the breadcrumb collection from the current navigation stack.</summary>
@@ -368,6 +625,9 @@ public sealed partial class FileBrowserViewModel : ObservableObject
     [RelayCommand]
     private async Task DeleteItemAsync(FileItemViewModel item, CancellationToken ct)
     {
+        if (!item.CanDelete)
+            return;
+
         var confirm = await Shell.Current.DisplayAlertAsync(
             "Delete", $"Move \"{item.Name}\" to trash?", "Delete", "Cancel");
 
@@ -659,6 +919,21 @@ public sealed partial class FileItemViewModel : ObservableObject
     /// <summary>Whether this item is pinned at the top (e.g. the AutoUpload folder).</summary>
     public bool IsPinned { get; set; }
 
+    /// <summary>Whether this row is the synthetic "Shared With Me" entry.</summary>
+    public bool IsSharedWithMeEntry { get; init; }
+
+    /// <summary>Whether this row belongs to the shares tree (not the caller's own files).</summary>
+    public bool IsShared { get; init; }
+
+    /// <summary>Whether the server granted read-only access to this shared item (display only).</summary>
+    public bool IsReadOnly { get; init; }
+
+    /// <summary>
+    /// Whether the row offers the swipe-to-delete action. Shared rows do not: the node belongs to the
+    /// sharer, so deleting it is not the recipient's action to take.
+    /// </summary>
+    public bool CanDelete => !IsSharedWithMeEntry && !IsShared;
+
     /// <summary>Node ID.</summary>
     public Guid Id { get; }
 
@@ -683,16 +958,25 @@ public sealed partial class FileItemViewModel : ObservableObject
     /// <summary>Whether this item is a folder.</summary>
     public bool IsFolder { get; }
 
-    /// <summary>Icon glyph for display.</summary>
-    public string Icon => IsFolder ? "📁" : GetFileIcon(Name, MimeType);
+    /// <summary>
+    /// Icon glyph for display. The "Shared With Me" entry is a virtual folder, so it gets its own
+    /// glyph rather than the ordinary folder icon.
+    /// </summary>
+    public string Icon => IsSharedWithMeEntry
+        ? "👥"
+        : IsFolder ? "📁" : GetFileIcon(Name, MimeType);
 
     /// <summary>Formatted file size string.</summary>
-    public string SizeDisplay => IsFolder
-        ? (ChildCount == 1 ? "1 item" : $"{ChildCount} items")
-        : FormatSize(Size);
+    public string SizeDisplay => IsSharedWithMeEntry
+        ? "Shared with you"
+        : IsFolder
+            ? (ChildCount < 0 ? "Folder" : ChildCount == 1 ? "1 item" : $"{ChildCount} items")
+            : FormatSize(Size);
 
     /// <summary>Formatted date string.</summary>
-    public string DateDisplay => UpdatedAt.ToLocalTime().ToString("MMM d, yyyy");
+    public string DateDisplay => IsSharedWithMeEntry
+        ? string.Empty
+        : UpdatedAt.ToLocalTime().ToString("MMM d, yyyy");
 
     private static string GetFileIcon(string name, string? mimeType)
     {

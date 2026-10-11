@@ -107,6 +107,15 @@
     <Compile Include="..\..\src\Clients\DotNetCloud.Client.Android\ViewModels\NoteFolderOption.cs" Link="AndroidApp\ViewModels\NoteFolderOption.cs" />
     <Compile Include="..\..\src\Clients\DotNetCloud.Client.Android\Converters\FolderChipBackgroundConverter.cs" Link="AndroidApp\Converters\FolderChipBackgroundConverter.cs" />
 
+    <!-- Files / Collabora Online document editing (pure decision logic + WOPI client, Android-free) -->
+    <Compile Include="..\..\src\Clients\DotNetCloud.Client.Android\Files\IFileRestClient.cs" Link="AndroidApp\Files\IFileRestClient.cs" />
+    <Compile Include="..\..\src\Clients\DotNetCloud.Client.Android\Files\HttpFileRestClient.cs" Link="AndroidApp\Files\HttpFileRestClient.cs" />
+    <Compile Include="..\..\src\Clients\DotNetCloud.Client.Android\Files\IWopiRestClient.cs" Link="AndroidApp\Files\IWopiRestClient.cs" />
+    <Compile Include="..\..\src\Clients\DotNetCloud.Client.Android\Files\WopiDtos.cs" Link="AndroidApp\Files\WopiDtos.cs" />
+    <Compile Include="..\..\src\Clients\DotNetCloud.Client.Android\Files\HttpWopiRestClient.cs" Link="AndroidApp\Files\HttpWopiRestClient.cs" />
+    <Compile Include="..\..\src\Clients\DotNetCloud.Client.Android\Services\CollaboraEditability.cs" Link="AndroidApp\Services\CollaboraEditability.cs" />
+    <Compile Include="..\..\src\Clients\DotNetCloud.Client.Android\ViewModels\DocumentEditorViewModel.cs" Link="AndroidApp\ViewModels\DocumentEditorViewModel.cs" />
+
     <!-- Messages -->
     <Compile Include="..\..\src\Clients\DotNetCloud.Client.Android\Messages\NoteSavedMessage.cs" Link="AndroidApp\Messages\NoteSavedMessage.cs" />
 

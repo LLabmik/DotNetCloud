@@ -18,6 +18,17 @@ public interface IFileRestClient
         string serverBaseUrl, string accessToken,
         Guid nodeId, CancellationToken ct = default);
 
+    /// <summary>
+    /// Lists the files and folders shared with the current user.
+    /// </summary>
+    /// <remarks>
+    /// This is the flat share list the web UI's "Shared With Me" section uses. It is deliberately
+    /// separate from the folder tree: the server's `_DotNetCloud → Shared With Me` virtual folder
+    /// only surfaces team/group mounted access, so a direct user share is reachable only here.
+    /// </remarks>
+    Task<IReadOnlyList<SharedItem>> GetSharedWithMeAsync(
+        string serverBaseUrl, string accessToken, CancellationToken ct = default);
+
     // ── Folder Operations ────────────────────────────────────────────
 
     /// <summary>Creates a new folder.</summary>
@@ -45,6 +56,17 @@ public interface IFileRestClient
         string fileName, Guid? parentId,
         Stream fileData, long fileSize, string? mimeType,
         IProgress<FileTransferProgress>? progress = null,
+        CancellationToken ct = default);
+
+    // ── Create Document ──────────────────────────────────────────────
+
+    /// <summary>
+    /// Creates a new empty (zero-byte) file using the chunked upload pipeline. Used by the
+    /// "New Document" flow: Collabora populates the content on the first save.
+    /// </summary>
+    Task<FileItem> CreateDocumentAsync(
+        string serverBaseUrl, string accessToken,
+        string fileName, Guid? parentId, string? mimeType,
         CancellationToken ct = default);
 
     // ── Download ─────────────────────────────────────────────────────
@@ -90,6 +112,30 @@ public sealed record FileItem(
     Guid? ParentId,
     DateTime UpdatedAt,
     int ChildCount);
+
+/// <summary>A file or folder another user has shared with the current user.</summary>
+/// <param name="NodeId">Identifier of the shared node, used to open or download it.</param>
+/// <param name="Name">Display name of the shared node.</param>
+/// <param name="NodeType"><c>"File"</c> or <c>"Folder"</c>.</param>
+/// <param name="Size">Size in bytes (0 for folders).</param>
+/// <param name="MimeType">MIME type (null for folders).</param>
+/// <param name="Permission">Permission the server granted, e.g. <c>"Read"</c> or <c>"ReadWrite"</c>.</param>
+/// <param name="SharedAt">When the share was created (UTC).</param>
+public sealed record SharedItem(
+    Guid NodeId,
+    string Name,
+    string NodeType,
+    long Size,
+    string? MimeType,
+    string Permission,
+    DateTime SharedAt)
+{
+    /// <summary>
+    /// True when the server granted read-only access. Display only — the server applies the real
+    /// permission when it mints the WOPI token.
+    /// </summary>
+    public bool IsReadOnly => string.Equals(Permission, "Read", StringComparison.OrdinalIgnoreCase);
+}
 
 /// <summary>Transfer progress for an upload or download operation.</summary>
 /// <param name="BytesTransferred">Bytes transferred so far.</param>
