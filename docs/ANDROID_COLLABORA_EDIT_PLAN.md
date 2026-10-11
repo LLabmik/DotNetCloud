@@ -498,6 +498,24 @@ server-side load test. **Note:** after ~05:00Z the *header-less* WOPI probe (pla
 **404** consistently while the app's own sessions kept working, so those readings — taken before that
 change — are the ones recorded above. **Still to do (server-side):** the concurrency-cap load test.
 
+**Done (2026-10-11, `monolith` — final re-verification after the server fixed the five WOPI findings).**
+Both remaining client confirmations are green on `R5CWC356B2K`:
+
+- **Step 5 via the folder tree** — `_DotNetCloud → Shared With Me` now lists the direct user shares
+  (`ShareTest.docx` 5.5 KB and `Test.docx`; the folder previously came out empty), and tapping
+  `ShareTest.docx` there opens the in-app editor with Collabora's own **Read-only** badge. The minted token
+  decodes to `CanWrite:false` and `CheckFileInfo` reports `UserCanWrite:false` / `SupportsUpdate:false`
+  (Size 5617, `Version 6_639259448720853437`) — i.e. the tree path now behaves exactly like the pinned
+  entry. Note: `_DotNetCloud` sorts **last** in the app's root listing (the client sorts folders ordinally,
+  where `_` follows uppercase letters), so it needs a scroll.
+- **Version churn (finding 5)** — `Test.docx` (`Documents`, `b55ba0f8-…`) read `22_639272959505314067`
+  / `Size 5546` before the check. Opening it in the app and closing it **without any edit** left the value
+  bit-for-bit identical (that session did not even `PutFile`). A **byte-identical `PutFile`** sent with the
+  app session's own token (HTTP 200) left the counter at `23` while the ticks advanced
+  (`23_639272971449389805` → `23_639272974262413743`, same size and manifest hash) — only `UpdatedAt` was
+  refreshed, exactly as documented. A **real** edit typed in the app ("Android-edit-2026-10-11- test") still
+  created a version: `22` → `23`, `Size 5546` → `5570`, new manifest hash, and the reopened document showed
+  the new line. A further open/close cycle with no edits changed nothing.
 1. Tap a `.docx` in the Files tab → editor loads in-app. ✓
 2. Edit + save → go back → the Files list shows the new size/timestamp → reopen shows the change. ✓
 3. Confirm on the server that the save created a **new FileVersion** (and a version-history entry). ✓

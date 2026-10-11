@@ -3,7 +3,7 @@
 > **Document Version:** 1.0  
 > **Purpose:** Comprehensive task breakdown for implementing the DotNetCloud architecture  
 > **Scope:** All phases from Foundation (Phase 0) through Auto-Updates (Phase 11)  
-> **Last Updated:** 2026-10-10
+> **Last Updated:** 2026-10-11
 > **Audience:** Development team, project managers, technical leads
 
 ---
@@ -29,7 +29,7 @@
 - ✓ **Server observation — RESOLVED (server, 2026-10-11)** — the header-less WOPI probe's **404** was a **malformed URL** (`GET /api/v1/wopi/files/=<token>` — the token in the `{fileId}` segment), which cannot match the `{fileId:guid}` route, so the pipeline answered an empty-body `404` with no application code running; it was never a server fault and nothing about permissions or the token changed. **Live:** valid token → `200`, bogus token → `401`, malformed path → `404`. Also: `GET …/contents` **5546** bytes vs `CheckFileInfo.Size` **5546** now agree — the earlier 1-byte delta was a read-race across a concurrent close-flush save (`Size` = `FileNode.Size`; the stream is the latest `FileVersion`, equal at any commit). Leftover `[WOPI]` debug spam was removed.
 - ✓ **Server gap — FIXED (server, 2026-10-11)** — the `_DotNetCloud → Shared With Me` **folder** now includes **direct user shares**, not just team/group mounted access: `FileService.ListSharedWithMeFileNodesAsync` unions both (de-duplicated by node id) and feeds the folder, the Files module folder and the child count, so the tree matches the sidebar. Deployed + live-data-confirmed (`ShareTest.docx`). On-device re-verification is the client agent's (see the handoff).
 - ✓ **Server follow-ups — DONE (2026-10-11)** — the five WOPI findings are resolved and deployed (15/15, `/health/ready` Healthy 14/14, v0.6.13): items 1–3 explained/documentised (malformed URL, read-race, global cap + 503 test), item 4 fixed (Shared-With-Me folder lists direct shares), item 5 fixed (a byte-identical `PutFile` no longer creates a `FileVersion` — only `UpdatedAt` refreshes). The live 20-session concurrency load test was **not** run (it would hold real slots for 8 h 30 m); the 503 path is unit-tested instead. Remaining: on-device verification by `monolith` (handoff).
-
+- ✓ **Client on-device re-verification of items 4 & 5 — DONE (`monolith`, R5CWC356B2K, 2026-10-11)** — **Item 4:** `_DotNetCloud → Shared With Me` now lists the direct user shares (`ShareTest.docx` 5.5 KB + `Test.docx`) and tapping `ShareTest.docx` opens the in-app Collabora editor with Collabora's own **Read-only** badge (minted token decodes to `CanWrite:false`; `CheckFileInfo` reports `UserCanWrite:false`, `SupportsUpdate:false`). Note for follow-up: `_DotNetCloud` sorts **last** in the app's root listing (the client sorts folders ordinally, where `_` follows uppercase letters), so it sits below the fold. **Item 5:** a byte-identical `PutFile` sent with the app's own session token left the counter at `23_…` while only the ticks advanced (`UpdatedAt` refreshed, size/hash untouched, HTTP 200), a real in-app edit still incremented the counter `22` → `23` with a new size (5546 → 5570) and manifest hash, and an unmodified open/close cycle changed nothing at all. Both handoff items are therefore closed from the client side.
 ## Recent Feature — Photo listings show the image creation time (2026-10-10, `fix/photo-listings-creation-time`)
 
 > Requested: "Photo listings (in both files and photos modules) should show image creation time." Chosen behaviour: show the **EXIF capture time when available, else the created timestamp**, as date **and** time.

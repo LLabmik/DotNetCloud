@@ -1,3 +1,38 @@
+## Archived: Client agent (`monolith`) — Android on-device re-verification of WOPI items 4 & 5 (2026-10-11)
+
+**Status:** completed ✅ — both client-side confirmations (items 4 and 5) verified on device; nothing outstanding client-side.
+**Branch:** `feature/android-sync` (@ `b9bb94b8`) · **From:** `monolith` (Windows 11, Android MAUI client only) · **Device:** `R5CWC356B2K` / SM-S928U · **Target:** `https://cloud.dotnetcloud.net` (v0.6.13)
+**Source plan:** `docs/ANDROID_COLLABORA_EDIT_PLAN.md` §11.2
+
+### Why
+
+The server agent's fix pass for the five WOPI findings left exactly two client-side confirmations: (4) the `_DotNetCloud → Shared With Me` folder should now list direct user shares, and (5) a byte-identical save should no longer grow the version counter.
+
+### What was done
+
+- Rebuilt the Android client from the branch (`dotnet publish -f net10.0-android -c Debug -p:RuntimeIdentifier=android-arm64`) and re-installed it with `adb install -r` **before** verifying, because the APK on the device (2026-10-10 23:39) predated the Android commit (2026-10-11 00:17). `deploy-android.ps1` reported 0 warnings / 0 errors.
+- **Item 4 (✅):** Files tab → `_DotNetCloud` → `Shared With Me` listed **`ShareTest.docx`** (5.5 KB) and **`Test.docx`** (previously the folder was empty). Tapping `ShareTest.docx` opened the in-app Collabora editor with Collabora's own **Read-only** badge; the WebView URL's token decodes to `{"UserId":"587d777a-…","FileId":"01a0d909-…","CanWrite":false,"ExpiresAt":"2026-10-11T14:23:43Z"}` and header-less `CheckFileInfo` returns `"UserCanWrite":false`, `"SupportsUpdate":false`, `Size 5617`, `Version 6_639259448720853437`.
+- **Item 5 (✅):** `Test.docx` (`Documents`, `b55ba0f8-37c3-4ba3-bfc5-466880e08840`) baseline `22_639272959505314067` / `Size 5546`. (a) Open + close **with no edits** → identical value (no `PutFile` at all). (b) A **byte-identical `PutFile`** posted with the app session's own token → HTTP `200`, returned `lastModifiedTime 2026-10-11T06:37:06.2413743Z`, and the counter stayed `23` while the ticks advanced (`23_639272971449389805` → `23_639272974262413743`) with `Size 5570` and manifest hash `ce1452ab…` unchanged — only `UpdatedAt` refreshed. (c) A **real** edit typed in the editor ("Android-edit-2026-10-11- test") → `22` → `23`, `Size 5546` → `5570`, new manifest hash, and the reopened document displayed the added line. (d) A further no-edit open/close cycle changed nothing.
+- Kept the WOPI version observation client-side by reading `CheckFileInfo.Version` with the token the app's own editor session minted (WebView DevTools socket via `adb forward tcp:9222 localabstract:webview_devtools_remote_<pid>` → `GET http://localhost:9222/json/list`).
+- Test hygiene: screenshots taken into `/sdcard` were picked up by the app's media auto-upload and pushed to `AutoUpload/2026/10`; switched screenshots to `/data/local/tmp`, deleted the uploaded copy (`AutoUpload/2026/10` back to 75 items) and the `/sdcard` leftovers.
+
+### Observations (not defects, no code change)
+
+- `CheckFileInfo.SHA256` is the chunk **manifest** hash (`ContentHasher.ComputeManifestHash`), not a raw file digest — it must not be compared against the SHA-256 of downloaded bytes; compare `Version` / `Size`.
+- Entering the read-only `Shared With Me` folder **through the tree** does not set the app's read-only location flag, so New Document / New folder / Upload remain visible there (the pinned entry hides them); the server still refuses the writes. Recorded as an observation only.
+
+### Verification
+
+| Check | Evidence |
+| --- | --- |
+| Build/install | `deploy-android.ps1 -DeviceSerial R5CWC356B2K -Configuration Debug` → 0 warnings / 0 errors, APK installed over the existing debug build with app data preserved, app launched |
+| Item 4 | `_DotNetCloud → Shared With Me` listed `ShareTest.docx` + `Test.docx`; editor opened with the **Read-only** badge; token `CanWrite:false`; `CheckFileInfo.UserCanWrite:false` |
+| Item 5 | identical `PutFile` → `200`, counter `23` → `23`, ticks advanced, size/hash unchanged; real edit → `22` → `23`, `Size 5546` → `5570`; no-edit open/close → no change |
+| Session release | `DELETE /api/v1/wopi/token/{fileId}` → `204` on every editor close |
+| Side-effect cleanup | cloud `AutoUpload/2026/10` 76 → 75 items; `/sdcard` + `/data/local/tmp` screenshot leftovers removed; `adb forward` removed |
+
+---
+
 ## Archived: Server agent (`cloud.kimball.home`) — WOPI findings from the Android Collabora verification (2026-10-11)
 
 **Status:** completed ✅ + deployed + live-verified on `cloud.kimball.home` (deploy **15/15**, `/health/ready` Healthy **14/14**, version **0.6.13**; Files tests **967 pass / 0 fail**; `DotNetCloud.CI.slnf` Release build 0 warnings).
