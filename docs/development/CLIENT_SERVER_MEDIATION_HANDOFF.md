@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-09-28 (**Android chat composer enforces the admin-configured message length — ✅ COMPLETE on both sides (2026-09-28).** The server exposes `GET /api/v1/chat/limits` (deployed on mint22 dev; re-probed from `monolith`: the real route answers `401` vs a bogus route's `404`), and the Android composer half was implemented and **on-device verified** on R5CWC356B2K by `monolith` — typing or pasting past `maxMessageLength` is impossible (60 characters typed into a limit of 50 stopped at exactly 50 with the counter reading `50 / 50`), a message at exactly the limit sends, the `used / max` counter renders above the composer bar, and a 404 falls back to the built-in `10000 / 10 / 10` (`GetChatLimitsAsync HTTP 404 … using built-in defaults`). Android tests 466 pass / 1 skip; arm64 Debug build 0 warnings. **No open items** — recorded in `CLIENT_SERVER_MEDIATION_ARCHIVE.md`. Earlier (2026-09-27): **✅ Calendar reminder dispatch** — the server half is deployed and verified on `cloud.kimball.home` (long-lead scan window proven live on a 6.7-day-out event) and a pre-existing defect was fixed in the same pass (the Calendar host never sent the `module-id` gRPC header, so **no calendar reminder had ever reached the bell**); the **Android reminder duplicate-alert fix** passed its on-device E2E on R5CWC356B2K (one alert per reminder at its trigger time, the real time remaining in the body, no repeats after a resync / boot / SignalR reconnect, and deleting an event cancels its armed alarm). Earlier (2026-09-19): **Android chat alerts** — the app's own conditional poll of `GET /api/v1/chat/alerts` is the whole transport (no companion app, no third-party push service, no Google, no foreground service), deployed and verified end-to-end including the phone-side `304` and the core-proxy `If-None-Match` fix; plus the Notes folder picker and SyncTray `0.6.7`. Full records: `CLIENT_SERVER_MEDIATION_ARCHIVE.md`.
+Last updated: 2026-10-11 (**🔄 ACTIVE HANDOFF — Server (`cloud.kimball.home`): five WOPI findings from the Android Collabora editor verification** — the header-less `CheckFileInfo` 404, the 1-byte `contents` vs `Size` discrepancy, the concurrency-cap semantics + load test, the `_DotNetCloud → Shared With Me` folder gap, and the version-churn question. See the section immediately below. Earlier: 2026-09-28 (**Android chat composer enforces the admin-configured message length — ✅ COMPLETE on both sides (2026-09-28).** The server exposes `GET /api/v1/chat/limits` (deployed on mint22 dev; re-probed from `monolith`: the real route answers `401` vs a bogus route's `404`), and the Android composer half was implemented and **on-device verified** on R5CWC356B2K by `monolith` — typing or pasting past `maxMessageLength` is impossible (60 characters typed into a limit of 50 stopped at exactly 50 with the counter reading `50 / 50`), a message at exactly the limit sends, the `used / max` counter renders above the composer bar, and a 404 falls back to the built-in `10000 / 10 / 10` (`GetChatLimitsAsync HTTP 404 … using built-in defaults`). Android tests 466 pass / 1 skip; arm64 Debug build 0 warnings. **No open items** — recorded in `CLIENT_SERVER_MEDIATION_ARCHIVE.md`. Earlier (2026-09-27): **✅ Calendar reminder dispatch** — the server half is deployed and verified on `cloud.kimball.home` (long-lead scan window proven live on a 6.7-day-out event) and a pre-existing defect was fixed in the same pass (the Calendar host never sent the `module-id` gRPC header, so **no calendar reminder had ever reached the bell**); the **Android reminder duplicate-alert fix** passed its on-device E2E on R5CWC356B2K (one alert per reminder at its trigger time, the real time remaining in the body, no repeats after a resync / boot / SignalR reconnect, and deleting an event cancels its armed alarm). Earlier (2026-09-19): **Android chat alerts** — the app's own conditional poll of `GET /api/v1/chat/alerts` is the whole transport (no companion app, no third-party push service, no Google, no foreground service), deployed and verified end-to-end including the phone-side `304` and the core-proxy `If-None-Match` fix; plus the Notes folder picker and SyncTray `0.6.7`. Full records: `CLIENT_SERVER_MEDIATION_ARCHIVE.md`.
 
 Purpose: shared handoff between client-side and server-side agents, mediated by user.
 
@@ -16,6 +16,8 @@ Archived context:
 - Both client and server agents work autonomously — they do NOT ask the moderator for context or permission.
 - Agents pull the branch specified in the relay message, read the **Active Handoff** section, and execute the work described there independently.
 - All actionable items, blockers, and technical details go directly in this document.
+- 🔄 **Active (server agent — `cloud.kimball.home`):** `feature/android-sync` — five **server-side** WOPI findings raised while verifying the Android Collabora editor plan (`docs/ANDROID_COLLABORA_EDIT_PLAN.md`): (1) a bare `curl` to `GET /api/v1/wopi/files/{id}?access_token=…` began **flapping between 200 and 404** from ~05:00Z on 2026-10-11 (6/6 `404`, then one `200` with a fresh token, then 3/3 `404`), while the app's coolwsd-driven sessions kept opening/editing/saving the same file; (2) `GET …/contents` returned **5546** bytes for a file `CheckFileInfo` reports as `Size 5545`; (3) the session cap is **global** (`MaxConcurrentSessions=20` across all `(file,user)` pairs, in-memory, 8h30m idle expiry), not per-file — needs a semantic decision + a load test to prove the 503 path; (4) the `_DotNetCloud → Shared With Me` **folder** only carries team/group mounted access, so direct user shares are invisible there on **both** clients (the Files module host doesn't register `ISharedWithMeModuleRegistry`) — Android now works around it via the sidebar's endpoint; (5) every `PutFile` creates a version even for byte-identical content (and the close-flush adds one more) — operator decision on whether to dedupe. **No Android client changes are requested**; details + reproducible probes in the section below.
+- **Archived (client agent — `monolith`, 2026-10-11):** `feature/android-sync` — the **Android half of the Collabora document-editing plan is complete and on-device verified** (R5CWC356B2K): office documents open in an in-app WebView with no cookie/second login, saves create real `FileVersion` rows (observed `18_…` → `20_…` with new size/hash via `CheckFileInfo.Version`), a read-only share opens view-only (`CanWrite:false`), **New Document** + the `Untitled (1)` collision work, the HTTP-error overlay replaces Chromium's raw page, and non-office files are unchanged. Build 0 warnings; Android tests **551 pass / 1 skip**. Commit pending the operator's approval. **Full record in `CLIENT_SERVER_MEDIATION_ARCHIVE.md`** (`## Archived: Client agent (monolith) — Android: Collabora Online document editing in the Files tab…`, 2026-10-11). The five server-side findings raised by that verification are the 🔄 Active handoff above.
 - **Archived (client agent — `monolith`, 2026-09-28):** `feature/new-admin-settings` — Android chat composer now enforces the admin-configured message length: `ChatLimits` + `GetChatLimitsAsync` (`GET /api/v1/chat/limits`, falling back to the built-in `10000/10/10`), an `InputFilterLengthFilter` on the composer editor, a `used / max` counter (red over the limit), Send gating and an attachment-size pre-check. **On-device verified** (R5CWC356B2K: 60 typed characters stopped at exactly 50 with the counter at `50 / 50`; the 50-character message sent; the 404 fallback logged). Commit pending the operator's approval; full record in `CLIENT_SERVER_MEDIATION_ARCHIVE.md`.
 - **Archived (server agent — `cloud.kimball.home`):** `fix/android-alerts` — calendar reminder dispatch fixes (long-lead scan window + `Reminder`/`High` notification category): **deployed + verified 2026-09-27** (15/15 targets, `/health/ready` Healthy 14/14, the window proven live on a 6.7-day-out event); a pre-existing defect found while verifying — the Calendar host never sent the `module-id` header, so **no calendar reminder had ever reached the bell** — was fixed and verified in the same pass. **Original ask (superseded):** deploy the **calendar reminder dispatch fixes** from `fix/android-alerts` — long-lead scan window + notification category (`Reminder`/`High`). **Deploy + verify only** — done; see the archived deferred handoff below.
 - **Archived (client agent — `monolith`):** `fix/android-alerts` — Android **calendar reminder alerts** (duplicate-alert fix): **on-device verified 2026-09-27** (R5CWC356B2K) — a long-lead (one-week) reminder alerted exactly once with the **real time remaining** in the body, an app restart / calendar load / SignalR reconnect / second reboot added **0** further alerts, “1 day before” armed exactly 24 h ahead, and deleting an event **cancelled its armed alarm**. Unit tests 479 pass / 1 skip; arm64 Debug build 0 warnings / 0 errors. Commit pending the operator's approval; full record in `CLIENT_SERVER_MEDIATION_ARCHIVE.md`.
@@ -27,6 +29,168 @@ Archived context:
 - **Completed (awaiting moderator PR):** `fix/synctray-ignore-folder` — SyncTray **0.6.7**, "ignore a synced folder" can no longer delete the folder server-side; pushed `7632722c`, installed and live-verified on `mint-OptiPlex-7010`
 - **Archived (server agent — `cloud.kimball.home`):** `fix/android-improvements` — Presence 4-state, deployed + live-verified on cloud 2026-09-09 (plan `docs/PRESENCE_DOTS_4STATE_PLAN.md`; archived below)
 - **Still pending (mint22, dev):** `feature/module-widgets` — Module Home Widgets (plan `docs/MODULE_WIDGETS_PLAN.md`); kept below as a deferred handoff
+
+## Active Handoff — Server (`cloud.kimball.home`): five WOPI findings from the Android Collabora editor verification (2026-10-11)
+
+**Status:** 🔄 **ACTIVE — server agent to triage.** Raised by the client agent (`monolith`) while verifying
+the Android Collabora editor plan on device (`R5CWC356B2K` / SM-S928U) against
+**`https://cloud.dotnetcloud.net`**. **No Android client changes are requested** — items 1–3 are server
+investigations, item 4 is a server-side gap the client already works around, item 5 is an operator decision.
+**Branch to pull:** `feature/android-sync` (client-side work only — read-only for this handoff).
+**Source plan / evidence:** `docs/ANDROID_COLLABORA_EDIT_PLAN.md` (§11.2 verification results, §5.5.1 Shared
+With Me) and the Android section of `docs/IMPLEMENTATION_CHECKLIST.md`.
+
+**Context for the whole handoff (informational, no action):** Collabora was upgraded on the server during the
+session (`coolwsd` restart; browser hash `201368fc8d` → `22ce52fb51`; Collabora 26.04.5.1). Between
+~23:03Z and ~23:12Z every Collabora path returned **502** from the Core.Server proxy while the cached WOPI
+discovery still reported `available: true`; that resolved by itself and is **not** one of the items below.
+
+---
+
+### 1. Header-less `CheckFileInfo` now returns `404` (was `200` earlier in the same hour)
+
+**Observation.** Plain `curl` calls to `GET /api/v1/wopi/files/{fileId}?access_token={token}` — a valid,
+unexpired token, same node — returned `200` with the full JSON at 04:52Z and 04:57Z. From ~05:00Z the same
+request began **flapping between `200` and `404`** (empty body): 6/6 `404` in one run, a *freshly minted*
+token returning `200` once at ~05:03Z, then 3/3 `404` again with the old and the fresh token interleaved.
+Every reading in this handoff that depends on `CheckFileInfo` was taken at or before that boundary.
+Meanwhile the app kept **opening, editing and saving the same file** minutes later (coolwsd's own
+CheckFileInfo/GetFile/PutFile all worked — the document rendered, was edited, and a new version was created).
+
+**Why it isn't the client.** `WopiController.CheckFileInfoAsync` treats a null result from
+`IWopiService.CheckFileInfoAsync` as `404`; that service returns null when the node lookup
+(`!n.IsDeleted`) **or** `IPermissionService.GetEffectivePermissionAsync` yields nothing. The token is
+plainly valid (`ValidateToken` failure would be `401`) and `ValidateProofAsync` **skips** validation when
+`X-WOPI-Proof`/`X-WOPI-TimeStamp` are absent — which is exactly the case for a bare `curl`, and is the
+documented "allows non-Collabora clients" path. The same token/URL pair worked minutes earlier, and the
+file stayed visible in the app's listing throughout (`Test.docx` in `Documents`), so nothing about the
+node or permissions changed from the outside.
+
+**Ask.** Establish what changed server-side around **2026-10-11 05:00Z** (`cloud.kimball.home`): a deploy,
+a proxy/route change, a WOPI option change (`EnableProofKeyValidation`?), or a module-host restart. Then
+either (a) restore the previous behaviour for header-less callers, or (b) make the rejection **explicit and
+documented** (e.g. `401`/`403` with a body, and a note in `docs/modules/WOPI.md` / `docs/admin/COLLABORA.md`)
+so non-coolwsd consumers — including diagnostics like this one — know the requirement.
+
+**Reproduce:**
+
+```bash
+# 1. mint a token (needs a real user session; the Android app mints one on open and it appears in the
+#    WebView URL: chrome://inspect over `adb forward tcp:9222 localabstract:webview_devtools_remote_<pid>`,
+#    then GET http://localhost:9222/json/list and read `url`).
+# 2. probe:
+curl -s -o /dev/null -w '%{http_code}\n' \
+  "https://cloud.dotnetcloud.net/api/v1/wopi/files/<fileId>?access_token=<token>"
+```
+
+### 2. `GET …/contents` returns one more byte than `CheckFileInfo.Size`
+
+**Observation.** For `Test.docx` (`b55ba0f8-37c3-4ba3-bfc5-466880e08840`) `CheckFileInfo` reported
+`"Size": 5545` while `GET /api/v1/wopi/files/{id}/contents?access_token=…` returned **5546 bytes**
+(`Content-Length`/file length measured by `curl -o`). After a save the pair was `5546` vs `5546`, so the
+delta is not constant — it looks like a rounding/segmenting artifact rather than a fixed off-by-one.
+
+**Why it matters.** WOPI hosts compare sizes/hashes for change detection; a mismatch makes Collabora's
+"file changed on storage" checks noisy, and any client that trusts `Size` (e.g. a progress bar or a
+"same content?" pre-check) can be wrong by a byte.
+
+**Ask.** Determine which of the two is authoritative (`FileNode.Size` vs the bytes streamed by
+`DownloadService` for a chunked docx) and make them agree — or document why they legitimately differ.
+
+### 3. Concurrency cap: semantics + a load test
+
+**What the code does (read from the repo).** `WopiSessionTracker` counts **all** active `(fileId, userId)`
+pairs in one in-memory dictionary and denies a new pair when `_sessions.Count >= MaxConcurrentSessions`
+(default **20**, `CollaboraOptions`; `0` = unlimited), returning `false`; `WopiController.CheckFileInfoAsync`
+maps that denial to **`503`**. The same `(file,user)` pair only *refreshes* its slot (so one slot per user
+per file), and entries expire after `TokenLifetimeMinutes + 30` (8h30m) of inactivity. A module-host
+restart clears the dictionary entirely.
+
+**Consequence worth a decision.** Because the cap is **server-wide** and keyed on `(file,user)`, a busy
+instance can refuse the 21st *distinct* session even though every document has a single editor — and the
+limit therefore does **not** implement a per-file "only N editors at once" rule. If per-file semantics were
+intended (plan §8 describes the cap as a per-document busy state), the key should be the `fileId` alone.
+
+**Already verified here (no action needed).** `WopiSessionTrackerTests` **10/10 pass** on this tree
+(`TryBeginSession_AtCapacity_ReturnsFalse`, `TryBeginSession_SameUserSameFile_RefreshesAndReturnsTrueWithoutConsuming`,
+`EndSession_ExistingSession_DecreasesCount`, `TryBeginSession_AfterEndSession_CanAddNewSession`,
+`TryBeginSession_UnlimitedSessions_AlwaysReturnsTrue`, …). The **client half is live-verified**: the app's
+close sends `DELETE /api/v1/wopi/token/{fileId}` and the slot is released.
+
+**Ask.** (a) Confirm the intended semantics and align the key/limit if needed; (b) run an end-to-end **load
+test** that actually reaches the cap (a single phone can hold at most one slot per file, so this needs ~20
+distinct file/user sessions) and confirm the `503`, the Collabora-side behaviour, and that slots are
+released afterwards.
+
+### 4. `_DotNetCloud → Shared With Me` lists no direct user shares (both clients)
+
+**Observation (reported by the operator, reproduced here).** In the Blazor **sidebar**, "Shared With Me"
+shows a read-only `ShareTest.docx`; the **folder tree** path `_DotNetCloud → Shared With Me` is **empty** —
+in Blazor *and* in the Android app. The two paths use different server code:
+`GET /api/v1/files/shared-with-me` (`ShareService.GetSharedWithMeAsync`, the sidebar) finds the share, while
+the folder listing goes through `FileService.ListSharedWithMeChildrenAsync`.
+
+**Root cause (code reading).** `FileService` builds that folder from
+`ListMountedAccessAsync(caller)` — the controller doc comment calls it *"nodes the caller can access through
+**team or group** shares"* — and `ListSharedWithMeModuleFoldersAsync` only adds the "Files" module folder
+when that mounted count is `> 0`. A **direct user share** is neither. Additionally the
+`ISharedWithMeModuleRegistry` branch is unreachable in the **process-isolated Files host**, because that
+registry is registered only in Core.Server (`Program.cs`, `AddSingleton<ISharedWithMeModuleRegistry, …>`),
+so `FileService` always takes the legacy `ListMountedAccessAsync`-only path there.
+
+**Client workaround already shipped (Android).** The app adds a pinned **Shared With Me** entry on the
+user's root that lists the sidebar endpoint and marks items "view only" from the granted permission
+(plan §5.5.1) — verified on device: the read-only share opens with Collabora's own **Read-only** badge and
+its token decodes to `CanWrite:false`.
+
+**Ask.** Either make the tree path include direct shares (so the folder, the sidebar and the Android tree
+agree), or record explicitly that the folder is mounted-access-only and the sidebar/entry points are the
+supported route. If it's fixed server-side, the Android entry point can later be pointed at the tree.
+
+### 5. Version churn: every `PutFile` creates a version, even for identical content (operator decision)
+
+**Observation (measured live).** `CheckFileInfo.Version` is `"{CurrentVersion}_{UpdatedAt.Ticks}"`, so the
+counter is observable from a client. On `Test.docx`: `18_…`/`Size 5529`/`SHA256 dd0d41be…` → after typing a
+line in the Android editor and saving → `20_…`/`Size 5545`/`SHA256 54569eca…`. The +2 is the save plus the
+editor's close-flush. A later **byte-identical** `PutFile` (posting the file's own downloaded bytes back)
+also advanced the counter, with the content hash unchanged — so identical content still produces a new
+`FileVersion` row.
+
+**Ask (not a defect, a policy choice).** With autosave at `AutoSaveIntervalSeconds = 300` and a flush on
+close, an editing session grows the history by several rows regardless of whether anything changed. Decide
+whether `WopiService.PutFileAsync` should skip creating a version when the computed manifest hash equals the
+current version's (and simply refresh `UpdatedAt`), or leave it to the version-retention policy. Either way,
+worth stating in `docs/modules/VERSIONING.md`.
+
+### On completion — archive step (MANDATORY, server agent)
+
+A finished item must not be left standing as an Active Handoff. When all five items above are verified (or
+explicitly resolved as "by design"), the server agent:
+
+1. **Retitles this section** to `## Archived Handoff — Server (`cloud.kimball.home`): WOPI findings from the Android Collabora verification — resolved (YYYY-MM-DD)` and rewrites the status line as ✅ with the outcome per item (status codes now returned, `Content-Length` vs `Size`, the cap decision + load-test evidence, whether the shared-with-me folder lists direct shares, and the version-churn decision).
+2. **Moves the `🔄 Active (server agent — …)` bullet in Process Rules** to `**Archived (server agent — cloud.kimball.home):** …` with a one-line outcome.
+3. **Prepends the full record to `CLIENT_SERVER_MEDIATION_ARCHIVE.md`** as `## Archived: Server agent (`cloud.kimball.home`) — WOPI findings from the Android Collabora verification (YYYY-MM-DD)`.
+
+The **client half of this effort is already archived** (see the `Archived (client agent — monolith, 2026-10-11)` bullet in Process Rules and the matching archive entry): the Android implementation is complete, on-device verified, and only awaiting the operator's commit approval. **If any item turns out to need a client change** (e.g. the Shared With Me entry could later read the fixed tree instead of the sidebar endpoint), write it into this section as a new *client* item rather than editing the Android code from the server side.
+
+### Do NOT (this pass)
+
+- Do not change the Android client — it is complete, on-device verified and awaiting the operator's commit
+  approval. Its only outstanding items are the two server-side ones above.
+- Do not bump version numbers: the operator prepares version bumps only when cutting a release.
+- Do not deploy to `cloud.kimball.home` from a partially verified tree — run `deploy.sh --force --verify`
+  with the operator's go-ahead and report the target/health evidence, as usual.
+
+### Verification expected (report back in this section)
+
+- Item 1: the status code a header-less `CheckFileInfo` returns **after** the fix/decision, and the
+  documented contract.
+- Item 2: `Content-Length` vs `CheckFileInfo.Size` for the same file before/after the change.
+- Item 3: the cap semantics decision (key + limit) and the load-test evidence (`503` observed, slots
+  released).
+- Item 4: whether the folder will list direct shares; if yes, the folder path shows the same item the
+  sidebar does.
+- Item 5: the chosen behaviour, with the version counter before/after an unchanged save.
 
 ## Archived Handoff — Android: enforce the configured chat message length in the composer (✅ complete on both sides, 2026-09-28)
 

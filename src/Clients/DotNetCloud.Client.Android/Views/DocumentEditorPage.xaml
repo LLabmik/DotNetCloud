@@ -1,0 +1,114 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage
+    x:Class="DotNetCloud.Client.Android.Views.DocumentEditorPage"
+    xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+    Shell.NavBarIsVisible="False"
+    Shell.FlyoutBehavior="Disabled"
+    BackgroundColor="#0F172A">
+
+    <Grid RowDefinitions="Auto,*">
+
+        <!-- Header: close + file name -->
+        <Border
+            Grid.Row="0"
+            BackgroundColor="#1E293B"
+            StrokeThickness="0"
+            Padding="8,8">
+            <Grid ColumnDefinitions="Auto,*">
+                <ImageButton
+                    Grid.Column="0"
+                    BackgroundColor="Transparent"
+                    Command="{Binding CloseCommand}"
+                    HeightRequest="40"
+                    WidthRequest="40">
+                    <ImageButton.Source>
+                        <FontImageSource
+                            FontFamily="OpenSansRegular"
+                            Glyph="←"
+                            Size="22"
+                            Color="#F1F5F9"/>
+                    </ImageButton.Source>
+                </ImageButton>
+
+                <Label
+                    Grid.Column="1"
+                    Text="{Binding FileName}"
+                    TextColor="#F1F5F9"
+                    FontSize="15"
+                    VerticalOptions="Center"
+                    LineBreakMode="TailTruncation"
+                    MaxLines="1"
+                    Margin="8,0"/>
+            </Grid>
+        </Border>
+
+        <!-- Collabora editor: the URL is self-authenticating, so no cookie or extra login is needed -->
+        <WebView
+            x:Name="EditorWebView"
+            Grid.Row="1"
+            BackgroundColor="#0F172A"
+            IsVisible="{Binding EditorUrl, Converter={StaticResource IsNotNull}}"
+            Navigated="OnEditorNavigated"/>
+
+        <!-- Loading overlay (opaque: the WebView shows nothing until Collabora paints) -->
+        <Grid
+            Grid.Row="1"
+            BackgroundColor="#0F172A"
+            IsVisible="{Binding IsLoading}">
+            <VerticalStackLayout
+                HorizontalOptions="Center"
+                VerticalOptions="Center"
+                Spacing="14">
+                <ActivityIndicator
+                    IsRunning="True"
+                    Color="#7C3AED"
+                    HeightRequest="40"
+                    WidthRequest="40"/>
+                <Label
+                    Text="Opening…"
+                    TextColor="#94A3B8"
+                    FontSize="13"
+                    HorizontalOptions="Center"/>
+            </VerticalStackLayout>
+        </Grid>
+
+        <!-- Error overlay: covers the WebView, which shows Chromium's own error document on failure -->
+        <Grid
+            Grid.Row="1"
+            BackgroundColor="#0F172A"
+            IsVisible="{Binding ShowError}">
+            <VerticalStackLayout
+                HorizontalOptions="Center"
+                VerticalOptions="Center"
+                Padding="32"
+                Spacing="14">
+                <Label
+                    FontSize="32"
+                    HorizontalOptions="Center"
+                    Text="⚠️"/>
+                <Label
+                    Text="{Binding ErrorMessage}"
+                    TextColor="#FCA5A5"
+                    FontSize="14"
+                    HorizontalTextAlignment="Center"
+                    HorizontalOptions="Center"/>
+                <Button
+                    Text="Retry"
+                    Command="{Binding InitializeCommand}"
+                    BackgroundColor="#7C3AED"
+                    TextColor="#F1F5F9"
+                    HorizontalOptions="Center"/>
+                <Button
+                    Text="Open in browser"
+                    Command="{Binding OpenInBrowserCommand}"
+                    BackgroundColor="Transparent"
+                    TextColor="#94A3B8"
+                    FontSize="13"
+                    HorizontalOptions="Center"/>
+            </VerticalStackLayout>
+        </Grid>
+
+    </Grid>
+
+</ContentPage>

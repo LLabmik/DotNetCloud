@@ -29,7 +29,7 @@
             BackgroundColor="#1E293B"
             StrokeThickness="0"
             Padding="8,8">
-            <Grid ColumnDefinitions="Auto,*,Auto,Auto">
+            <Grid ColumnDefinitions="Auto,*,Auto,Auto,Auto">
 
                 <!-- Back button -->
                 <ImageButton
@@ -89,7 +89,7 @@
                     </CollectionView>
                 </ScrollView>
 
-                <!-- New folder button -->
+                <!-- New document button (only when Collabora reports an editable format) -->
                 <Border
                     Grid.Column="2"
                     BackgroundColor="#334155"
@@ -98,7 +98,30 @@
                     Padding="0"
                     Margin="4,0"
                     HeightRequest="36"
-                    WidthRequest="36">
+                    WidthRequest="36"
+                    IsVisible="{Binding ShowNewDocument}">
+                    <Label
+                        FontSize="18"
+                        HorizontalOptions="Center"
+                        VerticalOptions="Center"
+                        TextColor="#94A3B8"
+                        Text="📄+"/>
+                    <Border.GestureRecognizers>
+                        <TapGestureRecognizer Command="{Binding NewDocumentCommand}"/>
+                    </Border.GestureRecognizers>
+                </Border>
+
+                <!-- New folder button -->
+                <Border
+                    Grid.Column="3"
+                    BackgroundColor="#334155"
+                    StrokeThickness="0"
+                    StrokeShape="RoundRectangle 8"
+                    Padding="0"
+                    Margin="4,0"
+                    HeightRequest="36"
+                    WidthRequest="36"
+                    IsVisible="{Binding IsWritableLocation}">
                     <Label
                         FontSize="18"
                         HorizontalOptions="Center"
@@ -112,14 +135,15 @@
 
                 <!-- Upload file button -->
                 <Border
-                    Grid.Column="3"
+                    Grid.Column="4"
                     BackgroundColor="#334155"
                     StrokeThickness="0"
                     StrokeShape="RoundRectangle 8"
                     Padding="0"
                     Margin="4,0"
                     HeightRequest="36"
-                    WidthRequest="36">
+                    WidthRequest="36"
+                    IsVisible="{Binding IsWritableLocation}">
                     <Label
                         FontSize="18"
                         HorizontalOptions="Center"
@@ -221,6 +245,7 @@
                                     <SwipeItem
                                         Text="Delete"
                                         BackgroundColor="#EF4444"
+                                        IsEnabled="{Binding CanDelete}"
                                         Command="{Binding Source={RelativeSource AncestorType={x:Type ContentPage}}, Path=BindingContext.DeleteItemCommand}"
                                         CommandParameter="{Binding .}"/>
                                 </SwipeItems>
@@ -290,11 +315,23 @@
                                                 FontSize="12"
                                                 TextColor="#475569"
                                                 Text="·"
-                                                IsVisible="{Binding SizeDisplay, Converter={StaticResource IsNotNullOrEmpty}}"/>
+                                                IsVisible="{Binding DateDisplay, Converter={StaticResource IsNotNullOrEmpty}}"/>
                                             <Label
                                                 FontSize="12"
                                                 TextColor="#64748B"
                                                 Text="{Binding DateDisplay}"/>
+                                            <!-- Server-granted permission for a shared item (read-only hints) -->
+                                            <Border
+                                                BackgroundColor="#334155"
+                                                StrokeThickness="0"
+                                                StrokeShape="RoundRectangle 6"
+                                                Padding="6,1"
+                                                IsVisible="{Binding IsReadOnly}">
+                                                <Label
+                                                    FontSize="10"
+                                                    TextColor="#94A3B8"
+                                                    Text="view only"/>
+                                            </Border>
                                         </HorizontalStackLayout>
                                     </VerticalStackLayout>
 

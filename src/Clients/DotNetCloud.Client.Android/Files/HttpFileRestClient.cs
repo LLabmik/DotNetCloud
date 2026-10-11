@@ -57,6 +57,29 @@ internal sealed class HttpFileRestClient : IFileRestClient
             : ToFileItem(node);
     }
 
+    // ── Shared With Me ───────────────────────────────────────────────
+
+    /// <inheritdoc />
+    public async Task<IReadOnlyList<SharedItem>> GetSharedWithMeAsync(
+        string serverBaseUrl, string accessToken, CancellationToken ct = default)
+    {
+        SetAuth(accessToken);
+        var shares = await GetEnvelopeDataAsync<List<SharedItemDto>>(
+            $"{Url(serverBaseUrl)}/api/v1/files/shared-with-me", ct).ConfigureAwait(false);
+
+        return (shares ?? [])
+            .Where(dto => dto.FileNodeId != Guid.Empty && !string.IsNullOrWhiteSpace(dto.NodeName))
+            .Select(dto => new SharedItem(
+                dto.FileNodeId,
+                dto.NodeName!,
+                string.IsNullOrWhiteSpace(dto.NodeType) ? "File" : dto.NodeType,
+                dto.Size,
+                dto.MimeType,
+                dto.Permission ?? string.Empty,
+                dto.CreatedAt))
+            .ToList();
+    }
+
     // ── Folder Operations ────────────────────────────────────────────
 
     /// <inheritdoc />
@@ -165,6 +188,44 @@ internal sealed class HttpFileRestClient : IFileRestClient
 
         _logger.LogInformation("Uploaded {FileName} ({Size} bytes, {Chunks} chunks).",
             fileName, data.Length, chunks.Count);
+
+        return ToFileItem(node);
+    }
+
+    // ── Create Document ──────────────────────────────────────────────
+
+    /// <inheritdoc />
+    public async Task<FileItem> CreateDocumentAsync(
+        string serverBaseUrl, string accessToken,
+        string fileName, Guid? parentId, string? mimeType, CancellationToken ct = default)
+    {
+        SetAuth(accessToken);
+        var baseUrl = Url(serverBaseUrl);
+
+        // A blank document is a genuine 0-byte file: initiate with no chunks, then complete.
+        var initiateBody = new
+        {
+            fileName,
+            parentId,
+            totalSize = 0L,
+            mimeType,
+            chunkHashes = Array.Empty<string>()
+        };
+        using var initiateResp = await _http
+            .PostAsJsonAsync($"{baseUrl}/api/v1/files/upload/initiate", initiateBody, ct)
+            .ConfigureAwait(false);
+        initiateResp.EnsureSuccessStatusCode();
+        var session = await ReadEnvelopeDataAsync<InitiateUploadDto>(initiateResp, ct).ConfigureAwait(false)
+            ?? throw new InvalidOperationException("Empty initiate response.");
+
+        using var completeResp = await _http
+            .PostAsync($"{baseUrl}/api/v1/files/upload/{session.SessionId}/complete", null, ct)
+            .ConfigureAwait(false);
+        completeResp.EnsureSuccessStatusCode();
+        var node = await ReadEnvelopeDataAsync<FileNodeDto>(completeResp, ct).ConfigureAwait(false)
+            ?? throw new InvalidOperationException("Empty complete response.");
+
+        _logger.LogInformation("Created empty document {FileName}.", fileName);
 
         return ToFileItem(node);
     }
@@ -285,6 +346,17 @@ internal sealed class HttpFileRestClient : IFileRestClient
     {
         public long UsedBytes { get; init; }
         public long QuotaBytes { get; init; }
+    }
+
+    private sealed class SharedItemDto
+    {
+        public Guid FileNodeId { get; init; }
+        public string? NodeName { get; init; }
+        public string? NodeType { get; init; }
+        public long Size { get; init; }
+        public string? MimeType { get; init; }
+        public string? Permission { get; init; }
+        public DateTime CreatedAt { get; init; }
     }
 }
 

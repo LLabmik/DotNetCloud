@@ -80,6 +80,10 @@ public static class MauiProgram
             .AddHttpMessageHandler<TimeoutHandler>()
             .AddHttpMessageHandler<AuthenticatedHttpClientHandler>()
             .ConfigurePrimaryHttpMessageHandler(DotNetCloud.Client.Core.Auth.OAuthHttpClientHandlerFactory.CreateHandler);
+        builder.Services.AddHttpClient<IWopiRestClient, HttpWopiRestClient>()
+            .AddHttpMessageHandler<TimeoutHandler>()
+            .AddHttpMessageHandler<AuthenticatedHttpClientHandler>()
+            .ConfigurePrimaryHttpMessageHandler(DotNetCloud.Client.Core.Auth.OAuthHttpClientHandlerFactory.CreateHandler);
         builder.Services.AddSingleton<IMediaAutoUploadService, MediaAutoUploadService>();
 
         // Periodic background media sync (JobScheduler; no foreground service, so it never
@@ -173,6 +177,7 @@ public static class MauiProgram
         builder.Services.AddTransient<EventDetailViewModel>();
         builder.Services.AddTransient<EventEditViewModel>();
         builder.Services.AddTransient<ImageViewerViewModel>();
+        builder.Services.AddTransient<DocumentEditorViewModel>();
         builder.Services.AddTransient<NotesViewModel>();
         builder.Services.AddTransient<NoteEditViewModel>();
 
@@ -190,6 +195,7 @@ public static class MauiProgram
         builder.Services.AddTransient<EventDetailPage>();
         builder.Services.AddTransient<EventEditPage>();
         builder.Services.AddTransient<ImageViewerPage>();
+        builder.Services.AddTransient<DocumentEditorPage>();
         builder.Services.AddTransient<NotesPage>();
         builder.Services.AddTransient<NoteEditPage>();
         builder.Services.AddTransient<DmUserPickerPage>();
