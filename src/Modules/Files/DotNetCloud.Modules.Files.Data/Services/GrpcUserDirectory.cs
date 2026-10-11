@@ -147,7 +147,7 @@ internal sealed class GrpcUserDirectory : IUserDirectory, IDisposable
         }
         catch (RpcException ex)
         {
-            LogRpcFailure(ex, "GetUser", userId.ToString());
+            LogRpcFailure(ex, "GetUser");
             return null;
         }
         catch (Exception ex)
@@ -168,9 +168,8 @@ internal sealed class GrpcUserDirectory : IUserDirectory, IDisposable
         if (!IsAvailable)
         {
             _logger.LogWarning(
-                "SearchUsers('{Query}') short-circuited: DOTNETCLOUD_CORE_ENDPOINT is not set, so the module " +
-                "cannot reach Core.Server.",
-                query);
+                "SearchUsers short-circuited: DOTNETCLOUD_CORE_ENDPOINT is not set, so the module " +
+                "cannot reach Core.Server.");
             return [];
         }
 
@@ -195,12 +194,12 @@ internal sealed class GrpcUserDirectory : IUserDirectory, IDisposable
         }
         catch (RpcException ex)
         {
-            LogRpcFailure(ex, "SearchUsers", query);
+            LogRpcFailure(ex, "SearchUsers");
             return [];
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Unexpected error calling SearchUsers for query '{Query}'", query);
+            _logger.LogError(ex, "Unexpected error calling SearchUsers");
             return [];
         }
     }
@@ -211,29 +210,29 @@ internal sealed class GrpcUserDirectory : IUserDirectory, IDisposable
     /// Logs an RPC failure with a message that identifies whether the core is unreachable or
     /// simply predates the capability, so the operator knows which way to fix it.
     /// </summary>
-    private void LogRpcFailure(RpcException ex, string operation, string argument)
+    private void LogRpcFailure(RpcException ex, string operation)
     {
         switch (ex.StatusCode)
         {
             case StatusCode.Unimplemented:
                 _logger.LogError(
                     "{Operation} RPC is Unimplemented on Core.Server — the deployed core binary predates the " +
-                    "{Operation} capability. Rebuild and redeploy Core.Server. Argument={Argument}",
-                    operation, operation, argument);
+                    "{Operation} capability. Rebuild and redeploy Core.Server.",
+                    operation, operation);
                 break;
             case StatusCode.Unavailable:
                 _logger.LogWarning(
                     "Core.Server gRPC service unavailable for {Operation} — core not reachable at " +
-                    "DOTNETCLOUD_CORE_ENDPOINT='{Endpoint}'. Argument={Argument}",
-                    operation, Environment.GetEnvironmentVariable("DOTNETCLOUD_CORE_ENDPOINT"), argument);
+                    "DOTNETCLOUD_CORE_ENDPOINT='{Endpoint}'.",
+                    operation, Environment.GetEnvironmentVariable("DOTNETCLOUD_CORE_ENDPOINT"));
                 break;
             case StatusCode.DeadlineExceeded:
-                _logger.LogWarning("{Operation} gRPC call to Core.Server timed out. Argument={Argument}", operation, argument);
+                _logger.LogWarning("{Operation} gRPC call to Core.Server timed out.", operation);
                 break;
             default:
                 _logger.LogError(ex,
-                    "{Operation} gRPC call to Core.Server failed with status {StatusCode}: {Detail}. Argument={Argument}",
-                    operation, ex.StatusCode, ex.Status.Detail, argument);
+                    "{Operation} gRPC call to Core.Server failed with status {StatusCode}: {Detail}.",
+                    operation, ex.StatusCode, ex.Status.Detail);
                 break;
         }
     }

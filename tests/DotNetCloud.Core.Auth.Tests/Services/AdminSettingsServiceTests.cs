@@ -222,6 +222,41 @@ public class AdminSettingsServiceTests
         Assert.IsFalse(result);
     }
 
+    [TestMethod]
+    public async Task UpsertSettingAsync_CrlfInRouteValues_SanitizesLogEntry()
+    {
+        // module/key come from the request route (user controlled); a CRLF must not be able to
+        // forge a new log line — guards CodeQL cs/log-forging against regressions.
+        var logger = new CapturingLogger<AdminSettingsService>();
+        var service = new AdminSettingsService(_factory, logger);
+        var dto = new UpsertSystemSettingDto { Value = "v", Description = "d" };
+
+        await service.UpsertSettingAsync("core\r\nFAKE", "key\nFAKE", dto);
+
+        Assert.IsTrue(logger.Messages.Count > 0, "Expected at least one log entry.");
+        Assert.IsFalse(
+            logger.Messages.Any(m => m.Contains('\n') || m.Contains('\r')),
+            "Log entries must not contain raw CR/LF from user input.");
+    }
+
+    private sealed class CapturingLogger<T> : ILogger<T>
+    {
+        public List<string> Messages { get; } = [];
+
+        public IDisposable? BeginScope<TState>(TState state)
+            where TState : notnull => null;
+
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(
+            LogLevel logLevel,
+            EventId eventId,
+            TState state,
+            Exception? exception,
+            Func<TState, Exception?, string> formatter)
+            => Messages.Add(formatter(state, exception));
+    }
+
     private CoreDbContext CreateDbContext()
     {
         var options = new DbContextOptionsBuilder<CoreDbContext>()

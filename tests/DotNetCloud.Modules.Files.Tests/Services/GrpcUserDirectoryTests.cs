@@ -1,6 +1,7 @@
 using DotNetCloud.Core.Grpc.Capabilities;
 using DotNetCloud.Modules.Files.Data.Services;
 using Grpc.Core;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 
@@ -241,5 +242,56 @@ public class GrpcUserDirectoryTests
             It.IsAny<Metadata>(),
             It.IsAny<DateTime?>(),
             It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    private static AsyncUnaryCall<SearchUsersResponse> FaultedSearchUsersCall(RpcException exception) =>
+        new(
+            Task.FromException<SearchUsersResponse>(exception),
+            Task.FromResult(new Metadata()),
+            () => Status.DefaultSuccess,
+            () => new Metadata(),
+            () => { });
+
+    [TestMethod]
+    public async Task SearchUsersAsync_CoreFault_DoesNotWriteSearchTermToLog()
+    {
+        // The search term is user controlled and may be PII (e.g. an email address), so it must
+        // never reach a log sink — guards CodeQL cs/log-forging and
+        // cs/exposure-of-sensitive-information against regressions.
+        var client = CreateClient();
+        client
+            .Setup(c => c.SearchUsersAsync(
+                It.IsAny<SearchUsersRequest>(),
+                It.IsAny<Metadata>(),
+                It.IsAny<DateTime?>(),
+                It.IsAny<CancellationToken>()))
+            .Returns(FaultedSearchUsersCall(new RpcException(new Status(StatusCode.Unavailable, "core down"))));
+
+        var logger = new CapturingLogger<GrpcUserDirectory>();
+        using var directory = new GrpcUserDirectory(logger, client.Object);
+
+        await directory.SearchUsersAsync("secret-user@example.com");
+
+        Assert.IsFalse(
+            logger.Messages.Any(m => m.Contains("secret-user@example.com", StringComparison.Ordinal)),
+            "The user-supplied search term must not be written to the log.");
+    }
+
+    private sealed class CapturingLogger<T> : ILogger<T>
+    {
+        public List<string> Messages { get; } = [];
+
+        public IDisposable? BeginScope<TState>(TState state)
+            where TState : notnull => null;
+
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(
+            LogLevel logLevel,
+            EventId eventId,
+            TState state,
+            Exception? exception,
+            Func<TState, Exception?, string> formatter)
+            => Messages.Add(formatter(state, exception));
     }
 }
