@@ -88,12 +88,10 @@ public class LibraryScanProgressTests
     {
         var files = CreateFileList(5);
         var progressReports = new List<LibraryScanProgress>();
-        var progress = new Progress<LibraryScanProgress>(p => progressReports.Add(p));
+        var progress = new SynchronousProgress<LibraryScanProgress>(progressReports.Add);
 
         var service = CreateService();
         await service.ScanLibraryAsync(files, _caller.UserId, _caller, progress);
-
-        await Task.Delay(100); // Allow progress callbacks
 
         // Should have multiple progress reports (at least one per file + initial + final + enrichment)
         Assert.IsTrue(progressReports.Count >= 5, $"Expected at least 5 progress reports, got {progressReports.Count}");
@@ -104,12 +102,10 @@ public class LibraryScanProgressTests
     {
         var files = CreateFileList(3);
         var progressReports = new List<LibraryScanProgress>();
-        var progress = new Progress<LibraryScanProgress>(p => progressReports.Add(p));
+        var progress = new SynchronousProgress<LibraryScanProgress>(progressReports.Add);
 
         var service = CreateService();
         await service.ScanLibraryAsync(files, _caller.UserId, _caller, progress);
-
-        await Task.Delay(100);
 
         var reportsWithFiles = progressReports.Where(p => p.CurrentFile is not null).ToList();
         Assert.IsTrue(reportsWithFiles.Count > 0, "Expected at least one report with CurrentFile set");
@@ -122,12 +118,10 @@ public class LibraryScanProgressTests
     {
         var files = CreateFileList(3);
         var progressReports = new List<LibraryScanProgress>();
-        var progress = new Progress<LibraryScanProgress>(p => progressReports.Add(p));
+        var progress = new SynchronousProgress<LibraryScanProgress>(progressReports.Add);
 
         var service = CreateService();
         await service.ScanLibraryAsync(files, _caller.UserId, _caller, progress);
-
-        await Task.Delay(100);
 
         // Verify FilesProcessed increments over time
         var processedValues = progressReports.Select(p => p.FilesProcessed).ToList();
@@ -139,12 +133,10 @@ public class LibraryScanProgressTests
     {
         var files = CreateFileList(5);
         var progressReports = new List<LibraryScanProgress>();
-        var progress = new Progress<LibraryScanProgress>(p => progressReports.Add(p));
+        var progress = new SynchronousProgress<LibraryScanProgress>(progressReports.Add);
 
         var service = CreateService();
         await service.ScanLibraryAsync(files, _caller.UserId, _caller, progress);
-
-        await Task.Delay(100);
 
         var percentages = progressReports.Select(p => p.PercentComplete).ToList();
         Assert.IsTrue(percentages.Any(p => p == 0), "Expected initial 0% progress");
@@ -156,12 +148,10 @@ public class LibraryScanProgressTests
     {
         var files = CreateFileList(2);
         var progressReports = new List<LibraryScanProgress>();
-        var progress = new Progress<LibraryScanProgress>(p => progressReports.Add(p));
+        var progress = new SynchronousProgress<LibraryScanProgress>(progressReports.Add);
 
         var service = CreateService();
         await service.ScanLibraryAsync(files, _caller.UserId, _caller, progress);
-
-        await Task.Delay(100);
 
         var phases = progressReports.Select(p => p.Phase).Distinct().ToList();
         Assert.IsTrue(phases.Contains("Extracting metadata"),
@@ -185,12 +175,10 @@ public class LibraryScanProgressTests
     public async Task ScanLibrary_EmptyFileList_ReportsComplete()
     {
         var progressReports = new List<LibraryScanProgress>();
-        var progress = new Progress<LibraryScanProgress>(p => progressReports.Add(p));
+        var progress = new SynchronousProgress<LibraryScanProgress>(progressReports.Add);
 
         var service = CreateService();
         var result = await service.ScanLibraryAsync([], _caller.UserId, _caller, progress);
-
-        await Task.Delay(100);
 
         Assert.IsNotNull(result);
         Assert.IsTrue(progressReports.Any(p => p.Phase == "Complete"),
@@ -246,12 +234,10 @@ public class LibraryScanProgressTests
     {
         var files = CreateFileList(1);
         var progressReports = new List<LibraryScanProgress>();
-        var progress = new Progress<LibraryScanProgress>(p => progressReports.Add(p));
+        var progress = new SynchronousProgress<LibraryScanProgress>(progressReports.Add);
 
         var service = CreateService();
         await service.ScanLibraryAsync(files, _caller.UserId, _caller, progress);
-
-        await Task.Delay(100);
 
         var phases = progressReports.Select(p => p.Phase).Distinct().ToList();
         // Should contain the enrichment phase report (at minimum the "Enriching metadata" trigger)
@@ -267,7 +253,7 @@ public class LibraryScanProgressTests
         var files = CreateFileList(10);
         var cts = new CancellationTokenSource();
         var processedCount = 0;
-        var progress = new Progress<LibraryScanProgress>(p =>
+        var progress = new SynchronousProgress<LibraryScanProgress>(p =>
         {
             processedCount = p.FilesProcessed;
             if (p.FilesProcessed >= 2)
