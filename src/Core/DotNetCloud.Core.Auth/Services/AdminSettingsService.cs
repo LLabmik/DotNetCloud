@@ -1,3 +1,4 @@
+using DotNetCloud.Core;
 using DotNetCloud.Core.Constants;
 using DotNetCloud.Core.Data.Context;
 using DotNetCloud.Core.Data.Entities.Settings;
@@ -92,7 +93,10 @@ public sealed class AdminSettingsService : IAdminSettingsService
             existing.Description = dto.Description;
             existing.UpdatedAt = DateTime.UtcNow;
 
-            _logger.LogInformation("Updated system setting {Module}:{Key}", module, key);
+            _logger.LogInformation(
+                "Updated system setting {Module}:{Key}",
+                LogSanitizer.Sanitize(module),
+                LogSanitizer.Sanitize(key));
         }
         else
         {
@@ -106,7 +110,10 @@ public sealed class AdminSettingsService : IAdminSettingsService
             };
 
             dbContext.SystemSettings.Add(existing);
-            _logger.LogInformation("Created system setting {Module}:{Key}", module, key);
+            _logger.LogInformation(
+                "Created system setting {Module}:{Key}",
+                LogSanitizer.Sanitize(module),
+                LogSanitizer.Sanitize(key));
         }
 
         await dbContext.SaveChangesAsync();
@@ -184,7 +191,10 @@ public sealed class AdminSettingsService : IAdminSettingsService
         dbContext.SystemSettings.Remove(setting);
         await dbContext.SaveChangesAsync();
 
-        _logger.LogInformation("Deleted system setting {Module}:{Key}", module, key);
+        _logger.LogInformation(
+            "Deleted system setting {Module}:{Key}",
+            LogSanitizer.Sanitize(module),
+            LogSanitizer.Sanitize(key));
         return true;
     }
 
