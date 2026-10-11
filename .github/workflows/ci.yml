@@ -45,3 +45,42 @@ jobs:
 
       - name: Test
         run: dotnet test DotNetCloud.CI.slnf --no-build --configuration Release --verbosity normal --settings .runsettings
+
+  # ===========================================================================
+  # Browser Extension (npm)
+  #   Verifies the lockfile installs cleanly and the extension typechecks,
+  #   tests and builds. Guards against lockfile corruption (e.g. truncated
+  #   integrity hashes) which previously slipped through because no CI job
+  #   exercised the npm toolchain.
+  # ===========================================================================
+  browser-extension:
+    name: Browser Extension
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    defaults:
+      run:
+        working-directory: src/Clients/DotNetCloud.Client.BrowserExtension
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22.x"
+          cache: npm
+          cache-dependency-path: src/Clients/DotNetCloud.Client.BrowserExtension/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Test
+        run: npm test
+
+      - name: Build extension
+        run: npm run build
