@@ -266,6 +266,118 @@ public class FileServiceSharedWithMeModuleTests
         Assert.AreEqual(0, children.Count);
     }
 
+    [TestMethod]
+    public async Task ListSharedWithMeChildrenAsync_NoRegistry_ListsDirectUserShares()
+    {
+        using var db = CreateContext();
+        var callerUserId = Guid.CreateVersion7();
+        await SeedDirectUserShareAsync(db, callerUserId, "ShareTest.docx");
+
+        // No registry and no team/group membership → the folder must still surface the direct user share.
+        var service = CreateService(db, sharedWithMe: null);
+        var children = await ListSharedWithMeChildrenAsync(service, UserCaller(callerUserId));
+
+        var onlyChild = children.SingleOrDefault();
+        Assert.IsNotNull(onlyChild);
+        Assert.AreEqual("ShareTest.docx", onlyChild!.Name);
+        Assert.AreEqual(VirtualMountedNodeRegistry.SharedWithMeRootId, onlyChild.ParentId);
+        Assert.AreEqual("SharedWithMe", onlyChild.VirtualSourceKind);
+        Assert.IsFalse(onlyChild.IsVirtual);
+    }
+
+    [TestMethod]
+    public async Task ListChildrenAsync_SharedWithMeFolder_ChildCountIncludesDirectUserShares()
+    {
+        using var db = CreateContext();
+        var callerUserId = Guid.CreateVersion7();
+        await SeedDirectUserShareAsync(db, callerUserId, "ShareTest.docx");
+
+        var service = CreateService(db, sharedWithMe: null);
+        var caller = UserCaller(callerUserId);
+        var dotNetCloudRoot = (await service.ListRootAsync(caller)).First(node => node.Name == "_DotNetCloud");
+        var sharedWithMe = (await service.ListChildrenAsync(dotNetCloudRoot.Id, caller)).First(node => node.Name == "Shared With Me");
+
+        Assert.AreEqual(1, sharedWithMe.ChildCount);
+    }
+
+    [TestMethod]
+    public async Task ListSharedWithMeChildrenAsync_RegistryPresent_DirectUserShareAddsFilesFolderAndItem()
+    {
+        using var db = CreateContext();
+        var callerUserId = Guid.CreateVersion7();
+        await SeedDirectUserShareAsync(db, callerUserId, "Direct Share.txt");
+
+        var registry = new FakeSharedWithMeModuleRegistry(modules: []);
+        var service = CreateService(db, sharedWithMe: registry);
+        var caller = UserCaller(callerUserId);
+
+        var children = await ListSharedWithMeChildrenAsync(service, caller);
+        Assert.AreEqual(1, children.Count);
+        Assert.AreEqual("Files", children[0].Name);
+        Assert.AreEqual(1, children[0].ChildCount);
+
+        // And the item is reachable under the Files module folder.
+        var filesFolderId = VirtualMountedNodeRegistry.GetSharedWithMeModuleFolderId("files");
+        var items = await service.ListChildrenAsync(filesFolderId, caller);
+        Assert.AreEqual("Direct Share.txt", items.Single().Name);
+    }
+
+    [TestMethod]
+    public async Task ListSharedWithMeChildrenAsync_NodeSharedBothWays_AppearsOnce()
+    {
+        using var db = CreateContext();
+        var callerUserId = Guid.CreateVersion7();
+        var (nodeId, groupId) = await SeedGroupSharedFileAsync(db, "Both Ways.txt");
+
+        // The same node is also shared directly with the caller — it must not be listed twice.
+        db.FileShares.Add(new FilesFileShare
+        {
+            FileNodeId = nodeId,
+            ShareType = ShareType.User,
+            SharedWithUserId = callerUserId,
+            CreatedByUserId = Guid.CreateVersion7(),
+        });
+        await db.SaveChangesAsync();
+
+        var service = CreateService(db, ResolverFor(callerUserId, groupId).Object, sharedWithMe: null);
+        var children = await ListSharedWithMeChildrenAsync(service, UserCaller(callerUserId));
+
+        Assert.AreEqual(1, children.Count);
+        Assert.AreEqual("Both Ways.txt", children[0].Name);
+    }
+
+    [TestMethod]
+    public async Task ListSharedWithMeChildrenAsync_ExpiredDirectUserShare_IsExcluded()
+    {
+        using var db = CreateContext();
+        var callerUserId = Guid.CreateVersion7();
+        await SeedDirectUserShareAsync(db, callerUserId, "Expired.txt", expiresAt: DateTime.UtcNow.AddHours(-1));
+
+        var service = CreateService(db, sharedWithMe: null);
+        var children = await ListSharedWithMeChildrenAsync(service, UserCaller(callerUserId));
+
+        Assert.AreEqual(0, children.Count);
+    }
+
+    /// <summary>Seeds a file owned by someone else and shared directly with <paramref name="sharedWithUserId"/>.</summary>
+    private static async Task<Guid> SeedDirectUserShareAsync(
+        FilesDbContext db, Guid sharedWithUserId, string fileName = "Direct Share.txt", DateTime? expiresAt = null)
+    {
+        var ownerId = Guid.CreateVersion7();
+        var node = new FileNode { Name = fileName, NodeType = FileNodeType.File, OwnerId = ownerId };
+        db.FileNodes.Add(node);
+        db.FileShares.Add(new FilesFileShare
+        {
+            FileNodeId = node.Id,
+            ShareType = ShareType.User,
+            SharedWithUserId = sharedWithUserId,
+            CreatedByUserId = ownerId,
+            ExpiresAt = expiresAt,
+        });
+        await db.SaveChangesAsync();
+        return node.Id;
+    }
+
     /// <summary>In-memory registry stub returning configured modules/items without any real provider.</summary>
     private sealed class FakeSharedWithMeModuleRegistry : ISharedWithMeModuleRegistry
     {

@@ -1,6 +1,6 @@
 # Files Module — Versioning Guide
 
-> **Last Updated:** 2026-09-27
+> **Last Updated:** 2026-10-11
 
 ---
 
@@ -29,6 +29,19 @@ Each version stores:
 - **Creator** (user ID)
 - **Timestamp** (UTC)
 - **Optional label** (e.g., "Final draft", "Before review")
+
+### Saves that skip versioning (unchanged content)
+
+A WOPI/Collabora save (`PutFile`) creates a new `FileVersion` **only when the content actually changed**.
+The incoming bytes are chunked and hashed; when the resulting manifest hash equals the current version's
+`ContentHash`, no version row is created, the version counter/size/content hash are left untouched, no
+change events are published, and only `FileNode.UpdatedAt` is refreshed — so the `LastModifiedTime`
+returned to Collabora still advances (a stale value is treated as a failed save and retried).
+
+This matters because Collabora autosaves every `AutoSaveIntervalSeconds` (default 300) and flushes again
+on close: without this guard a single editing session grows the history by several identical rows.
+`FileNode.CurrentVersion` therefore increments only on real content changes, and the history is further
+bounded by the version-retention policy (see *Version Retention*).
 
 ### Chunk Reuse
 

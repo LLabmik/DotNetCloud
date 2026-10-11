@@ -345,6 +345,51 @@ public class WopiServiceTests
     }
 
     [TestMethod]
+    public async Task PutFileAsync_IdenticalContent_SkipsNewVersionAndRefreshesUpdatedAt()
+    {
+        using var db = CreateContext();
+        var userId = Guid.CreateVersion7();
+        var data = Encoding.UTF8.GetBytes("byte-identical document content");
+        var manifestHash = ContentHasher.ComputeManifestHash([ContentHasher.ComputeHash(data)]);
+        var originalUpdatedAt = DateTime.UtcNow.AddHours(-1);
+
+        var node = new FileNode
+        {
+            Name = "unchanged.docx",
+            NodeType = FileNodeType.File,
+            OwnerId = userId,
+            CurrentVersion = 3,
+            Size = data.Length,
+            ContentHash = manifestHash,
+            UpdatedAt = originalUpdatedAt,
+        };
+        db.FileNodes.Add(node);
+        await db.SaveChangesAsync();
+
+        var storageMock = new Mock<IFileStorageEngine>();
+        var eventBusMock = new Mock<IEventBus>();
+        var service = CreateService(db, storageMock.Object, eventBus: eventBusMock.Object);
+
+        using var content = new MemoryStream(data);
+        var lastModified = await service.PutFileAsync(node.Id, content, UserCaller(userId));
+
+        var updatedNode = await db.FileNodes.FindAsync(node.Id);
+        Assert.IsNotNull(updatedNode);
+        Assert.AreEqual(3, updatedNode.CurrentVersion, "the version counter must not advance");
+        Assert.AreEqual(manifestHash, updatedNode.ContentHash);
+        Assert.IsTrue(updatedNode.UpdatedAt > originalUpdatedAt, "UpdatedAt must be refreshed");
+        Assert.AreEqual(updatedNode.UpdatedAt.ToString("O"), lastModified);
+
+        Assert.AreEqual(0, await db.FileVersions.CountAsync(v => v.FileNodeId == node.Id), "no new version row");
+        storageMock.Verify(
+            s => s.WriteChunkAsync(It.IsAny<string>(), It.IsAny<ReadOnlyMemory<byte>>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+        eventBusMock.Verify(
+            e => e.PublishAsync(It.IsAny<Events.FileUploadedEvent>(), It.IsAny<CallerContext>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
+    [TestMethod]
     public async Task PutFileAsync_NonexistentFile_ThrowsNotFoundException()
     {
         using var db = CreateContext();

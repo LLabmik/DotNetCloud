@@ -125,11 +125,7 @@ internal sealed class WopiTokenService : IWopiTokenService
         {
             var parts = accessToken.Split('.');
             if (parts.Length != 2)
-            {
-                Console.Error.WriteLine($"[WOPI-TOKEN] Invalid format: parts={parts.Length}");
-                Console.Error.Flush();
                 return null;
-            }
 
             var payloadBytes = DecodeTokenPart(parts[0]);
             var signatureBytes = DecodeTokenPart(parts[1]);
@@ -140,8 +136,6 @@ internal sealed class WopiTokenService : IWopiTokenService
             if (!CryptographicOperations.FixedTimeEquals(signatureBytes, expectedSignature))
             {
                 _logger.LogWarning("WOPI token signature validation failed for file {FileId}", fileId);
-                Console.Error.WriteLine($"[WOPI-TOKEN] Signature mismatch for fileId={fileId}");
-                Console.Error.Flush();
                 return null;
             }
 

@@ -265,6 +265,69 @@ internal sealed class FileService : IFileService
         return nodes.Select(n => ToDto(n, childCounts.GetValueOrDefault(n.Id), subtreeSizes.GetValueOrDefault(n.Id))).ToList();
     }
 
+    /// <summary>
+    /// Lists the file nodes surfaced under the virtual "Shared With Me" folder: the nodes the caller
+    /// can reach through team/group mounted access plus the nodes shared with the caller directly
+    /// (direct user shares — the same set the sidebar's <c>GET /api/v1/files/shared-with-me</c> returns).
+    /// De-duplicated by node id (a node shared both directly and via a team appears once).
+    /// </summary>
+    private async Task<IReadOnlyList<FileNodeDto>> ListSharedWithMeFileNodesAsync(CallerContext caller, CancellationToken cancellationToken)
+    {
+        var mounted = await ListMountedAccessAsync(caller, cancellationToken);
+        var direct = await ListDirectUserShareNodesAsync(caller, cancellationToken);
+
+        if (direct.Count == 0)
+            return mounted;
+
+        if (mounted.Count == 0)
+            return direct;
+
+        var byId = new Dictionary<Guid, FileNodeDto>(mounted.Count + direct.Count);
+        foreach (var node in mounted)
+            byId[node.Id] = node;
+        foreach (var node in direct)
+            byId.TryAdd(node.Id, node);
+
+        return byId.Values
+            .OrderBy(n => n.NodeType)
+            .ThenBy(n => n.Name, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+    }
+
+    /// <summary>
+    /// Lists the nodes shared with the caller through a direct user share
+    /// (<see cref="ShareType.User"/>), excluding the caller's own nodes and expired shares.
+    /// This mirrors <c>ShareService.GetSharedWithMeAsync</c> so the folder tree and the sidebar agree.
+    /// </summary>
+    private async Task<IReadOnlyList<FileNodeDto>> ListDirectUserShareNodesAsync(CallerContext caller, CancellationToken cancellationToken)
+    {
+        var now = DateTime.UtcNow;
+
+        var nodeIds = await _db.FileShares
+            .AsNoTracking()
+            .Where(s => s.ShareType == ShareType.User
+                && s.SharedWithUserId == caller.UserId
+                && (s.ExpiresAt == null || s.ExpiresAt > now))
+            .Select(s => s.FileNodeId)
+            .Distinct()
+            .ToArrayAsync(cancellationToken);
+
+        if (nodeIds.Length == 0)
+            return [];
+
+        var nodes = await _db.FileNodes
+            .AsNoTrackingWithIdentityResolution()
+            .Include(n => n.Tags)
+            .Where(n => nodeIds.Contains(n.Id) && n.OwnerId != caller.UserId)
+            .OrderBy(n => n.NodeType)
+            .ThenBy(n => n.Name)
+            .ToListAsync(cancellationToken);
+
+        var childCounts = await GetChildCountsAsync(nodes, cancellationToken);
+        var subtreeSizes = await GetSubtreeSizesAsync(nodes, cancellationToken);
+        return nodes.Select(n => ToDto(n, childCounts.GetValueOrDefault(n.Id), subtreeSizes.GetValueOrDefault(n.Id))).ToList();
+    }
+
     /// <inheritdoc />
     public async Task<FileNodeDto?> ResolveMountedNodeAsync(Guid sharedFolderId, string? relativePath, CallerContext caller, CancellationToken cancellationToken = default)
     {
@@ -1069,13 +1132,13 @@ internal sealed class FileService : IFileService
     {
         if (_sharedWithMe is null)
         {
-            var mountedItems = await ListMountedAccessAsync(caller, cancellationToken);
+            var sharedItems = await ListSharedWithMeFileNodesAsync(caller, cancellationToken);
             return CreateVirtualFolderDto(
                 SharedWithMeRootId,
                 "Shared With Me",
                 DotNetCloudRootId,
                 caller.UserId,
-                mountedItems.Count,
+                sharedItems.Count,
                 DateTime.UtcNow,
                 isReadOnly: true,
                 sourceKind: "SharedWithMeRoot");
@@ -1103,8 +1166,8 @@ internal sealed class FileService : IFileService
     {
         if (_sharedWithMe is null)
         {
-            var mountedItems = await ListMountedAccessAsync(caller, cancellationToken);
-            return mountedItems
+            var sharedItems = await ListSharedWithMeFileNodesAsync(caller, cancellationToken);
+            return sharedItems
                 .Select(node => node with
                 {
                     ParentId = SharedWithMeRootId,
@@ -1139,10 +1202,10 @@ internal sealed class FileService : IFileService
             return result;
         }
 
-        var mountedCount = (await ListMountedAccessAsync(caller, cancellationToken)).Count;
-        if (mountedCount > 0)
+        var fileShareCount = (await ListSharedWithMeFileNodesAsync(caller, cancellationToken)).Count;
+        if (fileShareCount > 0)
         {
-            result.Add((new SharedWithMeModule(FilesModuleId, "Files", "folder"), mountedCount));
+            result.Add((new SharedWithMeModule(FilesModuleId, "Files", "folder"), fileShareCount));
         }
 
         foreach (var module in _sharedWithMe.Modules)
@@ -1228,8 +1291,8 @@ internal sealed class FileService : IFileService
 
         if (module.ModuleId == FilesModuleId)
         {
-            var mountedItems = await ListMountedAccessAsync(caller, cancellationToken);
-            return mountedItems
+            var sharedItems = await ListSharedWithMeFileNodesAsync(caller, cancellationToken);
+            return sharedItems
                 .Select(node => node with
                 {
                     ParentId = folderId,

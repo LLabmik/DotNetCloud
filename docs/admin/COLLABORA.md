@@ -308,9 +308,12 @@ The `MaxConcurrentSessions` setting limits how many documents can be edited simu
 
 - Default: 20 concurrent sessions
 - Set to `0` for unlimited
+- **The limit is global** — it counts every active `(file, user)` session across the whole instance, so it
+  is a Collabora-resource guard, not a per-document "one editor at a time" rule. Reaching it refuses the
+  next *distinct* session even when each document has a single editor.
 - When the limit is reached, new edit requests return HTTP 503
 
-Sessions are tracked per file + user pair. A session begins when Collabora calls CheckFileInfo and ends when the user closes the editor (via `DELETE /api/v1/wopi/token/{fileId}`).
+Sessions are tracked per file + user pair. A session begins when Collabora calls CheckFileInfo and ends when the user closes the editor (via `DELETE /api/v1/wopi/token/{fileId}`); idle sessions expire after the token lifetime + 30 minutes, and a module-host restart clears them.
 
 ### Monitoring Sessions
 

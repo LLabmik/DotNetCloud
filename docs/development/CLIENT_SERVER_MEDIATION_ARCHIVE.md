@@ -1,3 +1,71 @@
+## Archived: Server agent (`cloud.kimball.home`) — WOPI findings from the Android Collabora verification (2026-10-11)
+
+**Status:** completed ✅ + deployed + live-verified on `cloud.kimball.home` (deploy **15/15**, `/health/ready` Healthy **14/14**, version **0.6.13**; Files tests **967 pass / 0 fail**; `DotNetCloud.CI.slnf` Release build 0 warnings).
+**Branch:** `feature/android-sync` · **From:** `cloud.kimball.home` (server agent) · **Target:** `cloud.dotnetcloud.net`
+**Raised by:** the client agent (`monolith`) while verifying the Android Collabora editor plan on device (`R5CWC356B2K`) — `docs/ANDROID_COLLABORA_EDIT_PLAN.md` §11.2 / §5.5.1.
+
+### Why
+
+The five findings surfaced as the Android Collabora editor plan was verified against production. Three were
+diagnostic questions (a flapping `404`, a 1-byte `Size` vs `contents` delta, the concurrency-cap semantics),
+one was a real server gap (the `_DotNetCloud → Shared With Me` folder not listing direct user shares), and one
+was a policy question (version churn on identical saves).
+
+### What changed (implementation)
+
+- **Item 1 — diagnostic.** Root cause confirmed from the module-host log + YARP proxy log: every `404` was
+  `GET /api/v1/wopi/files/=<token>` — the access token placed in the `{fileId}` path segment. The route is
+  constrained to `{fileId:guid}`, so no endpoint matched and ASP.NET returned an empty-body `404` with no
+  application code running (hence no `WopiController` log line). **Not a server fault.** Also removed leftover
+  `Console.Error.WriteLine` debug spam from `WopiController` and `WopiTokenService` (it logged at `ERR`/`STDERR`).
+- **Item 2 — diagnostic.** `CheckFileInfo.Size` is `FileNode.Size`; `GetFile` streams the latest `FileVersion`.
+  Both are written in the same `SaveChanges`, so they agree at any point in time. The observed `5545` vs `5546`
+  spanned a concurrent close-flush save (`v20` 5545 → `v21` 5546). No code change.
+- **Item 3 — decision + test.** The cap stays **global** and keyed on `(fileId, userId)` (a Collabora resource
+  guard, matching `docs/admin/COLLABORA.md`), not per-document. Documented in `WOPI.md` / `COLLABORA.md`; new
+  controller test `CheckFileInfo_AtConcurrencyCapacity_Returns503`.
+- **Item 4 — fix.** `FileService` now builds the Shared-With-Me folder from a new
+  `ListSharedWithMeFileNodesAsync` (team/group mounted access ∪ direct `ShareType.User` shares, de-duplicated by
+  node id). Used by the folder, the Files module folder, and the child count, so the tree matches the sidebar.
+- **Item 5 — fix (operator-chosen).** `WopiService.PutFileAsync` short-circuits when the computed manifest hash
+  equals `node.ContentHash`: no `FileVersion`, counter/size/hash untouched, no change events, chunk storage
+  skipped, and only `UpdatedAt` refreshed (so the returned `LastModifiedTime` still advances).
+
+### Contract
+
+- `GET /api/v1/wopi/files/{fileId}`: malformed path segment (not a GUID) → `404` empty; missing/invalid token →
+  `401`; valid token + resolved node/permission → `200`; proof mismatch → `401`; cap reached → `503`.
+- `PutFile` with unchanged content → `200` with a fresh `LastModifiedTime`, **no** new version.
+- `MaxConcurrentSessions` counts every active `(file,user)` session instance-wide.
+
+### Verification
+
+| Check | Evidence |
+| --- | --- |
+| Deploy | `deploy.sh --force --verify` → **15/15 targets**, all assemblies hash-verified, elapsed 421 s, v0.6.13 |
+| `/health/ready` | **Healthy** — 14/14 modules + database |
+| Deployed symbols | `ListSharedWithMeFileNodesAsync` / `ListDirectUserShareNodesAsync` present in the deployed `DotNetCloud.Modules.Files.Data.dll`; no `[WOPI]` debug literals in the deployed `dotnetcloud.files.dll`; zero new `[WOPI]` STDERR lines |
+| Item 1 live | valid token → **200**; bogus token on a valid route → **401**; malformed `files/=<token>` → **404** |
+| Item 2 live | `CheckFileInfo.Size` **5546** == contents **5546** bytes |
+| Item 4 data | `ShareTest.docx` owned by another user, direct `ShareType.User` share to the caller, not deleted |
+| Item 5 live | re-POSTing the file's own bytes → **200**, log `content unchanged (v22, 5546 bytes, hash b6e784d2…); skipped new version.`, DB still **8 versions (max 22)** |
+| Tests / build | Files.Tests **967 pass / 0 fail**; `DotNetCloud.CI.slnf` Release build **0 warnings** |
+
+### Deliberate non-changes
+
+- No Android client change (the client half is the `monolith` agent's; items 1–3 need none).
+- No version-number bump.
+- The global session cap was **kept** rather than re-keyed per file; the live 20-session load test was not run
+  (it would hold real slots for 8 h 30 m on production).
+
+### Pending (`monolith`) — NOT yet done
+
+- On-device verification of **item 4** (`_DotNetCloud → Shared With Me` lists `ShareTest.docx`, opens view-only)
+  and **item 5** (an unchanged save does not advance the version counter). Tracked as the 🔄 Active Handoff —
+  Client in `CLIENT_SERVER_MEDIATION_HANDOFF.md`.
+
+---
+
 ## Archived: Client agent (`monolith`) — Android: Collabora Online document editing in the Files tab, verified on-device (2026-10-11)
 
 **Status:** completed ✅ on the client side — implemented, unit-tested and verified on the phone against production Collabora. **Awaiting the operator's commit approval** (nothing pushed yet). The five server-side findings from the same verification are an **active handoff** for `cloud.kimball.home` (see `CLIENT_SERVER_MEDIATION_HANDOFF.md` → *Active Handoff — Server: five WOPI findings…*), so this branch's own work is complete while those items stay open on the server side.
