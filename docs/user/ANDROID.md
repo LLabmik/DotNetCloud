@@ -1,6 +1,6 @@
 # Android App — User Guide
 
-> **Last Updated:** 2026-09-20
+> **Last Updated:** 2026-10-12
 
 ---
 
@@ -51,11 +51,40 @@ Your login tokens are stored securely in the Android Keystore.
 | Feature               | Description                                                     |
 | --------------------- | --------------------------------------------------------------- |
 | **Real-Time Chat**    | Instant message delivery via a persistent connection            |
-| **Files**             | Browse and access your files                                    |
+| **Files**             | Browse folders, preview and manage your files                   |
 | **Photo Auto-Upload** | Automatically back up photos from your device                   |
 | **Background Alerts** | New-message alert posted by the app's own background check      |
 | **Offline Cache**     | Read previously loaded messages without a connection            |
 | **Multi-Server**      | Connect to multiple DotNetCloud servers and switch between them |
+
+---
+
+## Files
+
+Open **Files** from the menu to browse your files. The folder you are in is named in the title bar, and the toolbar carries the actions that apply to it.
+
+### The path bar
+
+Directly under the toolbar, a trail shows where you are — for example `My Files › Documents › Writing`.
+
+- **Tap a segment** to jump straight back to that folder, instead of walking back one folder at a time.
+- **Swipe the trail sideways** to scroll it. However deep you are, the trail stays scrolled to the folder you are currently in, so the end of the path is the part you see.
+
+### Toolbar actions
+
+| Action         | What it does                                                      |
+| -------------- | ------------------------------------------------------------------ |
+| **←**          | Goes up one folder. The phone's back gesture does the same.         |
+| **New folder** | Creates a folder inside the current folder.                        |
+| **Upload**     | Sends one or more files from your device into the current folder.   |
+
+### Working with items
+
+- **Tap a folder** to open it, or **tap a file** to open or preview it.
+- **Pull the list down** to reload the current folder.
+- **Swipe a row to the left** to move that file or folder to the trash; you are asked to confirm first.
+
+The bar at the bottom of the screen shows how much of your storage you are using.
 
 ---
 

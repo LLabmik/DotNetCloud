@@ -74,6 +74,13 @@ public sealed partial class ImageViewerViewModel : ObservableObject, IQueryAttri
         _logger = logger;
     }
 
+    /// <summary>
+    /// Raised once <see cref="CarouselItems"/> has been populated, carrying the index of the image
+    /// the viewer should open on. The view applies it, because the platform carousel drops the
+    /// requested position while its item collection is being repopulated.
+    /// </summary>
+    public event EventHandler<int>? StartIndexReady;
+
     /// <inheritdoc />
     public void ApplyQueryAttributes(IDictionary<string, object> query)
     {
@@ -265,6 +272,7 @@ public sealed partial class ImageViewerViewModel : ObservableObject, IQueryAttri
             // Set position — this triggers OnCurrentPositionChanged which loads the image
             CurrentPosition = startIndex;
             IsViewerLoading = false;
+            StartIndexReady?.Invoke(this, startIndex);
         }
         catch (Exception ex)
         {
@@ -314,6 +322,7 @@ public sealed partial class ImageViewerViewModel : ObservableObject, IQueryAttri
 
             CurrentPosition = startIndex;
             IsViewerLoading = false;
+            StartIndexReady?.Invoke(this, startIndex);
         }
         catch (Exception ex)
         {
