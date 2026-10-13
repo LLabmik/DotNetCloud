@@ -23,16 +23,20 @@
 
     <Grid RowDefinitions="Auto,Auto,*,Auto,Auto">
 
-        <!-- Top toolbar: back + folder name + actions -->
+        <!-- Top toolbar: back + actions on the first line, folder path on the second -->
         <Border
             Grid.Row="0"
             BackgroundColor="#1E293B"
             StrokeThickness="0"
             Padding="8,8">
-            <Grid ColumnDefinitions="Auto,*,Auto,Auto,Auto">
+            <Grid
+                RowDefinitions="Auto,Auto"
+                ColumnDefinitions="Auto,*,Auto,Auto,Auto"
+                RowSpacing="6">
 
-                <!-- Back button -->
+                <!-- Back button (action row) -->
                 <ImageButton
+                    Grid.Row="0"
                     Grid.Column="0"
                     BackgroundColor="Transparent"
                     IsVisible="{Binding CanGoBack}"
@@ -48,49 +52,50 @@
                     </ImageButton.Source>
                 </ImageButton>
 
-                <!-- Breadcrumb navigation -->
-                <ScrollView
-                    Grid.Column="1"
-                    Orientation="Horizontal"
-                    HorizontalScrollBarVisibility="Never"
-                    VerticalOptions="Center">
-                    <CollectionView
-                        ItemsSource="{Binding Breadcrumbs}"
-                        ItemsLayout="HorizontalList"
-                        SelectionMode="None"
-                        VerticalOptions="Center"
-                        HeightRequest="32">
-                        <CollectionView.ItemTemplate>
-                            <DataTemplate x:DataType="vm:BreadcrumbItem">
-                                <HorizontalStackLayout VerticalOptions="Center"
-                                                       Spacing="0">
-                                    <Label
-                                        FontSize="13"
-                                        TextColor="#475569"
-                                        VerticalOptions="Center"
-                                        Text=" › "
-                                        IsVisible="{Binding FolderId, Converter={StaticResource IsNotNull}}"/>
-                                    <Label
-                                        FontSize="13"
-                                        TextColor="#94A3B8"
-                                        VerticalOptions="Center"
-                                        Text="{Binding Name}"
-                                        LineBreakMode="TailTruncation"
-                                        MaxLines="1">
-                                        <Label.GestureRecognizers>
-                                            <TapGestureRecognizer
-                                                Command="{Binding Source={RelativeSource AncestorType={x:Type ContentPage}}, Path=BindingContext.NavigateToBreadcrumbCommand}"
-                                                CommandParameter="{Binding .}"/>
-                                        </Label.GestureRecognizers>
-                                    </Label>
-                                </HorizontalStackLayout>
-                            </DataTemplate>
-                        </CollectionView.ItemTemplate>
-                    </CollectionView>
-                </ScrollView>
+                <!-- Breadcrumb navigation: the folder path gets its own full-width line, and the
+                     list keeps its last segment in view so a path wider than the screen still
+                     shows the current (deepest) folder -->
+                <CollectionView
+                    x:Name="BreadcrumbList"
+                    Grid.Row="1"
+                    Grid.ColumnSpan="5"
+                    ItemsSource="{Binding Breadcrumbs}"
+                    ItemsLayout="HorizontalList"
+                    ItemsUpdatingScrollMode="KeepLastItemInView"
+                    SelectionMode="None"
+                    VerticalOptions="Center"
+                    HeightRequest="32">
+                    <CollectionView.ItemTemplate>
+                        <DataTemplate x:DataType="vm:BreadcrumbItem">
+                            <HorizontalStackLayout VerticalOptions="Center"
+                                                   Spacing="0">
+                                <Label
+                                    FontSize="13"
+                                    TextColor="#475569"
+                                    VerticalOptions="Center"
+                                    Text=" › "
+                                    IsVisible="{Binding FolderId, Converter={StaticResource IsNotNull}}"/>
+                                <Label
+                                    FontSize="13"
+                                    TextColor="#94A3B8"
+                                    VerticalOptions="Center"
+                                    Text="{Binding Name}"
+                                    LineBreakMode="TailTruncation"
+                                    MaxLines="1">
+                                    <Label.GestureRecognizers>
+                                        <TapGestureRecognizer
+                                            Command="{Binding Source={RelativeSource AncestorType={x:Type ContentPage}}, Path=BindingContext.NavigateToBreadcrumbCommand}"
+                                            CommandParameter="{Binding .}"/>
+                                    </Label.GestureRecognizers>
+                                </Label>
+                            </HorizontalStackLayout>
+                        </DataTemplate>
+                    </CollectionView.ItemTemplate>
+                </CollectionView>
 
                 <!-- New document button (only when Collabora reports an editable format) -->
                 <Border
+                    Grid.Row="0"
                     Grid.Column="2"
                     BackgroundColor="#334155"
                     StrokeThickness="0"
@@ -113,6 +118,7 @@
 
                 <!-- New folder button -->
                 <Border
+                    Grid.Row="0"
                     Grid.Column="3"
                     BackgroundColor="#334155"
                     StrokeThickness="0"
@@ -135,6 +141,7 @@
 
                 <!-- Upload file button -->
                 <Border
+                    Grid.Row="0"
                     Grid.Column="4"
                     BackgroundColor="#334155"
                     StrokeThickness="0"

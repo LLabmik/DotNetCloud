@@ -3,8 +3,29 @@
 > **Document Version:** 1.0  
 > **Purpose:** Comprehensive task breakdown for implementing the DotNetCloud architecture  
 > **Scope:** All phases from Foundation (Phase 0) through Auto-Updates (Phase 11)  
-> **Last Updated:** 2026-10-11
+> **Last Updated:** 2026-10-12
 > **Audience:** Development team, project managers, technical leads
+
+---
+
+## Recent Fix — Android Files: the image viewer opens the image you tapped (2026-10-12, `fix/android-files-updates`)
+
+> Tapping an image that was **not** the first one in a folder opened the viewer on the **first** image, every time. The tap itself was fine — the browser had the right node — so the fault was in the viewer's carousel: `ImageViewerViewModel` resolved the correct index and set `CurrentPosition`, and the Android `CarouselView` then discarded it.
+
+- ✓ **Root cause (MAUI `CarouselView` on Android)** — populating `CarouselItems` (`Clear()` plus an `Add()` per file) makes the platform view rebuild its adapter, and that rebuild resets `Position` to 0 / `CurrentItem` to `null`, queues a scroll back to position 0 and leaves `CurrentItem` on the **first** item. The binding-driven `Position` write that followed was dropped as well, because the rebuild also leaves MAUI's internal `_noNeedForScroll` flag set (`UpdateFromPosition` returns early — no scroll *and* no `CurrentItem` update). When the carousel then became visible, its layout pass re-derived the position from `CurrentItem` — still the first image — and wrote that `0` back through the two-way `Position` binding, so the view model followed it: position text `1 / N`, first image loaded, first image's EXIF.
+- ✓ **`ImageViewerViewModel`** — new `StartIndexReady` event (`EventHandler<int>`), raised once the carousel has been populated with the resolved start index, in both the folder mode and the URL mode. No new view-model state: the index already existed, it just had to reach the control instead of relying on the `Position` binding.
+- ✓ **`ImageViewerPage.xaml.cs`** — subscribes to `StartIndexReady` and applies the index **once** (also from `CarouselView.SizeChanged`, for the case where the index arrives before the platform view exists): it sets `CurrentItem` to the tapped item so the carousel's own re-derivation agrees with it, then issues an explicit `ScrollTo(index, ScrollToPosition.Center, animate: false)`. That explicit scroll also cancels the carousel's queued scroll back to position 0 — MAUI is explicit that an explicit `ScrollTo` wins over that internal collection-change positioning.
+- ✓ **Verified on device (R5CWC356B2K / SM-S928U, 2026-10-12)** — `net10.0-android` Debug `-t:Install` (0 warnings / 0 errors) over the existing install, in `AutoUpload › 2026 › 02` (21 images + 1 video): tapping the **3rd** image opened `20260208_210959.jpg` at **`3 / 21`**, the **5th** opened `20260208_211022.jpg` at **`5 / 21`**, and a **17th** image (scrolled into view) opened `NUP_206697_03359.JPG.webp` at **`17 / 21`**, while the **1st** still opens at **`1 / 21`**. Swipes still page 3 → 4 → 5 → 4 with names and position text following, the ⓘ panel shows the tapped image's metadata (`750 × 1000`, `Phase One IQ3 100MP Trichromatic`, `Jan 23, 2025 · 6:04 AM`), and logcat carries no client exceptions.
+
+---
+
+## Recent Fix — Android Files: folder path on its own line, scrolled to the current folder (2026-10-12, `fix/android-files-updates`)
+
+> The Files tab toolbar packed the back button, the breadcrumb path and the three file actions into one row, so a deep path was clipped by the action buttons — on device, `My Files › Documents › Writing` rendered as `My Files › Documents › Writ…`. Giving the path its own full-width line fixed that, but a path **deeper than the screen** still clipped its **tail**, hiding the folder the user was actually in (`… › Mind the Seam › (` with `Cover Art` off-screen). The breadcrumb now keeps its last segment in view, so the **current (deepest) folder is always visible**.
+
+- ✓ **`FileBrowserPage.xaml`** — the toolbar grid is now `RowDefinitions="Auto,Auto"`: the back button and the New Document / New folder / Upload buttons stay on row 0 (actions right-aligned via the existing `*` spacer), and the breadcrumb moved to row 1 with `Grid.ColumnSpan="5"` so it spans the full width.
+- ✓ **Breadcrumb scrolls to its tail** — the redundant outer horizontal `ScrollView` was removed, because it (not the `CollectionView`) was doing the scrolling, which left the `CollectionView` with nothing to scroll itself. The `CollectionView` now owns horizontal scrolling, sets `ItemsUpdatingScrollMode="KeepLastItemInView"`, and `FileBrowserPage.xaml.cs` additionally hooks `Breadcrumbs.CollectionChanged` to `ScrollTo(last, ScrollToPosition.End)` using the same `MainThread` + layout-settle pattern as the AI/message-list pages. Swiping back still reveals the start of the path and breadcrumb taps still jump levels.
+- ✓ **Verified on device (R5CWC356B2K / SM-S928U, 2026-10-12)** — `net10.0-android` Debug `-t:Install` (0 warnings / 0 errors) over the existing install. At `My Files › Documents › Writing › Mind the Seam › Cover Art` the path opens scrolled to `… › Mind the Seam › Cover Art` with the current folder fully visible; swiping right reveals the four leading segments (`My Files › Documents › Writing › Mind the Seam › (`), and tapping `Documents` jumps back to `My Files › Documents`.
 
 ---
 

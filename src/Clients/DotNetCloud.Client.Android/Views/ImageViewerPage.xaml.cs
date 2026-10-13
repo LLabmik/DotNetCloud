@@ -8,6 +8,10 @@ namespace DotNetCloud.Client.Android.Views;
 /// </summary>
 public partial class ImageViewerPage : ContentPage
 {
+    private readonly ImageViewerViewModel _viewModel;
+    private int _startIndex = -1;
+    private bool _isStartIndexApplied;
+
     // ── Per-gesture tracking state (only one gesture at a time) ──────
     private double _pinchStartScale = 1;
 
@@ -15,7 +19,46 @@ public partial class ImageViewerPage : ContentPage
     public ImageViewerPage(ImageViewerViewModel viewModel)
     {
         InitializeComponent();
-        BindingContext = viewModel;
+        BindingContext = _viewModel = viewModel;
+
+        _viewModel.StartIndexReady += OnStartIndexReady;
+
+        // Fallback: if the index is known before the carousel has a platform view, apply it
+        // as soon as the carousel is laid out.
+        CarouselView.SizeChanged += OnCarouselSizeChanged;
+    }
+
+    /// <summary>Remembers which image the viewer should open on.</summary>
+    private void OnStartIndexReady(object? sender, int startIndex)
+    {
+        _startIndex = startIndex;
+        ApplyStartIndex();
+    }
+
+    private void OnCarouselSizeChanged(object? sender, EventArgs e) => ApplyStartIndex();
+
+    /// <summary>
+    /// Moves the carousel to the image the user tapped in the file browser.
+    /// </summary>
+    /// <remarks>
+    /// Populating the item collection makes the Android carousel rebuild its adapter: it leaves
+    /// CurrentItem on the first image, queues a scroll back to position 0 and then re-derives its
+    /// position from that item during the next layout pass, which discards the requested start
+    /// position. Steering the carousel explicitly once the items are loaded keeps the two in step,
+    /// and the explicit scroll wins over the carousel's queued scroll to the first image.
+    /// </remarks>
+    private void ApplyStartIndex()
+    {
+        if (_isStartIndexApplied || _startIndex < 0 || CarouselView.Handler is null
+            || _startIndex >= _viewModel.CarouselItems.Count)
+        {
+            return;
+        }
+
+        _isStartIndexApplied = true;
+
+        CarouselView.CurrentItem = _viewModel.CarouselItems[_startIndex];
+        CarouselView.ScrollTo(_startIndex, position: ScrollToPosition.Center, animate: false);
     }
 
     /// <summary>

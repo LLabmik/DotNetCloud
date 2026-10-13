@@ -1,3 +1,4 @@
+using System.Collections.Specialized;
 using DotNetCloud.Client.Android.ViewModels;
 
 namespace DotNetCloud.Client.Android.Views;
@@ -15,6 +16,8 @@ public partial class FileBrowserPage : ContentPage
     {
         InitializeComponent();
         BindingContext = _vm = vm;
+
+        _vm.Breadcrumbs.CollectionChanged += OnBreadcrumbsChanged;
 
         // The system back button mirrors the in-page back button (up one folder) instead of
         // dropping the user out of the app while they are browsing a folder tree.
@@ -35,6 +38,24 @@ public partial class FileBrowserPage : ContentPage
         _vm.ErrorMessage = null;
         if (_vm.LoadFilesCommand.CanExecute(null))
             _vm.LoadFilesCommand.Execute(null);
+    }
+
+    /// <summary>
+    /// Keeps the tail of the breadcrumb in view: a path deeper than the screen is otherwise
+    /// clipped at the right edge, hiding the folder the user is actually in.
+    /// </summary>
+    private void OnBreadcrumbsChanged(object? sender, NotifyCollectionChangedEventArgs e)
+    {
+        if (_vm.Breadcrumbs.Count == 0)
+            return;
+
+        MainThread.BeginInvokeOnMainThread(async () =>
+        {
+            // Let the layout settle before scrolling.
+            await Task.Delay(30);
+            if (_vm.Breadcrumbs.Count > 0 && BreadcrumbList is not null)
+                BreadcrumbList.ScrollTo(_vm.Breadcrumbs.Count - 1, position: ScrollToPosition.End, animate: false);
+        });
     }
 
     /// <inheritdoc />
