@@ -3,8 +3,21 @@
 > **Document Version:** 1.0  
 > **Purpose:** Comprehensive task breakdown for implementing the DotNetCloud architecture  
 > **Scope:** All phases from Foundation (Phase 0) through Auto-Updates (Phase 11)  
-> **Last Updated:** 2026-10-12
+> **Last Updated:** 2026-10-13
 > **Audience:** Development team, project managers, technical leads
+
+---
+
+## Recent Fix — Android Files: sharing sends the image you are looking at (2026-10-13, `fix/android-files-photo-sharing`)
+
+> Sharing an image from the viewer put the **wrong picture** into the receiving app — sharing `MindTheSeam-BestCover.png` from `Documents › Writing › Mind The Seam › Cover Art` reached Google Messages as `MindTheSeam-Cover1.png`, and no amount of re-sharing changed it. There were **two** independent faults, and the second one — the real cause of the stuck image — only showed up once the receiving app got involved.
+
+- ✓ **Root cause 1 — the viewer could resolve the wrong item.** `ShareAsync()` downloaded the payload by indexing `_folderItems` / `_imageUrls` with `CurrentPosition`, but Android's `CarouselView` can leave that `Position` binding behind the visible item. The viewer now tracks the selected `ImageCarouselItem` in `CurrentItem` (bound two-way to `CarouselView.CurrentItem`) and both directions stay in step, so the payload is fetched by the selected item's `FileId` / URL rather than by a numeric position. (`ImageViewerPage.xaml` adds the `CurrentItem` binding.)
+- ✓ **Root cause 2 — every share reused one cache path, so every share had the same content URI.** Both share paths wrote to a fixed `FileSystem.CacheDirectory/share_image.jpg`. MAUI's FileProvider URI is derived from the **path**, so every share handed receivers the identical `content://…/share_image.jpg` — and receivers cache the bytes behind a URI. Google Messages therefore kept rendering the **first** image it had ever been given for that URI: sharing `BestCover.png` (verified 1 938 117 bytes on disk) into a **brand-new conversation** still displayed the earlier `Cover1.png` art, proving the stale bytes were the receiver's, keyed to the reused URI.
+- ✓ **`Services/ShareFileWriter`** (new) — stages each share in its **own** cache directory (`cache/share/<guid>/<original name>`), so the URI is unique per share and receivers can never serve a cached predecessor. The staged file keeps the source name and extension, so the receiver also shows a meaningful name and the correct MIME type instead of `share_image.jpg`. Directories older than an hour are swept on the next share (a receiver may read the file after the chooser returns, so the newest one is never deleted).
+- ✓ **`ImageViewerViewModel.ShareAsync` + `ChatImageViewerPage.OnShareClicked`** — both now stage through `ShareFileWriter`; they previously shared the same path, so a chat-image share could also poison a Files share and vice versa.
+- ✓ **`ShareFileWriterTests`** (7, new) — asserts two shares of the same source name produce **distinct paths**, that the source name survives, that the payload is written, and that a `..` name cannot escape the share directory. `DotNetCloud.Client.Android.Tests`: **558 pass / 0 fail / 1 skip**; Android `net10.0-android` Debug build clean (**0 warnings / 0 errors**).
+- ✓ **Verified on device (R5CWC356B2K / SM-S928U, 2026-10-13)** — v0.6.14 Debug APK installed over the existing install. Staging lands as `cache/share/70eaa5a4…/MindTheSeam-BestCover.png` (1 938 117 bytes) and `cache/share/725081d4…/MindTheSeam-Cover1.png` (2 315 809 bytes) — distinct directories, real names, correct bytes. **The regression itself is gone:** sharing `BestCover.png` into Fonda Kimball (the very conversation that had shown the stale `Cover1` art) now renders the BestCover art, and sharing `Cover1.png` into another conversation renders the Cover1 harbour art — each share delivers the image that was actually on screen.
 
 ---
 

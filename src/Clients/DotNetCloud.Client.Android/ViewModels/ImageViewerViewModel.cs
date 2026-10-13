@@ -132,6 +132,10 @@ public sealed partial class ImageViewerViewModel : ObservableObject, IQueryAttri
     [ObservableProperty]
     private int _currentPosition = -1;
 
+    /// <summary>Current carousel item (two-way bound to CarouselView.CurrentItem).</summary>
+    [ObservableProperty]
+    private ImageCarouselItem? _currentItem;
+
     /// <summary>Whether the entire viewer is still loading the initial image.</summary>
     [ObservableProperty]
     private bool _isViewerLoading = true;
@@ -351,6 +355,7 @@ public sealed partial class ImageViewerViewModel : ObservableObject, IQueryAttri
             if (value >= CarouselItems.Count)
                 return;
             var urlItem = CarouselItems[value];
+            CurrentItem = urlItem;
             FileName = urlItem.FileName;
             PositionText = $"{value + 1} / {CarouselItems.Count}";
             return;
@@ -361,6 +366,7 @@ public sealed partial class ImageViewerViewModel : ObservableObject, IQueryAttri
             return;
 
         var item = _folderItems[value];
+        CurrentItem = CarouselItems[value];
         FileName = item.Name;
         PositionText = $"{value + 1} / {_folderItems.Count}";
         Metadata = null;
@@ -377,6 +383,16 @@ public sealed partial class ImageViewerViewModel : ObservableObject, IQueryAttri
         _ = LoadImageAsync(value, ct);
         _ = LoadImageAsync(value - 1, ct); // previous
         _ = LoadImageAsync(value + 1, ct); // next
+    }
+
+    partial void OnCurrentItemChanged(ImageCarouselItem? value)
+    {
+        if (value is null)
+            return;
+
+        var position = CarouselItems.IndexOf(value);
+        if (position >= 0 && position != CurrentPosition)
+            CurrentPosition = position;
     }
 
     /// <summary>Downloads the full-resolution image for the item at <paramref name="index"/>.</summary>
@@ -485,23 +501,27 @@ public sealed partial class ImageViewerViewModel : ObservableObject, IQueryAttri
     {
         try
         {
-            if (CurrentPosition < 0 || CurrentPosition >= CarouselItems.Count)
+            var item = CurrentItem;
+            if (item is null)
                 return;
 
-            var item = CarouselItems[CurrentPosition];
+            var position = CarouselItems.IndexOf(item);
+            if (position < 0)
+                return;
+
             var fileName = item.FileName;
 
             byte[] data;
-            if (_isUrlMode && CurrentPosition < _imageUrls.Length)
+            if (_isUrlMode && position < _imageUrls.Length)
             {
                 // URL mode (chat images) — download from the URL directly
                 using var client = new HttpClient();
-                data = await client.GetByteArrayAsync(_imageUrls[CurrentPosition]);
+                data = await client.GetByteArrayAsync(_imageUrls[position]);
             }
-            else if (!_isUrlMode && CurrentPosition < _folderItems.Count)
+            else if (!_isUrlMode && item.FileId != Guid.Empty)
             {
                 // File mode — download via the Files API
-                using var stream = await _fileApi.DownloadAsync(_serverUrl, _accessToken, _folderItems[CurrentPosition].Id, CancellationToken.None);
+                using var stream = await _fileApi.DownloadAsync(_serverUrl, _accessToken, item.FileId, CancellationToken.None);
                 using var ms = new MemoryStream();
                 await stream.CopyToAsync(ms);
                 data = ms.ToArray();
@@ -511,13 +531,12 @@ public sealed partial class ImageViewerViewModel : ObservableObject, IQueryAttri
                 return;
             }
 
-            var tempFile = System.IO.Path.Combine(FileSystem.CacheDirectory, "share_image.jpg");
-            await System.IO.File.WriteAllBytesAsync(tempFile, data);
+            var shareFile = await ShareFileWriter.WriteShareFileAsync(data, fileName);
 
             await Share.Default.RequestAsync(new ShareFileRequest
             {
                 Title = fileName,
-                File = new ShareFile(tempFile),
+                File = new ShareFile(shareFile),
             });
         }
         catch (Exception ex)
