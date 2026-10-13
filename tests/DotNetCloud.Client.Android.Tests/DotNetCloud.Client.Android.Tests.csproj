@@ -43,6 +43,7 @@
     <Compile Include="..\..\src\Clients\DotNetCloud.Client.Android\Services\IAppPreferences.cs" Link="AndroidApp\Services\IAppPreferences.cs" />
     <Compile Include="..\..\src\Clients\DotNetCloud.Client.Android\Services\IAndroidUpdateService.cs" Link="AndroidApp\Services\IAndroidUpdateService.cs" />
     <Compile Include="..\..\src\Clients\DotNetCloud.Client.Android\Services\AndroidUpdateService.cs" Link="AndroidApp\Services\AndroidUpdateService.cs" />
+    <Compile Include="..\..\src\Clients\DotNetCloud.Client.Android\Services\ShareFileWriter.cs" Link="AndroidApp\Services\ShareFileWriter.cs" />
 
     <!-- Music -->
     <Compile Include="..\..\src\Clients\DotNetCloud.Client.Android\Music\IMusicRestClient.cs" Link="AndroidApp\Music\IMusicRestClient.cs" />

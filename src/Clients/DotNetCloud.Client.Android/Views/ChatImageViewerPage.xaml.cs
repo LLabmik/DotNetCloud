@@ -1,3 +1,5 @@
+using DotNetCloud.Client.Android.Services;
+
 namespace DotNetCloud.Client.Android.Views;
 
 /// <summary>
@@ -215,14 +217,12 @@ public partial class ChatImageViewerPage : ContentPage
             using var client = new HttpClient();
             var data = await client.GetByteArrayAsync(_imageUrl);
 
-            var cacheDir = FileSystem.CacheDirectory;
-            var tempFile = System.IO.Path.Combine(cacheDir, "share_image.jpg");
-            await System.IO.File.WriteAllBytesAsync(tempFile, data);
+            var shareFile = await ShareFileWriter.WriteShareFileAsync(data, FileTitle.Text);
 
             await Share.Default.RequestAsync(new ShareFileRequest
             {
                 Title = FileTitle.Text ?? "Image",
-                File = new ShareFile(tempFile),
+                File = new ShareFile(shareFile),
             });
         }
         catch (Exception ex)

@@ -109,6 +109,7 @@
                 x:Name="CarouselView"
                 ItemsSource="{Binding CarouselItems}"
                 Position="{Binding CurrentPosition, Mode=TwoWay}"
+                CurrentItem="{Binding CurrentItem, Mode=TwoWay}"
                 Loop="False"
                 PeekAreaInsets="0"
                 IsSwipeEnabled="True"
