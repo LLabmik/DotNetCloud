@@ -16,6 +16,15 @@ window.dotnetcloudMusicPlayer = window.dotnetcloudMusicPlayer || (function () {
     let eqFilters = [];
     let eqConnected = false;
 
+    // ── Browser tab title (now-playing) ──
+    /** @type {string|null} Label to force into the tab title while a track is loaded. */
+    let nowPlayingTitle = null;
+    /** @type {string|null} Last page-managed title, restored when the override is cleared. */
+    let pageTitle = null;
+    /** @type {MutationObserver|null} Watches <head> so the override survives Blazor <PageTitle> updates. */
+    let titleObserver = null;
+    let applyingTitle = false;
+
     // 10-band EQ center frequencies (Hz)
     const EQ_FREQUENCIES = [31, 63, 125, 250, 500, 1000, 2000, 4000, 8000, 16000];
 
@@ -103,6 +112,7 @@ window.dotnetcloudMusicPlayer = window.dotnetcloudMusicPlayer || (function () {
 
     function dispose() {
         if (updateInterval) { clearInterval(updateInterval); updateInterval = null; }
+        stopTitleObserver();
         if (audio) {
             audio.pause();
             audio.removeEventListener("ended", onEnded);
@@ -206,6 +216,63 @@ window.dotnetcloudMusicPlayer = window.dotnetcloudMusicPlayer || (function () {
         }
     }
 
+    // ── Browser tab title (now-playing) ──
+
+    function applyNowPlayingTitle() {
+        if (!nowPlayingTitle || document.title === nowPlayingTitle) return;
+        applyingTitle = true;
+        document.title = nowPlayingTitle;
+        applyingTitle = false;
+    }
+
+    function startTitleObserver() {
+        if (titleObserver || !document.head) return;
+        titleObserver = new MutationObserver(function () {
+            if (applyingTitle) return;
+            if (document.title !== nowPlayingTitle) {
+                // Blazor's <PageTitle> (via HeadOutlet) changed the tab title — remember it
+                // so it can be restored later, then re-apply the now-playing override on top.
+                pageTitle = document.title;
+                applyNowPlayingTitle();
+            }
+        });
+        titleObserver.observe(document.head, { childList: true, subtree: true, characterData: true });
+    }
+
+    function stopTitleObserver() {
+        if (titleObserver) {
+            titleObserver.disconnect();
+            titleObserver = null;
+        }
+    }
+
+    /**
+     * Force a now-playing label into the browser tab title, keeping it applied even as
+     * Blazor updates the page title during navigation.
+     * @param {string} label - e.g. "♪ Song Title — Artist".
+     */
+    function setNowPlayingTitle(label) {
+        if (!label) { clearNowPlayingTitle(); return; }
+        if (!nowPlayingTitle) {
+            // First override — capture the page's own title so it can be restored later.
+            pageTitle = document.title;
+        }
+        nowPlayingTitle = label;
+        applyNowPlayingTitle();
+        startTitleObserver();
+    }
+
+    /** Removes the now-playing override and restores the page's own tab title. */
+    function clearNowPlayingTitle() {
+        nowPlayingTitle = null;
+        stopTitleObserver();
+        if (pageTitle !== null && document.title !== pageTitle) {
+            applyingTitle = true;
+            document.title = pageTitle;
+            applyingTitle = false;
+        }
+    }
+
     // ── Event handlers ──
 
     function onTimeUpdate() {
@@ -244,7 +311,7 @@ window.dotnetcloudMusicPlayer = window.dotnetcloudMusicPlayer || (function () {
         }
     }
 
-    return { init: init, detach: detach, isPlaying: isPlaying, dispose: dispose, play: play, resume: resume, pause: pause, stop: stop, seek: seek, setVolume: setVolume, setMuted: setMuted, setEqBand: setEqBand, setEqBands: setEqBands, handleProgressClick: handleProgressClick, scrollToPlaying: scrollToPlaying, getAudioContext: function () { return audioCtx; }, getSourceNode: function () { return sourceNode; } };
+    return { init: init, detach: detach, isPlaying: isPlaying, dispose: dispose, play: play, resume: resume, pause: pause, stop: stop, seek: seek, setVolume: setVolume, setMuted: setMuted, setEqBand: setEqBand, setEqBands: setEqBands, handleProgressClick: handleProgressClick, scrollToPlaying: scrollToPlaying, setNowPlayingTitle: setNowPlayingTitle, clearNowPlayingTitle: clearNowPlayingTitle, getAudioContext: function () { return audioCtx; }, getSourceNode: function () { return sourceNode; } };
 })();
 
 /**

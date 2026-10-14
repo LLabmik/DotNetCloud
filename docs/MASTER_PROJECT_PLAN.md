@@ -2953,6 +2953,8 @@ Also fixed Android music play order (2026-09-04, `fix/android-music-play-order`)
 
 **Notes:** Sub-Phase C (Music Module) fully complete including Blazor UI. Starring/favorites with optimistic UI updates, album art, playback controls, play bar with album navigation.
 
+**Enhancement (2026-10-13):** the browser tab title now shows the now-playing track — `♪ {Song} — {Band}` while playing (`⏸` when paused) — kept applied across Blazor `<PageTitle>` navigation via a `MutationObserver` in `music-player.js` (`setNowPlayingTitle` / `clearNowPlayingTitle`) driven by `GlobalMusicPlaybar`. The override is captured/restored around the page's own title and cleared when playback stops or the playbar is disposed (logout).
+
 ---
 
 ### Section: Media Library Auto-Discovery Prompt (Video + Music)

@@ -4713,6 +4713,7 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 - ✓ Step 5.12 — Music Streaming & Equalizer
 - ✓ Step 5.13 — Subsonic API Compatibility
 - ✓ Step 5.14 — Music API, gRPC & Blazor UI
+  - ✓ **Enhancement (2026-10-13):** now-playing track shown in the browser tab title (`♪ Song — Band`, `⏸` when paused). The override survives Blazor page navigation (`MutationObserver` in `music-player.js`) and is cleared when playback stops or on logout (`GlobalMusicPlaybar`).
 
 ### Media Library Auto-Discovery Prompt (Video + Music) — feature/auto-media-scanning
 
