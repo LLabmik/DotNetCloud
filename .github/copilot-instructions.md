@@ -604,6 +604,7 @@ When the assistant needs the mediator to run a command:
 For commands that require elevation (e.g. `sudo ./scripts/deploy.sh --force --verify`):
 
 - ✅ The **assistant types out and launches the command itself** in the visible terminal — do NOT just print the command and hand it to the user to run.
+- ✅ **Say everything FIRST:** emit ALL explanation, expected behaviour and next-step notes **before** launching the command. Long-running/elevated commands show a **"Focus Terminal"** display, and any assistant text emitted *after* it can make that display disappear — so keep post-command text minimal until the command reports back.
 - ✅ The **user types the sudo password directly into that terminal** when `[sudo] password for <user>:` appears. The assistant stops and waits at that prompt without killing the command.
 - ❌ Never ask the user for the password via `vscode_askQuestions`, and never send it with `send_to_terminal` — secrets must never be routed through the model.
 - ❌ Never re-run or duplicate a privileged command that is already sitting at a password prompt.
