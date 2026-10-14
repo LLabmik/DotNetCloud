@@ -371,11 +371,18 @@
                 Logger.LogWarning(ex, "Failed to initialize global music player JS interop");
             }
         }
+
+        if (firstRender && Playback.NowPlaying is not null)
+        {
+            // A track may already be playing (e.g. after a circuit reconnect) — reflect it in the tab title.
+            await UpdateTabTitleAsync();
+        }
     }
 
     private void OnPlaybackStateChanged()
     {
         InvokeAsync(StateHasChanged);
+        _ = InvokeAsync(UpdateTabTitleAsync);
     }
 
     private void OnModuleRegistryChanged()
@@ -383,6 +390,11 @@
         _musicModuleEnabled = ModuleRegistry.NavItems.Any(n =>
             string.Equals(n.ModuleId, "dotnetcloud.music", StringComparison.OrdinalIgnoreCase));
         InvokeAsync(StateHasChanged);
+        if (!_musicModuleEnabled)
+        {
+            // Module was disabled — drop any now-playing tab title override.
+            _ = InvokeAsync(UpdateTabTitleAsync);
+        }
     }
 
     // ── Playback JS interop ──
@@ -672,6 +684,7 @@
     private void OnTrackChanged(TrackDto track)
     {
         InvokeAsync(async () => await StartPlaybackJsAsync(track));
+        _ = InvokeAsync(UpdateTabTitleAsync);
     }
 
     /// <summary>
@@ -707,6 +720,41 @@
         }
 
         await RecordPlaySafeAsync();
+    }
+
+    // ── Browser tab title (now-playing) ──
+
+    /// <summary>
+    /// Reflects the now-playing track (artist + song) in the browser tab title, keeping the
+    /// override applied across Blazor page navigation. Clears the override when nothing is loaded.
+    /// </summary>
+    private async Task UpdateTabTitleAsync()
+    {
+        try
+        {
+            var track = _musicModuleEnabled ? Playback.NowPlaying : null;
+            if (track is null)
+            {
+                await Js.InvokeVoidAsync("dotnetcloudMusicPlayer.clearNowPlayingTitle");
+                return;
+            }
+
+            await Js.InvokeVoidAsync("dotnetcloudMusicPlayer.setNowPlayingTitle", BuildNowPlayingLabel(track));
+        }
+        catch (JSDisconnectedException) { }
+        catch (ObjectDisposedException) { }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Failed to update browser tab title for now-playing track");
+        }
+    }
+
+    private string BuildNowPlayingLabel(TrackDto track)
+    {
+        var title = string.IsNullOrWhiteSpace(track.Title) ? "Unknown Track" : track.Title.Trim();
+        var artist = string.IsNullOrWhiteSpace(track.ArtistName) ? null : track.ArtistName.Trim();
+        var stateGlyph = Playback.IsPlaying ? "♪" : "⏸";
+        return artist is null ? $"{stateGlyph} {title}" : $"{stateGlyph} {title} — {artist}";
     }
 
     // ── Helpers ──
@@ -920,6 +968,13 @@
         ModuleRegistry.OnChange -= OnModuleRegistryChanged;
         _saveCts?.Cancel();
         _saveCts?.Dispose();
+        try
+        {
+            // Restore the page's own tab title when the global playbar goes away (e.g. logout).
+            await Js.InvokeVoidAsync("dotnetcloudMusicPlayer.clearNowPlayingTitle");
+        }
+        catch (JSDisconnectedException) { }
+        catch (ObjectDisposedException) { }
         if (_jsInitialized)
         {
             try
