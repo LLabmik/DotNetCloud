@@ -276,7 +276,7 @@ Insert after the `CloseSearch` command:
                     break;
 
                 default:
-                    // Playlists and EQ views — search not applicable
+                    // Playlists view — search not applicable
                     count = 0;
                     break;
             }
@@ -474,24 +474,24 @@ In `BackAsync()` (around line 1200), add search-close logic at the beginning:
 **Find line 18:**
 
 ```xml
-        <Grid ColumnDefinitions="*,Auto,Auto,Auto"
+        <Grid ColumnDefinitions="*,Auto,Auto"
 ```
 
 **Change to:**
 
 ```xml
-        <Grid ColumnDefinitions="*,Auto,Auto,Auto,Auto"
+        <Grid ColumnDefinitions="*,Auto,Auto,Auto"
 ```
 
-### 4.2 Add search icon button as Column 4
+### 4.2 Add search icon button as Column 3
 
-**Find the closing `</Grid>` at the end of the EQ icon button (after the `</AbsoluteLayout>` and `</Grid>` that ends the EQ button, around line 155) and BEFORE `</Grid>` (the one that closes the TitleView Grid):**
+**Find the closing `</Grid>` at the end of the repeat-label `Label` (Column 2) and BEFORE `</Grid>` (the one that closes the TitleView Grid):**
 
-The last element before `</Grid>` is the EQ icon button ending around line 152. Insert the search icon button between the EQ button's closing `</Grid>` and the outer TitleView's `</Grid>`:
+Insert the search icon button between the repeat-label `Label` and the outer TitleView's `</Grid>`:
 
 ```xml
             <!-- Search icon button — always visible, toggles search panel -->
-            <Grid Grid.Column="4"
+            <Grid Grid.Column="3"
                   WidthRequest="44"
                   HeightRequest="44"
                   VerticalOptions="Center"
@@ -513,7 +513,7 @@ The last element before `</Grid>` is the EQ icon button ending around line 152. 
 
 ```xml
     <Shell.TitleView>
-        <Grid ColumnDefinitions="*,Auto,Auto,Auto,Auto"
+        <Grid ColumnDefinitions="*,Auto,Auto,Auto"
               VerticalOptions="Center">
             <HorizontalStackLayout Grid.Column="0" ...>
                 <Image .../>
@@ -526,11 +526,8 @@ The last element before `</Grid>` is the EQ icon button ending around line 152. 
             <!-- Col 2: Repeat label -->
             <Label Grid.Column="2" .../>
 
-            <!-- Col 3: EQ icon -->
-            <Grid Grid.Column="3" ...>...</Grid>
-
-            <!-- Col 4: Search icon (NEW) -->
-            <Grid Grid.Column="4"
+            <!-- Col 3: Search icon (NEW) -->
+            <Grid Grid.Column="3"
                   WidthRequest="44"
                   HeightRequest="44"
                   VerticalOptions="Center"
@@ -710,7 +707,6 @@ Now all elements that were `Grid.Row="1"` in this inner Grid must become `Grid.R
 | Albums Grid                   | `1`            | `2`            |
 | Tracks Grid                   | `1`            | `2`            |
 | Playlists CollectionView      | `1`            | `2`            |
-| EQ ScrollView                 | `1`            | `2`            |
 
 **Do a find-and-replace across the file:**
 

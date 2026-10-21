@@ -10,17 +10,16 @@ using DotNetCloud.Core.DTOs;
 namespace DotNetCloud.Client.Android.ViewModels;
 
 /// <summary>Which browsing view is currently displayed.</summary>
-public enum MusicView { Artists, Albums, Tracks, Playlists, Eq }
+public enum MusicView { Artists, Albums, Tracks, Playlists }
 
 /// <summary>
-/// ViewModel for the Music tab. Handles browsing artists, albums, tracks, and playlists;
-/// playback control; and equalizer preset management.
+/// ViewModel for the Music tab. Handles browsing artists, albums, tracks, and playlists,
+/// plus playback control.
 /// </summary>
 public sealed partial class MusicViewModel : ObservableObject
 {
     private readonly IMusicRestClient _music;
     private readonly IMusicPlayerService _player;
-    private readonly IEqualizerService _eq;
     private readonly IAlbumArtCache _artCache;
     private readonly IServerConnectionStore _serverStore;
     private readonly ISecureTokenStore _tokenStore;
@@ -29,7 +28,6 @@ public sealed partial class MusicViewModel : ObservableObject
     /// <summary>Initializes a new instance of the <see cref="MusicViewModel"/> class.</summary>
     /// <param name="music">Music REST client.</param>
     /// <param name="player">Audio player.</param>
-    /// <param name="eq">Equalizer service.</param>
     /// <param name="artCache">Album art cache.</param>
     /// <param name="serverStore">Active server connection store.</param>
     /// <param name="tokenStore">Secure token store.</param>
@@ -37,7 +35,6 @@ public sealed partial class MusicViewModel : ObservableObject
     public MusicViewModel(
         IMusicRestClient music,
         IMusicPlayerService player,
-        IEqualizerService eq,
         IAlbumArtCache artCache,
         IServerConnectionStore serverStore,
         ISecureTokenStore tokenStore,
@@ -45,7 +42,6 @@ public sealed partial class MusicViewModel : ObservableObject
     {
         _music = music;
         _player = player;
-        _eq = eq;
         _artCache = artCache;
         _serverStore = serverStore;
         _tokenStore = tokenStore;
@@ -55,7 +51,6 @@ public sealed partial class MusicViewModel : ObservableObject
         _player.TrackEnded += OnPlayerTrackEnded;
         _player.RepeatModeChanged += OnRepeatModeChanged;
         _player.PlaybackFailed += OnPlayerPlaybackFailed;
-        _eq.AvailabilityChanged += OnEqAvailabilityChanged;
     }
 
     /// <summary>
@@ -99,8 +94,6 @@ public sealed partial class MusicViewModel : ObservableObject
         Dispatch(() => _player.PlayNextAfterEnd());
 
     private void OnRepeatModeChanged(object? sender, EventArgs e) => Dispatch(UpdateRepeatState);
-
-    private void OnEqAvailabilityChanged(object? sender, EventArgs e) => Dispatch(InitEqFromDevice);
 
     private async Task<(string? serverUrl, string? token)> GetCredentialsAsync()
     {
@@ -180,9 +173,6 @@ public sealed partial class MusicViewModel : ObservableObject
 
     /// <summary>When set, tracks view is scoped to a single playlist; infinite scroll is disabled.</summary>
     private Guid? _tracksFilteredByPlaylistId;
-
-    /// <summary>Tracks the last non-EQ view so the EQ button can toggle back to it.</summary>
-    private MusicView _previousNonEqView = MusicView.Artists;
 
     // ── Search state ───────────────────────────────────────────────
 
@@ -297,31 +287,7 @@ public sealed partial class MusicViewModel : ObservableObject
     private ObservableCollection<PlaylistDto> _playlists = [];
 
     [ObservableProperty]
-    private ObservableCollection<EqPresetDto> _eqPresets = [];
-
-    /// <summary>True when there are presets available (for toggling overwrite section visibility).</summary>
-    public bool HasEqPresets => EqPresets.Count > 0;
-
-    partial void OnEqPresetsChanged(ObservableCollection<EqPresetDto> value)
-    {
-        OnPropertyChanged(nameof(HasEqPresets));
-    }
-
-    [ObservableProperty]
     private ObservableCollection<string> _genres = [];
-
-    // ── Save EQ Preset dialog state ──────────────────────────────
-
-    /// <summary>Whether the "Save EQ Preset" dialog is visible.</summary>
-    [ObservableProperty]
-    private bool _showSavePresetDialog;
-
-    /// <summary>Name entered by the user for the new/updated preset.</summary>
-    [ObservableProperty]
-    private string _newPresetName = string.Empty;
-
-    /// <summary>Set when the user selects an existing preset to overwrite.</summary>
-    private Guid? _selectedPresetId;
 
     // ── Alphabet index ────────────────────────────────────────────
 
@@ -379,12 +345,11 @@ public sealed partial class MusicViewModel : ObservableObject
 
     /// <summary>
     /// True when a system back press (Android hardware button or predictive-back gesture) has
-    /// something to do inside the Music tab: close the save-preset dialog, close the search
-    /// panel, leave the EQ screen, or step back out of a contextual view. Read on demand by the
-    /// page's back-press scope, so it is deliberately not a notification-raising property.
+    /// something to do inside the Music tab: close the search panel or step back out of a
+    /// contextual view. Read on demand by the page's back-press scope, so it is deliberately
+    /// not a notification-raising property.
     /// </summary>
-    public bool CanHandleSystemBack =>
-        ShowSavePresetDialog || IsSearchOpen || CurrentView == MusicView.Eq || CanGoBack;
+    public bool CanHandleSystemBack => IsSearchOpen || CanGoBack;
 
     [ObservableProperty]
     private TrackDto? _currentTrack;
@@ -403,27 +368,6 @@ public sealed partial class MusicViewModel : ObservableObject
 
     [ObservableProperty]
     private string? _errorMessage;
-
-    // ── EQ state ───────────────────────────────────────────────────
-
-    [ObservableProperty]
-    private bool _eqAvailable;
-
-    /// <summary>Number of virtual bands (always 10, matching server/Blazor preset format).</summary>
-    [ObservableProperty]
-    private int _numberOfBands;
-
-    /// <summary>Number of physical device bands (informational, typically 5–6).</summary>
-    [ObservableProperty]
-    private int _physicalBandCount;
-
-    /// <summary>
-    /// EQ band models for the 10 virtual server-standard bands (31 Hz – 16 kHz).
-    /// Each <see cref="EqBandModel"/> has two-way bindable <see cref="EqBandModel.GainDb"/>
-    /// that maps to the closest physical device band via <see cref="IEqualizerService.SetVirtualBandGain"/>.
-    /// </summary>
-    [ObservableProperty]
-    private ObservableCollection<EqBandModel> _eqBands = [];
 
     // ── Seek state ─────────────────────────────────────────────────
 
@@ -601,7 +545,7 @@ public sealed partial class MusicViewModel : ObservableObject
                     break;
 
                 default:
-                    // Playlists and EQ views — search not applicable
+                    // Playlists view — search not applicable
                     count = 0;
                     break;
             }
@@ -1148,60 +1092,6 @@ public sealed partial class MusicViewModel : ObservableObject
         }
     }
 
-    [RelayCommand(AllowConcurrentExecutions = false)]
-    private async Task LoadEqPresetsAsync()
-    {
-        // Toggle: if EQ is already showing, go back to the previous non-EQ view.
-        if (CurrentView == MusicView.Eq)
-        {
-            NavigateToView(_previousNonEqView);
-            return;
-        }
-
-        // Save the current view so we can return to it when toggling EQ off.
-        _previousNonEqView = CurrentView;
-
-        var (serverUrl, token) = await GetCredentialsAsync();
-        if (serverUrl is null || token is null)
-            return;
-
-        // Show the EQ view immediately — don't wait for the server presets API.
-        // The EQ tab must always be navigable regardless of server state.
-        Dispatch(() =>
-        {
-            if (_eq.IsAvailable)
-                InitEqFromDevice();
-            else
-            {
-                EqAvailable = false;
-                PhysicalBandCount = 0;
-                NumberOfBands = _eq.VirtualBandCount;
-                EqBands.Clear();
-            }
-            System.Diagnostics.Debug.WriteLine($"[EQ] IsAvailable={_eq.IsAvailable}, EqBands.Count={EqBands.Count}");
-            CurrentView = MusicView.Eq;
-            Title = "Equalizer";
-        });
-
-        // Load server presets asynchronously — failures only affect the preset list,
-        // not the EQ view itself.
-        IsLoading = true;
-        ErrorMessage = null;
-        try
-        {
-            var items = await _music.ListEqPresetsAsync(serverUrl, token, CancellationToken.None);
-            Dispatch(() => EqPresets = new ObservableCollection<EqPresetDto>(items));
-        }
-        catch (Exception ex)
-        {
-            Dispatch(() => ErrorMessage = $"Failed to load EQ presets: {ex.Message}");
-        }
-        finally
-        {
-            Dispatch(() => IsLoading = false);
-        }
-    }
-
     [RelayCommand]
     private async Task PlayTrackAsync(TrackDto track)
     {
@@ -1496,145 +1386,6 @@ public sealed partial class MusicViewModel : ObservableObject
         }
     }
 
-    /// <summary>Resets the equalizer to flat (0 dB on all bands), clearing any applied preset.</summary>
-    [RelayCommand]
-    private void ResetEq()
-    {
-        _eq.Reset();
-        Dispatch(() =>
-        {
-            foreach (var band in EqBands)
-                band.GainDb = 0f;
-        });
-    }
-
-    [RelayCommand]
-    private async Task ApplyEqPresetAsync(EqPresetDto preset)
-    {
-        // Apply to physical bands via the service
-        _eq.ApplyPreset(preset);
-
-        // Read back the virtual band gains to update the 10 sliders.
-        // The preset's frequency→gain mapping is applied to physical bands,
-        // and we read back through the virtual→physical mapping to show
-        // what each virtual band ended up with.
-        var virtualGains = _eq.GetVirtualBandGainsDb();
-        Dispatch(() =>
-        {
-            for (int i = 0; i < virtualGains.Length && i < EqBands.Count; i++)
-                EqBands[i].GainDb = virtualGains[i];
-        });
-    }
-
-    // ── Save EQ Preset ───────────────────────────────────────────────
-
-    /// <summary>Opens the save preset dialog.</summary>
-    [RelayCommand]
-    private void OpenSavePresetDialog()
-    {
-        _selectedPresetId = null;
-        NewPresetName = string.Empty;
-        ShowSavePresetDialog = true;
-    }
-
-    /// <summary>Closes the save preset dialog.</summary>
-    [RelayCommand]
-    private void CloseSavePresetDialog()
-    {
-        ShowSavePresetDialog = false;
-    }
-
-    /// <summary>Selects an existing preset to overwrite when saving.</summary>
-    [RelayCommand]
-    private void SelectEqPresetForOverwrite(EqPresetDto preset)
-    {
-        _selectedPresetId = preset.Id;
-        NewPresetName = preset.Name;
-    }
-
-    /// <summary>Saves the current EQ band settings as a preset (new or overwrite).</summary>
-    [RelayCommand]
-    private async Task SaveEqPresetAsync()
-    {
-        if (string.IsNullOrWhiteSpace(NewPresetName))
-            return;
-
-        var (serverUrl, token) = await GetCredentialsAsync();
-        if (serverUrl is null || token is null)
-            return;
-
-        try
-        {
-            // Build the bands dictionary in server format (10 standard frequencies)
-            // directly from the virtual EQ sliders — they already use the same
-            // 10-band format as Blazor/server presets.
-            var bands = new Dictionary<string, double>();
-            var virtualFreqs = _eq.GetVirtualBandFrequenciesHz();
-
-            for (int i = 0; i < virtualFreqs.Length && i < EqBands.Count; i++)
-            {
-                var label = FormatFrequencyLabel(virtualFreqs[i]);
-                bands[label] = EqBands[i].GainDb;
-            }
-
-            var dto = new SaveEqPresetDto
-            {
-                Name = NewPresetName.Trim(),
-                Bands = bands
-            };
-
-            EqPresetDto result;
-            if (_selectedPresetId.HasValue)
-            {
-                result = await _music.UpdateEqPresetAsync(serverUrl, token, _selectedPresetId.Value, dto, CancellationToken.None);
-                // Update in local cache
-                var idx = -1;
-                Dispatch(() =>
-                {
-                    var existing = EqPresets.FirstOrDefault(p => p.Id == _selectedPresetId.Value);
-                    if (existing is not null)
-                    {
-                        idx = EqPresets.IndexOf(existing);
-                        EqPresets[idx] = result;
-                    }
-                    else
-                    {
-                        EqPresets.Add(result);
-                    }
-                });
-            }
-            else
-            {
-                result = await _music.CreateEqPresetAsync(serverUrl, token, dto, CancellationToken.None);
-                Dispatch(() => EqPresets.Add(result));
-            }
-
-            Dispatch(() =>
-            {
-                ShowSavePresetDialog = false;
-                NewPresetName = string.Empty;
-                _selectedPresetId = null;
-            });
-        }
-        catch (Exception ex)
-        {
-            Dispatch(() => ErrorMessage = $"Failed to save EQ preset: {ex.Message}");
-        }
-    }
-
-    /// <summary>
-    /// Formats a frequency in Hz to a preset dictionary key (e.g. 1000 → "1K", 125 → "125").
-    /// </summary>
-    private static string FormatFrequencyLabel(int hz)
-    {
-        if (hz >= 1000)
-        {
-            var khz = hz / 1000.0;
-            return khz % 1 == 0 ? $"{khz:F0}K" : $"{khz:F1}K";
-        }
-        return hz.ToString();
-    }
-
     [RelayCommand]
     private async Task BackAsync()
     {
@@ -1702,11 +1453,6 @@ public sealed partial class MusicViewModel : ObservableObject
             else
                 SwitchToArtistsView();
         }
-        else if (CurrentView == MusicView.Eq)
-        {
-            // From EQ back to the previous non-EQ view, falling back to Artists.
-            NavigateToView(_previousNonEqView);
-        }
         else
         {
             await LoadArtistsCommand.ExecuteAsync(null);
@@ -1715,30 +1461,21 @@ public sealed partial class MusicViewModel : ObservableObject
 
     /// <summary>
     /// Consumes a system back press the same way the in-page back affordances do, innermost
-    /// surface first — the save-preset dialog, then the search panel, then the EQ screen and
-    /// the contextual back arrow. Returns <c>true</c> when the press was consumed; <c>false</c>
-    /// means there is nothing left to go back to, so the platform should run its default back
-    /// action (leaving the app).
+    /// surface first — the search panel, then the contextual back arrow. Returns <c>true</c>
+    /// when the press was consumed; <c>false</c> means there is nothing left to go back to,
+    /// so the platform should run its default back action (leaving the app).
     /// </summary>
     public async Task<bool> HandleSystemBackAsync()
     {
-        // A dialog sits above everything else — back dismisses it, it does not navigate.
-        if (ShowSavePresetDialog)
-        {
-            CloseSavePresetDialog();
-            return true;
-        }
-
-        // Same for the search panel (its ✕ button), before any view navigation happens.
+        // The search panel's ✕ button comes before any view navigation happens.
         if (IsSearchOpen)
         {
             CloseSearch();
             return true;
         }
 
-        // The EQ screen has no back arrow of its own (its toolbar button toggles) and the
-        // contextual views carry the visible back arrow — both are BackAsync's job.
-        if (CurrentView == MusicView.Eq || CanGoBack)
+        // The contextual views carry a visible back arrow — that is BackAsync's job.
+        if (CanGoBack)
         {
             await BackAsync();
             return true;
@@ -1782,7 +1519,7 @@ public sealed partial class MusicViewModel : ObservableObject
         });
     }
 
-    /// <summary>Navigates to the specified non-EQ view, falling back to Artists for unknown values.</summary>
+    /// <summary>Navigates to the specified view, falling back to Artists for unknown values.</summary>
     private void NavigateToView(MusicView view)
     {
         switch (view)
@@ -1860,64 +1597,6 @@ public sealed partial class MusicViewModel : ObservableObject
                 ClearAlbumArt();
             }
         });
-    }
-
-    // ── Equalizer ──────────────────────────────────────────────────
-
-    /// <summary>
-    /// Initializes the <see cref="EqBands"/> collection with 10 virtual server-standard
-    /// bands. Each virtual band maps to the closest physical device band when gain is
-    /// applied via <see cref="IEqualizerService.SetVirtualBandGain"/>.
-    /// Skips recreation if the band count hasn't changed.
-    /// </summary>
-    private void InitEqFromDevice()
-    {
-        EqAvailable = _eq.IsAvailable;
-        PhysicalBandCount = _eq.NumberOfBands;
-        NumberOfBands = _eq.VirtualBandCount;
-
-        System.Diagnostics.Debug.WriteLine(
-            $"[EQ] InitEqFromDevice: IsAvailable={_eq.IsAvailable}, PhysicalBands={PhysicalBandCount}, VirtualBands={NumberOfBands}");
-
-        if (!_eq.IsAvailable || _eq.VirtualBandCount == 0)
-        {
-            System.Diagnostics.Debug.WriteLine("[EQ] InitEqFromDevice: EQ not available, clearing");
-            EqBands.Clear();
-            return;
-        }
-
-        // Skip recreation if the virtual band count is unchanged
-        if (EqBands.Count == _eq.VirtualBandCount)
-        {
-            System.Diagnostics.Debug.WriteLine("[EQ] InitEqFromDevice: band count unchanged, skipping recreation");
-            return;
-        }
-
-        var virtualFreqsHz = _eq.GetVirtualBandFrequenciesHz();
-        var virtualGainsDb = _eq.GetVirtualBandGainsDb();
-
-        System.Diagnostics.Debug.WriteLine(
-            $"[EQ] InitEqFromDevice: virtualFreqsHz.Length={virtualFreqsHz.Length}, virtualGainsDb.Length={virtualGainsDb.Length}");
-
-        var bands = new EqBandModel[virtualFreqsHz.Length];
-        for (int i = 0; i < virtualFreqsHz.Length; i++)
-        {
-            var gainDb = i < virtualGainsDb.Length ? virtualGainsDb[i] : 0f;
-            bands[i] = new EqBandModel(i, virtualFreqsHz[i], gainDb);
-            System.Diagnostics.Debug.WriteLine($"[EQ]   Band {i}: freq={virtualFreqsHz[i]}Hz, gain={gainDb:F1}dB");
-        }
-
-        EqBands = new ObservableCollection<EqBandModel>(bands);
-        System.Diagnostics.Debug.WriteLine($"[EQ] InitEqFromDevice: EqBands set with {EqBands.Count} virtual bands");
-    }
-
-    /// <summary>
-    /// Called when the user drags an EQ slider. Applies the gain change to the native EQ
-    /// via the virtual band mapping (virtual band → closest physical band).
-    /// </summary>
-    public void OnEqBandChanged(int bandIndex, float gainDb)
-    {
-        _eq.SetVirtualBandGain(bandIndex, gainDb);
     }
 
     // ── Alphabet index helpers ──────────────────────────────────────

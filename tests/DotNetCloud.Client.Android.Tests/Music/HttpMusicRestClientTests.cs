@@ -439,47 +439,6 @@ public sealed class HttpMusicRestClientTests
         }
     }
 
-    // ── Equalizer ──────────────────────────────────────────────────────
-
-    [TestMethod]
-    public async Task ListEqPresetsAsync_ReturnsPresets()
-    {
-        var presets = new List<EqPresetDto>
-        {
-            new() { Id = Guid.NewGuid(), Name = "Rock", IsBuiltIn = true, Bands = new Dictionary<string, double> { ["62"] = 0 } }
-        };
-        SetupGetResponse("/api/v1/music/eq/presets", HttpStatusCode.OK, presets);
-
-        var result = await _client.ListEqPresetsAsync(ServerUrl, AccessToken);
-
-        Assert.AreEqual(1, result.Count);
-        Assert.AreEqual("Rock", result[0].Name);
-    }
-
-    [TestMethod]
-    public async Task GetEqPresetAsync_ReturnsPreset()
-    {
-        var presetId = Guid.NewGuid();
-        SetupGetResponse($"/api/v1/music/eq/presets/{presetId}", HttpStatusCode.OK,
-            new EqPresetDto { Id = presetId, Name = "Jazz", IsBuiltIn = true, Bands = new Dictionary<string, double>() });
-
-        var result = await _client.GetEqPresetAsync(ServerUrl, AccessToken, presetId);
-
-        Assert.IsNotNull(result);
-        Assert.AreEqual(presetId, result.Id);
-    }
-
-    [TestMethod]
-    public async Task GetEqPresetAsync_ReturnsNull_On404()
-    {
-        var presetId = Guid.NewGuid();
-        SetupNotFound($"/api/v1/music/eq/presets/{presetId}");
-
-        var result = await _client.GetEqPresetAsync(ServerUrl, AccessToken, presetId);
-
-        Assert.IsNull(result);
-    }
-
     // ── Genres ─────────────────────────────────────────────────────────
 
     [TestMethod]

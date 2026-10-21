@@ -16,7 +16,6 @@ public sealed class MusicViewModelTests
 
     private Mock<IMusicRestClient> _music = null!;
     private Mock<IMusicPlayerService> _player = null!;
-    private Mock<IEqualizerService> _eq = null!;
     private Mock<IAlbumArtCache> _artCache = null!;
     private Mock<IServerConnectionStore> _serverStore = null!;
     private Mock<ISecureTokenStore> _tokenStore = null!;
@@ -29,7 +28,6 @@ public sealed class MusicViewModelTests
     {
         _music = new Mock<IMusicRestClient>(MockBehavior.Strict);
         _player = new Mock<IMusicPlayerService>(MockBehavior.Loose);
-        _eq = new Mock<IEqualizerService>(MockBehavior.Loose);
         _artCache = new Mock<IAlbumArtCache>(MockBehavior.Loose);
         _serverStore = new Mock<IServerConnectionStore>(MockBehavior.Strict);
         _tokenStore = new Mock<ISecureTokenStore>(MockBehavior.Strict);
@@ -47,7 +45,7 @@ public sealed class MusicViewModelTests
             .ReturnsAsync("test-access-token");
 
         _vm = new MusicViewModel(
-            _music.Object, _player.Object, _eq.Object,
+            _music.Object, _player.Object,
             _artCache.Object, _serverStore.Object, _tokenStore.Object, _tokenRefresh.Object);
     }
 
@@ -69,7 +67,6 @@ public sealed class MusicViewModelTests
         Assert.AreEqual(0, _vm.Albums.Count);
         Assert.AreEqual(0, _vm.Tracks.Count);
         Assert.AreEqual(0, _vm.Playlists.Count);
-        Assert.AreEqual(0, _vm.EqPresets.Count);
         Assert.AreEqual(0, _vm.Genres.Count);
 
         // Repeat defaults
@@ -917,19 +914,6 @@ public sealed class MusicViewModelTests
         _music.Verify(x => x.GetPlaylistTracksAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
-    // ── ApplyEqPresetAsync ─────────────────────────────────────────────
-
-    [TestMethod]
-    public async Task ApplyEqPresetCommand_AppliesPreset()
-    {
-        var preset = new EqPresetDto { Id = Guid.NewGuid(), Name = "Rock", IsBuiltIn = true, Bands = new Dictionary<string, double>() };
-        _eq.Setup(x => x.ApplyPreset(preset));
-
-        await _vm.ApplyEqPresetCommand.ExecuteAsync(preset);
-
-        _eq.Verify(x => x.ApplyPreset(preset), Times.Once);
-    }
-
     // ── BackAsync ──────────────────────────────────────────────────────
 
     [TestMethod]
@@ -1037,34 +1021,6 @@ public sealed class MusicViewModelTests
     }
 
     [TestMethod]
-    public async Task HandleSystemBackAsync_WhenSavePresetDialogOpen_ClosesDialog_AndReturnsTrue()
-    {
-        _vm.OpenSavePresetDialogCommand.Execute(null);
-        Assert.IsTrue(_vm.ShowSavePresetDialog);
-
-        var handled = await _vm.HandleSystemBackAsync();
-
-        Assert.IsTrue(handled);
-        Assert.IsFalse(_vm.ShowSavePresetDialog);
-        Assert.AreEqual(MusicView.Artists, _vm.CurrentView); // no navigation — only the dialog dismissed
-    }
-
-    [TestMethod]
-    public async Task HandleSystemBackAsync_WhenSavePresetDialogOpen_ClosesDialogBeforeSearchPanel()
-    {
-        _vm.ToggleSearchCommand.Execute(null);
-        _vm.OpenSavePresetDialogCommand.Execute(null);
-
-        var handled = await _vm.HandleSystemBackAsync();
-
-        // The dialog is the innermost surface, so it consumes this press and the search
-        // panel stays open for the following press.
-        Assert.IsTrue(handled);
-        Assert.IsFalse(_vm.ShowSavePresetDialog);
-        Assert.IsTrue(_vm.IsSearchOpen);
-    }
-
-    [TestMethod]
     public async Task HandleSystemBackAsync_WhenSearchOpen_ClosesSearch_AndReturnsTrue()
     {
         _vm.ToggleSearchCommand.Execute(null);
@@ -1121,46 +1077,6 @@ public sealed class MusicViewModelTests
 
         Assert.IsTrue(handled);
         Assert.AreEqual(MusicView.Playlists, _vm.CurrentView);
-    }
-
-    [TestMethod]
-    public async Task HandleSystemBackAsync_InEqView_ReturnsToPreviousView()
-    {
-        var artist = new ArtistDto { Id = Guid.NewGuid(), Name = "Artist", CreatedAt = DateTime.UtcNow };
-        _music.Setup(x => x.ListArtistsAsync(ServerUrl, "test-access-token", 0, 50, It.IsAny<CancellationToken>()))
-            .ReturnsAsync([artist]);
-        await _vm.LoadArtistsCommand.ExecuteAsync(null);
-
-        _music.Setup(x => x.ListEqPresetsAsync(ServerUrl, "test-access-token", It.IsAny<CancellationToken>()))
-            .ReturnsAsync([]);
-        await _vm.LoadEqPresetsCommand.ExecuteAsync(null);
-        Assert.AreEqual(MusicView.Eq, _vm.CurrentView);
-
-        // The EQ screen has no back arrow of its own, so the system back must still consume it.
-        Assert.IsTrue(_vm.CanHandleSystemBack);
-
-        var handled = await _vm.HandleSystemBackAsync();
-
-        Assert.IsTrue(handled);
-        Assert.AreEqual(MusicView.Artists, _vm.CurrentView);
-    }
-
-    // ── LoadEqPresetsAsync ─────────────────────────────────────────────
-
-    [TestMethod]
-    public async Task LoadEqPresetsCommand_PopulatesPresets()
-    {
-        var presets = new List<EqPresetDto>
-        {
-            new() { Id = Guid.NewGuid(), Name = "Rock", IsBuiltIn = true, Bands = new Dictionary<string, double>() }
-        };
-        _music.Setup(x => x.ListEqPresetsAsync(ServerUrl, "test-access-token", It.IsAny<CancellationToken>()))
-            .ReturnsAsync(presets);
-
-        await _vm.LoadEqPresetsCommand.ExecuteAsync(null);
-
-        Assert.AreEqual(1, _vm.EqPresets.Count);
-        Assert.AreEqual("Rock", _vm.EqPresets[0].Name);
     }
 
     // ── PlaybackStateChanged event ─────────────────────────────────────

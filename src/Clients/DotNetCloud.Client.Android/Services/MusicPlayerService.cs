@@ -22,8 +22,8 @@ internal sealed class MusicPlayerService : IMusicPlayerService, IDisposable
     /// <remarks>
     /// Deliberately CACHED rather than read through the live <see cref="MediaPlayer"/>. Querying a
     /// released player throws <c>Java.Lang.IllegalStateException</c>, and this value is read from
-    /// arbitrary threads at arbitrary times — the 1-second position timer and the equalizer both
-    /// read it. During a track switch the previous player is released while still referenced, so a
+    /// arbitrary threads at arbitrary times — the 1-second position timer is one of them. During a
+    /// track switch the previous player is released while still referenced, so a
     /// timer tick landing in that window dereferenced a released player, threw on a thread-pool
     /// thread and aborted the whole process (SIGABRT, "FATAL UNHANDLED EXCEPTION"). Capturing it
     /// once, while the player is guaranteed valid, removes that window entirely.

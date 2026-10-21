@@ -433,7 +433,7 @@ Imports users, files, calendars, contacts, and bookmarks.
 ### Clients
 
 - [Desktop Sync Client Setup](docs/clients/desktop/SETUP.md) · [User Guide](docs/user/SYNC_CLIENT.md) · [Troubleshooting](docs/clients/desktop/TROUBLESHOOTING.md)
-- [Android Client](docs/clients/android/README.md) · [Setup](docs/clients/android/SETUP.md)
+- [Android App User Guide](docs/user/ANDROID.md) · [Developer README](docs/clients/android/README.md) · [Setup](docs/clients/android/SETUP.md)
 - [Browser Extension](docs/clients/BROWSER_EXTENSION_INSTALLATION.md) — bookmark sync extension setup
 
 ### Developer

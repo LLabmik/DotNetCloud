@@ -2,11 +2,11 @@
 
 **Branch:** `feature/android-music-tab`
 **Date:** 2026-06-29
-**Status:** planning
+**Status:** implemented
 
 ## Overview
 
-Add a read-only Music tab to the Android MAUI app that streams music from the server via the existing REST API (`/api/v1/music/`), with background playback via Android foreground service + `WakeLock`, native Android equalizer, two-tier album art caching, and dynamic tab visibility based on server module availability.
+Add a read-only Music tab to the Android MAUI app that streams music from the server via the existing REST API (`/api/v1/music/`), with background playback via Android foreground service + `WakeLock`, two-tier album art caching, and dynamic tab visibility based on server module availability.
 
 ---
 
@@ -18,7 +18,6 @@ MAUI App (net10.0-android)
 ├── HttpMusicRestClient : IMusicRestClient ← REST → /api/v1/music/*
 ├── MusicPlayerService : IMusicPlayerService ← Android.Media.MediaPlayer
 ├── MusicPlaybackService (Foreground)      ← WakeLock + Notification
-├── AndroidEqualizerService : IEqualizerService ← AudioEffect.Equalizer
 ├── AlbumArtCache : IAlbumArtCache          ← memory LRU + disk
 └── ModuleAvailabilityState (static)        ← GET /api/v1/core/modules/music/available
 ```
@@ -35,7 +34,7 @@ MAUI App (net10.0-android)
 ```csharp
 namespace DotNetCloud.Client.Android.Music;
 
-using DotNetCloud.Core.DTOs;  // ArtistDto, MusicAlbumDto, TrackDto, PlaylistDto, EqPresetDto
+using DotNetCloud.Core.DTOs;  // ArtistDto, MusicAlbumDto, TrackDto, PlaylistDto
 
 public interface IMusicRestClient
 {
@@ -121,15 +120,6 @@ public interface IMusicRestClient
         Guid itemId, string itemType,  // itemType = "Track", "Album", "Artist"
         CancellationToken ct = default);
 
-    // ── Equalizer ────────────────────────────────────────────────────
-    Task<IReadOnlyList<EqPresetDto>> ListEqPresetsAsync(
-        string serverBaseUrl, string accessToken,
-        CancellationToken ct = default);
-
-    Task<EqPresetDto?> GetEqPresetAsync(
-        string serverBaseUrl, string accessToken,
-        Guid presetId, CancellationToken ct = default);
-
     // ── Genres ───────────────────────────────────────────────────────
     Task<IReadOnlyList<string>> GetGenresAsync(
         string serverBaseUrl, string accessToken,
@@ -143,7 +133,6 @@ public interface IMusicRestClient
 - `MusicAlbumDto` — `Id:Guid`, `Title:string`, `ArtistId:Guid`, `ArtistName:string`, `Year:int?`, `Genre:string?`, `TrackCount:int`, `TotalDuration:TimeSpan`, `HasCoverArt:bool`, `IsStarred:bool`, `CreatedAt:DateTime`
 - `TrackDto` — `Id:Guid`, `OwnerId:Guid`, `FileNodeId:Guid`, `Title:string`, `TrackNumber:int?`, `DiscNumber:int?`, `Duration:TimeSpan`, `SizeBytes:long`, `Bitrate:long?`, `MimeType:string`, `AlbumId:Guid?`, `AlbumTitle:string?`, `ArtistId:Guid`, `ArtistName:string`, `Genre:string?`, `Year:int?`, `IsStarred:bool`, `CreatedAt:DateTime`
 - `PlaylistDto` — `Id:Guid`, `OwnerId:Guid`, `Name:string`, `Description:string?`, `IsPublic:bool`, `TrackCount:int`, `TotalDuration:TimeSpan`, `CreatedAt:DateTime`, `UpdatedAt:DateTime`
-- `EqPresetDto` — `Id:Guid`, `Name:string`, `IsBuiltIn:bool`, `Bands:IReadOnlyDictionary<string,double>` (keys: frequency labels "31","63","125","250","500","1000","2000","4000","8000","16000", values: gain in dB)
 
 ### 1.2 Create `src/Clients/DotNetCloud.Client.Android/Music/HttpMusicRestClient.cs`
 
@@ -173,8 +162,6 @@ public interface IMusicRestClient
 | `GetPlaylistTracksAsync`  | GET  | `/api/v1/music/playlists/{playlistId}/tracks`    | `List<TrackDto>`              |
 | `RecordPlayAsync`         | POST | `/api/v1/music/tracks/{trackId}/play`            | `{ recorded: true }`          |
 | `ToggleStarAsync`         | POST | `/api/v1/music/{typePlural}/{itemId}/star`       | `{ toggled: true }`           |
-| `ListEqPresetsAsync`      | GET  | `/api/v1/music/eq/presets`                       | `List<EqPresetDto>`           |
-| `GetEqPresetAsync`        | GET  | `/api/v1/music/eq/presets/{presetId}`            | `EqPresetDto` or null (404)   |
 | `GetGenresAsync`          | GET  | `/api/v1/music/genres`                           | `List<string>`                |
 
 **Envelope parsing helper** (copy the EXACT pattern from `HttpFileRestClient.ReadEnvelopeDataAsync`):
@@ -446,16 +433,15 @@ public sealed partial class MusicViewModel : ObservableObject
 {
     private readonly IMusicRestClient _music;
     private readonly IMusicPlayerService _player;
-    private readonly IEqualizerService _eq;
     private readonly IAlbumArtCache _artCache;
     private readonly IServerConnectionStore _serverStore;
     private readonly ISecureTokenStore _tokenStore;
 
     public MusicViewModel(
-        IMusicRestClient music, IMusicPlayerService player, IEqualizerService eq,
+        IMusicRestClient music, IMusicPlayerService player,
         IAlbumArtCache artCache, IServerConnectionStore serverStore, ISecureTokenStore tokenStore)
     {
-        _music = music; _player = player; _eq = eq;
+        _music = music; _player = player;
         _artCache = artCache; _serverStore = serverStore; _tokenStore = tokenStore;
         _player.PlaybackStateChanged += (_, _) => UpdatePlaybackState();
         _player.TrackEnded += (_, _) => MainThread.BeginInvokeOnMainThread(() => PlayNextCommand.Execute(null));
@@ -477,7 +463,6 @@ public sealed partial class MusicViewModel : ObservableObject
     [ObservableProperty] private ObservableCollection<MusicAlbumDto> _albums = [];
     [ObservableProperty] private ObservableCollection<TrackDto> _tracks = [];
     [ObservableProperty] private ObservableCollection<PlaylistDto> _playlists = [];
-    [ObservableProperty] private ObservableCollection<EqPresetDto> _eqPresets = [];
     [ObservableProperty] private ObservableCollection<string> _genres = [];
     [ObservableProperty] private TrackDto? _currentTrack;
     [ObservableProperty] private bool _isPlaying;
@@ -492,14 +477,12 @@ public sealed partial class MusicViewModel : ObservableObject
     [RelayCommand] private async Task LoadTracksAsync() { /* GET all tracks */ }
     [RelayCommand] private async Task LoadPlaylistsAsync() { /* GET playlists */ }
     [RelayCommand] private async Task SelectPlaylistAsync(PlaylistDto p) { /* GET playlist tracks */ }
-    [RelayCommand] private async Task LoadEqPresetsAsync() { /* GET EQ presets */ }
     [RelayCommand] private async Task PlayTrackAsync(TrackDto track) { /* _player.PlayAsync */ }
     [RelayCommand] private void TogglePlayPause() { if(_player.IsPlaying) _player.Pause(); else _player.Resume(); }
     [RelayCommand] private void PlayNext() => _player.PlayNext();
     [RelayCommand] private void PlayPrevious() => _player.PlayPrevious();
     [RelayCommand] private async Task SeekAsync(double pos) => _player.Seek(TimeSpan.FromSeconds(pos));
     [RelayCommand] private async Task ToggleStarAsync(object item) { /* _music.ToggleStarAsync */ }
-    [RelayCommand] private async Task ApplyEqPresetAsync(EqPresetDto p) => _eq.ApplyPreset(p);
     [RelayCommand] private async Task BackAsync() { /* navigate up: Tracks→Albums→Artists */ }
 
     private void UpdatePlaybackState()
@@ -820,159 +803,9 @@ builder.Services.AddHttpClient<IAlbumArtCache, AlbumArtCache>()
 
 ---
 
-## Phase 7: Native Android Equalizer
+## Phase 7: Resources & Integration
 
-### 7.1 Create `src/Clients/DotNetCloud.Client.Android/Services/IEqualizerService.cs`
-
-```csharp
-using DotNetCloud.Core.DTOs;
-
-namespace DotNetCloud.Client.Android.Services;
-
-public interface IEqualizerService
-{
-    bool IsAvailable { get; }
-    int NumberOfBands { get; }
-    int[] GetBandFrequenciesMhz(); // center frequencies in millihertz
-    void SetBandLevel(int bandIndex, short gainMb); // gain in millibels
-    void SetAllBands(IDictionary<string, double> bands); // keys: freq labels, values: dB
-    void ApplyPreset(EqPresetDto preset);
-    void Reset();
-    event EventHandler? AvailabilityChanged;
-}
-```
-
-### 7.2 Create `src/Clients/DotNetCloud.Client.Android/Services/AndroidEqualizerService.cs`
-
-```csharp
-using Android.Media.Audiofx;
-using DotNetCloud.Core.DTOs;
-
-namespace DotNetCloud.Client.Android.Services;
-
-public sealed class AndroidEqualizerService : IEqualizerService, IDisposable
-{
-    private readonly IMusicPlayerService _player;
-    private Equalizer? _equalizer;
-    private bool _isAvailable;
-
-    // Server preset target frequencies in Hz
-    private static readonly int[] ServerFrequencies = [31, 63, 125, 250, 500, 1000, 2000, 4000, 8000, 16000];
-
-    public event EventHandler? AvailabilityChanged;
-
-    public AndroidEqualizerService(IMusicPlayerService player)
-    {
-        _player = player;
-        _player.PlaybackStateChanged += OnPlaybackStateChanged;
-    }
-
-    public bool IsAvailable => _isAvailable && _equalizer is not null;
-    public int NumberOfBands => _equalizer?.NumberOfBands ?? 0;
-
-    public int[] GetBandFrequenciesMhz()
-    {
-        if (_equalizer is null) return [];
-        var freqs = new int[_equalizer.NumberOfBands];
-        for (int i = 0; i < freqs.Length; i++) freqs[i] = _equalizer.GetCenterFreq((short)i);
-        return freqs;
-    }
-
-    private void OnPlaybackStateChanged(object? sender, EventArgs e)
-    {
-        if (_player.IsPlaying && _player.AudioSessionId != 0) CreateEqualizer();
-        else DisposeEqualizer();
-    }
-
-    private void CreateEqualizer()
-    {
-        try
-        {
-            DisposeEqualizer();
-            _equalizer = new Equalizer(0, _player.AudioSessionId); // priority 0 = highest
-            _equalizer.SetEnabled(true);
-            _isAvailable = true;
-            AvailabilityChanged?.Invoke(this, EventArgs.Empty);
-        }
-        catch { _isAvailable = false; _equalizer = null; }
-    }
-
-    private void DisposeEqualizer()
-    {
-        _equalizer?.SetEnabled(false);
-        _equalizer?.Release();
-        _equalizer?.Dispose();
-        _equalizer = null;
-    }
-
-    public void SetBandLevel(int bandIndex, short gainMb)
-        => _equalizer?.SetBandLevel((short)bandIndex, gainMb);
-
-    /// <summary>Maps server frequency labels ("31","63",...,"16K") to closest device EQ bands.
-    /// Server gains are in dB (range ~-12 to +12). Android uses millibels (range ~-1500 to +1500).
-    /// Conversion: gainMb = (short)Clamp((int)(gainDb * 100), -1500, 1500).</summary>
-    public void SetAllBands(IDictionary<string, double> bands)
-    {
-        if (_equalizer is null) return;
-        var deviceFreqs = new int[_equalizer.NumberOfBands];
-        for (int i = 0; i < deviceFreqs.Length; i++) deviceFreqs[i] = _equalizer.GetCenterFreq((short)i);
-
-        foreach (var (freqLabel, gainDb) in bands)
-        {
-            var targetHz = ParseFrequencyLabel(freqLabel);
-            var bandIdx = FindClosestBand(deviceFreqs, targetHz);
-            if (bandIdx < 0) continue;
-            var gainMb = (short)Math.Clamp((int)(gainDb * 100), -1500, 1500);
-            _equalizer.SetBandLevel((short)bandIdx, gainMb);
-        }
-    }
-
-    public void ApplyPreset(EqPresetDto preset) => SetAllBands(new Dictionary<string, double>(preset.Bands));
-
-    public void Reset()
-    {
-        if (_equalizer is null) return;
-        for (short i = 0; i < _equalizer.NumberOfBands; i++) _equalizer.SetBandLevel(i, 0);
-    }
-
-    private static int ParseFrequencyLabel(string label)
-    {
-        if (label.EndsWith("K", StringComparison.OrdinalIgnoreCase) && int.TryParse(label[..^1], out var kHz))
-            return kHz * 1000;
-        return int.TryParse(label, out var hz) ? hz : 0;
-    }
-
-    private static int FindClosestBand(int[] deviceFreqsMhz, int targetHz)
-    {
-        int bestIdx = -1, bestDiff = int.MaxValue;
-        for (int i = 0; i < deviceFreqsMhz.Length; i++)
-        {
-            int freqHz = deviceFreqsMhz[i] / 1000; // millihertz → Hz
-            int diff = Math.Abs(freqHz - targetHz);
-            if (diff < bestDiff) { bestDiff = diff; bestIdx = i; }
-        }
-        return bestIdx;
-    }
-
-    public void Dispose()
-    {
-        _player.PlaybackStateChanged -= OnPlaybackStateChanged;
-        DisposeEqualizer();
-    }
-}
-```
-
-### 7.3 Register in `MauiProgram.cs`
-
-```csharp
-builder.Services.AddSingleton<IEqualizerService, AndroidEqualizerService>();
-```
-
----
-
-## Phase 8: Resources & Integration
-
-### 8.1 Create `Resources/Images/music_icon.svg`
+### 7.1 Create `Resources/Images/music_icon.svg`
 
 Music note icon in the same style as existing tab icons (24x24 viewBox, `#0EA5E9` stroke):
 
@@ -985,7 +818,7 @@ Music note icon in the same style as existing tab icons (24x24 viewBox, `#0EA5E9
 </svg>
 ```
 
-### 8.2 Extend `src/Clients/DotNetCloud.Client.Android/Converters/AppConverters.cs`
+### 7.2 Extend `src/Clients/DotNetCloud.Client.Android/Converters/AppConverters.cs`
 
 Add two converters:
 
@@ -1011,7 +844,7 @@ public sealed class BoolToPlayPauseIconConverter : IValueConverter
 }
 ```
 
-### 8.3 Final `MauiProgram.cs` registration summary
+### 7.3 Final `MauiProgram.cs` registration summary
 
 All new registrations:
 
@@ -1026,7 +859,6 @@ builder.Services.AddHttpClient<IAlbumArtCache, AlbumArtCache>()
     .ConfigurePrimaryHttpMessageHandler(DotNetCloud.Client.Core.Auth.OAuthHttpClientHandlerFactory.CreateHandler);
 
 builder.Services.AddSingleton<IMusicPlayerService, MusicPlayerService>();
-builder.Services.AddSingleton<IEqualizerService, AndroidEqualizerService>();
 
 // ── ViewModels ────────────────────────────────────────────────
 builder.Services.AddTransient<MusicViewModel>();
@@ -1064,8 +896,6 @@ builder.Services.AddTransient<MusicPage>();
 | `/api/v1/music/playlists`                  | GET    | `List<PlaylistDto>`              |
 | `/api/v1/music/playlists/{id}`             | GET    | `PlaylistDto`                    |
 | `/api/v1/music/playlists/{id}/tracks`      | GET    | `List<TrackDto>`                 |
-| `/api/v1/music/eq/presets`                 | GET    | `List<EqPresetDto>`              |
-| `/api/v1/music/eq/presets/{id}`            | GET    | `EqPresetDto`                    |
 | `/api/v1/music/genres`                     | GET    | `List<string>`                   |
 | `/api/v1/files/{fileNodeId}/content`       | GET    | Audio binary (from Files module) |
 
@@ -1075,7 +905,7 @@ builder.Services.AddTransient<MusicPage>();
 
 ## Files Summary
 
-### Create (15 files)
+### Create (13 files)
 
 | #   | File                                        | Est. Lines |
 | --- | ------------------------------------------- | ---------- |
@@ -1091,10 +921,8 @@ builder.Services.AddTransient<MusicPage>();
 | 10  | `Platforms/Android/MusicPlaybackService.cs` | ~200       |
 | 11  | `Services/IAlbumArtCache.cs`                | ~12        |
 | 12  | `Services/AlbumArtCache.cs`                 | ~80        |
-| 13  | `Services/IEqualizerService.cs`             | ~18        |
-| 14  | `Services/AndroidEqualizerService.cs`       | ~140       |
-| 15  | `Resources/Images/music_icon.svg`           | ~8         |
-|     | **Total**                                   | **~1,609** |
+| 13  | `Resources/Images/music_icon.svg`           | ~8         |
+|     | **Total**                                   | **~1,451** |
 
 ### Modify (7 files)
 
@@ -1121,7 +949,6 @@ builder.Services.AddTransient<MusicPage>();
 - ☐ Play/pause/next/previous/seek all work
 - ☐ Background playback: switch away → audio continues (foreground service + notification)
 - ☐ Notification shows track info + media controls that work
-- ☐ EQ presets load from server; applying changes audio tonality
 - ☐ Album art visible and cached (second view instant)
 - ☐ Token refresh works (401 → AuthenticatedHttpClientHandler refreshes → retries)
 - ☐ Chat, Files, Settings tabs unaffected
@@ -1137,7 +964,6 @@ builder.Services.AddTransient<MusicPage>();
 | Foreground service + WakeLock                          | Follows `ChatConnectionService` pattern. `TypeMediaPlayback`, `Sticky`, media notification.                                        |
 | `Android.Media.MediaPlayer`                            | Supports HTTP streaming with auth headers. Simpler than ExoPlayer for MAUI.                                                        |
 | Two-tier album art cache                               | Memory LRU (50 items) + disk. Uses `FileSystem.CacheDirectory`.                                                                    |
-| `AudioEffect.Equalizer`                                | Standard Android EQ. Priority 0. Maps 10-band server presets to device bands. dB→millibels conversion.                             |
 | `ShellContent.IsVisible` binding                       | Reads static `ModuleAvailabilityState`. Set before Shell first displays.                                                           |
 | Shared `DotNetCloud.Core` DTOs                         | Reuses existing `ArtistDto`, `TrackDto`, etc. No duplicate definitions.                                                            |
 | No playlist creation, visualization, offline, indexing | Excluded by design per requirements.                                                                                               |

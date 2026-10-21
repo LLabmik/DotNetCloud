@@ -3,7 +3,7 @@ using DotNetCloud.Client.Android.ViewModels;
 namespace DotNetCloud.Client.Android.Views;
 
 /// <summary>
-/// Music browsing page. Shows artists, albums, tracks, playlists, and EQ
+/// Music browsing page. Shows artists, albums, tracks, and playlists
 /// with a now-playing bar (including album art and seek slider) at the top.
 /// </summary>
 public partial class MusicPage : ContentPage
@@ -23,8 +23,8 @@ public partial class MusicPage : ContentPage
         _vm.ScrollToRequested += OnScrollToRequested;
 
         // Route the Android system back press through the same in-page back affordances the
-        // ViewModel exposes — the back arrow, the search panel's ✕, the EQ screen, and the
-        // save-preset dialog — instead of letting it drop the user out of the app.
+        // ViewModel exposes — the back arrow and the search panel's ✕ — instead of letting it
+        // drop the user out of the app.
         _back = new SystemBackNavigation(
             stateNotifier: _vm,
             canHandle: () => _vm.CanHandleSystemBack,
@@ -126,25 +126,5 @@ public partial class MusicPage : ContentPage
     {
         if (sender is Slider slider)
             _vm.SeekToCommand.Execute(slider.Value);
-    }
-
-    /// <summary>
-    /// Called when the user drags an EQ band slider. Reads the band index from the
-    /// slider's <see cref="EqBandModel"/> binding context and applies the gain to the native EQ.
-    /// If the equalizer has been disposed (playback stopped), shows a brief alert.
-    /// </summary>
-    private void OnEqSliderValueChanged(object? sender, ValueChangedEventArgs e)
-    {
-        if (sender is Slider slider && slider.BindingContext is EqBandModel band)
-        {
-            if (!_vm.EqAvailable)
-            {
-                // EQ was disposed (playback stopped). The banner should already
-                // be visible, but provide a subtle hint if the user interacts.
-                return;
-            }
-
-            _vm.OnEqBandChanged(band.BandIndex, (float)e.NewValue);
-        }
     }
 }

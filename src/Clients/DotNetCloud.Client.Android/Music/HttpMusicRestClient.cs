@@ -359,52 +359,6 @@ internal sealed class HttpMusicRestClient : IMusicRestClient
         await PostAsync(url, accessToken, ct);
     }
 
-    // ── Equalizer ────────────────────────────────────────────────────
-
-    /// <inheritdoc />
-    public async Task<IReadOnlyList<EqPresetDto>> ListEqPresetsAsync(
-        string serverBaseUrl, string accessToken,
-        CancellationToken ct = default)
-    {
-        var url = $"{BaseUrl(serverBaseUrl)}/api/v1/music/eq/presets";
-        var data = await GetEnvelopeDataAsync<List<EqPresetDto>>(url, accessToken, ct).ConfigureAwait(false);
-        return data ?? [];
-    }
-
-    /// <inheritdoc />
-    public async Task<EqPresetDto?> GetEqPresetAsync(
-        string serverBaseUrl, string accessToken,
-        Guid presetId, CancellationToken ct = default)
-    {
-        var url = $"{BaseUrl(serverBaseUrl)}/api/v1/music/eq/presets/{presetId}";
-        try
-        {
-            return await GetEnvelopeDataAsync<EqPresetDto>(url, accessToken, ct).ConfigureAwait(false);
-        }
-        catch (HttpRequestException ex) when (ex.StatusCode == HttpStatusCode.NotFound)
-        {
-            return null;
-        }
-    }
-
-    /// <inheritdoc />
-    public async Task<EqPresetDto> CreateEqPresetAsync(
-        string serverBaseUrl, string accessToken,
-        SaveEqPresetDto dto, CancellationToken ct = default)
-    {
-        var url = $"{BaseUrl(serverBaseUrl)}/api/v1/music/eq/presets";
-        return await PostWithBodyAsync<EqPresetDto>(url, accessToken, dto, ct).ConfigureAwait(false);
-    }
-
-    /// <inheritdoc />
-    public async Task<EqPresetDto> UpdateEqPresetAsync(
-        string serverBaseUrl, string accessToken,
-        Guid presetId, SaveEqPresetDto dto, CancellationToken ct = default)
-    {
-        var url = $"{BaseUrl(serverBaseUrl)}/api/v1/music/eq/presets/{presetId}";
-        return await PutWithBodyAsync<EqPresetDto>(url, accessToken, dto, ct).ConfigureAwait(false);
-    }
-
     // ── Genres ───────────────────────────────────────────────────────
 
     /// <inheritdoc />

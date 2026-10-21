@@ -3953,6 +3953,7 @@ Zero-tap sign-in (Apr 2027) and the API 36 target bump are tracked separately (d
 - ✓ Create `IAlbumArtCache` / `AlbumArtCache` (two-tier: memory LRU + disk)
 - ✓ Create `IEqualizerService` / `AndroidEqualizerService` (native `AudioEffect.Equalizer`)
 - ✓ Implement EQ preset save/load/apply (server presets + virtual band mapping)
+- ✓ Remove Android equalizer (2026-10-21): native `AudioEffect.Equalizer` was unreliable across devices, so the EQ button/view, band sliders, preset UI, `IEqualizerService`/`AndroidEqualizerService`, Android EQ REST client methods and `MODIFY_AUDIO_SETTINGS` were removed. Server preset API and Blazor EQ are unchanged.
 - ✓ Implement repeat modes (Off / One / All) with visual indicator
 - ✓ Fix music auto-advance: playing a track from the list queues the full displayed list so `RepeatMode.Off` advances through the queue instead of stopping after one song
 - ✓ Fix `MEDIA_ERROR_SERVER_DIED (-38)` feedback loop that froze the app at track transitions (break error→Stop→error recursion)
@@ -3965,7 +3966,7 @@ Zero-tap sign-in (Apr 2027) and the API 36 target bump are tracked separately (d
 - ✓ Implement search: toggle search icon in title bar, debounced server-side search by current tab (artists/albums/tracks), results replace collection, restore on close
 - ✓ Implement search guards: infinite scroll disabled during search, tab-switch closes search, back navigates away from search first
 - ✓ Add 16 unit tests for search toggle, close/restore, endpoint routing, error handling, tab-switch closure
-- ✓ Android back button mirrors the in-page back affordances (contextual ◀/← arrow, search panel, EQ screen, save-preset dialog) instead of leaving the app — see "System Back Navigation" below
+- ✓ Android back button mirrors the in-page back affordances (contextual ◀/← arrow, search panel) instead of leaving the app — see "System Back Navigation" below
 - ✓ Alphabet index rail: letters use Android's `monospace` family (capital `I` has serifs, `J` has a hook) and the rail column is widened to 32 px, so `I` and `J` are visually distinct
 - ✓ Alphabet index rail tap feedback: the tapped letter highlights immediately (accent pill via `AlphabetLetterHighlightConverter`) and a centred overlay spinner shows while further pages load from the server (`IsLetterJumpLoading`); the highlight clears when the view switches
 - ✓ Alphabet index rail — on-device confirmed 2026-10-10 (R5CWC356B2K): I/J distinct in the rail, tapping an unloaded letter highlights it instantly with a centred spinner while pages load, and the highlight clears on tab switch
@@ -4027,7 +4028,7 @@ ownership of the drawer and of pushed pages. The decision lives in the ViewModel
 - ✓ Shared mechanism: one scope per tab, enabled only while the tab is visible and the ViewModel reports in-page back state
 - ✓ Chat — back dismisses the "Begin Chatting" welcome overlay, then leaves the app
 - ✓ Files — back goes up one folder (the in-page ← button); a pushed page (image viewer) still owns its own back press
-- ✓ Music — back closes the save-preset dialog, then the search panel, then leaves the EQ screen, then steps back out of artist/album/playlist-scoped views
+- ✓ Music — back closes the search panel, then steps back out of artist/album/playlist-scoped views
 - ✓ Notes — back closes the note preview (the pre-existing, never-invoked `OnBackButtonPressed` override was removed)
 - ✓ AI — back returns from an open conversation to the conversation list
 - ✓ Calendar — back closes the open day list (the multi-event day sheet), then leaves the app; Settings has no in-page back state and is deliberately unchanged (back leaves the app)

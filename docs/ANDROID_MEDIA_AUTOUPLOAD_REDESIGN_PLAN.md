@@ -161,6 +161,8 @@ FATAL UNHANDLED EXCEPTION: Java.Lang.IllegalStateException
   at System.Threading.TimerQueueTimer...                    ← thread-pool thread, no caller to catch
 ```
 
+> `AndroidEqualizerService` (the other caller of the session id) has since been removed — 2026-10-21.
+
 `AudioSessionId` was `_mediaPlayer?.AudioSessionId ?? 0` — a **live read of the current player**. During a track switch the previous player is `Release()`d while still referenced, so a timer tick landing in that window called `getAudioSessionId()` on a released player. Android throws `Java.Lang.IllegalStateException` for that. Because the read happened inside a `Timer` callback on a thread-pool thread there is no caller to catch it, so it surfaced as an unhandled exception and the .NET runtime called `abort()` → `SIGABRT`. Observed directly in the log: the main thread released the player at `02:23:28.313` and the timer read it at `.319`.
 
 ### Fixes
@@ -168,7 +170,7 @@ FATAL UNHANDLED EXCEPTION: Java.Lang.IllegalStateException
 1. **Cache the audio session id** (`_audioSessionId`), captured in `OnTrackPrepared` while the player is guaranteed valid. `AudioSessionId` no longer touches the player at all — this is the real fix.
 2. **Publish `null` before releasing** in `PrepareAndStartAsync` (`_mediaPlayer = null` + `_audioSessionId = 0` _before_ `previousPlayer.Release()`), narrowing the window for any reader that already observed the old instance.
 3. **`CurrentPosition`/`Duration` degrade instead of throwing** — they had the identical hazard (`getCurrentPosition()` on a released player throws too) and would have crashed eventually via the ViewModel.
-4. **Exceptions cannot escape the timer callback or the equalizer handler** — `RaisePlaybackStateChangedSafely()` and a try/catch around `AndroidEqualizerService.OnPlaybackStateChanged`. An exception thrown from a `Timer` callback is fatal by construction.
+4. **Exceptions cannot escape the timer callback** — `RaisePlaybackStateChangedSafely()`. An exception thrown from a `Timer` callback is fatal by construction.
 
 ### Also fixed: wake lock leak (`MusicPlaybackService.AcquireWakeLock`)
 
@@ -230,5 +232,4 @@ Camera ownership removal + Debug interpreter fix (`feature/android-media-auto-up
 Music crash fix (`feature/android-media-auto-upload`) — **pending commit**:
 
 - `src/Clients/DotNetCloud.Client.Android/Services/MusicPlayerService.cs` — cached `_audioSessionId` (+ `TryReadPlayer` for `CurrentPosition`/`Duration`), publish-null-before-release, capture session in `OnTrackPrepared`, `RaisePlaybackStateChangedSafely` for the timer, `UpdateNotification` → `StartService`
-- `src/Clients/DotNetCloud.Client.Android/Services/AndroidEqualizerService.cs` — `OnPlaybackStateChanged` try/catch + single defensive session read; `CreateEqualizer(int)` takes the session id
 - `src/Clients/DotNetCloud.Client.Android/Platforms/Android/MusicPlaybackService.cs` — idempotent `AcquireWakeLock` + `ReleaseWakeLock`, wake lock only when a track is loaded, null-intent sticky-restart guard, release on `ActionStop`
