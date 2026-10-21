@@ -129,28 +129,6 @@ public interface IMusicRestClient
         Guid itemId, string itemType,
         CancellationToken ct = default);
 
-    // ── Equalizer ────────────────────────────────────────────────────
-
-    /// <summary>Lists all equalizer presets.</summary>
-    Task<IReadOnlyList<EqPresetDto>> ListEqPresetsAsync(
-        string serverBaseUrl, string accessToken,
-        CancellationToken ct = default);
-
-    /// <summary>Gets a single equalizer preset by ID.</summary>
-    Task<EqPresetDto?> GetEqPresetAsync(
-        string serverBaseUrl, string accessToken,
-        Guid presetId, CancellationToken ct = default);
-
-    /// <summary>Creates a new EQ preset from the current band settings.</summary>
-    Task<EqPresetDto> CreateEqPresetAsync(
-        string serverBaseUrl, string accessToken,
-        SaveEqPresetDto dto, CancellationToken ct = default);
-
-    /// <summary>Updates an existing EQ preset.</summary>
-    Task<EqPresetDto> UpdateEqPresetAsync(
-        string serverBaseUrl, string accessToken,
-        Guid presetId, SaveEqPresetDto dto, CancellationToken ct = default);
-
     // ── Genres ───────────────────────────────────────────────────────
 
     /// <summary>Gets all available genres.</summary>

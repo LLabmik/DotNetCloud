@@ -137,7 +137,6 @@ public static class MauiProgram
             .ConfigurePrimaryHttpMessageHandler(DotNetCloud.Client.Core.Auth.OAuthHttpClientHandlerFactory.CreateHandler);
 
         builder.Services.AddSingleton<IMusicPlayerService, MusicPlayerService>();
-        builder.Services.AddSingleton<IEqualizerService, AndroidEqualizerService>();
 
         // ── AI ───────────────────────────────────────────────────────────
         builder.Services.AddHttpClient<IAiRestClient, HttpAiRestClient>()

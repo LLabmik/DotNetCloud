@@ -16,7 +16,7 @@ Shared infrastructure comes from `DotNetCloud.Client.Core`: the OAuth2/OIDC help
 - **Files** — folder browser with a tappable path bar, upload, folder creation, image preview, swipe-to-delete (to trash) and quota display
 - **Document editing** — office documents open in an in-app Collabora editor (WOPI); nothing is mirrored to the device
 - **Photo/video auto-upload** — a MediaStore watcher backs up new media through the chunked-upload pipeline, with Wi-Fi / battery / size / quota gates
-- **Music** — library browsing and background playback (the app's only foreground service) with an equalizer
+- **Music** — library browsing and background playback (the app's only foreground service)
 - **Calendar, Notes and AI** — module tabs that appear only when the server reports those modules
 - **Background alerts** — in-process poll of the server's alert endpoint; no push service and no Google dependency in either build flavor
 
