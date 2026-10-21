@@ -825,6 +825,98 @@ public class MusicPlaybackStateTests
     }
 
     [TestMethod]
+    public void ApplyEqSnapshot_SetsBandsAndActivePresetId()
+    {
+        var presetId = Guid.CreateVersion7();
+        var bands = new double[10];
+        bands[0] = 4.5;
+        bands[9] = -6.0;
+
+        _state.ApplyEqSnapshot(bands, presetId, isLocalOverride: false);
+
+        Assert.AreEqual(presetId, _state.ActivePresetId);
+        Assert.AreEqual(4.5, _state.EqBands[0]);
+        Assert.AreEqual(-6.0, _state.EqBands[9]);
+    }
+
+    [TestMethod]
+    public void ApplyEqSnapshot_LocalOverride_SetsDefaultPresetAndFlag()
+    {
+        var presetId = Guid.CreateVersion7();
+
+        _state.ApplyEqSnapshot(new double[10], presetId, isLocalOverride: true);
+
+        Assert.AreEqual(presetId, _state.DefaultPresetId);
+        Assert.IsTrue(_state.HasLocalEqOverride);
+    }
+
+    [TestMethod]
+    public void ApplyEqSnapshot_ServerFallback_DoesNotMarkLocalOverride()
+    {
+        _state.ApplyEqSnapshot(new double[10], presetId: null, isLocalOverride: false);
+
+        Assert.IsNull(_state.DefaultPresetId);
+        Assert.IsFalse(_state.HasLocalEqOverride);
+    }
+
+    [TestMethod]
+    public void ApplyEqSnapshot_ShortArray_PadsRemainingBandsWithZero()
+    {
+        _state.SetEqBand(9, 8.0);
+
+        _state.ApplyEqSnapshot([2.0, 1.0], presetId: null, isLocalOverride: false);
+
+        Assert.AreEqual(2.0, _state.EqBands[0]);
+        Assert.AreEqual(1.0, _state.EqBands[1]);
+        Assert.AreEqual(0.0, _state.EqBands[9]);
+    }
+
+    [TestMethod]
+    public void ApplyEqSnapshot_RaisesOnChange()
+    {
+        var raised = false;
+        _state.OnChange += () => raised = true;
+
+        _state.ApplyEqSnapshot(new double[10], presetId: null, isLocalOverride: false);
+
+        Assert.IsTrue(raised);
+    }
+
+    [TestMethod]
+    public async Task LoadEqPresetsAsync_LocalOverride_KeepsDeviceDefaultPreset()
+    {
+        var localPresetId = Guid.CreateVersion7();
+        var serverPresetId = Guid.CreateVersion7();
+        _state.ApplyEqSnapshot(new double[10], localPresetId, isLocalOverride: true);
+        _eqPresetMock.Setup(s => s.ListPresetsAsync(_caller, default))
+            .ReturnsAsync(new List<EqPresetDto>
+            {
+                new() { Id = localPresetId, Name = "Local", Bands = new Dictionary<string, double>() }
+            });
+        _eqPresetMock.Setup(s => s.GetActivePresetIdAsync(_caller, default))
+            .ReturnsAsync(serverPresetId);
+
+        await _state.LoadEqPresetsAsync(_caller);
+
+        Assert.AreEqual(localPresetId, _state.DefaultPresetId);
+    }
+
+    [TestMethod]
+    public async Task LoadEqPresetsAsync_NoLocalOverride_UsesServerDefaultPreset()
+    {
+        var serverPresetId = Guid.CreateVersion7();
+        _eqPresetMock.Setup(s => s.ListPresetsAsync(_caller, default))
+            .ReturnsAsync(Array.Empty<EqPresetDto>());
+        _eqPresetMock.Setup(s => s.GetActivePresetIdAsync(_caller, default))
+            .ReturnsAsync(serverPresetId);
+
+        await _state.LoadEqPresetsAsync(_caller);
+
+        Assert.AreEqual(serverPresetId, _state.DefaultPresetId);
+        Assert.IsFalse(_state.HasLocalEqOverride);
+    }
+
+    [TestMethod]
     public async Task LoadEqPresetsAsync_LoadsFromService()
     {
         var presets = new List<EqPresetDto>

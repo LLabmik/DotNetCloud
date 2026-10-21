@@ -254,7 +254,7 @@
                     {
                         <span class="gmp-eq-preset-btn @(Playback.ActivePresetId == preset.Id ? "active" : "")">
                             <button class="gmp-eq-preset-name" @onclick="() => ApplyPresetAsync(preset)">@preset.Name</button>
-                            <button class="gmp-eq-preset-default" title="Set as default EQ"
+                            <button class="gmp-eq-preset-default" title="Set as this device's default EQ"
                                     @onclick="() => SetDefaultPresetAsync(preset)">@(Playback.DefaultPresetId == preset.Id ? "☑" :
                                 "☐")</button>
                                 @if (!preset.IsBuiltIn)
@@ -343,7 +343,9 @@
     private const string ShuffleKey = "player.shuffle";
     private const string RepeatKey = "player.repeat";
     private const string EqBandsKey = "player.eq-bands";
+    private const string LocalEqStateKey = "dotnetcloud.music:eq-state";
     private bool _settingsLoaded;
+    private LocalEqState? _localEqState;
     private CancellationTokenSource? _saveCts;
 
     protected override void OnInitialized()
@@ -482,11 +484,23 @@
 
     private async Task ToggleEqualizerAsync()
     {
+        await LoadPersistedSettingsAsync();
+
         if (!Playback.EqPresetsLoaded)
         {
             var caller = await GetCallerAsync();
             await Playback.LoadEqPresetsAsync(caller);
         }
+
+        // Re-resolve the device-local preset now that the preset list is available
+        // (the stored preset may have been renamed or re-seeded since it was saved).
+        if (_localEqState is not null && Playback.EqPresetsLoaded)
+        {
+            var resolved = _localEqState.ResolvePresetId(Playback.EqPresets);
+            if (resolved != Playback.ActivePresetId)
+                Playback.ApplyEqSnapshot(_localEqState.Bands, resolved, isLocalOverride: true);
+        }
+
         Playback.ToggleEqualizer();
     }
 
@@ -497,6 +511,7 @@
         {
             await Js.InvokeVoidAsync("dotnetcloudMusicPlayer.setEqBands", Playback.EqBands);
         }
+        await SaveLocalEqAsync();
         SaveSettingDebounced(EqBandsKey, JsonSerializer.Serialize(Playback.EqBands));
     }
 
@@ -509,6 +524,7 @@
             {
                 await Js.InvokeVoidAsync("dotnetcloudMusicPlayer.setEqBand", bandIndex, gain);
             }
+            await SaveLocalEqAsync();
             SaveSettingDebounced(EqBandsKey, JsonSerializer.Serialize(Playback.EqBands));
         }
     }
@@ -520,6 +536,7 @@
         {
             await Js.InvokeVoidAsync("dotnetcloudMusicPlayer.setEqBands", Playback.EqBands);
         }
+        await SaveLocalEqAsync();
         await SaveSettingImmediateAsync(EqBandsKey, JsonSerializer.Serialize(Playback.EqBands));
     }
 
@@ -532,6 +549,7 @@
             await Playback.SavePresetAsync(_newPresetName, caller, _selectedPresetId);
             _newPresetName = string.Empty;
             _selectedPresetId = null;
+            await SaveLocalEqAsync();
         }
         catch (Exception ex)
         {
@@ -568,6 +586,8 @@
             {
                 await Js.InvokeVoidAsync("dotnetcloudMusicPlayer.setEqBands", Playback.EqBands);
             }
+            // Persist the per-device default immediately; the server value seeds new machines.
+            await SaveLocalEqAsync();
             SaveSettingDebounced(EqBandsKey, JsonSerializer.Serialize(Playback.EqBands));
         }
         catch (Exception ex)
@@ -586,6 +606,7 @@
             {
                 await Js.InvokeVoidAsync("dotnetcloudMusicPlayer.setEqBands", Playback.EqBands);
             }
+            await SaveLocalEqAsync();
             SaveSettingDebounced(EqBandsKey, JsonSerializer.Serialize(Playback.EqBands));
         }
         catch (Exception ex)
@@ -908,17 +929,85 @@
             if (repeatSetting is not null && Enum.TryParse<RepeatMode>(repeatSetting.Value, out var repeat))
                 while (Playback.Repeat != repeat) Playback.CycleRepeat();
 
-            var eqSetting = await UserSettingsService.GetSettingAsync(userId.Value, SettingsModule, EqBandsKey);
-            if (eqSetting is not null)
-            {
-                var bands = JsonSerializer.Deserialize<double[]>(eqSetting.Value);
-                if (bands is { Length: 10 })
-                    for (int i = 0; i < 10; i++) Playback.SetEqBand(i, bands[i]);
-            }
+            await LoadEqStateAsync(userId.Value);
         }
         catch (Exception ex)
         {
             Logger.LogWarning(ex, "Failed to load persisted music player settings");
+        }
+    }
+
+    /// <summary>
+    /// Restores the equalizer for this circuit. A device-local selection (localStorage) always
+    /// wins; the server-side user settings are only used as the fallback for machines that have
+    /// no local state yet.
+    /// </summary>
+    private async Task LoadEqStateAsync(Guid userId)
+    {
+        _localEqState = await LoadLocalEqAsync();
+        if (_localEqState is not null)
+        {
+            Playback.ApplyEqSnapshot(_localEqState.Bands, _localEqState.PresetId, isLocalOverride: true);
+            return;
+        }
+
+        var eqSetting = await UserSettingsService.GetSettingAsync(userId, SettingsModule, EqBandsKey);
+        if (eqSetting is not null)
+        {
+            var bands = JsonSerializer.Deserialize<double[]>(eqSetting.Value);
+            if (bands is { Length: LocalEqState.BandCount })
+            {
+                Playback.ApplyEqSnapshot(bands, presetId: null, isLocalOverride: false);
+                return;
+            }
+        }
+
+        // No local state and no server band array: fall back to the user's server default preset.
+        var caller = await GetCallerAsync();
+        await Playback.LoadEqPresetsAsync(caller);
+        if (Playback.DefaultPresetId is { } defaultId)
+        {
+            var preset = Playback.EqPresets.FirstOrDefault(p => p.Id == defaultId);
+            if (preset is not null)
+                Playback.ApplyPreset(preset);
+        }
+    }
+
+    private async Task<LocalEqState?> LoadLocalEqAsync()
+    {
+        try
+        {
+            var json = await Js.InvokeAsync<string?>("localStorage.getItem", LocalEqStateKey);
+            return LocalEqState.TryParse(json);
+        }
+        catch (Exception)
+        {
+            // localStorage is unavailable during prerendering or when blocked by the browser.
+            return null;
+        }
+    }
+
+    private async Task SaveLocalEqAsync()
+    {
+        var presetName = Playback.ActivePresetId.HasValue
+            ? Playback.EqPresets.FirstOrDefault(p => p.Id == Playback.ActivePresetId)?.Name
+              ?? _localEqState?.PresetName
+            : null;
+
+        _localEqState = new LocalEqState
+        {
+            PresetId = Playback.ActivePresetId,
+            PresetName = presetName,
+            Bands = Playback.EqBands.ToArray()
+        };
+
+        try
+        {
+            await Js.InvokeVoidAsync("localStorage.setItem", LocalEqStateKey, _localEqState.ToJson());
+        }
+        catch (Exception)
+        {
+            // localStorage unavailable — the server-side copy remains the fallback for new machines.
         }
     }
 

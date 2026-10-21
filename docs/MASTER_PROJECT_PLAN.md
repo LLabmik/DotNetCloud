@@ -2957,6 +2957,24 @@ Also fixed Android music play order (2026-09-04, `fix/android-music-play-order`)
 
 ---
 
+### Section: Per-Device Music EQ Default
+
+#### Step: feature/local-eq-selection — per-machine default EQ
+
+**Status:** implemented — awaiting live E2E verification before commit
+**Deliverables:**
+
+- ✓ `LocalEqState` — device-local snapshot (preset ID, preset name, 10 band gains) with JSON round-trip, validation, and preset resolution by ID then case-insensitive name
+- ✓ `MusicPlaybackState.ApplyEqSnapshot` + `HasLocalEqOverride` — apply a snapshot without a server call; device-local defaults are not overwritten by the server default when presets load
+- ✓ `GlobalMusicPlaybar` — local-first EQ restore from `dotnetcloud.music:eq-state`, write-through on every EQ mutation, server values remain the fallback for machines without local state
+- ✓ Default EQ applied at playback start (previously only when the EQ panel opened)
+- ✓ 17 new unit tests; 404 Music module tests passing
+- ☐ Live E2E verification in two browser profiles — pending
+
+**Notes:** `localStorage` is per browser profile, so each machine/profile remembers its own default EQ. Presets remain server-side and shared; "set as default" writes both the device value and the server value so a brand-new machine inherits the last explicit choice. No database migration or API changes.
+
+---
+
 ### Section: Media Library Auto-Discovery Prompt (Video + Music)
 
 #### Step: feature/auto-media-scanning — first-visit new-media detection & import prompt

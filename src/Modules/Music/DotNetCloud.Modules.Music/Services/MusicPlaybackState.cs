@@ -63,6 +63,9 @@ public sealed class MusicPlaybackState
     /// <summary>The user's default EQ preset ID, if any.</summary>
     public Guid? DefaultPresetId { get; private set; }
 
+    /// <summary>Whether this circuit restored a device-local (browser storage) EQ override.</summary>
+    public bool HasLocalEqOverride { get; private set; }
+
     /// <summary>Cached EQ presets list. Loaded lazily on first EQ panel open.</summary>
     public List<EqPresetDto> EqPresets { get; } = [];
 
@@ -390,6 +393,33 @@ public sealed class MusicPlaybackState
         NotifyChanged();
     }
 
+    /// <summary>
+    /// Applies an EQ snapshot without contacting the server. Used to restore a device-local
+    /// (browser storage) EQ override or a server-side fallback when playback starts.
+    /// </summary>
+    /// <param name="bands">Band gains in dB; missing entries are treated as 0 dB.</param>
+    /// <param name="presetId">The preset the bands came from, or <see langword="null"/> for manual bands.</param>
+    /// <param name="isLocalOverride">
+    /// <see langword="true"/> when the snapshot comes from device-local storage, which makes it
+    /// the default EQ for this circuit and prevents the server default from replacing it.
+    /// </param>
+    public void ApplyEqSnapshot(IReadOnlyList<double> bands, Guid? presetId, bool isLocalOverride)
+    {
+        ArgumentNullException.ThrowIfNull(bands);
+
+        for (int i = 0; i < EqBands.Length; i++)
+            EqBands[i] = i < bands.Count ? bands[i] : 0;
+
+        ActivePresetId = presetId;
+        if (isLocalOverride)
+        {
+            DefaultPresetId = presetId;
+            HasLocalEqOverride = true;
+        }
+
+        NotifyChanged();
+    }
+
     /// <summary>Loads EQ presets from the database (cached after first call).</summary>
     public async Task LoadEqPresetsAsync(CallerContext caller)
     {
@@ -400,7 +430,11 @@ public sealed class MusicPlaybackState
             var presets = await _eqPresetService.ListPresetsAsync(caller);
             EqPresets.Clear();
             EqPresets.AddRange(presets);
-            DefaultPresetId = await _eqPresetService.GetActivePresetIdAsync(caller);
+
+            // A device-local override wins over the server default on this machine.
+            if (!HasLocalEqOverride)
+                DefaultPresetId = await _eqPresetService.GetActivePresetIdAsync(caller);
+
             EqPresetsLoaded = true;
         }
         catch
