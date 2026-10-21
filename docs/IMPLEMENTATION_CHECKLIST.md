@@ -4715,6 +4715,15 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 - ✓ Step 5.14 — Music API, gRPC & Blazor UI
   - ✓ **Enhancement (2026-10-13):** now-playing track shown in the browser tab title (`♪ Song — Band`, `⏸` when paused). The override survives Blazor page navigation (`MutationObserver` in `music-player.js`) and is cleared when playback stops or on logout (`GlobalMusicPlaybar`).
 
+### Per-Device Music EQ Default — feature/local-eq-selection
+
+- ✓ `LocalEqState` — device-local EQ snapshot (preset ID + preset name + 10 band gains) with JSON round-trip, validation, and preset resolution by ID then case-insensitive name (`src/Modules/Music/DotNetCloud.Modules.Music/Services/LocalEqState.cs`)
+- ✓ `MusicPlaybackState.ApplyEqSnapshot` + `HasLocalEqOverride` — applies an EQ snapshot without a server round trip; a device-local override prevents `LoadEqPresetsAsync` from replacing the default with the server value
+- ✓ `GlobalMusicPlaybar` — reads `dotnetcloud.music:eq-state` from `localStorage` on first load and writes through on every EQ change (apply preset, slider, reset, save, delete, set-default); server `player.eq-bands` and `ActiveEqPresetId` remain the fallback seed for machines with no local state
+- ✓ Default EQ now applied at playback start (previously only the band array was restored, and only when the EQ panel was opened)
+- ✓ 17 new unit tests (`LocalEqStateTests` + `MusicPlaybackStateTests` additions); 404 Music tests passing
+- ☐ Live E2E verification in two browser profiles (different local defaults, server fallback on a fresh profile) — pending before commit (repo rule #1)
+
 ### Media Library Auto-Discovery Prompt (Video + Music) — feature/auto-media-scanning
 
 - ✓ `IMediaLibraryScanner.DiscoverNewMediaFilesAsync` — read-only "new files" discovery (no import)
