@@ -54,6 +54,10 @@ public static class PhotosServiceRegistration
         services.AddScoped<IEventHandler<FileUploadedEvent>, FileUploadedPhotoHandler>();
         services.AddScoped<IEventHandler<AlbumSharedEvent>, AlbumSharedNotificationHandler>();
 
+        // Thumbnail generation runs off the indexing path so imports stay insert-only.
+        services.AddSingleton<IPhotoThumbnailQueue, PhotoThumbnailQueue>();
+        services.AddHostedService<PhotoThumbnailWorker>();
+
         // Background services
         services.AddSingleton<IHostedService, PhotoIndexingBackgroundService>();
 
@@ -98,7 +102,12 @@ public static class PhotosServiceRegistration
         // Shared per-user scan progress (singleton so Blazor circuits share it across renders)
         services.AddSingleton<PhotosScanProgressState>();
 
-        // NOTE: PhotoIndexingBackgroundService (hosted) and event handlers
+        // Library imports execute in this process, so thumbnail generation must be queued and
+        // drained here too — the module host owns a separate queue in its own process.
+        services.AddSingleton<IPhotoThumbnailQueue, PhotoThumbnailQueue>();
+        services.AddHostedService<PhotoThumbnailWorker>();
+
+        // NOTE: PhotoIndexingBackgroundService (periodic scan) and event handlers
         // are NOT registered here — they run only in the module host process.
 
         return services;

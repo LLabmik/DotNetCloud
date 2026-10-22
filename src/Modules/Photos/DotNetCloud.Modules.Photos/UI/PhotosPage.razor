@@ -15,6 +15,7 @@
 @inject Microsoft.AspNetCore.Components.Authorization.AuthenticationStateProvider AuthenticationStateProvider
 @inject DotNetCloud.Core.Services.IUserSettingsService UserSettingsService
 @inject DotNetCloud.Core.Services.IMediaLibraryScanner MediaLibraryScanner
+@inject Microsoft.Extensions.DependencyInjection.IServiceScopeFactory ScopeFactory
 @inject DotNetCloud.Modules.Files.Services.IFileService FileService
 @inject Microsoft.AspNetCore.Components.NavigationManager Navigation
 @inject DotNetCloud.Modules.Photos.Events.IPhotoIndexingCallback PhotoIndexingCallback
