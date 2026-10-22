@@ -22,6 +22,10 @@
     <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
   </PropertyGroup>
 
+  <!-- Security patches for transitive dependencies are applied by
+       CentralPackageTransitivePinningEnabled (Directory.Build.props) against the patched
+       PackageVersion entries in Directory.Packages.props. -->
+
   <!-- Test packages removed: Use PackageReference in individual .csproj files instead -->
   <!-- This prevents duplicate package warnings (NU1504) -->
 </Project>

@@ -3,6 +3,11 @@
   <!-- This prevents MSB3539 warning about BaseIntermediateOutputPath being modified after use -->
   <PropertyGroup>
     <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+    <!-- Security patches must reach transitive dependencies too: Microsoft.Data.SqlClient 6.1.1
+         pins Pkcs 9.0.4, MimeKit 4.17.0 pins Pkcs 10.0.0 and the ASP.NET Core/OpenIddict 7.6.0
+         graph pins Cryptography.Xml 10.0.10. Without this, the patched PackageVersion entries in
+         Directory.Packages.props would only apply to direct references. -->
+    <CentralPackageTransitivePinningEnabled>true</CentralPackageTransitivePinningEnabled>
     <BaseIntermediateOutputPath>$(MSBuildProjectDir)bin\obj\</BaseIntermediateOutputPath>
     <BaseOutputPath>$(MSBuildProjectDir)bin\</BaseOutputPath>
     <!-- Prevent test SDK and other targets from overriding output paths -->
@@ -72,16 +77,6 @@
   -->
   <ItemGroup>
     <NuGetAuditSuppress Include="https://github.com/advisories/GHSA-pgww-w46g-26qg" />
-    <!-- Microsoft.OpenApi 2.0.0 vulnerability (GHSA-v5pm-xwqc-g5wc):
-         Transitive dependency from Microsoft.AspNetCore.OpenApi 10.0.10.
-         Explicit override to 3.9.0 breaks the source generator (IOpenApiMediaType.Example
-         is read-only in OpenApi 3.x). Suppressed until AspNetCore.OpenApi ships with
-         a compatible OpenApi 2.x with the fix.
-         SOC 2 compensating control (CC7): OpenApi metadata is only served by the
-         module hosts over the loopback/internal gRPC surface in development; no
-         production-facing endpoint exposes the affected generator path.
-         REVIEW DATE: 2026-11-18. -->
-    <NuGetAuditSuppress Include="https://github.com/advisories/GHSA-v5pm-xwqc-g5wc" />
     <!-- Microsoft.Build.Tasks.Git 8.0.0 (GHSA-23fw-v26w-5fgq, CVE-2026-62900):
          .NET information disclosure. Transitive dependency from NPOI 2.8.0 (latest),
          which depends on Microsoft.SourceLink.GitHub 8.0.0 -> Microsoft.Build.Tasks.Git 8.0.0.

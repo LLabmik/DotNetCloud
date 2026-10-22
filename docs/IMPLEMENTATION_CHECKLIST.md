@@ -8,6 +8,21 @@
 
 ---
 
+## Recent Fix — .NET 10.0.13 security patch family (2026-10-21, `fix/dotnet-security-bump`)
+
+> Four advisories published 2026-10-13 blocked restore of the 10.0.10 package family, so the previous build had to be validated with `-p:NuGetAudit=false -p:TreatWarningsAsErrors=false`. The whole family is now on **10.0.13**, the first patched version for every advisory.
+
+- ✓ `Microsoft.AspNetCore.Components.WebAssembly.Server` 10.0.10 → **10.0.13** — GHSA-g27p-qf6j-c96c (Blazor WASM debug proxy embeds unescaped debuggee values in generated C#) and GHSA-qjpx-jqm5-h2c4 (`/_framework/debug` reflects unencoded exception text → cross-origin script injection).
+- ✓ `Microsoft.AspNetCore.SignalR.Common` 10.0.10 → **10.0.13** (via `Microsoft.AspNetCore.SignalR.Client`) — GHSA-334f-vvp4-7g6p (stateful reconnect clients block broadcasts through `MessageBuffer.ResendAsync` backpressure).
+- ✓ `System.Security.Cryptography.Pkcs` 9.0.4 (`Microsoft.Data.SqlClient` 6.1.x) / 10.0.0 (`MimeKit` 4.17.0) / 10.0.10 → **10.0.13** — GHSA-846f-f764-76mx (`SignedCms.CheckSignature` quadratic CPU) and GHSA-2fmv-rv2c-59x7 (`EnvelopedCms.Decode` quadratic CPU).
+- ✓ `System.Security.Cryptography.Xml` 10.0.10 (`Microsoft.AspNetCore.DataProtection` 10.0.10 / `OpenIddict` 7.6.0) → **10.0.13** — GHSA-7hqp-7c5m-4vq6, GHSA-c399-9853-6jmj, GHSA-r955-8q5j-3h83 (signed-XML parsing DoS).
+- ✓ **`CentralPackageTransitivePinningEnabled=true`** so the patched central versions also reach transitive dependencies (CPM otherwise only pins direct references). This replaces the per-project `System.Security.Cryptography.Xml` `PackageReference` overrides, which became duplicate items.
+- ✓ `Microsoft.OpenApi` 2.7.5 → **2.12.2** (`Microsoft.AspNetCore.OpenApi` 10.0.13 requires ≥ 2.12.2, still 2.x so the source generator keeps working); the obsolete GHSA-v5pm-xwqc-g5wc `NuGetAuditSuppress` entry was removed because 2.7.5+ is already patched.
+- ✓ Verification: `dotnet restore DotNetCloud.CI.slnf` and `dotnet build DotNetCloud.CI.slnf -c Release` are clean **with NuGet audit and warnings-as-errors enabled** (no `NuGetAudit=false`); `dotnet list package --vulnerable --include-transitive` reports only the pre-existing, documented `Microsoft.Build.Tasks.Git` 8.0.0 suppression; all **22 CI test assemblies pass — 7,247 passed / 27 skipped / 0 failed**.
+- ☐ Deploy to mint22 (`scripts/deploy.sh --force --verify`) and confirm `/health/ready` (awaiting approval).
+
+---
+
 ## Recent Fix — Photos library import is ~5.5× faster (2026-10-21, `fix/photo-import-speed`)
 
 > Importing 40 photos took **13 minutes** (~21.6 s/photo). Measured against the real production photos, a single 12 MP JPEG spent **2 × 10.6 s inside ImageSharp `Resize`** — the download, decode (0.33 s) and DB work were never the bottleneck. ImageSharp 4.1.2/4.1.3 runs resize on **one core** and falls back to a slow scalar path on CPUs **without AVX2/FMA** (this host: Xeon E5-2650L v2); 3.2.0 does the same resize in 241 ms but is blocked by three high-severity advisories, so the fix had to be in our code.

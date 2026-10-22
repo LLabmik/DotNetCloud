@@ -19,9 +19,8 @@
     <PackageReference Include="PdfPig" />
     <PackageReference Include="DocumentFormat.OpenXml" />
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
-    <!-- Security: bump vulnerable transitive dependency (DocumentFormat.OpenXml chain)
-         to the patched central version (see Directory.Packages.props). -->
-    <PackageReference Include="System.Security.Cryptography.Xml" />
+    <!-- Security: System.Security.Cryptography.Xml is pinned repo-wide in Directory.Build.targets
+         (patched central version in Directory.Packages.props). -->
   </ItemGroup>
 
   <ItemGroup>
