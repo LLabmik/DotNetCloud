@@ -47,7 +47,7 @@
 - ✓ `DefaultUserContentArchive` (zip-slip, symlink, bomb, caps, illegal names; merge/replace with dated backup)
 - ✓ `CliConfig` `JsonExtensionData` so setup/cert renewal no longer drop `Files:DefaultUserContent:RootPath`
 - ✓ `deploy/seed/default-user-content/` + Dockerfile/entrypoint seeding + `release.yml` staging + `tools/install.sh` marker-guarded seeding
-- ✓ `scripts/deploy.sh --verify` template-preservation assertion; uninstall notice
+- ✓ `scripts/deploy.sh` marker-guarded seeding (bare-metal source deploys never run `install.sh`) + `--verify` template-preservation assertion; uninstall notice
 - ✓ Restore fixes: `RestoreOptions.DataDirectory` implemented in `BackupService`; CLI restore fixes ownership
 - ✓ Backups archive empty directories (ZIP has no implicit dir entries) and CLI restore recreates them
 - ✓ CLI resolves the template root from the configured data directory (sets `DOTNETCLOUD_DATA_DIR`) instead of the current directory

@@ -372,7 +372,8 @@ Invariants:
 - Seeding is idempotent and additive; the marker means "administrator-owned".
 - On upgrade, the packaged `${INSTALL_DIR}/seed` is refreshed with the binaries (safe, under `/opt`),
   but the data-directory template is untouched.
-- `scripts/deploy.sh --verify` asserts the template tree hash is unchanged and the path is readable.
+- `scripts/deploy.sh` seeds the template when it is missing/empty (a bare-metal source deploy never
+  runs `install.sh`), then `--verify` asserts the path is readable and the tree hash is unchanged.
 
 ### 8.5 Developer seed tree
 
@@ -864,7 +865,7 @@ unsafe archives; config survives setup.
 1. `deploy/seed/default-user-content/`.
 2. `release.yml` staging copy; Dockerfile copy; entrypoint seeding.
 3. `tools/install.sh` guarded seeding; upgrade audit; uninstall notice.
-4. `scripts/deploy.sh --verify` template assertion.
+4. `scripts/deploy.sh` guarded seeding (bare-metal source deploys) + `--verify` template assertion.
 5. Restore fixes (CLI ownership; server `RestoreOptions.DataDirectory`).
 
 **Acceptance:** fresh install seeds; upgrade keeps hashes; restore keeps hashes and ownership.
@@ -992,7 +993,9 @@ recomputed; existing content is untouched.
 ## 19. Definition of done
 
 - ✓ Build and tests clean; both migration providers pass.
-- ✓ Fresh install seeds the developer tree; upgrade leaves the template byte-identical. _(Seeding is implemented in `install.sh`/container entrypoint; the upgrade path was verified live — template tree hash unchanged across four deploys.)_
+- ✓ Fresh install seeds the developer tree; upgrade leaves the template byte-identical. _(Seeding is
+  implemented in `install.sh`, `scripts/deploy.sh` (bare-metal) and the container entrypoint; the
+  upgrade path was verified live — template tree hash unchanged across four deploys.)_
 - ✓ Registration delivers content immediately; restart converges existing users. _(Live: new account received 6 items; existing accounts converged.)_
 - ✓ User-deleted starter files stay in trash across restarts and are never auto-purged. _(Live tombstone + unit coverage of the retention exclusion; a forced purge cycle was not run live.)_
 - ✓ Template removals stay pending until a confirmed run.
