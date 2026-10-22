@@ -127,17 +127,7 @@ public class EventSystemTests
         Assert.IsTrue(handler.AsyncOperationCompleted);
     }
 
-    [TestMethod]
-    public void EventBus_CanBeMocked()
-    {
-        // Arrange
-        var mockBus = new Mock<IEventBus>();
-
-        // Act & Assert
-        Assert.IsNotNull(mockBus.Object);
-    }
-
-    [TestMethod]
+[TestMethod]
     public async Task EventBus_PublishAsync_CanBeMocked()
     {
         // Arrange

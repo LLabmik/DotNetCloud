@@ -1081,24 +1081,7 @@ public sealed class MusicViewModelTests
 
     // ── PlaybackStateChanged event ─────────────────────────────────────
 
-    [TestMethod]
-    public void PlaybackStateChanged_UpdatesState()
-    {
-        var track = new TrackDto { Id = Guid.NewGuid(), Title = "Now Playing", OwnerId = Guid.NewGuid(), FileNodeId = Guid.NewGuid(), MimeType = "audio/mpeg", ArtistId = Guid.NewGuid(), ArtistName = "Artist", CreatedAt = DateTime.UtcNow };
-
-        // Simulate the player raising PlaybackStateChanged
-        _player.Setup(x => x.CurrentTrack).Returns(track);
-        _player.Setup(x => x.IsPlaying).Returns(true);
-        _player.Setup(x => x.CurrentPosition).Returns(TimeSpan.FromSeconds(30));
-        _player.Setup(x => x.Duration).Returns(TimeSpan.FromSeconds(180));
-
-        _player.Raise(x => x.PlaybackStateChanged += null, EventArgs.Empty);
-
-        // MainThread.BeginInvokeOnMainThread may not execute in test context,
-        // but properties should be updated eventually
-    }
-
-    // ── Edge cases ─────────────────────────────────────────────────────
+// ── Edge cases ─────────────────────────────────────────────────────
 
     [TestMethod]
     public async Task LoadArtistsCommand_HandlesEmptyList()
@@ -1131,15 +1114,7 @@ public sealed class MusicViewModelTests
         Assert.AreEqual(MusicView.Playlists, _vm.CurrentView);
     }
 
-    [TestMethod]
-    public void Constructor_SubscribesToPlayerEvents()
-    {
-        // Verify subscription via raising events
-        _player.Raise(x => x.PlaybackStateChanged += null, EventArgs.Empty);
-        // Should not throw
-    }
-
-    [TestMethod]
+[TestMethod]
     public void TrackEndedEvent_TriggersPlayNextAfterEnd()
     {
         // The ViewModel subscribes to TrackEnded and dispatches PlayNextAfterEnd() —

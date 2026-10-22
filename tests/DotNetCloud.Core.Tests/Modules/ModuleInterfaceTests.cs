@@ -10,17 +10,7 @@ using Moq;
 [TestClass]
 public class ModuleInterfaceTests
 {
-    [TestMethod]
-    public void IModule_CanBeMocked()
-    {
-        // Arrange
-        var mockModule = new Mock<IModule>();
-
-        // Act & Assert
-        Assert.IsNotNull(mockModule.Object);
-    }
-
-    [TestMethod]
+[TestMethod]
     public void IModule_Manifest_CanBeSet()
     {
         // Arrange

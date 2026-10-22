@@ -37,6 +37,11 @@ public sealed class HttpMusicRestClientTests
     private static string GetUrl(HttpRequestMessage m) =>
         m.RequestUri?.ToString() ?? string.Empty;
 
+    private HttpRequestMessage GetSingleRequest()
+        => (HttpRequestMessage)_handler.Invocations
+            .Single(invocation => invocation.Method.Name == "SendAsync")
+            .Arguments[0];
+
     private void SetupGetResponse(string urlPattern, HttpStatusCode statusCode, object? responseData)
     {
         var envelope = new Dictionary<string, object?>
@@ -410,19 +415,31 @@ public sealed class HttpMusicRestClientTests
     // ── Playback / Stars ───────────────────────────────────────────────
 
     [TestMethod]
-    public async Task RecordPlayAsync_Succeeds()
+    public async Task RecordPlayAsync_SendsPostToPlayEndpoint()
     {
-        SetupPostResponse("/api/v1/music/tracks", HttpStatusCode.OK, "{\"success\":true,\"data\":{\"recorded\":true}}");
+        var trackId = Guid.NewGuid();
+        SetupPostResponse($"/api/v1/music/tracks/{trackId}/play", HttpStatusCode.OK, "{\"success\":true,\"data\":{\"recorded\":true}}");
 
-        await _client.RecordPlayAsync(ServerUrl, AccessToken, Guid.NewGuid());
+        await _client.RecordPlayAsync(ServerUrl, AccessToken, trackId);
+
+        var request = GetSingleRequest();
+        Assert.AreEqual(HttpMethod.Post, request.Method);
+        Assert.AreEqual($"{ServerUrl}/api/v1/music/tracks/{trackId}/play", GetUrl(request));
+        Assert.AreEqual("Bearer", request.Headers.Authorization?.Scheme);
+        Assert.AreEqual(AccessToken, request.Headers.Authorization?.Parameter);
     }
 
     [TestMethod]
-    public async Task ToggleStarAsync_Track_StarsTrack()
+    public async Task ToggleStarAsync_Track_SendsPostToStarEndpoint()
     {
-        SetupPostResponse("/api/v1/music/tracks/", HttpStatusCode.OK, "{\"success\":true,\"data\":{\"toggled\":true}}");
+        var trackId = Guid.NewGuid();
+        SetupPostResponse($"/api/v1/music/tracks/{trackId}/star", HttpStatusCode.OK, "{\"success\":true,\"data\":{\"toggled\":true}}");
 
-        await _client.ToggleStarAsync(ServerUrl, AccessToken, Guid.NewGuid(), "track");
+        await _client.ToggleStarAsync(ServerUrl, AccessToken, trackId, "track");
+
+        var request = GetSingleRequest();
+        Assert.AreEqual(HttpMethod.Post, request.Method);
+        Assert.AreEqual($"{ServerUrl}/api/v1/music/tracks/{trackId}/star", GetUrl(request));
     }
 
     [TestMethod]
