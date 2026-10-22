@@ -76,7 +76,7 @@
 
 | Phase                                | Steps   | Completed | In Progress | Pending |
 | ------------------------------------ | ------- | --------- | ----------- | ------- |
-| Pre-Implementation                   | 4       | 4         | 0           | 0       |
+| Pre-Implementation                   | 5       | 4         | 1           | 0       |
 | Phase 0.1                            | 11      | 11        | 0           | 0       |
 | Phase 0.2                            | 12      | 12        | 0           | 0       |
 | Phase 0.3                            | 8       | 8         | 0           | 0       |
@@ -443,6 +443,35 @@ Create a sample appsettings.Development.json for local configuration.
 - **Build succeeds** — 0 errors, 0 warnings
 
 **Dependencies:** pre-impl-3 (code review execution)
+**Blocking Issues:** None
+
+---
+
+#### Step: pre-impl-5 — Test Tautology Audit
+
+**Status:** in-progress
+**Duration:** ~1 day (baseline + heuristic + Roslyn scanner)
+**Description:** Scan all test methods for tautological-only tests and decide which are worth keeping.
+
+**Deliverables:**
+
+- ✓ `docs/TEST_TAUTOLOGY_AUDIT_PLAN.md` — taxonomy (T1–T8, W1–W3), detector design, decision rubric, remediation guardrails
+- ✓ `docs/TEST_TAUTOLOGY_FINDINGS.md` — baseline, authoritative classification, decisions and evidence
+- ✓ `scripts/scan-tautological-tests.py` — fast heuristic pass (raw-string and expression-body aware)
+- ✓ `tools/TestTautologyScanner/` — Roslyn-based per-method classifier (T1–T8, W1–W3; dev-only, outside the solution)
+- ✓ Baseline: 7,545 passed / 0 failed / 3 skipped across 25 test projects; build 0 warnings / 0 errors
+- ✓ Classification of 7,378 test methods: 2 strict tautologies (1 T2, 1 T6), 856 weak-but-valid (270 W1, 486 W2, 100 W3)
+- ✓ First remediation batch applied and verified (2 deletions, 1 deterministic rewrite)
+- ✓ Second remediation batch applied and verified (6 deletions, 3 deterministic rewrites)
+- ✓ Full-suite verification after batch 2: 7,537 passed / 0 failed / 3 skipped
+- ✓ Rescan: 0 strict tautological candidates (7,372 methods; W1 268, W2 486, W3 96)
+- ☐ Commit and push — awaiting approval
+
+**Notes:** All 486 `Verify`-only tests exercise production code (0 mock round-trips). The not-null-only tests are
+dominated by contract pins; the 40 with zero production calls were individually reviewed. No commit will be made
+without explicit approval (repo rule #1).
+
+**Dependencies:** pre-impl-3
 **Blocking Issues:** None
 
 ---

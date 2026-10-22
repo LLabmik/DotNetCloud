@@ -18,6 +18,8 @@
     <!-- Diff / document -->
     <PackageVersion Include="DiffPlex" Version="1.9.0" />
     <PackageVersion Include="DocumentFormat.OpenXml" Version="3.5.1" />
+    <!-- Roslyn-based dev tooling (tools/TestTautologyScanner) -->
+    <PackageVersion Include="Microsoft.CodeAnalysis.CSharp" Version="5.9.0" />
     <!-- Google APIs -->
     <PackageVersion Include="Google.Apis.Auth" Version="1.75.0" />
     <PackageVersion Include="Google.Apis.Gmail.v1" Version="1.74.0.4162" />

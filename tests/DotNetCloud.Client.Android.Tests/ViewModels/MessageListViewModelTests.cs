@@ -341,26 +341,6 @@ public sealed class MessageListViewModelTests
     }
 
     // ══════════════════════════════════════════════════════════════════
-    //  AttachFileAsync
-    // ══════════════════════════════════════════════════════════════════
-
-    [TestMethod]
-    public async Task AttachFileAsync_AddsMessageToCollection()
-    {
-        await InitializeHappyPathAsync();
-
-        var messageId = Guid.NewGuid();
-        var serverMessage = MakeChatMessage(messageId, CurrentUserId, "Current User", "📎 photo.jpg", DateTimeOffset.UtcNow);
-        _chatApi.Setup(x => x.SendMessageAsync(ServerUrl, It.IsAny<string>(), ChannelId, "📎 photo.jpg", It.IsAny<CancellationToken>()))
-            .ReturnsAsync(serverMessage);
-
-        // AttachFileAsync is internal; it reads MediaPicker results, which we can't mock easily.
-        // This test verifies the SendMessageAsync call path works — we test the behavior through
-        // the code path that runs when MediaPicker results are available.
-        // The actual file-picking logic is in Platform-specific code.
-    }
-
-    // ══════════════════════════════════════════════════════════════════
     //  OnNewChatMessage (real-time handler via SignalR event)
     // ══════════════════════════════════════════════════════════════════
 

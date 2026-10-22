@@ -223,18 +223,15 @@ public class ExifMetadataExtractorTests
     }
 
     [TestMethod]
-    public async Task ExtractAsync_CorruptFile_ReturnsNull()
+    public async Task ExtractAsync_CorruptFile_DoesNotThrow()
     {
         // Arrange
         var filePath = Path.Combine(_tempDir, "corrupt.jpg");
         await File.WriteAllBytesAsync(filePath, new byte[] { 0xFF, 0xD8, 0x00, 0x00, 0x00 });
 
-        // Act
-        var result = await _extractor.ExtractAsync(filePath, "image/jpeg");
-
-        // Assert — should handle gracefully without throwing
-        // Result may be null or may succeed depending on ImageSharp's resilience
-        // The key assertion is that it doesn't throw
+        // Act — the contract is graceful handling: the call must not throw.
+        // The result may be null or may still succeed depending on ImageSharp's resilience.
+        await _extractor.ExtractAsync(filePath, "image/jpeg");
     }
 
     [TestMethod]

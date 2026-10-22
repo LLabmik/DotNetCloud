@@ -47,19 +47,6 @@ public class MediaStreamingServiceTests
     }
 
     [TestMethod]
-    public void DetectContentType_CanBeMocked()
-    {
-        // Arrange
-        var mock = new Mock<IMediaStreamingService>();
-        mock.Setup(x => x.DetectContentType("song.mp3")).Returns("audio/mpeg");
-        mock.Setup(x => x.DetectContentType("unknown.xyz")).Returns("application/octet-stream");
-
-        // Act & Assert
-        Assert.AreEqual("audio/mpeg", mock.Object.DetectContentType("song.mp3"));
-        Assert.AreEqual("application/octet-stream", mock.Object.DetectContentType("unknown.xyz"));
-    }
-
-    [TestMethod]
     public void MediaStreamResult_IsPartial_TrueWhenNotFullRange()
     {
         // Arrange

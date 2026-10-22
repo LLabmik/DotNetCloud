@@ -43,16 +43,6 @@ public sealed class CalendarReminderAlarmTests
         => Assert.IsGreaterThanOrEqualTo(0, CalendarAlarmIdentity.StableHash("some reminder key"));
 
     [TestMethod]
-    public void RequestCode_IsIdentical_ForTheSameReminder()
-    {
-        // Called "in another process" the code must not change, otherwise AlarmManager treats the
-        // re-scheduled reminder as a brand new alarm and the old one stays armed.
-        Assert.AreEqual(
-            CalendarAlarmIdentity.RequestCode(EventId, OccurrenceStart, OneWeekBefore),
-            CalendarAlarmIdentity.RequestCode(EventId, OccurrenceStart, OneWeekBefore));
-    }
-
-    [TestMethod]
     public void RequestCode_DiffersByOffsetAndOccurrence()
     {
         var baseline = CalendarAlarmIdentity.RequestCode(EventId, OccurrenceStart, 15);

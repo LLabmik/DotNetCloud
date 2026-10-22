@@ -180,28 +180,29 @@ public class FileServiceGetStoragePathTests
     // ─── Cancellation Token Propagation ──────────────────────────────
 
     [TestMethod]
-    public async Task GetStoragePathAsync_CancellationRequested_ThrowsOrReturns()
+    public async Task GetStoragePathAsync_CancellationRequested_ThrowsOperationCanceledException()
     {
-        using var db = CreateContext();
+        // SQLite is a relational provider and honors the token passed to
+        // FirstOrDefaultAsync; the in-memory provider may silently ignore it.
+        using var connection = new Microsoft.Data.Sqlite.SqliteConnection("DataSource=:memory:");
+        await connection.OpenAsync();
+        var options = new DbContextOptionsBuilder<FilesDbContext>()
+            .UseSqlite(connection)
+            .Options;
+        await using var db = new FilesDbContext(options);
+        await db.Database.EnsureCreatedAsync();
+
         var userId = Guid.CreateVersion7();
         var node = CreateFileNode(userId);
         db.FileNodes.Add(node);
         await db.SaveChangesAsync();
 
         var service = CreateService(db);
-        var cts = new CancellationTokenSource();
+        using var cts = new CancellationTokenSource();
         cts.Cancel();
 
-        // In-memory provider may not throw on cancellation, but the call should complete
-        // Either throws OperationCanceledException or returns normally
-        try
-        {
-            await service.GetStoragePathAsync(node.Id, cts.Token);
-        }
-        catch (OperationCanceledException)
-        {
-            // Expected — provider respects cancellation
-        }
+        await Assert.ThrowsAsync<OperationCanceledException>(
+            () => service.GetStoragePathAsync(node.Id, cts.Token));
     }
 
     // ─── Different Files Return Different Paths ──────────────────────

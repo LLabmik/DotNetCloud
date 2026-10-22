@@ -11,20 +11,6 @@ using Microsoft.VisualStudio.TestTools.UnitTesting;
 public class DotNetCloudExceptionsTests
 {
     [TestMethod]
-    public void CapabilityNotGrantedException_CanBeThrown()
-    {
-        var context = new CallerContext(Guid.CreateVersion7(), Array.Empty<string>(), CallerType.User);
-        try
-        {
-            throw new CapabilityNotGrantedException("TestCapability", context);
-        }
-        catch (CapabilityNotGrantedException)
-        {
-            // Expected
-        }
-    }
-
-    [TestMethod]
     public void CapabilityNotGrantedException_StoresCapabilityName()
     {
         // Arrange
