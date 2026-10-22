@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using DotNetCloud.Core.Authorization;
 using DotNetCloud.Core;
 using DotNetCloud.Core.DTOs.Media;
@@ -6,6 +7,7 @@ using DotNetCloud.Core.Services.ModuleApis;
 using DotNetCloud.Modules.Photos.Events;
 using DotNetCloud.Modules.Music.Events;
 using DotNetCloud.Modules.Video.Events;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 
 namespace DotNetCloud.Core.Server.Services;
@@ -17,21 +19,50 @@ namespace DotNetCloud.Core.Server.Services;
 /// </summary>
 public sealed class MediaFolderImportService : IMediaLibraryScanner
 {
+    /// <summary>Configuration key controlling how many photos are indexed concurrently.</summary>
+    public const string PhotoParallelismSetting = "Media:Import:MaxDegreeOfParallelism";
+
+    /// <summary>Default number of concurrent photo indexers.</summary>
+    public const int DefaultPhotoParallelism = 4;
+
+    /// <summary>Minimum interval between progress reports (milliseconds).</summary>
+    private const int ProgressThrottleMs = 250;
+
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly IFilesApiClient _filesApiClient;
     private readonly ILogger<MediaFolderImportService> _logger;
+    private readonly int _photoParallelism;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="MediaFolderImportService"/> class.
     /// </summary>
+    /// <param name="scopeFactory">Scope factory used to resolve module indexing callbacks per file.</param>
+    /// <param name="filesApiClient">Files module client used for discovery.</param>
+    /// <param name="logger">Logger.</param>
+    /// <param name="configuration">
+    /// Optional configuration. <c>Media:Import:MaxDegreeOfParallelism</c> controls how many photos
+    /// are indexed concurrently; defaults to <see cref="DefaultPhotoParallelism"/>.
+    /// </param>
     public MediaFolderImportService(
         IServiceScopeFactory scopeFactory,
         IFilesApiClient filesApiClient,
-        ILogger<MediaFolderImportService> logger)
+        ILogger<MediaFolderImportService> logger,
+        IConfiguration? configuration = null)
     {
         _scopeFactory = scopeFactory;
         _filesApiClient = filesApiClient;
         _logger = logger;
+        _photoParallelism = ReadParallelism(configuration);
+    }
+
+    private static int ReadParallelism(IConfiguration? configuration)
+    {
+        if (configuration is null || !int.TryParse(configuration[PhotoParallelismSetting], out var value))
+        {
+            return DefaultPhotoParallelism;
+        }
+
+        return Math.Clamp(value, 1, 32);
     }
 
     /// <inheritdoc />
@@ -164,39 +195,108 @@ public sealed class MediaFolderImportService : IMediaLibraryScanner
         result.Skipped = result.TotalFound - filesToIndex.Count;
 
         // ── Index new files ──
+        // Photo indexing is dominated by per-image decoding/resizing, which is single-threaded
+        // inside ImageSharp on some CPUs, so photos are indexed concurrently. Music/Video keep a
+        // degree of parallelism of 1 (external tooling and ordered writes); the same code path
+        // serves both, so behaviour stays identical apart from concurrency.
+        var maxDegreeOfParallelism = parsed == MediaScanType.Photos ? _photoParallelism : 1;
+        var totalToIndex = filesToIndex.Count;
         var filesProcessed = 0;
-        foreach (var file in filesToIndex)
-        {
-            if (cancellationToken.IsCancellationRequested)
-                break;
+        // Seeded from the result: the Music clone branch may already have counted cloned tracks.
+        var imported = result.Imported;
+        var failed = 0;
+        var errors = new ConcurrentBag<string>();
+        var lastProgressTicks = 0L;
 
-            progress?.Report(new MediaScanProgress
+        void ReportProgress(MediaFileCandidateDto file, bool force)
+        {
+            if (progress is null)
+            {
+                return;
+            }
+
+            // Each reported snapshot re-renders the page. With parallel workers that would be one
+            // render per file, so throttle to ~4/second (the final snapshot is always emitted).
+            var now = Environment.TickCount64;
+            if (force)
+            {
+                Interlocked.Exchange(ref lastProgressTicks, now);
+            }
+            else
+            {
+                var last = Interlocked.Read(ref lastProgressTicks);
+                if (now - last < ProgressThrottleMs)
+                {
+                    return;
+                }
+
+                if (Interlocked.CompareExchange(ref lastProgressTicks, now, last) != last)
+                {
+                    return;
+                }
+            }
+
+            var processed = Volatile.Read(ref filesProcessed);
+            progress.Report(new MediaScanProgress
             {
                 Phase = "Indexing media",
                 CurrentFile = file.Name,
                 FilesDiscovered = result.TotalFound,
-                FilesProcessed = filesProcessed,
-                TotalFiles = filesToIndex.Count,
-                Imported = result.Imported,
-                Failed = result.Failed,
-                PercentComplete = filesToIndex.Count > 0
-                    ? (int)((long)filesProcessed * 100 / filesToIndex.Count)
+                FilesProcessed = processed,
+                TotalFiles = totalToIndex,
+                Imported = Volatile.Read(ref imported),
+                Failed = Volatile.Read(ref failed),
+                PercentComplete = totalToIndex > 0
+                    ? (int)((long)processed * 100 / totalToIndex)
                     : 0,
             });
+        }
 
-            try
-            {
-                await IndexCandidateAsync(file, ownerId, parsed, cancellationToken);
-                result.Imported++;
-            }
-            catch (Exception ex)
-            {
-                result.Failed++;
-                result.Errors.Add($"{file.Name}: {ex.Message}");
-                _logger.LogWarning(ex, "Failed to index media file {FileId}", file.Id);
-            }
+        try
+        {
+            await Parallel.ForEachAsync(
+                filesToIndex,
+                new ParallelOptions
+                {
+                    MaxDegreeOfParallelism = maxDegreeOfParallelism,
+                    CancellationToken = cancellationToken,
+                },
+                async (file, ct) =>
+                {
+                    try
+                    {
+                        await IndexCandidateAsync(file, ownerId, parsed, ct);
+                        Interlocked.Increment(ref imported);
+                    }
+                    catch (OperationCanceledException) when (ct.IsCancellationRequested)
+                    {
+                        throw;
+                    }
+                    catch (Exception ex)
+                    {
+                        Interlocked.Increment(ref failed);
+                        errors.Add($"{file.Name}: {ex.Message}");
+                        _logger.LogWarning(ex, "Failed to index media file {FileId}", file.Id);
+                    }
 
-            filesProcessed++;
+                    Interlocked.Increment(ref filesProcessed);
+                    ReportProgress(file, force: false);
+                });
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            _logger.LogInformation(
+                "Media source scan cancelled after {Processed} of {Total} files",
+                Volatile.Read(ref filesProcessed), totalToIndex);
+        }
+
+        result.Imported = Volatile.Read(ref imported);
+        result.Failed = Volatile.Read(ref failed);
+        result.Errors.AddRange(errors);
+
+        if (totalToIndex > 0)
+        {
+            ReportProgress(filesToIndex[^1], force: true);
         }
 
         // ── Clean up deleted files ──

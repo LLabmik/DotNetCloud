@@ -1,11 +1,14 @@
 using DotNetCloud.Core.Authorization;
 using DotNetCloud.Core.DTOs;
+using DotNetCloud.Modules.Photos.Models;
 using DotNetCloud.Modules.Photos.Services;
 using DotNetCloud.Modules.Files.Services;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using SixLabors.ImageSharp;
+using SixLabors.ImageSharp.Formats.Jpeg;
 using SixLabors.ImageSharp.Processing;
 
 namespace DotNetCloud.Modules.Photos.Data.Services;
@@ -27,6 +30,11 @@ public sealed class PhotoThumbnailService : IPhotoThumbnailService
     private readonly ILogger<PhotoThumbnailService> _logger;
     private IFileStorageEngine? _storageEngine;
     private IDownloadService? _downloadService;
+    private IThumbnailService? _filesThumbnailService;
+    private readonly int _jpegQuality;
+    private readonly int _detailMaxDimension;
+    private readonly int _gridMaxDimension;
+    private readonly bool _useFilesCachedGridThumbnail;
 
     /// <summary>
     /// Initializes the photo thumbnail service.
@@ -34,14 +42,44 @@ public sealed class PhotoThumbnailService : IPhotoThumbnailService
     /// they are only needed for thumbnail generation, not for serving cached thumbnails.
     /// This avoids a hard DI dependency from the Photos module host on Files module services.
     /// </summary>
+    /// <param name="db">Photos database context.</param>
+    /// <param name="serviceProvider">Provider used to lazily resolve Files module services.</param>
+    /// <param name="logger">Logger.</param>
+    /// <param name="configuration">
+    /// Optional configuration. Reads <c>Photos:Thumbnails:*</c>; when absent the defaults below apply.
+    /// </param>
     public PhotoThumbnailService(
         PhotosDbContext db,
         IServiceProvider serviceProvider,
-        ILogger<PhotoThumbnailService> logger)
+        ILogger<PhotoThumbnailService> logger,
+        IConfiguration? configuration = null)
     {
         _db = db;
         _serviceProvider = serviceProvider;
         _logger = logger;
+
+        // Thumbnail payload and cost are dominated by the full-resolution resize and the JPEG
+        // encoder. Both are configurable so a deployment can trade quality for storage/CPU.
+        _jpegQuality = ReadInt(configuration, "Photos:Thumbnails:JpegQuality", 80, 1, 100);
+        _detailMaxDimension = ReadInt(
+            configuration, "Photos:Thumbnails:DetailMaxDimension", (int)PhotoThumbnailSize.Detail, 256, 4096);
+        _gridMaxDimension = ReadInt(
+            configuration, "Photos:Thumbnails:GridMaxDimension", (int)PhotoThumbnailSize.Grid, 64, 1024);
+        // Reusing a cached Files thumbnail only pays off when the full-resolution decode is
+        // skipped entirely. Because the detail size still needs that decode, the extra thumbnail
+        // read was measured as neutral-to-slower on the production host, so it is opt-in.
+        _useFilesCachedGridThumbnail = string.Equals(
+            configuration?["Photos:Thumbnails:UseFilesCachedGridThumbnail"], "true", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static int ReadInt(IConfiguration? configuration, string key, int defaultValue, int min, int max)
+    {
+        if (configuration is null || !int.TryParse(configuration[key], out var value))
+        {
+            return defaultValue;
+        }
+
+        return Math.Clamp(value, min, max);
     }
 
     /// <inheritdoc />
@@ -90,88 +128,153 @@ public sealed class PhotoThumbnailService : IPhotoThumbnailService
 
         try
         {
+            var photo = await _db.Photos.IgnoreQueryFilters()
+                .FirstOrDefaultAsync(p => p.Id == photoId, cancellationToken);
+
+            if (photo is null)
+            {
+                _logger.LogWarning("Photo {PhotoId} not found for thumbnail generation", photoId);
+                return;
+            }
+
+            // Rescans and duplicate index events call this for photos that are already done.
+            // Generating again costs a full-resolution decode + resize for no benefit.
+            if (photo.ThumbnailGrid is { Length: > 0 } && photo.ThumbnailDetail is { Length: > 0 })
+            {
+                _logger.LogDebug("Photo {PhotoId} already has thumbnails — skipping generation", photoId);
+                return;
+            }
+
+            // A cached Files thumbnail is a fraction of the original's pixels, so using it as the
+            // grid source avoids paying for a second full-resolution resize.
+            var filesGridSource = await TryLoadFilesGridThumbnailAsync(photo.FileNodeId, cancellationToken);
+
             // Resolve Files module services lazily — they may not be registered in the
             // Photos module host (process-isolated) DI container.
             _storageEngine ??= _serviceProvider.GetService<IFileStorageEngine>();
             _downloadService ??= _serviceProvider.GetService<IDownloadService>();
 
-            // Try direct storage path first (fast path for single-chunk files),
-            // then fall back to chunk reconstruction via IDownloadService.
-            Stream? sourceStream = null;
-            var ownsStream = true;
-
-            if (!string.IsNullOrEmpty(storagePath) && _storageEngine is not null)
-            {
-                sourceStream = await _storageEngine.OpenReadStreamAsync(storagePath, cancellationToken);
-            }
-
+            using var sourceStream = await OpenSourceStreamAsync(photo, storagePath, cancellationToken);
             if (sourceStream is null)
             {
-                if (_downloadService is null)
-                {
-                    _logger.LogWarning(
-                        "Cannot reconstruct photo {PhotoId}: IDownloadService is not available. " +
-                        "Ensure Files module services are registered in the host DI container.",
-                        photoId);
-                    return;
-                }
-
-                // No storage path, or file not found as a single blob — reconstruct from chunks.
-                var photo = await _db.Photos.IgnoreQueryFilters()
-                    .FirstOrDefaultAsync(p => p.Id == photoId, cancellationToken);
-
-                if (photo is null)
-                {
-                    _logger.LogWarning("Photo {PhotoId} not found for thumbnail generation", photoId);
-                    return;
-                }
-
-                try
-                {
-                    var caller = new CallerContext(photo.OwnerId, [], CallerType.System);
-                    sourceStream = await _downloadService.DownloadCurrentAsync(photo.FileNodeId, caller, cancellationToken);
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogWarning(ex, "Failed to reconstruct file from chunks for photo {PhotoId} (FileNode {FileNodeId})",
-                        photoId, photo.FileNodeId);
-                    return;
-                }
+                return;
             }
 
-            try
+            using var image = await Image.LoadAsync(sourceStream, cancellationToken);
+
+            // One full-resolution resize produces the detail thumbnail...
+            using var detailImage = ResizeImage(image, _detailMaxDimension);
+            var detailData = await EncodeJpegAsync(detailImage, cancellationToken);
+
+            // ...and the grid is derived from that result (or from the Files cache) instead of
+            // re-resizing the full-resolution original a second time.
+            byte[] gridData;
+            if (filesGridSource is not null)
             {
-                using var image = await Image.LoadAsync(sourceStream, cancellationToken);
-
-                var gridData = await GenerateThumbnailBytesAsync(image, PhotoThumbnailSize.Grid, cancellationToken);
-                var detailData = await GenerateThumbnailBytesAsync(image, PhotoThumbnailSize.Detail, cancellationToken);
-
-                // Update the photo record with thumbnail data
-                var photoRecord = await _db.Photos.IgnoreQueryFilters()
-                    .FirstOrDefaultAsync(p => p.Id == photoId, cancellationToken);
-
-                if (photoRecord is null)
+                using (filesGridSource)
+                using (var gridImage = ResizeImage(filesGridSource, _gridMaxDimension))
                 {
-                    _logger.LogWarning("Photo {PhotoId} not found for thumbnail storage", photoId);
-                    return;
+                    gridData = await EncodeJpegAsync(gridImage, cancellationToken);
                 }
-
-                photoRecord.ThumbnailGrid = gridData;
-                photoRecord.ThumbnailDetail = detailData;
-                await _db.SaveChangesAsync(cancellationToken);
-
-                _logger.LogDebug("Photo thumbnails generated and stored in DB for {PhotoId} (grid={GridSize}b, detail={DetailSize}b)",
-                    photoId, gridData?.Length ?? 0, detailData?.Length ?? 0);
             }
-            finally
+            else
             {
-                if (ownsStream)
-                    sourceStream.Dispose();
+                using var gridImage = ResizeImage(detailImage, _gridMaxDimension);
+                gridData = await EncodeJpegAsync(gridImage, cancellationToken);
             }
+
+            photo.ThumbnailGrid = gridData;
+            photo.ThumbnailDetail = detailData;
+            await _db.SaveChangesAsync(cancellationToken);
+
+            _logger.LogDebug(
+                "Photo thumbnails generated and stored in DB for {PhotoId} (grid={GridSize}b, detail={DetailSize}b, gridSource={GridSource})",
+                photoId, gridData.Length, detailData.Length, filesGridSource is null ? "detail" : "files-cache");
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to generate thumbnails for photo {PhotoId} from storage {Path}", photoId, storagePath);
+        }
+    }
+
+    /// <summary>
+    /// Opens the photo's original bytes: the direct content-addressable blob when available,
+    /// otherwise a chunk-reassembled stream from the Files module.
+    /// </summary>
+    private async Task<Stream?> OpenSourceStreamAsync(
+        Photo photo,
+        string? storagePath,
+        CancellationToken cancellationToken)
+    {
+        // Try the direct storage path first (fast path for whole-file blobs),
+        // then fall back to chunk reconstruction via IDownloadService.
+        if (!string.IsNullOrEmpty(storagePath) && _storageEngine is not null)
+        {
+            var direct = await _storageEngine.OpenReadStreamAsync(storagePath, cancellationToken);
+            if (direct is not null)
+            {
+                return direct;
+            }
+        }
+
+        if (_downloadService is null)
+        {
+            _logger.LogWarning(
+                "Cannot reconstruct photo {PhotoId}: IDownloadService is not available. " +
+                "Ensure Files module services are registered in the host DI container.",
+                photo.Id);
+            return null;
+        }
+
+        try
+        {
+            var caller = new CallerContext(photo.OwnerId, [], CallerType.System);
+            return await _downloadService.DownloadCurrentAsync(photo.FileNodeId, caller, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to reconstruct file from chunks for photo {PhotoId} (FileNode {FileNodeId})",
+                photo.Id, photo.FileNodeId);
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Returns the Files module's cached large thumbnail (512 px) for the node, if one exists.
+    /// This is a cache-only lookup — it never generates a Files thumbnail.
+    /// </summary>
+    private async Task<Image?> TryLoadFilesGridThumbnailAsync(Guid fileNodeId, CancellationToken cancellationToken)
+    {
+        if (!_useFilesCachedGridThumbnail)
+        {
+            return null;
+        }
+
+        _filesThumbnailService ??= _serviceProvider.GetService<IThumbnailService>();
+        if (_filesThumbnailService is null)
+        {
+            return null;
+        }
+
+        try
+        {
+            var (data, _) = await _filesThumbnailService.GetThumbnailAsync(
+                fileNodeId, DotNetCloud.Modules.Files.Services.ThumbnailSize.Large, cancellationToken);
+
+            if (data is null)
+            {
+                return null;
+            }
+
+            await using (data)
+            {
+                return await Image.LoadAsync(data, cancellationToken);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "Files cached thumbnail unavailable for FileNode {FileNodeId}", fileNodeId);
+            return null;
         }
     }
 
@@ -191,28 +294,24 @@ public sealed class PhotoThumbnailService : IPhotoThumbnailService
         _logger.LogDebug("Photo thumbnails deleted for {PhotoId}", photoId);
     }
 
-    private static async Task<byte[]?> GenerateThumbnailBytesAsync(
-        Image source,
-        PhotoThumbnailSize size,
-        CancellationToken cancellationToken)
+    private static Image ResizeImage(Image source, int maxDimension)
     {
-        var maxDimension = (int)size;
-        if (maxDimension <= 0)
+        if (source.Width <= maxDimension && source.Height <= maxDimension)
         {
-            return null;
+            return source.Clone(_ => { });
         }
 
-        using var clone = source.Clone(ctx =>
+        return source.Clone(ctx => ctx.Resize(new ResizeOptions
         {
-            ctx.Resize(new ResizeOptions
-            {
-                Size = new Size(maxDimension, maxDimension),
-                Mode = ResizeMode.Max
-            });
-        });
+            Size = new Size(maxDimension, maxDimension),
+            Mode = ResizeMode.Max
+        }));
+    }
 
+    private async Task<byte[]> EncodeJpegAsync(Image image, CancellationToken cancellationToken)
+    {
         using var ms = new MemoryStream();
-        await clone.SaveAsJpegAsync(ms, cancellationToken);
+        await image.SaveAsJpegAsync(ms, new JpegEncoder { Quality = _jpegQuality }, cancellationToken);
         return ms.ToArray();
     }
 
@@ -277,9 +376,16 @@ public sealed class PhotoThumbnailService : IPhotoThumbnailService
                 ApplyEditToImage(image, editType, parameters);
             }
 
-            // 5. Regenerate thumbnails from the edited image
-            var gridData = await GenerateThumbnailBytesAsync(image, PhotoThumbnailSize.Grid, cancellationToken);
-            var detailData = await GenerateThumbnailBytesAsync(image, PhotoThumbnailSize.Detail, cancellationToken);
+            // 5. Regenerate thumbnails from the edited image. The grid is derived from the
+            //    detail result so only one full-resolution resize is ever performed.
+            using var detailImage = ResizeImage(image, _detailMaxDimension);
+            var detailData = await EncodeJpegAsync(detailImage, cancellationToken);
+
+            byte[] gridData;
+            using (var gridImage = ResizeImage(detailImage, _gridMaxDimension))
+            {
+                gridData = await EncodeJpegAsync(gridImage, cancellationToken);
+            }
 
             photo.ThumbnailGrid = gridData;
             photo.ThumbnailDetail = detailData;

@@ -10,6 +10,7 @@ using DotNetCloud.UI.Shared.Components.Dialogs;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Components.Web;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.JSInterop;
 
@@ -1361,22 +1362,42 @@ public partial class PhotosPage : ComponentBase, IAsyncDisposable
     }
 
     /// <summary>
-    /// Runs the actual photo library import (scan) over the configured sources, bridging progress
-    /// into the shared per-user scan state so the UI can render live progress. Shared by the
-    /// Settings "Scan Now" button and the first-visit import prompt.
+    /// Runs the actual photo library import (scan) over the configured sources.
+    /// The scan is started on a detached task with its own DI scope so it is not tied to the
+    /// Blazor circuit: navigating away no longer cancels it, and progress is observed through
+    /// the singleton <see cref="PhotosScanProgressState"/> instead of per-file re-renders.
+    /// Shared by the Settings "Scan Now" button and the first-visit import prompt.
     /// </summary>
-    private async Task RunLibraryImportAsync()
+    private Task RunLibraryImportAsync()
     {
         if (_caller is null)
-            return;
+            return Task.CompletedTask;
 
         var userId = _caller.UserId;
         _scanCts?.Cancel();
         _scanCts?.Dispose();
         _scanCts = ScanProgress.StartScan(userId);
         var scanCts = _scanCts;
+        var sources = _librarySources.ToList();
 
-        // Bridge MediaScanProgress → LibraryScanProgress
+        _settingsError = null;
+        _settingsSuccess = null;
+        _scanResult = null;
+
+        _ = Task.Run(() => RunLibraryImportInBackgroundAsync(sources, userId, scanCts));
+        return Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// Executes one library import in a dedicated DI scope. Never throws — failures are
+    /// reported through the shared scan state and (when the circuit is still alive) the
+    /// settings panel.
+    /// </summary>
+    private async Task RunLibraryImportInBackgroundAsync(
+        IReadOnlyList<MediaLibrarySource> sources,
+        Guid userId,
+        CancellationTokenSource scanCts)
+    {
         var elapsedStopwatch = System.Diagnostics.Stopwatch.StartNew();
         var progressBridge = new Progress<MediaScanProgress>(msp =>
         {
@@ -1395,30 +1416,60 @@ public partial class PhotosPage : ComponentBase, IAsyncDisposable
             });
         });
 
+        MediaScanResult? scanResult = null;
+        string? successMessage = null;
+        string? errorMessage = null;
+
         try
         {
-            _scanResult = await MediaLibraryScanner.ScanSourcesAsync(_librarySources, userId, "Photos", progressBridge, scanCts.Token);
+            await using var scope = ScopeFactory.CreateAsyncScope();
+            var scanner = scope.ServiceProvider.GetRequiredService<IMediaLibraryScanner>();
+            scanResult = await scanner.ScanSourcesAsync(sources, userId, "Photos", progressBridge, scanCts.Token);
             ScanProgress.CompleteScan(userId);
 
-            var successMsg = $"Scan complete: {_scanResult.Imported} imported, {_scanResult.Skipped} already up to date";
-            if (_scanResult.Removed > 0)
-                successMsg += $", {_scanResult.Removed} removed (files deleted)";
-            _settingsSuccess = successMsg + ".";
+            var successMsg = $"Scan complete: {scanResult.Imported} imported, {scanResult.Skipped} already up to date";
+            if (scanResult.Removed > 0)
+                successMsg += $", {scanResult.Removed} removed (files deleted)";
+            successMessage = successMsg + ".";
         }
         catch (OperationCanceledException)
         {
             ScanProgress.CompleteScan(userId);
-            _settingsSuccess = "Scan cancelled.";
+            successMessage = "Scan cancelled.";
         }
         catch (Exception ex)
         {
             ScanProgress.CompleteScan(userId);
-            _settingsError = $"Scan failed: {ex.Message}";
+            Logger.LogError(ex, "Photo library import failed for user {UserId}", userId);
+            errorMessage = $"Scan failed: {ex.Message}";
         }
         finally
         {
-            _scanCts?.Dispose();
-            _scanCts = null;
+            scanCts.Dispose();
+        }
+
+        // Surface the outcome only if this circuit is still alive — the scan itself no longer
+        // depends on it. InvokeAsync throws once the renderer is disposed (e.g. tab closed).
+        try
+        {
+            await InvokeAsync(() =>
+            {
+                _scanResult = scanResult;
+                _settingsScanning = false;
+                if (errorMessage is not null)
+                    _settingsError = errorMessage;
+                else
+                    _settingsSuccess = successMessage;
+
+                if (ReferenceEquals(_scanCts, scanCts))
+                    _scanCts = null;
+
+                StateHasChanged();
+            });
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or ObjectDisposedException)
+        {
+            // Circuit disposed while the scan was running — nothing to report to the UI.
         }
     }
 

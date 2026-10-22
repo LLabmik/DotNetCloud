@@ -8,6 +8,23 @@
 
 ---
 
+## Recent Fix — Photos library import is ~5.5× faster (2026-10-21, `fix/photo-import-speed`)
+
+> Importing 40 photos took **13 minutes** (~21.6 s/photo). Measured against the real production photos, a single 12 MP JPEG spent **2 × 10.6 s inside ImageSharp `Resize`** — the download, decode (0.33 s) and DB work were never the bottleneck. ImageSharp 4.1.2/4.1.3 runs resize on **one core** and falls back to a slow scalar path on CPUs **without AVX2/FMA** (this host: Xeon E5-2650L v2); 3.2.0 does the same resize in 241 ms but is blocked by three high-severity advisories, so the fix had to be in our code.
+
+- ✓ **One full-resolution resize instead of two** — the 300 px grid is derived from the 1200 px detail result (`PhotoThumbnailService.ResizeImage`), and `SaveEditsAsync` follows the same order.
+- ✓ **Skip-if-present** — `GenerateThumbnailsAsync` returns immediately when both blobs are already stored, so rescans and duplicate index events no longer re-decode originals.
+- ✓ **Thumbnails off the import path** — new `IPhotoThumbnailQueue`/`PhotoThumbnailQueue` (bounded channel, 512) plus `PhotoThumbnailWorker`, registered in Core.Server and the Photos host; `PhotoIndexingCallback` enqueues and falls back to inline generation when no queue is registered or the queue is full.
+- ✓ **Bounded parallel indexing** — `Parallel.ForEachAsync` over photo candidates (`Media:Import:MaxDegreeOfParallelism`, default 4, clamped 1–32). Music/Video keep a degree of parallelism of 1; counters are atomic and progress is throttled to ~4 updates/second (the final snapshot is always emitted).
+- ✓ **Scan runs off the Blazor circuit** — `PhotosPage.RunLibraryImportAsync` starts a detached task with its own DI scope (`IServiceScopeFactory`), so navigating away no longer cancels the scan and the page stops re-rendering per file; the outcome is surfaced only while the circuit is alive.
+- ✓ **Smaller thumbnail payload** — explicit `JpegEncoder { Quality = 80 }` (`Photos:Thumbnails:JpegQuality`): detail 217 KB → 93 KB (−56 %), grid 25 KB → 14 KB (−45 %).
+- ✓ **Files cached-thumbnail reuse** — implemented via `Photos:Thumbnails:UseFilesCachedGridThumbnail` but **off by default**: measured neutral-to-slower, because the detail size still requires the full-resolution decode.
+- ✓ **Tests** — new `PhotoThumbnailQueueTests` (5), `PhotoThumbnailServiceGenerationTests` (5), `PhotoIndexingCallbackQueueTests` (4), `MediaFolderImportServiceParallelTests` (4). Photos.Tests **306 pass / 0 fail**; Core.Server.Tests **803 pass / 2 skip / 0 fail**; `dotnet build DotNetCloud.CI.slnf` clean.
+- ✓ **Measured on `cloud.kimball.home`** (6 real photos, same production code path): before **21.8 s/photo**, after **11.9 s/photo** single-threaded and **4.0 s/photo** at degree-of-parallelism 4 → **5.5×**, matching the production-observed 21.6 s/photo.
+- ☐ Deploy to production and re-measure one live import (awaiting approval).
+
+---
+
 ## Recent Fix — Android Files: sharing sends the image you are looking at (2026-10-13, `fix/android-files-photo-sharing`)
 
 > Sharing an image from the viewer put the **wrong picture** into the receiving app — sharing `MindTheSeam-BestCover.png` from `Documents › Writing › Mind The Seam › Cover Art` reached Google Messages as `MindTheSeam-Cover1.png`, and no amount of re-sharing changed it. There were **two** independent faults, and the second one — the real cause of the stuck image — only showed up once the receiving app got involved.
