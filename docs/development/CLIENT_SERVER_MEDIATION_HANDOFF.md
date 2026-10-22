@@ -31,6 +31,46 @@ Archived context:
 - **Archived (server agent — `cloud.kimball.home`):** `fix/android-improvements` — Presence 4-state, deployed + live-verified on cloud 2026-09-09 (plan `docs/PRESENCE_DOTS_4STATE_PLAN.md`; archived below)
 - **Still pending (mint22, dev):** `feature/module-widgets` — Module Home Widgets (plan `docs/MODULE_WIDGETS_PLAN.md`); kept below as a deferred handoff
 
+## Active Handoff — Client agents (`Windows11-TestDNC`, `mint-dnc-client`, `monolith`): surface `FILE_READ_ONLY` for default content (2026-10-22)
+
+**Server branch:** `feature/default-user-content` — commit `d1b60f75`, deployed and live-verified on mint22.
+**Plan:** `docs/DEFAULT_USER_CONTENT_PLAN.md` (implemented).
+
+### Context
+
+Every account can now receive administrator-managed **default content** from
+`${DATA_DIR}/default-user-content`: stock folders (`Documents`, `Photos`, `Music`, `Templates`,
+`Videos`) plus any starter files the administrator adds. Content is copied read-only, shares one
+physical blob per unique content, does not count against quota, and keeps **no version history**.
+
+### What changed on the wire
+
+- `FileNodeDto` gains `isDefaultContent`; provisioned files also carry `isReadOnly = true`.
+  Folders are never read-only (users can still add files inside them).
+- Any content/structure mutation of a default file returns **HTTP 403** with error code
+  `FILE_READ_ONLY` (edit, replace/upload, WOPI save, version restore, rename, move).
+- **Delete (trash), copy, share, tag, comment, favorite and download still succeed.**
+- `ListVersions` for a default file returns an **empty list**.
+- `QuotaDto` gains `exemptBytes`; the usable allowance is `maxBytes + exemptBytes`, and a copy
+  made by the user counts against quota normally.
+
+### Work requested
+
+1. **Desktop sync client / SyncTray** — map `FILE_READ_ONLY` to a clear, non-retryable message
+   ("Default content is read-only — copy it to make it your own"). Do not loop on sync conflict
+   retries for this code.
+2. **Android MAUI Files tab** — show the lock/“Default” badge when `isDefaultContent`, keep
+   Delete/Copy available, disable/hide Rename/Move, and surface `FILE_READ_ONLY` with the same
+   message. The version-history sheet should show the empty-state text.
+3. No client-side gating is required for correctness — the server is authoritative.
+
+### Verification expected (report back in this section)
+
+- On `Windows11-TestDNC` and `monolith`: attempt to rename/edit a provisioned file → friendly
+  message, no retry loop; delete succeeds; copy becomes editable and counts against quota;
+  version history is empty.
+- Target machines: `Windows11-TestDNC`, `mint-dnc-client`, `monolith`.
+
 ## Archived Handoff — Server (`cloud.kimball.home`): five WOPI findings from the Android Collabora editor verification — resolved (2026-10-11) ✅ COMPLETED
 
 **Status:** ✅ **COMPLETED + deployed + live-verified (2026-10-11, server agent — `cloud.kimball.home`).**
