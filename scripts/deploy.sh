@@ -28,6 +28,9 @@ STATE_FILE="$DEPLOY_DIR/.last-deploy-commit"
 DATA_DIR="${DOTNETCLOUD_DATA_DIR:-/var/lib/dotnetcloud}"
 TEMPLATE_DIR="$DATA_DIR/default-user-content"
 TEMPLATE_TREE_HASH_FILE="$DEPLOY_DIR/.default-content-tree.sha256"
+# Checked-in developer seed tree. install.sh and the Docker entrypoint ship the same
+# tree under /opt (or /app); a source deploy reads it straight from the repo.
+SEED_SRC_DIR="$REPO_ROOT/deploy/seed/default-user-content"
 MODULES_DIR="$CLI_INSTALL_ROOT/modules"   # real module root (matches install.sh)
 MODULES_LINK="$DEPLOY_DIR/modules"        # symlink the server scans
 CLI_PROJECT_PATH="$REPO_ROOT/src/CLI/DotNetCloud.CLI/DotNetCloud.CLI.csproj"
@@ -496,6 +499,57 @@ verify_assemblies() {
     fi
 }
 
+# Seed the administrator-owned default-content template on a bare-metal install.
+#
+# install.sh and the Docker entrypoint seed this on first install, but a source
+# deploy never runs install.sh — without this the (enabled-by-default) default
+# content feature has no template to provision new users from. Seeding is
+# deliberately conservative, matching install.sh exactly:
+#   * the `.dotnetcloud-template` marker means "administrator-owned" — once it
+#     exists the template is never modified again by a deploy;
+#   * a non-empty but unmarked directory is treated as administrator content and
+#     only gets the marker stamped;
+#   * an empty/missing directory is seeded from deploy/seed/default-user-content
+#     plus the stock folder layout.
+seed_default_content_template() {
+    local marker="$TEMPLATE_DIR/.dotnetcloud-template"
+    local stock_dirs=(Documents Photos Music Templates Videos)
+
+    if $DRY_RUN; then
+        if [ -f "$marker" ]; then
+            echo "    [DRY-RUN] Default content template preserved ($TEMPLATE_DIR)"
+        else
+            echo "    [DRY-RUN] Would seed default content template at $TEMPLATE_DIR"
+        fi
+        return 0
+    fi
+
+    mkdir -p "$TEMPLATE_DIR"
+
+    if [ -f "$marker" ]; then
+        log "  Default content template preserved (administrator-owned)."
+        return 0
+    fi
+
+    if [ -n "$(ls -A "$TEMPLATE_DIR" 2>/dev/null || true)" ]; then
+        log "  Default content template already populated — stamping ownership marker."
+    else
+        log "  Seeding default content template from deploy/seed..."
+        if [ -d "$SEED_SRC_DIR" ]; then
+            cp -r "$SEED_SRC_DIR/." "$TEMPLATE_DIR/"
+        else
+            log "  ⚠ Seed source not found ($SEED_SRC_DIR) — creating stock folders only."
+        fi
+        for d in "${stock_dirs[@]}"; do
+            mkdir -p "$TEMPLATE_DIR/$d"
+        done
+    fi
+
+    printf 'schema=1\nseeded=%s\n' "$(date -u +%FT%TZ)" > "$marker"
+    chown -R "$SERVICE_USER:$SERVICE_USER" "$TEMPLATE_DIR" 2>/dev/null || true
+    log "  Default content template ready at $TEMPLATE_DIR"
+}
+
 # Hash of every file in the default-content template (relative paths included).
 template_tree_hash() {
     [ -d "$TEMPLATE_DIR" ] || return 1
@@ -688,7 +742,9 @@ if $FULL_BUILD || $SKIP_BUILD; then
     CLI_NEEDS_PUBLISH=true
 fi
 
-TOTAL_STEPS=7
+# build, stop, module layout, core publish, module hosts, permissions,
+# template seeding, migrations, start = 9 (plus CLI publish and verify when enabled).
+TOTAL_STEPS=9
 if $CLI_NEEDS_PUBLISH; then ((TOTAL_STEPS++)); fi
 if $VERIFY; then ((TOTAL_STEPS++)); fi
 
@@ -1044,7 +1100,13 @@ fi
 log "  Permissions set."
 
 # ============================================================================
-# Phase 6: Apply database migrations (before starting the service)
+# Phase 6: Seed the default user content template (bare-metal only)
+# ============================================================================
+step "Seeding default user content template..."
+seed_default_content_template
+
+# ============================================================================
+# Phase 7: Apply database migrations (before starting the service)
 # ============================================================================
 step "Applying database migrations..."
 
@@ -1063,7 +1125,7 @@ else
 fi
 
 # ============================================================================
-# Phase 7: Start service
+# Phase 8: Start service
 # ============================================================================
 step "Starting service..."
 if $SKIP_STOP; then
@@ -1074,7 +1136,7 @@ else
 fi
 
 # ============================================================================
-# Phase 8: Save deploy state (optional)
+# Phase 9: Save deploy state (optional)
 # ============================================================================
 if [ -n "$CURRENT_HEAD" ] && [ "$CURRENT_HEAD" != "unknown" ]; then
     echo "$CURRENT_HEAD" > "$STATE_FILE" 2>/dev/null || log "  ⚠ Could not save deploy commit to $STATE_FILE"
@@ -1101,7 +1163,7 @@ if [ -d "$CLI_INSTALL_ROOT" ]; then
 fi
 
 # ============================================================================
-# Phase 9: Verify (optional)
+# Phase 10: Verify (optional)
 # ============================================================================
 if $VERIFY; then
     step "Verifying deployed assemblies..."
