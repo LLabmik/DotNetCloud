@@ -137,6 +137,53 @@ public sealed class TempFileCleanupServiceTests : IDisposable
         Assert.IsFalse(File.Exists(deleteZip), "Regular ZIP 5h old should be deleted.");
     }
 
+    // ── Shared OS temp root protection ────────────────────────────────
+
+    [TestMethod]
+    public void IsSharedTempRoot_OsTempPath_ReturnsTrue()
+    {
+        Assert.IsTrue(
+            TempFileCleanupService.IsSharedTempRoot(Path.GetTempPath()),
+            "The OS temp directory must be recognised as the shared temp root.");
+    }
+
+    [TestMethod]
+    public void IsSharedTempRoot_TrailingSeparatorOnOsTempPath_ReturnsTrue()
+    {
+        var withSeparator = Path.TrimEndingDirectorySeparator(Path.GetTempPath()) + Path.DirectorySeparatorChar;
+
+        Assert.IsTrue(
+            TempFileCleanupService.IsSharedTempRoot(withSeparator),
+            "A trailing separator must not disguise the shared temp root.");
+    }
+
+    [TestMethod]
+    public void IsSharedTempRoot_DedicatedDirectory_ReturnsFalse()
+    {
+        Assert.IsFalse(
+            TempFileCleanupService.IsSharedTempRoot(_tmpDir),
+            "A service-owned temp directory must not be treated as the shared temp root.");
+    }
+
+    [TestMethod]
+    public void Cleanup_DedicatedTempPath_RestrictsPermissionsToOwner()
+    {
+        if (!OperatingSystem.IsLinux() && !OperatingSystem.IsMacOS())
+        {
+            Assert.Inconclusive("Unix file modes only apply on Linux and macOS.");
+            return;
+        }
+
+        _service.Cleanup();
+
+        var mode = File.GetUnixFileMode(Path.TrimEndingDirectorySeparator(Path.GetFullPath(_tmpDir)));
+
+        Assert.AreEqual(
+            UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute,
+            mode,
+            "A service-owned temp directory should be restricted to the service user.");
+    }
+
     // ── Helpers ───────────────────────────────────────────────────────
 
     private string CreateFile(string fileName, double hoursOld)

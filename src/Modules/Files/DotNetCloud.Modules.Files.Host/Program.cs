@@ -190,6 +190,26 @@ if (string.IsNullOrWhiteSpace(storagePath))
 builder.Services.AddSingleton<IFileStorageEngine>(sp =>
     new LocalFileStorageEngine(storagePath, sp.GetRequiredService<ILogger<LocalFileStorageEngine>>()));
 
+// Upload/temp scratch directory. When the module runs under a data directory (normal deployment,
+// where the supervisor sets DOTNETCLOUD_DATA_DIR) keep scratch files there so the temp cleaner owns
+// the directory it sweeps. Without one — dev boxes, tests — FileUploadOptions.TmpPath stays unset
+// and the OS temp directory is used, which is what every caller already falls back to. The cleaner
+// never chmods the shared OS temp root and never treats it as its own directory.
+var tmpDataDir = Environment.GetEnvironmentVariable("DOTNETCLOUD_DATA_DIR");
+if (!string.IsNullOrWhiteSpace(tmpDataDir))
+{
+    var uploadTmpPath = Path.Combine(tmpDataDir, "tmp");
+    Directory.CreateDirectory(uploadTmpPath);
+    if (OperatingSystem.IsLinux() || OperatingSystem.IsMacOS())
+    {
+        File.SetUnixFileMode(uploadTmpPath,
+            UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+    }
+
+    builder.Services.PostConfigure<DotNetCloud.Modules.Files.Options.FileUploadOptions>(
+        o => o.TmpPath = uploadTmpPath);
+}
+
 // In-process event bus for standalone operation
 builder.Services.AddSingleton<IEventBus, InProcessEventBus>();
 

@@ -9,7 +9,8 @@ namespace DotNetCloud.Modules.Files.Data.Services.Background;
 
 /// <summary>
 /// Background service that prepares the server temp directory on startup and periodically
-/// removes stale temp files. The directory is created with 700 permissions (Linux/macOS).
+/// removes stale temp files. Directories the service owns are created with 700 permissions
+/// (Linux/macOS); the shared OS temp directory is never re-permissioned.
 /// Runs immediately on startup, then every 6 hours.
 /// </summary>
 internal sealed class TempFileCleanupService : BackgroundService
@@ -70,12 +71,7 @@ internal sealed class TempFileCleanupService : BackgroundService
         {
             Directory.CreateDirectory(_tmpPath);
 
-            if (OperatingSystem.IsLinux() || OperatingSystem.IsMacOS())
-            {
-                File.SetUnixFileMode(
-                    _tmpPath,
-                    UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
-            }
+            TryRestrictPermissions(_tmpPath);
 
             const long twentyFourHours = -24L;
             const long oneHour = -1L;
@@ -118,6 +114,54 @@ internal sealed class TempFileCleanupService : BackgroundService
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to initialize temp directory {TmpPath}.", _tmpPath);
+        }
+    }
+
+    /// <summary>
+    /// Whether the configured temp path is the operating system's shared temp directory.
+    /// </summary>
+    /// <remarks>
+    /// The OS temp root (<c>/tmp</c> on Linux/macOS) is owned by root and shared with every other
+    /// process on the host. It must never be chmod-ed: the call fails with
+    /// <see cref="UnauthorizedAccessException"/> on GitHub runners, and on hosts where the service
+    /// user does own it, it would lock every other process out of the temp directory.
+    /// </remarks>
+    /// <param name="path">Directory to test.</param>
+    /// <returns><see langword="true"/> when <paramref name="path"/> is the shared temp root.</returns>
+    internal static bool IsSharedTempRoot(string path)
+    {
+        var candidate = Path.TrimEndingDirectorySeparator(Path.GetFullPath(path));
+        var sharedRoot = Path.TrimEndingDirectorySeparator(Path.GetFullPath(Path.GetTempPath()));
+
+        return string.Equals(candidate, sharedRoot, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Restricts a service-owned temp directory to the service user, tolerating hosts that do not
+    /// permit the change. Never touches the shared OS temp root and never aborts the cleanup pass.
+    /// </summary>
+    /// <param name="path">Temp directory to tighten.</param>
+    private void TryRestrictPermissions(string path)
+    {
+        if (!OperatingSystem.IsLinux() && !OperatingSystem.IsMacOS())
+        {
+            return;
+        }
+
+        if (IsSharedTempRoot(path))
+        {
+            return;
+        }
+
+        try
+        {
+            File.SetUnixFileMode(
+                path,
+                UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+        }
+        catch (Exception ex) when (ex is UnauthorizedAccessException or IOException)
+        {
+            _logger.LogWarning(ex, "Could not restrict permissions on temp directory {TmpPath}.", path);
         }
     }
 }

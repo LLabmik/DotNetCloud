@@ -122,7 +122,11 @@ jobs:
     name: Unit Tests
     runs-on: ubuntu-latest
     needs: build
-    timeout-minutes: 15
+    # The job restores, rebuilds the whole CI solution (this job has no build artifacts to reuse)
+    # and then runs every unit-test project under the coverage collector. That is ~16-18 minutes
+    # on a 4-core runner, so the old 15-minute cap cancelled runs that were passing — the job was
+    # killed while the last project was still reporting green.
+    timeout-minutes: 25
 
     steps:
       - name: Checkout repository
@@ -152,7 +156,7 @@ jobs:
           dotnet test DotNetCloud.CI.slnf \
             --no-restore \
             --configuration Release \
-            --filter "TestCategory!=Integration" \
+            --filter "TestCategory!=Integration&FullyQualifiedName!~DotNetCloud.Integration.Tests" \
             --logger "trx;LogFileName=test-results.trx" \
             --results-directory ./test-results \
             --collect:"XPlat Code Coverage" \
