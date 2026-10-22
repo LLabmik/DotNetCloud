@@ -373,6 +373,7 @@ internal sealed class FileService : IFileService
         ArgumentException.ThrowIfNullOrWhiteSpace(dto.Name);
 
         await MountedWriteAccessGuard.EnsureWritableNodeAsync(_db, nodeId, cancellationToken);
+        await ReadOnlyContentGuard.EnsureWritableAsync(_db, nodeId, "rename", cancellationToken);
 
         ValidateFilenameCompatibility(dto.Name, _fileSystemOptions);
 
@@ -414,6 +415,7 @@ internal sealed class FileService : IFileService
 
         await MountedWriteAccessGuard.EnsureWritableNodeAsync(_db, nodeId, cancellationToken);
         await MountedWriteAccessGuard.EnsureWritableFolderAsync(_db, dto.TargetParentId, cancellationToken);
+        await ReadOnlyContentGuard.EnsureWritableAsync(_db, nodeId, "move", cancellationToken);
 
         var node = await _db.FileNodes.FindAsync([nodeId], cancellationToken)
             ?? throw new NotFoundException("FileNode", nodeId);
@@ -624,6 +626,12 @@ internal sealed class FileService : IFileService
         _db.FileShares.RemoveRange(shares);
 
         await _db.SaveChangesAsync(cancellationToken);
+
+        // Starter content the user deleted is remembered as RemovedByUser so convergence never
+        // recreates it, and it stops being quota-exempt.
+        await DefaultContentTracking.MarkRemovedAsync(_db, allNodeIds, cancellationToken);
+        await _db.SaveChangesAsync(cancellationToken);
+        await _quotaService.RecomputeExemptionAsync(node.OwnerId, cancellationToken);
 
         await _eventBus.PublishAsync(new FileDeletedEvent
         {
@@ -1700,7 +1708,9 @@ internal sealed class FileService : IFileService
         Tags = node.Tags?.Select(t => new FileTagDto { Id = t.Id, Name = t.Name, Color = t.Color, CreatedAt = t.CreatedAt }).ToList() ?? [],
         PosixMode = node.PosixMode,
         PosixOwnerHint = node.PosixOwnerHint,
-        LinkTarget = node.LinkTarget
+        LinkTarget = node.LinkTarget,
+        IsReadOnly = node.IsReadOnly,
+        IsDefaultContent = node.IsReadOnly
     };
 
     /// <summary>

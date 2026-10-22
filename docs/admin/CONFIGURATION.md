@@ -1,6 +1,6 @@
 # Files Module — Admin Configuration Guide
 
-> **Last Updated:** 2026-03-03
+> **Last Updated:** 2026-10-21
 
 ---
 
@@ -52,6 +52,173 @@ The storage engine uses a content-addressable layout based on chunk hashes:
 | Windows  | `NETWORK SERVICE` or app pool identity | Full Control      |
 
 Ensure the DotNetCloud process has read/write access to the storage root.
+
+---
+
+## Default User Content (New-Account Template)
+
+Every newly created account can be seeded with a starter folder tree that is copied from a
+directory on the server. The administrator maintains that directory **directly on the filesystem** —
+there is no upload UI, and the service never deletes or rewrites anything in it.
+
+### Template Location
+
+| Deployment                                     | Path                                                                |
+| ---------------------------------------------- | ------------------------------------------------------------------- |
+| Linux (systemd, `tools/install.sh`)            | `/var/lib/dotnetcloud/default-user-content`                         |
+| Docker Compose                                 | `/app/data/default-user-content` (in the `dotnetcloud-data` volume) |
+| Single container (`-v dotnetcloud-data:/data`) | `/data/default-user-content`                                        |
+| Windows service / IIS                          | `C:\ProgramData\DotNetCloud\default-user-content`                   |
+| Development (`dotnet run`)                     | `{ContentRoot}/default-user-content`                                |
+
+Resolution order in the Files module:
+
+1. `Files:DefaultUserContent:RootPath` (explicit setting — **required on Windows**; `DOTNETCLOUD_DATA_DIR`
+   is a Linux-only environment variable).
+2. `{DOTNETCLOUD_DATA_DIR}/default-user-content`.
+3. `{ContentRoot}/default-user-content` (development only).
+
+The path actually in use is shown on **Admin → Files → Default User Content**.
+
+### Default Layout
+
+A fresh install guarantees these five folders (and copies any starter files the release ships in
+`deploy/seed/default-user-content/`):
+
+```
+default-user-content/
+├── Documents/
+├── Photos/
+├── Music/
+├── Templates/
+└── Videos/
+```
+
+### Managing the Template
+
+```bash
+TEMPLATE=/var/lib/dotnetcloud/default-user-content
+
+# Create/refresh the stock layout (additive only)
+sudo -u dotnetcloud mkdir -p "$TEMPLATE"/{Documents,Photos,Music,Templates,Videos}
+
+# Copy starter content in (any SFTP/SSH copy works)
+sudo cp -r ./starter/. "$TEMPLATE"/
+
+# The service user must be able to READ every entry
+sudo chown -R dotnetcloud:dotnetcloud "$TEMPLATE"
+sudo find "$TEMPLATE" -type d -exec chmod 755 {} +
+sudo find "$TEMPLATE" -type f -exec chmod 644 {} +
+
+# Confirm the service can read the files
+sudo -u dotnetcloud find "$TEMPLATE" -type f -readable | wc -l
+```
+
+- **No restart is required.** The template is read when an account is created, so changes apply to the
+  next new account (or the next backfill run).
+- **Read permission matters.** Files copied as `root` with a restrictive umask (mode `600`) are
+  unreadable by the service and are skipped with `Permission denied`. Run the `chown`/`chmod` lines
+  above after every copy.
+- **Symlinks are skipped**, never followed.
+- **Windows-illegal names** (`\ / : * ? " < > |` and reserved names such as `CON`) are skipped so
+  that user folders stay syncable to Windows clients.
+- **Hidden files** (dotfiles, `.DS_Store`, `Thumbs.db`, `*.tmp-*`) are skipped by default.
+- Copy first, then `chown`/`chmod`; then run **Validate** (below).
+
+### Validating the Template
+
+After changing the directory, run either:
+
+- **Admin → Files → Default User Content → Validate**, or
+- `dotnetcloud files default-content validate`
+
+Validation lists unreadable files, symlinks, Windows-illegal names, files larger than the per-file
+cap, totals over the total cap, and hidden entries that will be skipped.
+
+### Existing Users and Start-Up Convergence
+
+Convergence is **automatic**: every time DotNetCloud starts, a rate-limited background pass gives
+any user the template items they do not already have. A daily pass repeats the check, so a user
+created while the Files module was down is caught up without intervention.
+
+Convergence adds what is missing. Removals are detected automatically but are **never applied by an
+automatic pass** — they wait for an administrator to confirm:
+
+| Situation                                           | Result                                                                                                                                                                                                                                                         |
+| --------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| New template item the user never received           | Copied to the user                                                                                                                                                                                                                                             |
+| User deleted a template item                        | Soft-deleted into the user's trash and remembered; **not** recreated on restart, and never auto-restored. Automatic trash cleanup **skips starter content**, so it stays recoverable until the user restores or explicitly deletes it permanently.             |
+| Admin removes an item from the template             | Marked as **pending deletion** and shown on the admin page — automatic passes delete nothing. A confirmed run permanently deletes matching unmodified copies (user-modified copies are kept; folders only when they contain no user content).                  |
+| User modified a template item                       | Left untouched; its content is no longer quota-exempt                                                                                                                                                                                                          |
+| Admin edits a template file that users already have | Marked as a pending **update**. Automatic passes change nothing; a _publish updates_ run replaces unmodified copies **in place** (default content keeps no version history). User-modified copies are only replaced by an explicit _overwrite modified_ action. |
+
+To apply a change immediately, or to also replace copies users have modified, use:
+
+- **Admin → Files → Default User Content → Run convergence now**, or
+- `dotnetcloud files default-content reconcile --all` (add `--publish-updates` to push template changes to copies users never modified, `--dry-run` to preview).
+
+Both only queue work for the Files module; they never write user files directly.
+
+**Removals require confirmation.** If a run would permanently delete any user content (because items
+were removed from the template), the admin page shows a banner with the pending count and a dialog
+listing the number of items to add, the number to delete, and a sample of affected paths; the run only
+proceeds after an acknowledgement checkbox and **Confirm**. The API enforces the same rule (`409` with
+`requiresConfirmation` until `confirmDeletions=true`), and the CLI refuses to queue anything and exits
+with code `2` unless `--confirm-deletions` is passed. Start-up and daily passes never delete, so a
+template edit can never destroy user content unattended.
+
+### Configuration Reference
+
+| Setting                                    | Default   | Description                                        |
+| ------------------------------------------ | --------- | -------------------------------------------------- |
+| `Files:DefaultUserContent:Enabled`         | `true`    | Seed new accounts from the template.               |
+| `Files:DefaultUserContent:RootPath`        | _(empty)_ | Explicit template directory (required on Windows). |
+| `Files:DefaultUserContent:MaxFiles`        | `500`     | Maximum files copied per user.                     |
+| `Files:DefaultUserContent:MaxTotalBytes`   | `5 GiB`   | Maximum total size of the template.                |
+| `Files:DefaultUserContent:MaxFileBytes`    | `500 MiB` | Maximum size of a single template file.            |
+| `Files:DefaultUserContent:MaxDepth`        | `8`       | Maximum directory nesting.                         |
+| `Files:DefaultUserContent:SkipHiddenFiles` | `true`    | Skip dotfiles and OS metadata files.               |
+
+Starter content **does not count against the user's storage quota**. Each user's allowance is
+`quota + exempt starter content`, where the exemption is recomputed from the template items they
+still have unmodified. The Files quota bar shows this as a secondary line —
+**"N MB default content (free)"** — and the admin page shows the same figure in its breakdown.
+Deleting a template file frees its bytes and its exemption together, so the
+usable allowance stays the same; replacing a template file with your own content charges it normally.
+The exemption is recomputed at start-up, daily, and after each convergence pass.
+
+### Developer-Supplied Starter Content
+
+A checked-in tree at `deploy/seed/default-user-content/` ships inside the release tarball and the
+container image. It is copied into the template directory **only on a fresh install** (when the
+directory is missing or empty) and is never applied on upgrade, so an existing deployment's template
+is never modified.
+
+After an upgrade that ships new starter content, copy it in explicitly:
+
+```bash
+dotnetcloud files default-content sync-seed
+```
+
+`sync-seed` copies only paths that do not already exist in the template; it never overwrites or
+deletes. Any administrator-customised file with the same path is kept.
+
+### Backups and Upgrades
+
+- The template lives under the data directory and is included in normal backups
+  (`tar -I pigz ... /var/lib/dotnetcloud`, `dotnetcloud backup`). Restoring a backup restores the
+  template too; the installer keeps it across upgrades.
+- `dotnetcloud files default-content export <path.zip>` (or the **Export ZIP** button) produces a
+  template-only archive. It never contains any user's copy.
+- `dotnetcloud files default-content import <path.zip>` restores such an archive. It validates the ZIP
+  first (no absolute paths, symlinks, zip bombs, illegal names, or entries over the caps), stages it,
+  then merges (default) or replaces with `--replace --force`, keeping the previous template as
+  `default-user-content.bak-<timestamp>`. Use `--dry-run` to preview. The admin UI does not upload
+  archives — run the command on the server.
+- **In-place upgrades preserve the directory.** The installer replaces binaries under
+  `/opt/dotnetcloud` and leaves `/var/lib/dotnetcloud` untouched; only a full uninstall (which
+  removes all data) deletes it. In Docker, it lives in the `dotnetcloud-data` named volume — do not
+  run `docker compose down -v` unless you intend to delete all data.
 
 ---
 

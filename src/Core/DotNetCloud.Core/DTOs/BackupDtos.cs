@@ -66,6 +66,13 @@ public class RestoreOptions
     /// The database connection string for performing a restore.
     /// </summary>
     public string? ConnectionString { get; set; }
+
+    /// <summary>
+    /// Target data directory for restoring <c>data/</c> from the archive. When omitted, the
+    /// data directory is not restored. The default-user-content template lives in this directory,
+    /// so restoring it restores the template byte-for-byte.
+    /// </summary>
+    public string? DataDirectory { get; set; }
 }
 
 /// <summary>

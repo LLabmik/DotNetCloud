@@ -232,6 +232,8 @@ if [[ "$DRY_RUN" == "true" ]]; then
     echo "[INFO] Dry run only. No changes were made."
 fi
 echo "[INFO] Backup directory: ${BACKUP_DIR}"
+echo "[INFO] Note: the default user content template at"
+echo "[INFO]       ${DOTNETCLOUD_DATA_DIR:-/var/lib/dotnetcloud}/default-user-content is preserved (it is administrator-owned data)."
 echo "[INFO] Next: pull latest from GitHub, then run install.sh when ready."
 echo "[INFO] Note: Collabora CODE packages (coolwsd/code-brand) and its APT"
 echo "[INFO]       repository, if installed, are left in place. To remove them:"

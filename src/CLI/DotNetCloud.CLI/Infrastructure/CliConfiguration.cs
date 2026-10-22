@@ -325,6 +325,14 @@ internal sealed class CliConfig
     /// When the setup wizard was last run.
     /// </summary>
     public DateTime? SetupCompletedAt { get; set; }
+
+    /// <summary>
+    /// Keys this CLI version does not model. They are preserved across <c>setup</c>, certificate
+    /// renewal and every other command that re-saves the file, so operator-managed sections such as
+    /// <c>Files:DefaultUserContent:RootPath</c> are never dropped.
+    /// </summary>
+    [System.Text.Json.Serialization.JsonExtensionData]
+    public Dictionary<string, System.Text.Json.JsonElement>? AdditionalSettings { get; set; }
 }
 
 /// <summary>

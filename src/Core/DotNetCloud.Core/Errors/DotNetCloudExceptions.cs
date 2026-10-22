@@ -202,6 +202,29 @@ public class ForbiddenException : DotNetCloudException
 }
 
 /// <summary>
+/// Exception thrown when a caller attempts to modify read-only default content
+/// (edit, replace, restore a version, rename or move).
+/// Deleting, copying, sharing, tagging, commenting and downloading remain allowed.
+/// </summary>
+public sealed class FileReadOnlyException : DotNetCloudException
+{
+    /// <summary>
+    /// Initializes a new instance of the <see cref="FileReadOnlyException"/> class.
+    /// </summary>
+    /// <param name="operation">The rejected operation (for diagnostics).</param>
+    public FileReadOnlyException(string operation)
+        : base(
+            ErrorCodes.FileReadOnly,
+            "Default content is read-only. You can copy or delete it, but it cannot be edited, renamed or moved.")
+    {
+        Operation = operation;
+    }
+
+    /// <summary>The operation that was rejected.</summary>
+    public string Operation { get; }
+}
+
+/// <summary>
 /// Exception thrown when a resource is not found.
 /// </summary>
 public class NotFoundException : DotNetCloudException

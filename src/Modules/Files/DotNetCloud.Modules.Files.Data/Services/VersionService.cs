@@ -46,6 +46,17 @@ internal sealed class VersionService : IVersionService
 
         await _permissions.RequirePermissionAsync(fileNodeId, caller, SharePermission.Read, cancellationToken);
 
+        // Default content deliberately keeps no history: a single current version is replaced in
+        // place when the administrator publishes an update.
+        var isDefaultContent = await _db.FileNodes
+            .AsNoTracking()
+            .Where(n => n.Id == fileNodeId)
+            .Select(n => n.IsReadOnly)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (isDefaultContent)
+            return [];
+
         return await _db.FileVersions
             .AsNoTracking()
             .Where(v => v.FileNodeId == fileNodeId)
@@ -88,6 +99,9 @@ internal sealed class VersionService : IVersionService
             ?? throw new NotFoundException("FileNode", fileNodeId);
 
         await _permissions.RequirePermissionAsync(fileNodeId, caller, SharePermission.ReadWrite, cancellationToken);
+
+        if (node.IsReadOnly)
+            throw new FileReadOnlyException("restore-version");
 
         if (node.NodeType != FileNodeType.File)
             throw new Core.Errors.InvalidOperationException("Cannot restore versions on a folder.");

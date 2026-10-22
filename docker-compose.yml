@@ -123,6 +123,9 @@ volumes:
   sqlserver-data:
     driver: local
   dotnetcloud-data:
+    # Holds storage/, config-adjacent state and the administrator-managed
+    # default-user-content template (seeded once on first start, preserved on
+    # image upgrades). Back this volume up to keep the template.
     driver: local
   dotnetcloud-logs:
     driver: local

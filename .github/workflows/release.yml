@@ -153,6 +153,12 @@ jobs:
           # Include install metadata
           echo "${VERSION}" > "${STAGING}/VERSION"
 
+          # Packaged default user content seed tree. It is copied into an empty
+          # data-directory template on a fresh install only; upgrades leave the
+          # administrator-owned template untouched.
+          mkdir -p "${STAGING}/seed"
+          cp -r deploy/seed/default-user-content "${STAGING}/seed/default-user-content"
+
           # Create tarball
           TARBALL="artifacts/dotnetcloud-${VERSION}-linux-x64.tar.gz"
           tar -czf "$TARBALL" -C artifacts/staging "dotnetcloud-${VERSION}-linux-x64"

@@ -68,6 +68,53 @@ internal static class ServiceProviderFactory
     }
 
     /// <summary>
+    /// Creates a service provider for the <c>files default-content</c> commands: database contexts
+    /// plus the Files default-content services (template store, importer, reconciler, archive).
+    /// </summary>
+    public static ServiceProvider? CreateForFilesDefaultContent()
+    {
+        if (!CliConfiguration.ConfigExists())
+        {
+            ConsoleOutput.WriteError("DotNetCloud is not configured. Run 'dotnetcloud setup' first.");
+            return null;
+        }
+
+        var config = CliConfiguration.Load();
+        if (string.IsNullOrWhiteSpace(config.ConnectionString))
+        {
+            ConsoleOutput.WriteError("No database connection string configured. Run 'dotnetcloud setup' first.");
+            return null;
+        }
+
+        if (!CliConfiguration.TryResolveDatabaseProvider(config.Database.Provider, out var provider) &&
+            !CliConfiguration.TryResolveDatabaseProvider(config.DatabaseProvider, out provider))
+        {
+            ConsoleOutput.WriteError(
+                "No valid database provider configured. Run 'dotnetcloud setup' to set Database:Provider.");
+            return null;
+        }
+
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddDotNetCloudDbContext(config.ConnectionString, provider);
+        services.AddModuleDbContexts(provider, config.ConnectionString);
+        services.AddSingleton<IModuleSchemaProvider, DbContextSchemaProvider>();
+
+        var dataDirectory = Environment.GetEnvironmentVariable("DOTNETCLOUD_DATA_DIR");
+        if (string.IsNullOrWhiteSpace(dataDirectory))
+            dataDirectory = config.DataDirectory;
+
+        // The Files default-content store resolves its template root from DOTNETCLOUD_DATA_DIR.
+        // CLI invocations are not launched by the systemd unit, so seed the variable from the
+        // configured data directory; otherwise the store would fall back to the current directory.
+        Environment.SetEnvironmentVariable("DOTNETCLOUD_DATA_DIR", dataDirectory);
+
+        services.AddDefaultContentCliServices(dataDirectory);
+
+        return services.BuildServiceProvider();
+    }
+
+    /// <summary>
     /// Creates a service provider from an explicit connection string and provider (used during setup).
     /// </summary>
     public static ServiceProvider? CreateFromConnectionString(string connectionString, DatabaseProvider provider)

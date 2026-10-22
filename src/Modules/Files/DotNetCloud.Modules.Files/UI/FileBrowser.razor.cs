@@ -206,6 +206,7 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
     private Guid _contextMenuNodeId;
     private string _contextMenuNodeType = "File";
     private bool _contextMenuNodeIsReadOnly;
+    private bool _contextMenuNodeIsDefaultContent;
 
     // Inline rename dialog
     private bool _showRenameDialog;
@@ -216,6 +217,7 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
     private bool _showVersionHistory;
     private Guid _versionHistoryNodeId;
     private string? _versionHistoryFileName;
+    private bool _versionHistoryIsDefaultContent;
     private List<FileVersionViewModel> _versionHistoryItems = [];
 
     // Comments panel
@@ -425,7 +427,8 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
             {
                 UsedBytes = dto.UsedBytes,
                 MaxBytes = dto.MaxBytes,
-                UsagePercent = dto.UsagePercent
+                UsagePercent = dto.UsagePercent,
+                ExemptBytes = dto.ExemptBytes
             };
         }
         catch
@@ -575,13 +578,14 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
     }
 
     /// <summary>Updates the quota display with fresh data from the API.</summary>
-    protected void UpdateQuota(long usedBytes, long maxBytes, double usagePercent)
+    protected void UpdateQuota(long usedBytes, long maxBytes, double usagePercent, long exemptBytes = 0)
     {
         _quota = new QuotaViewModel
         {
             UsedBytes = usedBytes,
             MaxBytes = maxBytes,
-            UsagePercent = usagePercent
+            UsagePercent = usagePercent,
+            ExemptBytes = exemptBytes
         };
     }
 
@@ -1063,6 +1067,7 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
             _contextMenuNodeId = id;
             _contextMenuNodeType = node?.NodeType ?? nodeType;
             _contextMenuNodeIsReadOnly = node?.IsReadOnly == true;
+            _contextMenuNodeIsDefaultContent = node?.IsDefaultContent == true;
             _contextMenuX = x;
             _contextMenuY = y;
             _showContextMenu = true;
@@ -1083,6 +1088,7 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
     {
         _showContextMenu = false;
         _contextMenuNodeIsReadOnly = false;
+        _contextMenuNodeIsDefaultContent = false;
     }
 
     /// <summary>Returns the node IDs a context-menu action should target.</summary>
@@ -1203,6 +1209,7 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
 
         _versionHistoryNodeId = nodeId;
         _versionHistoryFileName = node.Name;
+        _versionHistoryIsDefaultContent = node.IsDefaultContent;
         _versionHistoryItems = [];
         _showVersionHistory = true;
         StateHasChanged();
@@ -2997,6 +3004,7 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
             }).ToList(),
             IsVirtual = dto.IsVirtual,
             IsReadOnly = dto.IsReadOnly,
+            IsDefaultContent = dto.IsDefaultContent,
             VirtualSourceKind = dto.VirtualSourceKind,
             VirtualSourceId = dto.VirtualSourceId,
             VirtualRelativePath = dto.VirtualRelativePath,

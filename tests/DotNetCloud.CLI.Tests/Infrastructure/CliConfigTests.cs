@@ -7,6 +7,31 @@ namespace DotNetCloud.CLI.Tests.Infrastructure;
 public class CliConfigTests
 {
     [TestMethod]
+    public void CliConfig_UnknownFilesSection_SurvivesRoundTrip()
+    {
+        const string json = """
+            {
+              "configSchemaVersion": 2,
+              "databaseProvider": "PostgreSQL",
+              "connectionString": "Host=localhost",
+              "Files": {
+                "DefaultUserContent": {
+                  "RootPath": "/srv/dotnetcloud/default-user-content"
+                }
+              }
+            }
+            """;
+
+        var options = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+
+        var config = JsonSerializer.Deserialize<CliConfig>(json, options)!;
+        var roundTripped = JsonSerializer.Serialize(config, options);
+
+        Assert.IsTrue(roundTripped.Contains("DefaultUserContent", StringComparison.Ordinal));
+        Assert.IsTrue(roundTripped.Contains("/srv/dotnetcloud/default-user-content", StringComparison.Ordinal));
+    }
+
+    [TestMethod]
     public void NewCliConfig_HasDefaultHttpPort()
     {
         var config = new CliConfig();

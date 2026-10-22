@@ -18,7 +18,7 @@ namespace DotNetCloud.Modules.Files.Data.SqlServer.Migrations
 #pragma warning disable 612, 618
             modelBuilder
                 .HasDefaultSchema("core")
-                .HasAnnotation("ProductVersion", "10.0.10")
+                .HasAnnotation("ProductVersion", "10.0.13")
                 .HasAnnotation("Relational:MaxIdentifierLength", 128);
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
@@ -423,6 +423,11 @@ namespace DotNetCloud.Modules.Files.Data.SqlServer.Migrations
                     b.Property<bool>("IsFavorite")
                         .HasColumnType("bit");
 
+                    b.Property<bool>("IsReadOnly")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false);
+
                     b.Property<string>("LinkTarget")
                         .HasColumnType("nvarchar(max)");
 
@@ -509,6 +514,9 @@ namespace DotNetCloud.Modules.Files.Data.SqlServer.Migrations
                     b.HasIndex("OwnerId", "IsFavorite")
                         .HasDatabaseName("ix_file_nodes_owner_favorite");
 
+                    b.HasIndex("OwnerId", "IsReadOnly")
+                        .HasDatabaseName("ix_file_nodes_owner_is_read_only");
+
                     b.HasIndex("OwnerId", "Name")
                         .IsUnique()
                         .HasDatabaseName("uq_file_nodes_root_name_active")
@@ -536,6 +544,9 @@ namespace DotNetCloud.Modules.Files.Data.SqlServer.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("datetime2")
                         .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<long>("ExemptBytes")
+                        .HasColumnType("bigint");
 
                     b.Property<DateTime>("LastCalculatedAt")
                         .ValueGeneratedOnAdd()
@@ -942,6 +953,116 @@ namespace DotNetCloud.Modules.Files.Data.SqlServer.Migrations
                         .HasDatabaseName("uq_sync_folder_registrations_user_folder");
 
                     b.ToTable("SyncFolderRegistrations", "core");
+                });
+
+            modelBuilder.Entity("DotNetCloud.Modules.Files.Models.UserContentProvisioning", b =>
+                {
+                    b.Property<Guid>("UserId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier")
+                        .HasDefaultValueSql("NEWSEQUENTIALID()");
+
+                    b.Property<DateTime?>("AppliedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("Attempts")
+                        .HasColumnType("int");
+
+                    b.Property<long>("BytesCopied")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime2")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<int>("ItemsCreated")
+                        .HasColumnType("int");
+
+                    b.Property<int>("ItemsSkipped")
+                        .HasColumnType("int");
+
+                    b.Property<string>("LastError")
+                        .HasMaxLength(1024)
+                        .HasColumnType("nvarchar(1024)");
+
+                    b.Property<DateTime?>("LeaseExpiresAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("PendingDeletions")
+                        .HasColumnType("int");
+
+                    b.Property<int>("PendingUpdates")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<string>("TemplateFingerprint")
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<DateTime>("UpdatedAtUtc")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime2")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.HasKey("UserId");
+
+                    b.HasIndex("Status", "LeaseExpiresAtUtc")
+                        .HasDatabaseName("ix_user_content_provisioning_status_lease");
+
+                    b.ToTable("UserContentProvisioning", "core");
+                });
+
+            modelBuilder.Entity("DotNetCloud.Modules.Files.Models.UserDefaultContentItem", b =>
+                {
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("RelativePathKey")
+                        .HasMaxLength(512)
+                        .HasColumnType("nvarchar(512)");
+
+                    b.Property<Guid?>("FileNodeId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("FirstProvisionedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.Property<DateTime>("LastCheckedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("ProvisionedContentHash")
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<long>("ProvisionedSize")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("RelativePath")
+                        .IsRequired()
+                        .HasMaxLength(512)
+                        .HasColumnType("nvarchar(512)");
+
+                    b.Property<string>("State")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.HasKey("UserId", "RelativePathKey");
+
+                    b.HasIndex("FileNodeId")
+                        .HasDatabaseName("ix_user_default_content_items_file_node_id");
+
+                    b.ToTable("UserDefaultContentItems", "core");
                 });
 
             modelBuilder.Entity("DotNetCloud.Modules.Files.Models.UserSyncCounter", b =>

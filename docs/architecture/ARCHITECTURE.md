@@ -365,6 +365,39 @@ Users choose which folders sync to which devices. Device with limited storage do
 
 SQLite database per OS user per account on each client tracks sync state, chunk hashes, file metadata, pending operations. Databases are stored under the OS user's profile directory, fully isolated from other users on the same machine. See [Multi-User Client Support](#multi-user-client-support) in Section 11.
 
+### Default User Content
+
+**Decision: administrator-managed template directory, converged by the Files module**
+
+Every account starts with a starter tree copied from
+`${DOTNETCLOUD_DATA_DIR}/default-user-content` (filesystem-managed; never modified by upgrades).
+
+- **Immediate provisioning:** `AuthService.RegisterAsync` publishes `UserCreatedEvent`; the core's
+  `UserContentProvisioningDispatcher` calls the internal `ProvisionUserDefaults` gRPC RPC, and the
+  Files module copies missing items.
+- **Convergence:** `StartupUserContentSweepService` enqueues every account at start-up and daily.
+  Automatic passes are **add-only**; they never rewrite or delete user content.
+- **Per-item state machine:** `files.user_default_content_items` classifies each copied item as
+  `Present`, `Outdated`, `ChangedByUser` or `RemovedByUser`, keyed by a provider-neutral path.
+  A user deletion is a permanent tombstone: the item is never recreated.
+- **Destructive actions require confirmation:** template removals are pending until an administrator
+  confirms a run (`AllowDeletions`); template edits replace unmodified copies only on a
+  `PublishUpdates` run; user-modified copies require a separate `OverwriteModified` acknowledgement.
+- **Storage:** all users share one content-addressed whole-file blob per unique content. Starter
+  content does not count against the quota (`FileQuota.ExemptBytes` is derived from the tracking rows).
+- **Read-only:** provisioned files carry `FileNode.IsReadOnly`. Open/copy/share/tag/comment/download
+  and delete are allowed; edit, replace, restore-version, rename and move are rejected with
+  `FILE_READ_ONLY`.
+- **No version history:** default files keep exactly one current version. A publish update replaces
+  that version in place, so a starter file never accumulates history.
+- **Process isolation:** the core reaches the Files module only through the internal gRPC RPCs
+  `ProvisionUserDefaults` and `EnqueueProvisioning` — the same trusted-call precedent as
+  `ScanMediaFolders`.
+
+The template is a plain directory; the admin page (`/admin/files/default-content`) is a read-only
+inspector plus validation, export and confirmation-gated convergence controls. ZIP import is a
+validated, CLI-only operation that stages untrusted input and keeps a dated backup on replace.
+
 ### Online Document Editing (Collabora)
 
 **Decision: Collabora Online via WOPI, with Collabora CODE for local/small deployments**

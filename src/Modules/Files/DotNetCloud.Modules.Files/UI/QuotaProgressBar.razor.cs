@@ -34,10 +34,11 @@ public partial class QuotaProgressBar : ComponentBase
         Quota is null
             ? string.Empty
             : Quota.MaxBytes == 0
-                ? $"{FormatBytes(Quota.UsedBytes)} used (unlimited)"
-                : $"{FormatBytes(Quota.UsedBytes)} of {FormatBytes(Quota.MaxBytes)}";
+                ? $"{FormatBytes(Quota.ChargeableUsedBytes)} used (unlimited)"
+                : $"{FormatBytes(Quota.ChargeableUsedBytes)} of {FormatBytes(Quota.MaxBytes)}";
 
-    private static string FormatBytes(long bytes)
+    /// <summary>Formats a byte count for display.</summary>
+    protected static string FormatBytes(long bytes)
     {
         if (bytes < 1024)
             return $"{bytes} B";

@@ -142,6 +142,90 @@ public sealed class FilesGrpcApiClient : IFilesApiClient, IDisposable
     }
 
     /// <inheritdoc />
+    public async Task<ProvisionUserDefaultsResult> ProvisionUserDefaultsAsync(
+        Guid userId,
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var client = new FilesService.FilesServiceClient(_channel.Value);
+
+            var response = await client.ProvisionUserDefaultsAsync(
+                new ProvisionUserDefaultsRequest { UserId = userId.ToString() },
+                deadline: DateTime.UtcNow.AddMinutes(11),
+                cancellationToken: cancellationToken);
+
+            if (!response.Success)
+            {
+                _logger.LogWarning(
+                    "Default-content provisioning failed for {UserId}: {Status} {Error}",
+                    userId, response.Status, response.ErrorMessage);
+            }
+
+            return new ProvisionUserDefaultsResult(
+                response.Success,
+                response.Status,
+                response.ItemsCreated,
+                response.ItemsSkipped,
+                response.BytesCopied,
+                string.IsNullOrEmpty(response.ErrorMessage) ? null : response.ErrorMessage);
+        }
+        catch (RpcException ex) when (ex.StatusCode == StatusCode.Unavailable)
+        {
+            _logger.LogWarning("Files module is not available for default-content provisioning ({UserId}).", userId);
+            return new ProvisionUserDefaultsResult(
+                false, "Failed", 0, 0, 0, "Files module is not available.");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to provision default content for {UserId}.", userId);
+            return new ProvisionUserDefaultsResult(false, "Failed", 0, 0, 0, ex.Message);
+        }
+    }
+
+    /// <inheritdoc />
+    public async Task<EnqueueProvisioningResult> EnqueueProvisioningAsync(
+        IReadOnlyCollection<Guid> userIds,
+        bool allowDeletions = false,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(userIds);
+
+        var queued = 0;
+        var skipped = 0;
+
+        try
+        {
+            var client = new FilesService.FilesServiceClient(_channel.Value);
+
+            // The RPC accepts at most 1000 users per call.
+            foreach (var chunk in userIds.Distinct().Chunk(1000))
+            {
+                var request = new EnqueueProvisioningRequest { AllowDeletions = allowDeletions };
+                request.UserIds.AddRange(chunk.Select(id => id.ToString()));
+
+                var response = await client.EnqueueProvisioningAsync(
+                    request,
+                    deadline: DateTime.UtcNow.Add(_options.Timeout),
+                    cancellationToken: cancellationToken);
+
+                queued += response.Queued;
+                skipped += response.Skipped;
+            }
+        }
+        catch (RpcException ex) when (ex.StatusCode == StatusCode.Unavailable)
+        {
+            _logger.LogWarning("Files module is not available for default-content convergence enqueue.");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to enqueue default-content convergence.");
+        }
+
+        return new EnqueueProvisioningResult(queued, skipped);
+    }
+
+    /// <inheritdoc />
     public void Dispose()
     {
         if (!_disposed)

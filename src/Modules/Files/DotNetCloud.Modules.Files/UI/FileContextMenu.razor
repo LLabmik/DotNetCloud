@@ -87,6 +87,53 @@
                 <span>Delete</span>
             </button>
         }
+        else if (IsDefaultContent)
+        {
+            @* Default content: everything except content/structure edits. Delete stays available. *@
+            <div class="context-menu-separator" role="separator"></div>
+
+            <button class="context-menu-item" role="menuitem" @onclick="HandleCopy">
+                <span class="context-menu-icon" aria-hidden="true">📋</span>
+                <span>Copy to…</span>
+            </button>
+
+            <div class="context-menu-separator" role="separator"></div>
+
+            <button class="context-menu-item" role="menuitem" @onclick="HandleShare">
+                <span class="context-menu-icon" aria-hidden="true">🔗</span>
+                <span>Share</span>
+            </button>
+
+            <button class="context-menu-item" role="menuitem" @onclick="HandleDownload">
+                <span class="context-menu-icon" aria-hidden="true">⬇</span>
+                <span>Download</span>
+            </button>
+
+            @if (NodeType != "Folder")
+            {
+                <button class="context-menu-item" role="menuitem" @onclick="HandleVersionHistory">
+                    <span class="context-menu-icon" aria-hidden="true">📋</span>
+                    <span>Version History</span>
+                </button>
+            }
+
+            <button class="context-menu-item" role="menuitem" @onclick="HandleComments">
+                <span class="context-menu-icon" aria-hidden="true">💬</span>
+                <span>Comments</span>
+            </button>
+
+            <button class="context-menu-item" role="menuitem" @onclick="HandleTag">
+                <span class="context-menu-icon" aria-hidden="true">🏷️</span>
+                <span>Tag</span>
+            </button>
+
+            <div class="context-menu-separator" role="separator"></div>
+
+            <button class="context-menu-item context-menu-item--danger" role="menuitem" @onclick="HandleDelete">
+                <span class="context-menu-icon" aria-hidden="true">🗑️</span>
+                <span>Delete</span>
+            </button>
+        }
         else
         {
             <div class="context-menu-separator" role="separator"></div>

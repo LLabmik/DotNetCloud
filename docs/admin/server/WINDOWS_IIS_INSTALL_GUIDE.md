@@ -115,8 +115,28 @@ By default, the script uses machine-level paths:
 - Config: `C:\ProgramData\DotNetCloud\config\config.json`
 - Logs: `C:\ProgramData\DotNetCloud\logs`
 - Storage: `C:\ProgramData\DotNetCloud\storage`
+- Default user content template: `C:\ProgramData\DotNetCloud\default-user-content`
 
 This is intentional. A machine-level Windows Service should not depend on an individual administrator's user profile.
+
+### Default User Content on Windows
+
+`DOTNETCLOUD_DATA_DIR` is a Linux-only convention, so on Windows the template path must be set explicitly:
+
+```json
+{
+  "Files": {
+    "DefaultUserContent": {
+      "RootPath": "C:\\ProgramData\\DotNetCloud\\default-user-content"
+    }
+  }
+}
+```
+
+Create the directory, add the five stock folders (`Documents`, `Photos`, `Music`, `Templates`,
+`Videos`) or your own starter files, and make sure the account running the DotNetCloud service can
+**read** every entry. The path in use is shown on **Admin → Files → Default User Content**. Upgrades
+never modify this directory.
 
 ## IIS Reverse Proxy Details
 

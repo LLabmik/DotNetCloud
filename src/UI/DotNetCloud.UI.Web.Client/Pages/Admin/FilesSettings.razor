@@ -9,6 +9,7 @@
     <div class="page-header">
         <h1>File Settings</h1>
         <div class="page-header-actions">
+            <a href="/admin/files/default-content" class="btn btn-outline btn-sm">Default User Content</a>
             <a href="/admin/files/shared-folders" class="btn btn-outline btn-sm">Shared Folders</a>
             <a href="/admin/collabora" class="btn btn-outline btn-sm">Collabora</a>
             <a href="/admin/settings?module=dotnetcloud.files" class="btn btn-outline btn-sm">All File Settings</a>
@@ -86,6 +87,36 @@
                     Limits are applied as files change and again by a scheduled maintenance pass
                     (@CleanupCadence), so a reduced limit frees the storage it covers without waiting for
                     the next pass.
+                </p>
+            </section>
+
+            <!-- Default user content -->
+            <section class="settings-section">
+                <h2>
+                    <span class="section-icon">
+                        <MaterialIcon Icon="folder_special" Size="MaterialIconSize.Sm" />
+                    </span>
+                    Default User Content
+                </h2>
+
+                <div class="form-group">
+                    <label class="toggle-row" for="default-content-enabled">
+                        <span class="toggle-text">
+                            <span class="toggle-title">Seed new accounts from the template</span>
+                            <span class="hint">
+                                When this is off, nothing is provisioned, deleted, or quota-exempt.
+                                Existing content is untouched — this is a safe kill switch.
+                            </span>
+                        </span>
+                        <input id="default-content-enabled" type="checkbox" class="toggle-input"
+                               @bind="_defaultContentEnabled" />
+                    </label>
+                </div>
+
+                <p class="settings-description">
+                    The template is managed on the filesystem and is never modified by upgrades.
+                    <a href="/admin/files/default-content">Inspect, validate, and run convergence</a>.
+                    Default content is read-only for users, quota-free, and keeps no version history.
                 </p>
             </section>
 
@@ -172,6 +203,7 @@
     private const string EnabledKey = "VersionRetention:Enabled";
     private const string MaxNumberKey = "VersionRetention:MaxNumber";
     private const string MaxDaysKey = "VersionRetention:MaxDays";
+    private const string DefaultContentEnabledKey = "DefaultUserContent:Enabled";
 
     private bool _loading = true;
     private bool _saving;
@@ -183,6 +215,7 @@
     private bool _enabled = true;
     private int _maxNumber = 50;
     private int _maxDays;
+    private bool _defaultContentEnabled = true;
 
     private FileVersioningEffectiveSettingsDto? _effective;
 
@@ -211,6 +244,20 @@
             else
             {
                 PopulateFields(_effective);
+            }
+
+            // The default-content toggle is authoritative in the Files module, so read the
+            // effective value instead of guessing from configuration. A failure here must not
+            // hide the versioning settings that loaded successfully.
+            try
+            {
+                var defaultContent = await Api.GetDefaultContentStatusAsync();
+                if (defaultContent is not null)
+                    _defaultContentEnabled = defaultContent.Enabled;
+            }
+            catch
+            {
+                // Keep the default (enabled) and let the save path surface any real error.
             }
         }
         catch
@@ -253,7 +300,8 @@
             var results = await Task.WhenAll(
                 Api.UpsertSettingAsync(Module, EnabledKey, Str(_enabled.ToString())),
                 Api.UpsertSettingAsync(Module, MaxNumberKey, Str(_maxNumber.ToString())),
-                Api.UpsertSettingAsync(Module, MaxDaysKey, Str(_maxDays.ToString())));
+                Api.UpsertSettingAsync(Module, MaxDaysKey, Str(_maxDays.ToString())),
+                Api.UpsertSettingAsync(Module, DefaultContentEnabledKey, Str(_defaultContentEnabled.ToString())));
 
             if (results.All(r => r))
             {

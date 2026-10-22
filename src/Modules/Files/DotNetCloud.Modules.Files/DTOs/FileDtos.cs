@@ -80,6 +80,13 @@ public sealed record FileNodeDto
     /// <summary>True when the node should be treated as read-only by clients.</summary>
     public bool IsReadOnly { get; init; }
 
+    /// <summary>
+    /// True when the node is administrator-managed default content (as opposed to a
+    /// mounted or otherwise synthetic read-only node). Default content may be deleted but
+    /// not edited, and has no version history.
+    /// </summary>
+    public bool IsDefaultContent { get; init; }
+
     /// <summary>Optional source discriminator for synthetic nodes such as <c>DotNetCloudRoot</c> or <c>AdminSharedFolder</c>.</summary>
     public string? VirtualSourceKind { get; init; }
 
@@ -387,6 +394,12 @@ public sealed record QuotaDto
 
     /// <summary>Usage percentage (0.0 to 100.0+).</summary>
     public double UsagePercent { get; init; }
+
+    /// <summary>
+    /// Bytes of administrator-managed default content that are free of charge.
+    /// The usable allowance is <see cref="MaxBytes"/> + <see cref="ExemptBytes"/>.
+    /// </summary>
+    public long ExemptBytes { get; init; }
 }
 
 /// <summary>

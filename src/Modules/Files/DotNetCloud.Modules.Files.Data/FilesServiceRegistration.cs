@@ -37,6 +37,7 @@ public static class FilesServiceRegistration
             services.Configure<FileUploadOptions>(configuration.GetSection(FileUploadOptions.SectionName));
             services.Configure<FileSystemOptions>(configuration.GetSection(FileSystemOptions.SectionName));
             services.Configure<AdminSharedFolderOptions>(configuration.GetSection(AdminSharedFolderOptions.SectionName));
+            services.Configure<DefaultUserContentOptions>(configuration.GetSection(DefaultUserContentOptions.SectionName));
         }
         else
         {
@@ -47,6 +48,7 @@ public static class FilesServiceRegistration
             services.Configure<FileUploadOptions>(_ => { }); // use defaults
             services.Configure<FileSystemOptions>(_ => { }); // use defaults
             services.Configure<AdminSharedFolderOptions>(_ => { }); // use defaults
+            services.Configure<DefaultUserContentOptions>(_ => { }); // use defaults
         }
 
         // File scanner (NoOp until a real scanner such as ClamAV is integrated)
@@ -109,6 +111,15 @@ public static class FilesServiceRegistration
         services.AddSingleton<IFileVersioningSettingsProvider, FileVersioningSettingsProvider>();
         services.AddScoped<IVersionRetentionService, VersionRetentionService>();
 
+        // Default user content: template reader, importer, convergence state machine and queue.
+        // The settings provider layers the /admin/files toggle over the configuration baseline.
+        services.AddSingleton<IDefaultUserContentSettingsProvider, DefaultUserContentSettingsProvider>();
+        services.AddSingleton<DefaultUserContentStore>();
+        services.AddScoped<FileImportService>();
+        services.AddScoped<DefaultUserContentProvisioner>();
+        services.AddScoped<DefaultUserContentQueue>();
+        services.AddScoped<DefaultUserContentAdminService>();
+
         // Session tracker (Singleton — in-memory concurrent session enforcement)
         services.AddSingleton<IWopiSessionTracker, WopiSessionTracker>();
 
@@ -162,6 +173,9 @@ public static class FilesServiceRegistration
         // before the capture hook, or through a path that did not capture it).
         services.AddHostedService<MediaCaptureBackfillService>();
 
+        // Drains the default-content provisioning queue (start-up sweep, daily pass, admin enqueue).
+        services.AddHostedService<DefaultUserContentRetryService>();
+
         // The sweep above reclaims orphaned blobs; the audit below reports the mirror-image failure —
         // a whole-file media version whose blob is missing entirely, which is silent data loss.
         services.AddScoped<IWholeFileBlobIntegrityService, WholeFileBlobIntegrityService>();
@@ -189,6 +203,7 @@ public static class FilesServiceRegistration
             services.Configure<FileUploadOptions>(configuration.GetSection(FileUploadOptions.SectionName));
             services.Configure<FileSystemOptions>(configuration.GetSection(FileSystemOptions.SectionName));
             services.Configure<AdminSharedFolderOptions>(configuration.GetSection(AdminSharedFolderOptions.SectionName));
+            services.Configure<DefaultUserContentOptions>(configuration.GetSection(DefaultUserContentOptions.SectionName));
         }
 
         // File scanner
@@ -232,6 +247,10 @@ public static class FilesServiceRegistration
         // Core.Server (FileBrowser) and the httpx client factories above resolve them.
         services.AddSingleton<ICollaboraSettingsProvider, CollaboraSettingsProvider>();
         services.AddSingleton<IFileVersioningSettingsProvider, FileVersioningSettingsProvider>();
+
+        // Default-content settings are read by the in-process Files UI (quota bar, browser badges).
+        services.AddSingleton<IDefaultUserContentSettingsProvider, DefaultUserContentSettingsProvider>();
+        services.AddSingleton<DefaultUserContentStore>();
 
         // HTTP client for Collabora discovery
         services.AddHttpClient("Collabora")

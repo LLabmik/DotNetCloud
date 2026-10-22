@@ -844,6 +844,12 @@ public class Program
         // Register demo account cleanup service
         builder.Services.AddHostedService<DemoAccountCleanupService>();
 
+        // Default user content: provision new accounts immediately and converge every existing
+        // account at start-up and daily. Both paths are best-effort and never block boot.
+        builder.Services.AddSingleton<UserContentProvisioningDispatcher>();
+        builder.Services.AddHostedService<UserContentProvisioningDispatcherHostedService>();
+        builder.Services.AddHostedService<StartupUserContentSweepService>();
+
         // Configure forwarded headers for reverse proxy support.
         // SECURITY: Only trust forwarded headers from known proxies to prevent IP spoofing.
         // By default, ASP.NET Core only trusts loopback (127.0.0.1, ::1).

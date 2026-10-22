@@ -171,6 +171,10 @@ public class WopiController : FilesControllerBase
         {
             return StatusCode(403);
         }
+        catch (Core.Errors.FileReadOnlyException ex)
+        {
+            return StatusCode(403, ErrorEnvelope(ex.ErrorCode, ex.Message));
+        }
         catch (Core.Errors.InvalidOperationException ex)
         {
             return BadRequest(ErrorEnvelope(ex.ErrorCode, ex.Message));

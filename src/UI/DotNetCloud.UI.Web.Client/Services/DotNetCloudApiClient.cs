@@ -1237,6 +1237,91 @@ public sealed class DotNetCloudApiClient
         public T? Data { get; set; }
     }
 
+    // -----------------------------------------------------------------------
+    // Default user content (Admin)
+    // -----------------------------------------------------------------------
+
+    /// <summary>Gets the effective default-content state and validation summary.</summary>
+    public async Task<DefaultUserContentStatusDto?> GetDefaultContentStatusAsync(CancellationToken ct = default)
+    {
+        var envelope = await _http.GetFromJsonAsync<ApiEnvelope<DefaultUserContentStatusDto>>(
+            "api/v1/files/admin/default-content/effective", JsonOptions, ct);
+        return envelope?.Data;
+    }
+
+    /// <summary>Browses the template directory (read-only).</summary>
+    public async Task<DefaultContentBrowseResultDto?> BrowseDefaultContentAsync(string? path = null, CancellationToken ct = default)
+    {
+        var requestUri = string.IsNullOrWhiteSpace(path)
+            ? "api/v1/files/admin/default-content/browse"
+            : $"api/v1/files/admin/default-content/browse?path={Uri.EscapeDataString(path)}";
+
+        var envelope = await _http.GetFromJsonAsync<ApiEnvelope<DefaultContentBrowseResultDto>>(requestUri, JsonOptions, ct);
+        return envelope?.Data;
+    }
+
+    /// <summary>Adds the stock default folders (additive only).</summary>
+    public async Task<int> SeedDefaultContentAsync(CancellationToken ct = default)
+    {
+        var response = await _http.PostAsync("api/v1/files/admin/default-content/seed-defaults", null, ct);
+        await EnsureSuccessStatusAsync(response, ct);
+        return 0;
+    }
+
+    /// <summary>
+    /// Previews or runs convergence. A 409 response carries the preview with
+    /// <see cref="DefaultContentReconcileResultDto.RequiresConfirmation"/> set.
+    /// </summary>
+    public async Task<DefaultContentReconcileResultDto?> ReconcileDefaultContentAsync(
+        bool dryRun,
+        bool publishUpdates,
+        bool overwriteModified,
+        bool confirmDeletions,
+        bool confirmOverwrites,
+        CancellationToken ct = default)
+    {
+        var uri = "api/v1/files/admin/default-content/reconcile"
+            + $"?dryRun={dryRun.ToString().ToLowerInvariant()}"
+            + $"&publishUpdates={publishUpdates.ToString().ToLowerInvariant()}"
+            + $"&overwriteModified={overwriteModified.ToString().ToLowerInvariant()}"
+            + $"&confirmDeletions={confirmDeletions.ToString().ToLowerInvariant()}"
+            + $"&confirmOverwrites={confirmOverwrites.ToString().ToLowerInvariant()}";
+
+        var response = await _http.PostAsync(uri, null, ct);
+
+        if (response.StatusCode == System.Net.HttpStatusCode.Conflict)
+        {
+            var conflict = await response.Content.ReadFromJsonAsync<ApiEnvelope<DefaultContentReconcileResultDto>>(JsonOptions, ct);
+            return conflict?.Data;
+        }
+
+        await EnsureSuccessStatusAsync(response, ct);
+        var envelope = await response.Content.ReadFromJsonAsync<ApiEnvelope<DefaultContentReconcileResultDto>>(JsonOptions, ct);
+        return envelope?.Data;
+    }
+
+    /// <summary>Gets convergence queue counts by status.</summary>
+    public async Task<DefaultContentQueueStatusDto?> GetDefaultContentQueueStatusAsync(CancellationToken ct = default)
+    {
+        var envelope = await _http.GetFromJsonAsync<ApiEnvelope<DefaultContentQueueStatusDto>>(
+            "api/v1/files/admin/default-content/reconcile-status", JsonOptions, ct);
+        return envelope?.Data;
+    }
+
+    /// <summary>Dry run for one user (or all users when null).</summary>
+    public async Task<DefaultContentReconcileResultDto?> PreviewDefaultContentAsync(Guid? userId = null, CancellationToken ct = default)
+    {
+        var uri = userId.HasValue
+            ? $"api/v1/files/admin/default-content/preview?userId={userId.Value}"
+            : "api/v1/files/admin/default-content/preview";
+
+        var envelope = await _http.GetFromJsonAsync<ApiEnvelope<DefaultContentReconcileResultDto>>(uri, JsonOptions, ct);
+        return envelope?.Data;
+    }
+
+    /// <summary>Absolute-path URL of the template ZIP export (leading slash so it resolves from any page).</summary>
+    public string DefaultContentExportUrl => "/api/v1/files/admin/default-content/export";
+
     private static async Task EnsureSuccessStatusAsync(HttpResponseMessage response, CancellationToken ct)
     {
         if (response.IsSuccessStatusCode)

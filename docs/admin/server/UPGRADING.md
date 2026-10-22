@@ -59,6 +59,41 @@
 
 6. **Schedule downtime** — upgrades typically require 1–5 minutes of downtime
 
+### Preserved During Upgrades
+
+Upgrades replace binaries only. The following are **not** deleted, reset, or rewritten by the
+installer, `dotnetcloud` upgrades, or container image updates:
+
+| Path                                        | Contents                                   |
+| ------------------------------------------- | ------------------------------------------ |
+| `/var/lib/dotnetcloud/storage` (or `files`) | User file storage                          |
+| `/var/lib/dotnetcloud/default-user-content` | Administrator-managed new-account template |
+| `/etc/dotnetcloud`                          | Configuration and certificates             |
+
+In Docker, storage and the template live in the `dotnetcloud-data` named volume (mounted at
+`/app/data`); configuration lives wherever you mounted it. `docker compose down -v` is the only
+routine operation that deletes the data volume — use `docker compose down` (no `-v`) to keep data.
+
+If a release ships new starter files for new accounts, the upgrade deliberately does **not** apply
+them to the existing template. Copy them in explicitly when you want them:
+
+```bash
+dotnetcloud files default-content sync-seed
+```
+
+If you upgrade an installation that predates this feature — or deploy from source with
+`scripts/deploy.sh`, which does not seed data directories — the template may not exist yet. Create
+the stock layout once, then let convergence fill it in for existing accounts:
+
+```bash
+sudo dotnetcloud files default-content seed-defaults
+sudo chown -R dotnetcloud:dotnetcloud /var/lib/dotnetcloud/default-user-content
+dotnetcloud files default-content reconcile --all
+```
+
+The seeder writes a `.dotnetcloud-template` marker; once present the directory is
+administrator-owned and upgrades never touch it again.
+
 ---
 
 ## Upgrade on Linux
@@ -75,6 +110,7 @@ sudo dnf upgrade dotnetcloud
 ```
 
 The package manager handles:
+
 - Stopping the service
 - Replacing binaries
 - Running database migrations
@@ -352,11 +388,11 @@ Start-Service DotNetCloud
 
 DotNetCloud follows semantic versioning (`MAJOR.MINOR.PATCH`):
 
-| Version Change | Meaning | Database Migrations | Config Changes |
-|---|---|---|---|
-| **Patch** (1.0.0 → 1.0.1) | Bug fixes only | None | None |
-| **Minor** (1.0.x → 1.1.0) | New features, backward-compatible | Possible (additive) | New optional settings |
-| **Major** (1.x → 2.0.0) | Breaking changes | Likely (may alter schema) | Settings may be renamed/removed |
+| Version Change            | Meaning                           | Database Migrations       | Config Changes                  |
+| ------------------------- | --------------------------------- | ------------------------- | ------------------------------- |
+| **Patch** (1.0.0 → 1.0.1) | Bug fixes only                    | None                      | None                            |
+| **Minor** (1.0.x → 1.1.0) | New features, backward-compatible | Possible (additive)       | New optional settings           |
+| **Major** (1.x → 2.0.0)   | Breaking changes                  | Likely (may alter schema) | Settings may be renamed/removed |
 
 ### Upgrade Path
 
@@ -373,8 +409,8 @@ DotNetCloud follows semantic versioning (`MAJOR.MINOR.PATCH`):
 ### .NET Runtime Compatibility
 
 | DotNetCloud Version | Required .NET Runtime |
-|---|---|
-| 1.0.x | .NET 10 |
+| ------------------- | --------------------- |
+| 1.0.x               | .NET 10               |
 
 When a new DotNetCloud major version requires a newer .NET runtime, the release notes will include .NET upgrade instructions.
 

@@ -18,7 +18,7 @@ namespace DotNetCloud.Modules.Files.Data.Migrations
 #pragma warning disable 612, 618
             modelBuilder
                 .HasDefaultSchema("core")
-                .HasAnnotation("ProductVersion", "10.0.10")
+                .HasAnnotation("ProductVersion", "10.0.13")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
@@ -415,6 +415,11 @@ namespace DotNetCloud.Modules.Files.Data.Migrations
                     b.Property<bool>("IsFavorite")
                         .HasColumnType("boolean");
 
+                    b.Property<bool>("IsReadOnly")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false);
+
                     b.Property<string>("LinkTarget")
                         .HasColumnType("text");
 
@@ -501,6 +506,9 @@ namespace DotNetCloud.Modules.Files.Data.Migrations
                     b.HasIndex("OwnerId", "IsFavorite")
                         .HasDatabaseName("ix_file_nodes_owner_favorite");
 
+                    b.HasIndex("OwnerId", "IsReadOnly")
+                        .HasDatabaseName("ix_file_nodes_owner_is_read_only");
+
                     b.HasIndex("OwnerId", "Name")
                         .IsUnique()
                         .HasDatabaseName("uq_file_nodes_root_name_active")
@@ -527,6 +535,9 @@ namespace DotNetCloud.Modules.Files.Data.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("timestamp with time zone")
                         .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<long>("ExemptBytes")
+                        .HasColumnType("bigint");
 
                     b.Property<DateTime>("LastCalculatedAt")
                         .ValueGeneratedOnAdd()
@@ -926,6 +937,115 @@ namespace DotNetCloud.Modules.Files.Data.Migrations
                         .HasDatabaseName("uq_sync_folder_registrations_user_folder");
 
                     b.ToTable("SyncFolderRegistrations", "core");
+                });
+
+            modelBuilder.Entity("DotNetCloud.Modules.Files.Models.UserContentProvisioning", b =>
+                {
+                    b.Property<Guid>("UserId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("AppliedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("Attempts")
+                        .HasColumnType("integer");
+
+                    b.Property<long>("BytesCopied")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<int>("ItemsCreated")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("ItemsSkipped")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("LastError")
+                        .HasMaxLength(1024)
+                        .HasColumnType("character varying(1024)");
+
+                    b.Property<DateTime?>("LeaseExpiresAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("PendingDeletions")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("PendingUpdates")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<string>("TemplateFingerprint")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<DateTime>("UpdatedAtUtc")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.HasKey("UserId");
+
+                    b.HasIndex("Status", "LeaseExpiresAtUtc")
+                        .HasDatabaseName("ix_user_content_provisioning_status_lease");
+
+                    b.ToTable("UserContentProvisioning", "core");
+                });
+
+            modelBuilder.Entity("DotNetCloud.Modules.Files.Models.UserDefaultContentItem", b =>
+                {
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("RelativePathKey")
+                        .HasMaxLength(512)
+                        .HasColumnType("character varying(512)");
+
+                    b.Property<Guid?>("FileNodeId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("FirstProvisionedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)");
+
+                    b.Property<DateTime>("LastCheckedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("ProvisionedContentHash")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<long>("ProvisionedSize")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("RelativePath")
+                        .IsRequired()
+                        .HasMaxLength(512)
+                        .HasColumnType("character varying(512)");
+
+                    b.Property<string>("State")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.HasKey("UserId", "RelativePathKey");
+
+                    b.HasIndex("FileNodeId")
+                        .HasDatabaseName("ix_user_default_content_items_file_node_id");
+
+                    b.ToTable("UserDefaultContentItems", "core");
                 });
 
             modelBuilder.Entity("DotNetCloud.Modules.Files.Models.UserSyncCounter", b =>

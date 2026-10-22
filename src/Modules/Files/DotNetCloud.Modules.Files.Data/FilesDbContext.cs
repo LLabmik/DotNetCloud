@@ -72,6 +72,12 @@ public class FilesDbContext : DbContext
     /// <summary>User storage quotas.</summary>
     public DbSet<FileQuota> FileQuotas => Set<FileQuota>();
 
+    /// <summary>Per-user default-content provisioning state and queue rows.</summary>
+    public DbSet<UserContentProvisioning> UserContentProvisioning => Set<UserContentProvisioning>();
+
+    /// <summary>Per-item tracking rows linking user nodes to template entries.</summary>
+    public DbSet<UserDefaultContentItem> UserDefaultContentItems => Set<UserDefaultContentItem>();
+
     /// <summary>Active chunked upload sessions.</summary>
     public DbSet<ChunkedUploadSession> UploadSessions => Set<ChunkedUploadSession>();
 
@@ -110,6 +116,8 @@ public class FilesDbContext : DbContext
         modelBuilder.ApplyConfiguration(new FileTagConfiguration());
         modelBuilder.ApplyConfiguration(new FileCommentConfiguration());
         modelBuilder.ApplyConfiguration(new FileQuotaConfiguration());
+        modelBuilder.ApplyConfiguration(new UserContentProvisioningConfiguration());
+        modelBuilder.ApplyConfiguration(new UserDefaultContentItemConfiguration());
         modelBuilder.ApplyConfiguration(new ChunkedUploadSessionConfiguration());
         modelBuilder.ApplyConfiguration(new UserSyncCounterConfiguration());
         modelBuilder.ApplyConfiguration(new SyncDeviceConfiguration());

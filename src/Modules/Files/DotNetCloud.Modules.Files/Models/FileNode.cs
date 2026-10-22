@@ -71,6 +71,14 @@ public sealed class FileNode
     /// <summary>Whether this node is marked as a favorite by the owner.</summary>
     public bool IsFavorite { get; set; }
 
+    /// <summary>
+    /// When <see langword="true"/> the node is administrator-managed default content:
+    /// users may open, copy, share, tag, comment, download and delete it, but may not
+    /// edit, replace, restore a version of, rename or move it. Default content is never
+    /// recreated after a user deletes it.
+    /// </summary>
+    public bool IsReadOnly { get; set; }
+
     /// <summary>When the node was created (UTC).</summary>
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 

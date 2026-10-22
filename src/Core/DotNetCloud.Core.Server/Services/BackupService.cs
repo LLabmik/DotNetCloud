@@ -100,10 +100,19 @@ public sealed class BackupService : DotNetCloud.Core.Services.IBackupService
 
             // Restore data files
             var dataDir = Path.Combine(restoreDir, "data");
-            if (Directory.Exists(dataDir) && !string.IsNullOrEmpty(options.ConnectionString))
+            if (Directory.Exists(dataDir))
             {
-                var targetDataDir = options.ConnectionString; // Placeholder — caller provides target
-                CopyDirectory(dataDir, targetDataDir);
+                if (string.IsNullOrWhiteSpace(options.DataDirectory))
+                {
+                    return new BackupResult
+                    {
+                        Success = false,
+                        ErrorMessage = "RestoreOptions.DataDirectory is required to restore the data directory.",
+                    };
+                }
+
+                CopyDirectory(dataDir, options.DataDirectory);
+                _logger.LogInformation("Restored data directory to {DataDirectory}", options.DataDirectory);
             }
 
             // Restore database dump if present and requested

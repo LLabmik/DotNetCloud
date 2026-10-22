@@ -25,6 +25,9 @@ DEPLOY_DIR="/opt/dotnetcloud/server"
 CLI_INSTALL_ROOT="/opt/dotnetcloud"
 SERVICE_USER="dotnetcloud"
 STATE_FILE="$DEPLOY_DIR/.last-deploy-commit"
+DATA_DIR="${DOTNETCLOUD_DATA_DIR:-/var/lib/dotnetcloud}"
+TEMPLATE_DIR="$DATA_DIR/default-user-content"
+TEMPLATE_TREE_HASH_FILE="$DEPLOY_DIR/.default-content-tree.sha256"
 MODULES_DIR="$CLI_INSTALL_ROOT/modules"   # real module root (matches install.sh)
 MODULES_LINK="$DEPLOY_DIR/modules"        # symlink the server scans
 CLI_PROJECT_PATH="$REPO_ROOT/src/CLI/DotNetCloud.CLI/DotNetCloud.CLI.csproj"
@@ -491,6 +494,40 @@ verify_assemblies() {
         echo ""
         log "✓ All assemblies verified."
     fi
+}
+
+# Hash of every file in the default-content template (relative paths included).
+template_tree_hash() {
+    [ -d "$TEMPLATE_DIR" ] || return 1
+    ( cd "$TEMPLATE_DIR" && find . -type f -print0 | sort -z | xargs -0 -r sha256sum | sha256sum | cut -d' ' -f1 )
+}
+
+# Asserts the template survived the deploy untouched and is readable by the service user.
+verify_default_content_template() {
+    echo ""
+    log "Verifying default user content template..."
+
+    if [ ! -d "$TEMPLATE_DIR" ]; then
+        echo "  ✗ MISSING: $TEMPLATE_DIR"
+        return 1
+    fi
+
+    if [ ! -r "$TEMPLATE_DIR" ]; then
+        echo "  ✗ NOT READABLE: $TEMPLATE_DIR"
+        return 1
+    fi
+
+    local current recorded
+    current=$(template_tree_hash || true)
+    recorded=$(cat "$TEMPLATE_TREE_HASH_FILE" 2>/dev/null || true)
+
+    if [ -n "$recorded" ] && [ -n "$current" ] && [ "$current" != "$recorded" ]; then
+        echo "  ✗ Template tree hash changed ($recorded → $current)"
+        return 1
+    fi
+
+    echo "  ✓ Template preserved at $TEMPLATE_DIR"
+    return 0
 }
 
 # ============================================================================
@@ -1010,6 +1047,15 @@ log "  Permissions set."
 # Phase 6: Apply database migrations (before starting the service)
 # ============================================================================
 step "Applying database migrations..."
+
+# Record the template tree hash before the service restarts, so --verify can prove the
+# deploy itself never modified administrator-owned content.
+if $VERIFY; then
+    if template_hash="$(template_tree_hash)"; then
+        echo "$template_hash" > "$TEMPLATE_TREE_HASH_FILE" 2>/dev/null || true
+    fi
+fi
+
 if $DRY_RUN; then
     echo "    [DRY-RUN] dotnetcloud migrate"
 else
@@ -1060,6 +1106,7 @@ fi
 if $VERIFY; then
     step "Verifying deployed assemblies..."
     verify_assemblies || true
+    verify_default_content_template || true
 fi
 
 # ============================================================================

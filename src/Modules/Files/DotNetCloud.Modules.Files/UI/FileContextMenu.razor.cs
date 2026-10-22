@@ -26,6 +26,12 @@ public partial class FileContextMenu : ComponentBase
     /// <summary>Whether the target node is read-only.</summary>
     [Parameter] public bool IsReadOnly { get; set; }
 
+    /// <summary>
+    /// Whether the target node is administrator-managed default content. Default content keeps
+    /// Download/Copy/Share/Tag/Comment and Delete, but has no Rename/Move and a view-only history.
+    /// </summary>
+    [Parameter] public bool IsDefaultContent { get; set; }
+
     /// <summary>Raised when the user selects "Open".</summary>
     [Parameter] public EventCallback<Guid> OnOpen { get; set; }
 
