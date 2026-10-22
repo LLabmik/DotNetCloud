@@ -42,6 +42,25 @@ update-ca-certificates >/dev/null
 # Keep the persisted cert owned by the unprivileged runtime user.
 chown -R app:app "${CERT_DIR}"
 
+# Seed the default user content template exactly once. The marker file means
+# "administrator-owned": later restarts and image upgrades never overwrite it.
+TEMPLATE_DIR="${DATA_DIR}/default-user-content"
+SEED_DIR="/app/seed/default-user-content"
+mkdir -p "${TEMPLATE_DIR}"
+if [ ! -f "${TEMPLATE_DIR}/.dotnetcloud-template" ]; then
+    if [ -z "$(ls -A "${TEMPLATE_DIR}" 2>/dev/null)" ]; then
+        echo "[entrypoint] Seeding default user content in ${TEMPLATE_DIR}"
+        if [ -d "${SEED_DIR}" ]; then
+            cp -r "${SEED_DIR}/." "${TEMPLATE_DIR}/"
+        fi
+        for d in Documents Photos Music Templates Videos; do
+            mkdir -p "${TEMPLATE_DIR}/${d}"
+        done
+    fi
+    printf 'schema=1\nseeded=%s\n' "$(date -u +%FT%TZ)" > "${TEMPLATE_DIR}/.dotnetcloud-template"
+fi
+chown -R app:app "${TEMPLATE_DIR}"
+
 # Point Kestrel at the persisted cert (overrides any orchestrator-provided value).
 export Kestrel__CertificatePath="${PFX}"
 

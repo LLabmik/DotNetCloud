@@ -135,7 +135,9 @@ internal sealed class QuotaService : IQuotaService
         if (quota.MaxBytes == 0)
             return true;
 
-        return quota.UsedBytes + requiredBytes <= quota.MaxBytes;
+        // Administrator-managed default content is free of charge: the usable allowance is
+        // MaxBytes + ExemptBytes.
+        return quota.UsedBytes + requiredBytes <= quota.MaxBytes + quota.ExemptBytes;
     }
 
     /// <inheritdoc />
@@ -163,7 +165,7 @@ internal sealed class QuotaService : IQuotaService
                 return true;
             }
 
-            if (quota.UsedBytes + requiredBytes > quota.MaxBytes)
+            if (quota.UsedBytes + requiredBytes > quota.MaxBytes + quota.ExemptBytes)
                 return false;
 
             quota.UsedBytes += requiredBytes;
@@ -249,6 +251,7 @@ internal sealed class QuotaService : IQuotaService
             .SumAsync(n => n.Size, cancellationToken);
 
         quota.UsedBytes = usedBytes;
+        quota.ExemptBytes = await ComputeExemptionAsync(userId, cancellationToken).ConfigureAwait(false);
         quota.LastCalculatedAt = DateTime.UtcNow;
         quota.UpdatedAt = DateTime.UtcNow;
 
@@ -256,7 +259,50 @@ internal sealed class QuotaService : IQuotaService
 
         await PublishQuotaNotificationAsync(quota, cancellationToken);
 
-        _logger.LogDebug("Quota recalculated for user {UserId}: {UsedBytes} bytes", userId, usedBytes);
+        _logger.LogDebug("Quota recalculated for user {UserId}: {UsedBytes} bytes ({ExemptBytes} exempt)",
+            userId, usedBytes, quota.ExemptBytes);
+    }
+
+    /// <inheritdoc />
+    public async Task<long> RecomputeExemptionAsync(Guid userId, CancellationToken cancellationToken = default)
+    {
+        var exemptBytes = await ComputeExemptionAsync(userId, cancellationToken).ConfigureAwait(false);
+
+        var quota = await QuotaRowHelper.GetForUpdateAsync(_db, userId, cancellationToken).ConfigureAwait(false);
+        if (quota is null)
+            return exemptBytes;
+
+        if (quota.ExemptBytes != exemptBytes)
+        {
+            quota.ExemptBytes = exemptBytes;
+            quota.UpdatedAt = DateTime.UtcNow;
+            await _db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+        }
+
+        return exemptBytes;
+    }
+
+    /// <summary>
+    /// Sums the size of default-content items that are still present and unmodified.
+    /// A modified or deleted copy is no longer exempt.
+    /// </summary>
+    private async Task<long> ComputeExemptionAsync(Guid userId, CancellationToken cancellationToken)
+    {
+        // Joining against FileNodes (with the soft-delete filter) means a trashed or purged
+        // node can never contribute: the tracking row alone is not enough.
+        var exempt = await (
+                from item in _db.UserDefaultContentItems.AsNoTracking()
+                join node in _db.FileNodes.AsNoTracking() on item.FileNodeId equals node.Id
+                where item.UserId == userId
+                      && item.Kind == DefaultContentItemKind.File
+                      && item.State == DefaultContentItemState.Present
+                      && node.OwnerId == userId
+                      && node.ContentHash == item.ProvisionedContentHash
+                select (long?)item.ProvisionedSize)
+            .SumAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        return exempt ?? 0;
     }
 
     private async Task PublishQuotaNotificationAsync(FileQuota quota, CancellationToken cancellationToken)
@@ -313,6 +359,7 @@ internal sealed class QuotaService : IQuotaService
         MaxBytes = quota.MaxBytes,
         UsedBytes = quota.UsedBytes,
         RemainingBytes = quota.RemainingBytes,
-        UsagePercent = quota.UsagePercent
+        UsagePercent = quota.UsagePercent,
+        ExemptBytes = quota.ExemptBytes
     };
 }

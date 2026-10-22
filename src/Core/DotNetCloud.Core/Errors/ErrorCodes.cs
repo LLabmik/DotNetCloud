@@ -15,6 +15,12 @@ public static class ErrorCodes
     /// <summary>Error code for forbidden access.</summary>
     public const string Forbidden = "AUTH_FORBIDDEN";
 
+    /// <summary>
+    /// Error code returned when a caller attempts to modify read-only default content
+    /// (edit, replace, restore a version, rename or move).
+    /// </summary>
+    public const string FileReadOnly = "FILE_READ_ONLY";
+
     /// <summary>Error code for token expired.</summary>
     public const string TokenExpired = "AUTH_TOKEN_EXPIRED";
 

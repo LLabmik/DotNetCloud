@@ -32,6 +32,12 @@ public partial class VersionHistoryPanel : ComponentBase
     /// <summary>Version items to display, provided by the parent component.</summary>
     [Parameter] public IReadOnlyList<FileVersionViewModel>? InitialVersions { get; set; }
 
+    /// <summary>
+    /// Whether the file is administrator-managed default content. Default content keeps no
+    /// version history, so every mutating action (restore, delete, label) is hidden.
+    /// </summary>
+    [Parameter] public bool IsDefaultContent { get; set; }
+
     private List<FileVersionViewModel> _versions = [];
     private bool _isLoading;
     private bool _showDeleteAllConfirm;

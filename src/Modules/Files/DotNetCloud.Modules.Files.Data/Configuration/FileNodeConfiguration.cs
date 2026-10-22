@@ -117,5 +117,13 @@ public sealed class FileNodeConfiguration : IEntityTypeConfiguration<FileNode>
 
         builder.Property(n => n.PosixOwnerHint)
             .HasMaxLength(200);
+
+        // Administratively provisioned default content is content-immutable for the user.
+        builder.Property(n => n.IsReadOnly)
+            .IsRequired()
+            .HasDefaultValue(false);
+
+        builder.HasIndex(n => new { n.OwnerId, n.IsReadOnly })
+            .HasDatabaseName("ix_file_nodes_owner_is_read_only");
     }
 }

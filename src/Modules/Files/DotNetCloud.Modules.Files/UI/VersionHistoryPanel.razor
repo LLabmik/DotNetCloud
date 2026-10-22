@@ -26,12 +26,16 @@
     {
         <div class="version-panel-empty">
             <p>No version history available.</p>
-            <p class="text-muted">Versions are saved automatically when you edit and save a file.</p>
+            <p class="text-muted">
+                @(IsDefaultContent
+                    ? "Default content is read-only and does not track versions. Copy the file to make it your own."
+                    : "Versions are saved automatically when you edit and save a file.")
+            </p>
         </div>
     }
     else
     {
-        @if (Versions.Count > 1)
+        @if (Versions.Count > 1 && !IsDefaultContent)
         {
             <div class="version-panel-toolbar">
                 <button class="btn btn-sm btn-danger" @onclick="ShowDeleteAllConfirm"
@@ -98,7 +102,7 @@
                                 title="Download this version">
                             Download
                         </button>
-                        @if (!version.IsCurrent)
+                        @if (!version.IsCurrent && !IsDefaultContent)
                         {
                             <button class="btn btn-sm"
                                     @onclick="() => RestoreVersion(version)"

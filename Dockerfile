@@ -162,6 +162,10 @@ RUN apt-get update && \
 # Copy the published server + module hosts first…
 COPY --from=publish /app/publish .
 
+# Packaged default user content seed tree (copied into an empty data-directory template
+# on first start by the entrypoint; never overwrites an existing template).
+COPY deploy/seed /app/seed
+
 # …then make the app tree writable by the unprivileged 'app' user (uid/gid 1654,
 # shipped in the base image; uid/gid 1000 is taken by 'ubuntu'). Module hosts run
 # from /app/modules/<id> and create runtime state (data-protection keys, etc.)

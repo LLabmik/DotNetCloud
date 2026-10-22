@@ -94,6 +94,17 @@ public sealed class UserDeletedEventSubscriber : IEventHandler<UserDeletedEvent>
                 deletedQuotaCount,
                 userId);
 
+            // ── Step 3b: Delete default-content tracking and queue rows ──
+            // Without this, a user id that is ever reused could inherit another account's
+            // "RemovedByUser" tombstones (and never receive starter content).
+            await db.UserDefaultContentItems
+                .Where(i => i.UserId == userId)
+                .ExecuteDeleteAsync(cancellationToken);
+
+            await db.UserContentProvisioning
+                .Where(p => p.UserId == userId)
+                .ExecuteDeleteAsync(cancellationToken);
+
             // ── Step 4: Delete SyncDevice records ──
             var deletedDeviceCount = await db.SyncDevices
                 .Where(d => d.UserId == userId)

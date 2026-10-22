@@ -1,0 +1,292 @@
+@page "/admin/files/default-content"
+@rendermode @(new Microsoft.AspNetCore.Components.Web.InteractiveAutoRenderMode(prerender: false))
+@attribute [Authorize(Policy = "RequireAdmin")]
+
+<PageTitle>Default User Content - DotNetCloud</PageTitle>
+
+<div class="admin-settings-page">
+    <div class="page-header">
+        <h1>Default User Content</h1>
+        <div class="page-header-actions">
+            <a href="/admin/files" class="btn btn-outline btn-sm">File Settings</a>
+            <button class="btn btn-outline btn-sm" @onclick="RefreshAsync" disabled="@_loading">
+                <MaterialIcon Icon="refresh" Size="MaterialIconSize.Sm" /> Refresh
+            </button>
+            <button class="btn btn-outline btn-sm" @onclick="ValidateAsync" disabled="@_loading">
+                <MaterialIcon Icon="check_circle" Size="MaterialIconSize.Sm" /> Validate
+            </button>
+            <a class="btn btn-outline btn-sm" href="@Api.DefaultContentExportUrl" download>
+                <MaterialIcon Icon="download" Size="MaterialIconSize.Sm" /> Export ZIP
+            </a>
+        </div>
+    </div>
+
+    <p class="page-intro">
+        Every new account starts with this folder tree. The template is a normal directory on the
+        server &mdash; it is never modified by upgrades. New items converge automatically; edits and
+        removals are only applied to users through an explicitly confirmed run.
+        Default content is read-only for users, does not count against their quota, and
+        <strong>keeps no version history</strong>.
+    </p>
+
+    @if (_loading)
+    {
+        <LoadingIndicator Message="Loading default content..." />
+    }
+    else
+    {
+        @if (!string.IsNullOrEmpty(_errorMessage))
+        {
+            <div class="alert alert-danger" role="alert">@_errorMessage</div>
+        }
+
+        @if (!string.IsNullOrEmpty(_successMessage))
+        {
+            <div class="alert alert-success" role="alert">@_successMessage</div>
+        }
+
+        @if (_status is not null)
+        {
+            <section class="settings-section">
+                <h2>
+                    <span class="section-icon"><MaterialIcon Icon="folder" Size="MaterialIconSize.Sm" /></span>
+                    Template
+                </h2>
+
+                <dl class="settings-list">
+                    <dt>Status</dt>
+                    <dd>
+                        @if (!_status.Enabled)
+                        {
+                            <span class="badge">Disabled (kill switch)</span>
+                        }
+                        else if (!_status.RootExists)
+                        {
+                            <span class="badge badge-danger">Template directory missing</span>
+                        }
+                        else if (!_status.Readable)
+                        {
+                            <span class="badge badge-danger">Not readable by the service user</span>
+                        }
+                        else
+                        {
+                            <span class="badge badge-success">Active</span>
+                        }
+                    </dd>
+
+                    <dt>Path</dt>
+                    <dd><code>@_status.RootPath</code> <span class="text-muted">(preserved across upgrades)</span></dd>
+
+                    <dt>Contents</dt>
+                    <dd>@_status.FolderCount folder(s) · @_status.FileCount file(s) · @FormatSize(_status.TotalBytes)</dd>
+
+                    <dt>Pending</dt>
+                    <dd>
+                        @_status.PendingUpdates pending update(s) ·
+                        @_status.PendingDeletions pending deletion(s)
+                    </dd>
+
+                    <dt>Users</dt>
+                    <dd>@_status.UsersConverged converged · @_status.UsersFailed failed</dd>
+
+                    <dt>Last pass</dt>
+                    <dd>@(_status.LastAppliedAtUtc?.ToString("u") ?? "never")</dd>
+                </dl>
+
+                <div class="form-actions">
+                    <button class="btn btn-outline" @onclick="SeedDefaultsAsync" disabled="@_working">
+                        <MaterialIcon Icon="create_new_folder" Size="MaterialIconSize.Sm" /> Restore default folders
+                    </button>
+                    <button class="btn btn-primary" @onclick="PreviewAsync" disabled="@_working">
+                        <MaterialIcon Icon="sync" Size="MaterialIconSize.Sm" /> Run convergence now
+                    </button>
+                </div>
+            </section>
+
+            @if (_issues.Count > 0)
+            {
+                <section class="settings-section">
+                    <h2>
+                        <span class="section-icon"><MaterialIcon Icon="warning" Size="MaterialIconSize.Sm" /></span>
+                        Validation (@_issues.Count issue(s))
+                    </h2>
+                    <ul class="issue-list">
+                        @foreach (var issue in _issues)
+                        {
+                            <li>
+                                <strong>@issue.Severity</strong> · <code>@(string.IsNullOrEmpty(issue.RelativePath) ? "(root)" : issue.RelativePath)</code>
+                                — @issue.Message
+                            </li>
+                        }
+                    </ul>
+                </section>
+            }
+
+            <section class="settings-section">
+                <h2>
+                    <span class="section-icon"><MaterialIcon Icon="folder_open" Size="MaterialIconSize.Sm" /></span>
+                    Browse
+                </h2>
+
+                <p>
+                    <button class="btn-link" @onclick="() => LoadBrowseAsync(null)" disabled="@_working">Template root</button>
+                    @if (!string.IsNullOrEmpty(_browsePath))
+                    {
+                        <span> / @_browsePath</span>
+                    }
+                </p>
+
+                @if (_browseEntries.Count == 0)
+                {
+                    <p class="text-muted">This directory is empty.</p>
+                }
+                else
+                {
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Kind</th>
+                                <th>Size</th>
+                                <th>Validation</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var entry in _browseEntries)
+                            {
+                                <tr>
+                                    <td>
+                                        @if (entry.Kind == "Folder")
+                                        {
+                                            <button class="btn-link" @onclick="() => LoadBrowseAsync(entry.RelativePath)">
+                                                <MaterialIcon Icon="folder" Size="MaterialIconSize.Sm" /> @entry.Name
+                                            </button>
+                                        }
+                                        else
+                                        {
+                                            <MaterialIcon Icon="description" Size="MaterialIconSize.Sm" />
+                                            @entry.Name
+                                        }
+                                    </td>
+                                    <td>@entry.Kind</td>
+                                    <td>@FormatSize(entry.Size)</td>
+                                    <td>@entry.ValidationState</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                }
+            </section>
+
+            @if (_preview is not null)
+            {
+                <section class="settings-section">
+                    <h2>
+                        <span class="section-icon"><MaterialIcon Icon="sync" Size="MaterialIconSize.Sm" /></span>
+                        Convergence preview
+                    </h2>
+
+                    <p>
+                        Adds <strong>@_preview.Adds</strong> ·
+                        Updates <strong>@_preview.Updates</strong> ·
+                        Overwrites <strong>@_preview.Overwrites</strong> ·
+                        Deletes <strong>@_preview.Deletes</strong>
+                    </p>
+
+                    @if (_preview.SamplePaths.Count > 0)
+                    {
+                        <ul>
+                            @foreach (var path in _preview.SamplePaths)
+                            {
+                                <li><code>@path</code></li>
+                            }
+                        </ul>
+                    }
+
+                    <div class="form-group">
+                        <label class="toggle-row">
+                            <span class="toggle-text">
+                                <span class="toggle-title">Publish template updates</span>
+                                <span class="hint">
+                                    Replace unmodified copies of edited template files.
+                                    Default content has no version history, so the copy is replaced in place.
+                                </span>
+                            </span>
+                            <input type="checkbox" class="toggle-input" @bind="_publishUpdates" />
+                        </label>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="toggle-row">
+                            <span class="toggle-text">
+                                <span class="toggle-title">Overwrite modified copies</span>
+                                <span class="hint">
+                                    Replace copies users changed. Requires a separate acknowledgement.
+                                </span>
+                            </span>
+                            <input type="checkbox" class="toggle-input" @bind="_overwriteModified" />
+                        </label>
+                        @if (_overwriteModified)
+                        {
+                            <label class="toggle-row">
+                                <span class="toggle-text">
+                                    <span class="toggle-title">I understand user changes will be replaced</span>
+                                </span>
+                                <input type="checkbox" class="toggle-input" @bind="_confirmOverwrites" />
+                            </label>
+                        }
+                    </div>
+
+                    @if (_preview.Deletes > 0)
+                    {
+                        <div class="alert alert-warning" role="alert">
+                            This run would permanently delete <strong>@_preview.Deletes</strong> copy(ies) of
+                            template items that were removed.
+                        </div>
+                        <label class="toggle-row">
+                            <span class="toggle-text">
+                                <span class="toggle-title">Confirm deletions</span>
+                            </span>
+                            <input type="checkbox" class="toggle-input" @bind="_confirmDeletions" />
+                        </label>
+                    }
+
+                    <div class="form-actions">
+                        <button class="btn btn-primary" @onclick="RunConvergenceAsync" disabled="@_working">
+                            <MaterialIcon Icon="play_arrow" Size="MaterialIconSize.Sm" /> Confirm and run
+                        </button>
+                        <button class="btn btn-outline" @onclick="() => _preview = null" disabled="@_working">Cancel</button>
+                    </div>
+                </section>
+            }
+
+            <section class="settings-section">
+                <h2>
+                    <span class="section-icon"><MaterialIcon Icon="person_add" Size="MaterialIconSize.Sm" /></span>
+                    Queue
+                </h2>
+                @if (_queue is null)
+                {
+                    <p class="text-muted">Queue status unavailable.</p>
+                }
+                else
+                {
+                    <p>
+                        Pending <strong>@_queue.Pending</strong> ·
+                        In progress <strong>@_queue.InProgress</strong> ·
+                        Completed <strong>@_queue.Completed</strong> ·
+                        Partial <strong>@_queue.Partial</strong> ·
+                        Failed <strong>@_queue.Failed</strong> ·
+                        Skipped <strong>@_queue.Skipped</strong>
+                    </p>
+                }
+            </section>
+
+            <p class="text-muted">
+                The template is filesystem-managed. Add or remove files with your normal server tools,
+                then run <strong>Validate</strong>. New items converge on the next start-up or daily pass;
+                existing items are never changed silently.
+            </p>
+        }
+    }
+</div>

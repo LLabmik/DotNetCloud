@@ -67,6 +67,9 @@ public static class Program
         // Component management
         rootCommand.Subcommands.Add(ComponentCommands.Create());
 
+        // Files module (default user content template)
+        rootCommand.Subcommands.Add(DefaultContentCommands.Create());
+
         // Collabora CODE installation
         rootCommand.Subcommands.Add(CollaboraInstallCommand.Create());
 

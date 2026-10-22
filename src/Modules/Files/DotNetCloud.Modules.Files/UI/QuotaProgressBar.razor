@@ -17,5 +17,11 @@
         <span class="quota-label @(Quota.IsExceeded ? "quota-exceeded" : Quota.IsCritical ? "quota-critical" : Quota.IsWarning ? "quota-warning" : "")">
             @QuotaLabel
         </span>
+        @if (Quota.ExemptBytes > 0)
+        {
+            <span class="quota-exempt-label">
+                @FormatBytes(Quota.ExemptBytes) default content (free)
+            </span>
+        }
     </div>
 }

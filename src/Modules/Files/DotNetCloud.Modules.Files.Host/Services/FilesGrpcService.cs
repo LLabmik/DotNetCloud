@@ -32,6 +32,8 @@ public sealed class FilesGrpcService : FilesService.FilesServiceBase
     private readonly ILogger<FilesGrpcService> _logger;
     private readonly IFileVersioningSettingsProvider _versioningSettings;
     private readonly IWholeFileStorageService? _wholeFileStorage;
+    private readonly DefaultUserContentProvisioner? _defaultUserContentProvisioner;
+    private readonly DefaultUserContentQueue? _defaultUserContentQueue;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="FilesGrpcService"/> class.
@@ -43,7 +45,9 @@ public sealed class FilesGrpcService : FilesService.FilesServiceBase
         IAuditLogger auditLogger,
         ILogger<FilesGrpcService> logger,
         IFileVersioningSettingsProvider versioningSettings,
-        IWholeFileStorageService? wholeFileStorageService = null)
+        IWholeFileStorageService? wholeFileStorageService = null,
+        DefaultUserContentProvisioner? defaultUserContentProvisioner = null,
+        DefaultUserContentQueue? defaultUserContentQueue = null)
     {
         _db = db;
         _eventBus = eventBus;
@@ -52,6 +56,8 @@ public sealed class FilesGrpcService : FilesService.FilesServiceBase
         _logger = logger;
         _versioningSettings = versioningSettings;
         _wholeFileStorage = wholeFileStorageService;
+        _defaultUserContentProvisioner = defaultUserContentProvisioner;
+        _defaultUserContentQueue = defaultUserContentQueue;
     }
 
     /// <inheritdoc />
@@ -241,6 +247,15 @@ public sealed class FilesGrpcService : FilesService.FilesServiceBase
             return new RenameNodeResponse { Success = false, ErrorMessage = "Node not found." };
         }
 
+        if (node.IsReadOnly)
+        {
+            return new RenameNodeResponse
+            {
+                Success = false,
+                ErrorMessage = "FILE_READ_ONLY: Default content is read-only and cannot be renamed."
+            };
+        }
+
         node.Name = request.NewName;
         node.UpdatedAt = DateTime.UtcNow;
 
@@ -276,6 +291,15 @@ public sealed class FilesGrpcService : FilesService.FilesServiceBase
         if (node is null)
         {
             return new MoveNodeResponse { Success = false, ErrorMessage = "Node not found." };
+        }
+
+        if (node.IsReadOnly)
+        {
+            return new MoveNodeResponse
+            {
+                Success = false,
+                ErrorMessage = "FILE_READ_ONLY: Default content is read-only and cannot be moved."
+            };
         }
 
         var targetParent = await _db.FileNodes
@@ -801,6 +825,17 @@ public sealed class FilesGrpcService : FilesService.FilesServiceBase
 
         if (existingNode is not null)
         {
+            // A same-name upload would replace the user's default-content copy — an edit of a
+            // read-only file. Copy it first.
+            if (existingNode.IsReadOnly)
+            {
+                return new CompleteUploadResponse
+                {
+                    Success = false,
+                    ErrorMessage = "FILE_READ_ONLY: Default content is read-only. Copy it before uploading changes."
+                };
+            }
+
             // ── Update existing node (version bump) ──
             quotaDelta = session.TotalSize - existingNode.Size;
             existingNode.Size = session.TotalSize;
@@ -1062,6 +1097,15 @@ public sealed class FilesGrpcService : FilesService.FilesServiceBase
         if (node is null || node.OwnerId != userId || node.IsDeleted)
         {
             return new RestoreVersionResponse { Success = false, ErrorMessage = "File not found or access denied." };
+        }
+
+        if (node.IsReadOnly)
+        {
+            return new RestoreVersionResponse
+            {
+                Success = false,
+                ErrorMessage = "FILE_READ_ONLY: Default content keeps no version history and cannot be restored."
+            };
         }
 
         // Create a new version from the old one
@@ -1896,4 +1940,76 @@ public sealed class FilesGrpcService : FilesService.FilesServiceBase
         ".mp4", ".m4v", ".mkv", ".avi", ".mov", ".wmv", ".flv",
         ".webm", ".3gp", ".mpg", ".mpeg", ".ts"
     ];
+
+    /// <inheritdoc />
+    public override async Task<ProvisionUserDefaultsResponse> ProvisionUserDefaults(
+        ProvisionUserDefaultsRequest request, ServerCallContext context)
+    {
+        if (!Guid.TryParse(request.UserId, out var userId))
+        {
+            return new ProvisionUserDefaultsResponse
+            {
+                Success = false,
+                Status = nameof(UserContentProvisioningStatus.Failed),
+                ErrorMessage = "Invalid user ID format."
+            };
+        }
+
+        // Internal, loopback-only call: Core.Server has already authenticated the user.
+        if (_defaultUserContentProvisioner is null)
+        {
+            return new ProvisionUserDefaultsResponse
+            {
+                Success = false,
+                Status = nameof(UserContentProvisioningStatus.Failed),
+                ErrorMessage = "Default-content provisioning is not registered in this host."
+            };
+        }
+
+        try
+        {
+            var result = await _defaultUserContentProvisioner
+                .ReconcileAsync(userId, ReconcileMode.AddOnly, context.CancellationToken);
+
+            return new ProvisionUserDefaultsResponse
+            {
+                Success = result.Status != UserContentProvisioningStatus.Failed,
+                Status = result.Status.ToString(),
+                ItemsCreated = result.ItemsCreated,
+                ItemsSkipped = result.ItemsSkipped,
+                BytesCopied = result.BytesCopied,
+                ErrorMessage = result.Error ?? string.Empty
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Default-content provisioning failed for {UserId}.", userId);
+            return new ProvisionUserDefaultsResponse
+            {
+                Success = false,
+                Status = nameof(UserContentProvisioningStatus.Failed),
+                ErrorMessage = ex.Message
+            };
+        }
+    }
+
+    /// <inheritdoc />
+    public override async Task<EnqueueProvisioningResponse> EnqueueProvisioning(
+        EnqueueProvisioningRequest request, ServerCallContext context)
+    {
+        if (_defaultUserContentQueue is null)
+            return new EnqueueProvisioningResponse();
+
+        var userIds = new List<Guid>(Math.Min(request.UserIds.Count, 1000));
+        foreach (var text in request.UserIds.Take(1000))
+        {
+            if (Guid.TryParse(text, out var id))
+                userIds.Add(id);
+        }
+
+        var (queued, skipped) = await _defaultUserContentQueue
+            .EnqueueAsync(userIds, resetAttempts: false, context.CancellationToken);
+
+        return new EnqueueProvisioningResponse { Queued = queued, Skipped = skipped };
+    }
 }

@@ -3,8 +3,74 @@
 > **Document Version:** 1.0  
 > **Purpose:** Comprehensive task breakdown for implementing the DotNetCloud architecture  
 > **Scope:** All phases from Foundation (Phase 0) through Auto-Updates (Phase 11)  
-> **Last Updated:** 2026-10-13
+> **Last Updated:** 2026-10-21
 > **Audience:** Development team, project managers, technical leads
+
+---
+
+## Recent Feature — Default user content template (2026-10-21, `feature/default-user-content`)
+
+> Every new account is seeded from an administrator-managed template at `${DOTNETCLOUD_DATA_DIR}/default-user-content` (`docs/DEFAULT_USER_CONTENT_PLAN.md`). Existing accounts converge on every start-up and daily. Automatic passes are add-only; removals and edits require an explicitly confirmed run. Starter content is read-only, quota-free, and **keeps no version history**.
+
+**Core**
+- ✓ `UserCreatedEvent` + best-effort publication from `AuthService.RegisterAsync`
+- ✓ `UserContentProvisioningDispatcher` (bounded channel, 2 drain workers, 3 transport retries)
+- ✓ `StartupUserContentSweepService` (retries until the module answers, 1 000-user batches, daily pass)
+- ✓ `IFilesApiClient.ProvisionUserDefaultsAsync` / `EnqueueProvisioningAsync` + `FilesGrpcApiClient` implementations
+- ✓ `ErrorCodes.FILE_READ_ONLY` + `FileReadOnlyException`
+
+**Files module — data & storage**
+- ✓ `UserContentProvisioning` / `UserDefaultContentItem` entities + both provider migrations
+- ✓ `FileNode.IsReadOnly`, `FileQuota.ExemptBytes`, `QuotaDto.ExemptBytes`, `FileNodeDto.IsDefaultContent`
+- ✓ `DefaultUserContentOptions` + `DefaultUserContentSettingsProvider` (admin overlay)
+- ✓ `DefaultUserContentStore` (manifest, validation, ZIP export, additive seeding) — read-only over the template
+- ✓ `FileImportService` (content-addressed whole-file blob per unique content, inline EXIF, events)
+- ✓ `DefaultUserContentProvisioner` state machine (add/adopt/Present/Outdated/ChangedByUser/RemovedByUser)
+- ✓ `DefaultUserContentQueue` + `DefaultUserContentRetryService` (lease-based claims, 5-attempt cap)
+- ✓ `DefaultUserContentAdminService` + `DefaultUserContentController` (`effective`, `browse`, `validate`, `seed-defaults`, `reconcile`, `reconcile-status`, `preview`, `export`, `failed-users`)
+- ✓ Quota exemption recomputed from present, unmodified tracking rows; reserve/remaining use `MaxBytes + ExemptBytes`
+- ✓ Trash hooks (RemovedByUser / restored classification / purge tombstones) and retention exclusion for starter content + ancestors
+- ✓ Removal pass is deepest-first: a removed template file is deleted before its folder is evaluated, so an emptied folder is removed too
+- ✓ Read-only enforcement (upload initiate/complete, WOPI save, version restore, rename, move); delete/copy/share/tag/comment/download remain allowed
+- ✓ **No version tracking for default files** — exactly one current version row, replaced in place on publish updates
+- ✓ `UserDeletedEventSubscriber` cleans up both new tables
+
+**UI**
+- ✓ `/admin/files/default-content` inspector (status, validation, browser, preview, confirmation gates, queue)
+- ✓ `/admin/files` header link + default-content enable toggle (kill switch)
+- ✓ Files browser lock + "Default" badge; context menu keeps delete/copy/share/download and drops rename/move
+- ✓ Version history is view-only (empty history) for default content
+- ✓ Quota bar shows "N MB default content (free)"
+
+**CLI & deployment**
+- ✓ `dotnetcloud files default-content status|validate|reconcile|seed-defaults|sync-seed|export|import`
+- ✓ `DefaultUserContentArchive` (zip-slip, symlink, bomb, caps, illegal names; merge/replace with dated backup)
+- ✓ `CliConfig` `JsonExtensionData` so setup/cert renewal no longer drop `Files:DefaultUserContent:RootPath`
+- ✓ `deploy/seed/default-user-content/` + Dockerfile/entrypoint seeding + `release.yml` staging + `tools/install.sh` marker-guarded seeding
+- ✓ `scripts/deploy.sh --verify` template-preservation assertion; uninstall notice
+- ✓ Restore fixes: `RestoreOptions.DataDirectory` implemented in `BackupService`; CLI restore fixes ownership
+- ✓ Backups archive empty directories (ZIP has no implicit dir entries) and CLI restore recreates them
+- ✓ CLI resolves the template root from the configured data directory (sets `DOTNETCLOUD_DATA_DIR`) instead of the current directory
+
+**Verification**
+- ✓ Files.Tests **987 pass / 0 fail** (19 new default-content tests); CLI.Tests **181 pass**; Core.Auth **180 pass**; Core.Server **803 pass / 2 skip**
+- ✓ Both migrations generated (PostgreSQL + SQL Server) and `DotNetCloud.CI.slnf` builds clean
+- ✓ **Live e2e on mint22** (4 deploys, 15/15 targets each, hashes verified, `/health/ready` 200): migration applied (`core.UserContentProvisioning`, `core.UserDefaultContentItems`, `FileNodes.IsReadOnly`, `FileQuotas.ExemptBytes`); existing users converged (adoption, no duplicate folders); new registration provisioned **immediately** (5 folders + file, 6 items); nested template file landed under `Templates/E2E/` for every user; one shared blob for 3 users; exactly **one version** per default file before and after a publish update; quota `UsedBytes=0 / ExemptBytes=67`; user trash → `RemovedByUser` and not recreated; restore → `Present`; template edit stayed pending until `--publish-updates`; removal stayed pending until `--confirm-deletions` (then file + emptied folder both deleted); ZIP export/validated import round-trip; backup includes the template including empty folders; upgrade left the template tree hash **unchanged**
+
+---
+
+## Recent Work — Safe package refresh (2026-10-21, `feature/default-user-content`)
+
+> Applied the low-risk patch/minor upgrades identified by `dotnet list package --outdated/--deprecated/--vulnerable`; major-version holds were left alone.
+
+- ✓ EF Core CLI tools `dotnet-ef` **10.0.3 → 10.0.13** (matches the runtime; warning gone, both migrations re-verified clean)
+- ✓ Test stack: MSTest **4.3.3 → 4.5.1** (also clears the “Legacy” deprecation marker), `Microsoft.NET.Test.Sdk` **18.8.1 → 18.11.0**, Moq **4.20.72 → 4.21.0**, coverlet **10.0.1 → 10.1.0**
+- ✓ OpenTelemetry **1.17.0 → 1.20.1** (Console/OTLP/Hosting/Instr. AspNetCore/Http/Runtime)
+- ✓ gRPC **2.80.0 → 2.84.0** + `Google.Protobuf` **3.35.1 → 3.36.2**; OpenIddict **7.6.0 → 7.7.2**
+- ✓ Libraries: MailKit **4.18.1**, Markdig **1.4.2**, HtmlSanitizer **9.2.1039** + AngleSharp **1.8.5**, Scalar.AspNetCore **2.18.2**, System.CommandLine **2.0.13**, ImageSharp **4.1.3**, NPOI **2.8.1**, PdfPig **0.1.16**, `Microsoft.AspNetCore.Http.Abstractions` **2.3.13**, Google APIs **1.77.0**
+- ✓ Desktop: Avalonia **12.1.4**, Tmds.DBus.Protocol **0.95.1**, client SQLitePCLRaw overrides aligned to **3.0.5 / 3.53.3**
+- ✓ Remaining `--outdated` entries are intentional holds: Certes **4.x** (breaking ACME API), Microsoft.OpenApi **3.x** (breaks the OpenAPI source generator), MAUI **10.0.120** (must match the installed workload), OTel beta packages (no newer version)
+- ✓ Verification after the refresh: `dotnet build DotNetCloud.CI.slnf` clean; Files **987 pass**, CLI **181 pass**, Core.Server **803 pass / 2 skip**, Core.Auth **180 pass**; no deprecated packages remain in the CI solution
 
 ---
 

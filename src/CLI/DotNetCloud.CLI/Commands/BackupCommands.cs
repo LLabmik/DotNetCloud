@@ -410,6 +410,24 @@ internal static class BackupCommands
                     fileCount++;
                 }
 
+                // Empty directories are meaningful template content (the stock default-user-content
+                // folders are empty until an operator adds files). ZIP stores no implicit directory
+                // entries, so archive them explicitly or a restore loses them.
+                var emptyDirectories = Directory
+                    .GetDirectories(dataDir, "*", SearchOption.AllDirectories)
+                    .Where(dir => !IsExcludedFromArchive(dir, exclusions))
+                    .Where(dir => !Directory.EnumerateFileSystemEntries(dir).Any())
+                    .ToArray();
+
+                foreach (var directory in emptyDirectories)
+                {
+                    var entryName = "data/"
+                        + Path.GetRelativePath(dataDir, directory).Replace('\\', '/')
+                        + "/";
+                    archive.CreateEntry(entryName);
+                    fileCount++;
+                }
+
                 ConsoleOutput.WriteSuccess($"Data directory backed up ({dataFiles.Length} files).");
 
                 var excludedCount = allDataFiles.Length - dataFiles.Length;
@@ -571,9 +589,22 @@ internal static class BackupCommands
                         continue;
                     }
 
+                    // Directory entry (empty folders such as the default-user-content template).
+                    if (entry.FullName.EndsWith('/'))
+                    {
+                        Directory.CreateDirectory(targetPath);
+                        continue;
+                    }
+
                     Directory.CreateDirectory(Path.GetDirectoryName(targetPath)!);
                     entry.ExtractToFile(targetPath, overwrite: true);
                 }
+
+                // Restored files are written as root (the CLI re-execs under sudo). The service
+                // runs as the unprivileged 'dotnetcloud' user and must be able to read the
+                // default-user-content template, so restore ownership explicitly.
+                FixDataDirectoryOwnership(resolvedDataDir);
+
                 ConsoleOutput.WriteSuccess($"Data directory restored ({dataEntries.Count} files).");
             }
 
@@ -803,4 +834,36 @@ internal static class BackupCommands
         < 1024 * 1024 * 1024 => $"{bytes / (1024.0 * 1024.0):F1} MB",
         _ => $"{bytes / (1024.0 * 1024.0 * 1024.0):F2} GB",
     };
+
+    /// <summary>
+    /// Restores ownership of the data directory to the service user after an extraction performed
+    /// as root. Best-effort: a missing 'dotnetcloud' user (development installs) is not an error.
+    /// </summary>
+    private static void FixDataDirectoryOwnership(string dataDirectory)
+    {
+        if (OperatingSystem.IsWindows() || !Directory.Exists(dataDirectory))
+            return;
+
+        var serviceUser = Environment.GetEnvironmentVariable("DOTNETCLOUD_SERVICE_USER") ?? "dotnetcloud";
+
+        try
+        {
+            var startInfo = new System.Diagnostics.ProcessStartInfo("chown")
+            {
+                UseShellExecute = false,
+                RedirectStandardError = true,
+                RedirectStandardOutput = true
+            };
+            startInfo.ArgumentList.Add("-R");
+            startInfo.ArgumentList.Add($"{serviceUser}:{serviceUser}");
+            startInfo.ArgumentList.Add(dataDirectory);
+
+            using var process = System.Diagnostics.Process.Start(startInfo);
+            process?.WaitForExit(TimeSpan.FromMinutes(2));
+        }
+        catch (Exception ex)
+        {
+            ConsoleOutput.WriteWarning($"Could not fix ownership of '{dataDirectory}': {ex.Message}");
+        }
+    }
 }

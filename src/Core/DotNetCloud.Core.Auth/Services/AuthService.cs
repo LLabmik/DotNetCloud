@@ -4,6 +4,7 @@ using DotNetCloud.Core.Authorization;
 using DotNetCloud.Core.Constants;
 using DotNetCloud.Core.Data.Entities.Identity;
 using DotNetCloud.Core.DTOs;
+using DotNetCloud.Core.Events;
 using DotNetCloud.Core.Services;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.DependencyInjection;
@@ -141,6 +142,11 @@ public sealed class AuthService : IAuthService
             await SetDemoUserQuotaAsync(user.Id, caller);
         }
 
+        // Signal account creation so the core can provision administrator-managed default content.
+        // Best-effort: registration must succeed even when the Files module is down; the start-up
+        // convergence sweep will catch the account up later.
+        await PublishUserCreatedAsync(user, isDemoUser);
+
         var requiresEmailConfirmation = _userManager.Options.SignIn.RequireConfirmedEmail;
         if (requiresEmailConfirmation && user.Email is not null)
         {
@@ -175,6 +181,33 @@ public sealed class AuthService : IAuthService
             Email = user.Email,
             RequiresEmailConfirmation = requiresEmailConfirmation && user.Email is not null,
         };
+    }
+
+    /// <summary>
+    /// Publishes <see cref="UserCreatedEvent"/> on a best-effort basis.
+    /// </summary>
+    private async Task PublishUserCreatedAsync(ApplicationUser user, bool isDemoUser)
+    {
+        try
+        {
+            if (_serviceProvider.GetService(typeof(IEventBus)) is not IEventBus eventBus)
+                return;
+
+            await eventBus.PublishAsync(new UserCreatedEvent
+            {
+                EventId = Guid.CreateVersion7(),
+                CreatedAt = DateTime.UtcNow,
+                UserId = user.Id,
+                UserName = user.UserName ?? string.Empty,
+                DisplayName = user.DisplayName,
+                IsDemoUser = isDemoUser
+            }, CallerContext.CreateSystemContext());
+        }
+        catch (Exception ex)
+        {
+            // Registration already succeeded; a failed publication is retried by the startup sweep.
+            _logger.LogError(ex, "Failed to publish UserCreatedEvent for user {UserId}", user.Id);
+        }
     }
 
     /// <summary>

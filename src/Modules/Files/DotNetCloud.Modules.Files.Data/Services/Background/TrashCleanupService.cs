@@ -91,6 +91,17 @@ internal sealed class TrashCleanupService : BackgroundService
             if (allTrash.Count == 0)
                 goto ChunkGC;
 
+            // Starter content is intentionally exempt from retention: a user-deleted template file
+            // stays recoverable until they restore, purge it explicitly, or empty the trash.
+            // Ancestor folders are protected too, so a purge can never take tracked files with it.
+            var protectedIds = await DefaultContentTracking.GetProtectedNodeIdsAsync(db, cancellationToken);
+            if (protectedIds.Count > 0)
+            {
+                allTrash = allTrash.Where(n => !protectedIds.Contains(n.Id)).ToList();
+                if (allTrash.Count == 0)
+                    goto ChunkGC;
+            }
+
             // Resolve per-org overrides if any are configured
             IReadOnlyDictionary<Guid, Guid>? userOrgs = null;
             if (_options.OrganizationOverrides.Count > 0 && orgResolver is not null)

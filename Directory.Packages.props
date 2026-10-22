@@ -4,15 +4,15 @@
     <PackageVersion Include="AspNetCore.HealthChecks.NpgSql" Version="9.0.0" />
     <PackageVersion Include="AspNetCore.HealthChecks.SqlServer" Version="9.0.0" />
     <!-- Avalonia UI -->
-    <PackageVersion Include="Avalonia" Version="12.1.0" />
+    <PackageVersion Include="Avalonia" Version="12.1.4" />
     <PackageVersion Include="Avalonia.BuildServices" Version="11.3.2" />
-    <PackageVersion Include="Avalonia.Desktop" Version="12.1.0" />
-    <PackageVersion Include="Avalonia.Fonts.Inter" Version="12.1.0" />
-    <PackageVersion Include="Avalonia.Themes.Fluent" Version="12.1.0" />
+    <PackageVersion Include="Avalonia.Desktop" Version="12.1.4" />
+    <PackageVersion Include="Avalonia.Fonts.Inter" Version="12.1.4" />
+    <PackageVersion Include="Avalonia.Themes.Fluent" Version="12.1.4" />
     <!-- MVVM -->
     <PackageVersion Include="CommunityToolkit.Mvvm" Version="8.4.2" />
     <!-- Test coverage -->
-    <PackageVersion Include="coverlet.collector" Version="10.0.1" />
+    <PackageVersion Include="coverlet.collector" Version="10.1.0" />
     <!-- Cron scheduler -->
     <PackageVersion Include="Cronos" Version="0.13.0" />
     <!-- Diff / document -->
@@ -20,22 +20,29 @@
     <PackageVersion Include="DocumentFormat.OpenXml" Version="3.5.1" />
     <!-- Roslyn-based dev tooling (tools/TestTautologyScanner) -->
     <PackageVersion Include="Microsoft.CodeAnalysis.CSharp" Version="5.9.0" />
+    <!-- Transitive pinning: keep the Roslyn workspace packages on the same version as the compiler.
+         EF Core Design 10.0.13 references CSharp.Workspaces 5.0.0, which requires Common 5.0.0;
+         without these pins central transitive pinning produces an NU1107 restore conflict. -->
+    <PackageVersion Include="Microsoft.CodeAnalysis.Common" Version="5.9.0" />
+    <PackageVersion Include="Microsoft.CodeAnalysis.CSharp.Workspaces" Version="5.9.0" />
+    <PackageVersion Include="Microsoft.CodeAnalysis.Workspaces.Common" Version="5.9.0" />
+    <PackageVersion Include="Microsoft.CodeAnalysis.Workspaces.MSBuild" Version="5.9.0" />
     <!-- Google APIs -->
-    <PackageVersion Include="Google.Apis.Auth" Version="1.75.0" />
-    <PackageVersion Include="Google.Apis.Gmail.v1" Version="1.74.0.4162" />
+    <PackageVersion Include="Google.Apis.Auth" Version="1.77.0" />
+    <PackageVersion Include="Google.Apis.Gmail.v1" Version="1.77.0.4295" />
     <!-- gRPC / Protobuf -->
-    <PackageVersion Include="Google.Protobuf" Version="3.35.1" />
-    <PackageVersion Include="Grpc.AspNetCore" Version="2.80.0" />
+    <PackageVersion Include="Google.Protobuf" Version="3.36.2" />
+    <PackageVersion Include="Grpc.AspNetCore" Version="2.84.0" />
     <PackageVersion Include="Grpc.Core.Testing" Version="2.46.6" />
-    <PackageVersion Include="Grpc.Net.Client" Version="2.80.0" />
-    <PackageVersion Include="Grpc.Tools" Version="2.83.0" />
+    <PackageVersion Include="Grpc.Net.Client" Version="2.84.0" />
+    <PackageVersion Include="Grpc.Tools" Version="2.84.0" />
     <!-- Email -->
     <PackageVersion Include="LTRData.FuseDotNet" Version="1.0.0.14" />
-    <PackageVersion Include="MailKit" Version="4.17.0" />
+    <PackageVersion Include="MailKit" Version="4.18.1" />
     <!-- HTML / Markdown -->
-    <PackageVersion Include="AngleSharp" Version="1.6.0" />
-    <PackageVersion Include="HtmlSanitizer" Version="9.1.973" />
-    <PackageVersion Include="Markdig" Version="1.3.2" />
+    <PackageVersion Include="AngleSharp" Version="1.8.5" />
+    <PackageVersion Include="HtmlSanitizer" Version="9.2.1039" />
+    <PackageVersion Include="Markdig" Version="1.4.2" />
     <!-- .NET 10.0.13 servicing release (Oct 2026). The 10.0.10 family carries four advisories:
          WebAssembly.Server GHSA-g27p-qf6j-c96c / GHSA-qjpx-jqm5-h2c4 (high),
          SignalR.Common GHSA-334f-vvp4-7g6p (high),
@@ -51,7 +58,7 @@
     <PackageVersion Include="Microsoft.AspNetCore.Components.WebAssembly.Server" Version="10.0.13" />
     <!-- MAUI packages pinned; use VersionOverride in Android projects if workload differs -->
     <PackageVersion Include="Microsoft.AspNetCore.Components.WebView.Maui" Version="10.0.90" />
-    <PackageVersion Include="Microsoft.AspNetCore.Http.Abstractions" Version="2.3.11" />
+    <PackageVersion Include="Microsoft.AspNetCore.Http.Abstractions" Version="2.3.13" />
     <PackageVersion Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="10.0.13" />
     <PackageVersion Include="Microsoft.AspNetCore.Mvc.Testing" Version="10.0.13" />
     <PackageVersion Include="Microsoft.AspNetCore.OpenApi" Version="10.0.13" />
@@ -85,37 +92,37 @@
     <PackageVersion Include="Microsoft.Maui.Controls" Version="10.0.90" />
     <PackageVersion Include="Microsoft.Maui.Controls.Compatibility" Version="10.0.90" />
     <!-- Test infrastructure -->
-    <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.8.1" />
+    <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.11.0" />
     <!-- GHSA-v5pm-xwqc-g5wc / CVE-2026-49451 is patched in 2.7.5+; Microsoft.AspNetCore.OpenApi
          10.0.13 additionally requires >= 2.12.2, so pin the current 2.x line. 3.x still breaks the
          OpenApi source generator. -->
     <PackageVersion Include="Microsoft.OpenApi" Version="2.12.2" />
-    <PackageVersion Include="Moq" Version="4.20.72" />
-    <PackageVersion Include="MSTest.TestAdapter" Version="4.3.3" />
-    <PackageVersion Include="MSTest.TestFramework" Version="4.3.3" />
+    <PackageVersion Include="Moq" Version="4.21.0" />
+    <PackageVersion Include="MSTest.TestAdapter" Version="4.5.1" />
+    <PackageVersion Include="MSTest.TestFramework" Version="4.5.1" />
     <!-- Database -->
     <PackageVersion Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.3" />
-    <PackageVersion Include="NPOI" Version="2.8.0" />
+    <PackageVersion Include="NPOI" Version="2.8.1" />
     <!-- OpenIddict / Auth -->
-    <PackageVersion Include="OpenIddict.AspNetCore" Version="7.6.0" />
-    <PackageVersion Include="OpenIddict.EntityFrameworkCore" Version="7.6.0" />
-    <PackageVersion Include="OpenIddict.Server.AspNetCore" Version="7.6.0" />
-    <PackageVersion Include="OpenIddict.Validation.AspNetCore" Version="7.6.0" />
-    <PackageVersion Include="OpenIddict.Validation.SystemNetHttp" Version="7.6.0" />
+    <PackageVersion Include="OpenIddict.AspNetCore" Version="7.7.2" />
+    <PackageVersion Include="OpenIddict.EntityFrameworkCore" Version="7.7.2" />
+    <PackageVersion Include="OpenIddict.Server.AspNetCore" Version="7.7.2" />
+    <PackageVersion Include="OpenIddict.Validation.AspNetCore" Version="7.7.2" />
+    <PackageVersion Include="OpenIddict.Validation.SystemNetHttp" Version="7.7.2" />
     <PackageVersion Include="Otp.NET" Version="1.4.1" />
     <!-- OpenTelemetry -->
-    <PackageVersion Include="OpenTelemetry.Exporter.Console" Version="1.17.0" />
-    <PackageVersion Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" Version="1.17.0" />
+    <PackageVersion Include="OpenTelemetry.Exporter.Console" Version="1.20.1" />
+    <PackageVersion Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" Version="1.20.1" />
     <PackageVersion Include="OpenTelemetry.Exporter.Prometheus.AspNetCore" Version="1.15.0-beta.1" />
-    <PackageVersion Include="OpenTelemetry.Extensions.Hosting" Version="1.17.0" />
-    <PackageVersion Include="OpenTelemetry.Instrumentation.AspNetCore" Version="1.17.0" />
+    <PackageVersion Include="OpenTelemetry.Extensions.Hosting" Version="1.20.1" />
+    <PackageVersion Include="OpenTelemetry.Instrumentation.AspNetCore" Version="1.20.1" />
     <PackageVersion Include="OpenTelemetry.Instrumentation.GrpcNetClient" Version="1.15.0-beta.1" />
-    <PackageVersion Include="OpenTelemetry.Instrumentation.Http" Version="1.17.0" />
-    <PackageVersion Include="OpenTelemetry.Instrumentation.Runtime" Version="1.17.0" />
+    <PackageVersion Include="OpenTelemetry.Instrumentation.Http" Version="1.20.1" />
+    <PackageVersion Include="OpenTelemetry.Instrumentation.Runtime" Version="1.20.1" />
     <!-- PDF -->
-    <PackageVersion Include="PdfPig" Version="0.1.15" />
+    <PackageVersion Include="PdfPig" Version="0.1.16" />
     <!-- API explorer -->
-    <PackageVersion Include="Scalar.AspNetCore" Version="2.16.16" />
+    <PackageVersion Include="Scalar.AspNetCore" Version="2.18.2" />
     <!-- Serilog -->
     <PackageVersion Include="Serilog" Version="4.4.0" />
     <PackageVersion Include="Serilog.AspNetCore" Version="10.0.0" />
@@ -131,7 +138,7 @@
          GHSA-4q3p-rj5x-xv7p, GHSA-ffp7-56pq-64mr, GHSA-gwg2-r3hj-4w44,
          GHSA-j3p4-wp97-rph4, GHSA-j9gm-c75j-xc9q, GHSA-jjfr-hcj7-qf5w, GHSA-wmxv-xphr-5c9g
          (all ">= 4.0.0, <= 4.1.1", first patched 4.1.2). Bump, not suppress. -->
-    <PackageVersion Include="SixLabors.ImageSharp" Version="4.1.2" />
+    <PackageVersion Include="SixLabors.ImageSharp" Version="4.1.3" />
     <!-- SQLite (mobile) -->
     <PackageVersion Include="sqlite-net-pcl" Version="1.11.285" />
     <!-- Security: override vulnerable transitive dependency
@@ -141,7 +148,7 @@
     <PackageVersion Include="SQLitePCLRaw.bundle_e_sqlite3" Version="3.0.5" />
     <PackageVersion Include="SQLitePCLRaw.lib.e_sqlite3" Version="3.53.3" />
     <!-- CLI -->
-    <PackageVersion Include="System.CommandLine" Version="2.0.10" />
+    <PackageVersion Include="System.CommandLine" Version="2.0.13" />
     <!-- Windows / platform -->
     <PackageVersion Include="System.Management" Version="10.0.13" />
     <!-- Security: override vulnerable transitive dependencies.
@@ -155,7 +162,7 @@
     <!-- Media metadata -->
     <PackageVersion Include="TagLibSharp" Version="2.3.0" />
     <!-- Linux D-Bus -->
-    <PackageVersion Include="Tmds.DBus.Protocol" Version="0.94.2" />
+    <PackageVersion Include="Tmds.DBus.Protocol" Version="0.95.1" />
     <!-- Push notifications: no transport library and no Firebase package. FCM was removed
          outright so no message metadata reaches Google infrastructure; background chat alerts
          use the app's own conditional poll (see docs/ANDROID_CHAT_BACKGROUND_ALERTS_PLAN.md). -->

@@ -98,6 +98,10 @@ public abstract class FilesControllerBase : ControllerBase
         {
             return StatusCode(403, ErrorEnvelope(ex.ErrorCode, ex.Message));
         }
+        catch (FileReadOnlyException ex)
+        {
+            return StatusCode(403, ErrorEnvelope(ex.ErrorCode, ex.Message));
+        }
         catch (ValidationException ex)
         {
             return Conflict(ErrorEnvelope(ex.ErrorCode, ex.Message));

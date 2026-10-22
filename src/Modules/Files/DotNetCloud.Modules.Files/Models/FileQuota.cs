@@ -19,6 +19,13 @@ public sealed class FileQuota
     [System.ComponentModel.DataAnnotations.ConcurrencyCheck]
     public long UsedBytes { get; set; }
 
+    /// <summary>
+    /// Bytes of administrator-managed default content that do not count against the quota.
+    /// Recomputed from the provisioning tracking rows: only content that is still present
+    /// and unmodified is exempt. The usable allowance is <see cref="MaxBytes"/> + this value.
+    /// </summary>
+    public long ExemptBytes { get; set; }
+
     /// <summary>When the quota was last recalculated (UTC).</summary>
     public DateTime LastCalculatedAt { get; set; } = DateTime.UtcNow;
 
@@ -28,9 +35,13 @@ public sealed class FileQuota
     /// <summary>When the quota was last updated (UTC).</summary>
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 
-    /// <summary>Percentage of quota used (0.0 to 100.0+).</summary>
-    public double UsagePercent => MaxBytes > 0 ? (double)UsedBytes / MaxBytes * 100.0 : 0.0;
+    /// <summary>Percentage of quota used (0.0 to 100.0+). Default content is exempt.</summary>
+    public double UsagePercent => MaxBytes > 0
+        ? Math.Max(0, UsedBytes - ExemptBytes) / (double)MaxBytes * 100.0
+        : 0.0;
 
-    /// <summary>Remaining bytes available.</summary>
-    public long RemainingBytes => MaxBytes > 0 ? Math.Max(0, MaxBytes - UsedBytes) : long.MaxValue;
+    /// <summary>Remaining bytes available (the exemption widens the allowance).</summary>
+    public long RemainingBytes => MaxBytes > 0
+        ? Math.Max(0, MaxBytes + ExemptBytes - UsedBytes)
+        : long.MaxValue;
 }

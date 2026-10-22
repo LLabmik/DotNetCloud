@@ -27,12 +27,12 @@ DotNetCloud is a self-hosted cloud platform built on .NET 10. It runs as a Kestr
 
 ### Components
 
-| Component | Description |
-|---|---|
-| **Core Server** | ASP.NET Core web server — REST API, SignalR, Blazor UI, module management |
-| **CLI Tool** | `dotnetcloud` command-line interface for administration |
-| **Module Hosts** | Separate processes for each module (Files, Chat, etc.) |
-| **Database** | PostgreSQL (recommended), SQL Server, or MariaDB |
+| Component        | Description                                                               |
+| ---------------- | ------------------------------------------------------------------------- |
+| **Core Server**  | ASP.NET Core web server — REST API, SignalR, Blazor UI, module management |
+| **CLI Tool**     | `dotnetcloud` command-line interface for administration                   |
+| **Module Hosts** | Separate processes for each module (Files, Chat, etc.)                    |
+| **Database**     | PostgreSQL (recommended), SQL Server, or MariaDB                          |
 
 ### Deployment Architecture
 
@@ -59,22 +59,22 @@ DotNetCloud is a self-hosted cloud platform built on .NET 10. It runs as a Kestr
 
 ### Minimum
 
-| Resource | Requirement |
-|---|---|
-| **CPU** | 2 cores (x64 or ARM64) |
-| **RAM** | 2 GB |
-| **Disk** | 10 GB (OS + application) + storage for user files |
-| **OS** | Ubuntu 22.04+, Debian 12+, RHEL 9+, Windows Server 2019+, Windows 10/11 |
-| **.NET** | .NET 10 Runtime (installed automatically by packages) |
-| **Database** | PostgreSQL 14+, SQL Server 2019+, or MariaDB 10.6+ |
+| Resource     | Requirement                                                             |
+| ------------ | ----------------------------------------------------------------------- |
+| **CPU**      | 2 cores (x64 or ARM64)                                                  |
+| **RAM**      | 2 GB                                                                    |
+| **Disk**     | 10 GB (OS + application) + storage for user files                       |
+| **OS**       | Ubuntu 22.04+, Debian 12+, RHEL 9+, Windows Server 2019+, Windows 10/11 |
+| **.NET**     | .NET 10 Runtime (installed automatically by packages)                   |
+| **Database** | PostgreSQL 14+, SQL Server 2019+, or MariaDB 10.6+                      |
 
 ### Recommended (50–100 users)
 
-| Resource | Recommendation |
-|---|---|
-| **CPU** | 4+ cores |
-| **RAM** | 4–8 GB |
-| **Disk** | SSD, 50+ GB for file storage |
+| Resource     | Recommendation                                   |
+| ------------ | ------------------------------------------------ |
+| **CPU**      | 4+ cores                                         |
+| **RAM**      | 4–8 GB                                           |
+| **Disk**     | SSD, 50+ GB for file storage                     |
 | **Database** | PostgreSQL 16 on dedicated instance or same host |
 
 ### Network
@@ -94,6 +94,7 @@ curl -fsSL https://raw.githubusercontent.com/LLabmik/DotNetCloud/main/tools/inst
 ```
 
 This script:
+
 1. Installs the .NET 10 runtime
 2. Downloads the latest DotNetCloud release
 3. Creates the `dotnetcloud` system user and group
@@ -159,6 +160,7 @@ sudo useradd --system --no-create-home --shell /usr/sbin/nologin dotnetcloud
 # Create directories
 sudo mkdir -p /opt/dotnetcloud
 sudo mkdir -p /var/lib/dotnetcloud/files
+sudo mkdir -p /var/lib/dotnetcloud/default-user-content/{Documents,Photos,Music,Templates,Videos}
 sudo mkdir -p /var/log/dotnetcloud
 sudo mkdir -p /etc/dotnetcloud
 
@@ -292,6 +294,7 @@ sudo -u dotnetcloud dotnetcloud setup
 ```
 
 The wizard will prompt for:
+
 - Database provider and connection string
 - Admin username and password
 - Admin MFA setup (TOTP)
@@ -355,6 +358,12 @@ After installation, the directory layout follows FHS conventions:
 ├── files/                  # File storage root
 │   ├── ab/                 # Content-addressable chunks
 │   └── .thumbnails/        # Thumbnail cache
+├── default-user-content/   # Starter tree copied into each new account
+│   ├── Documents/
+│   ├── Photos/
+│   ├── Music/
+│   ├── Templates/
+│   └── Videos/
 └── data/                   # SQLite databases (sync state, etc.)
 
 /var/log/dotnetcloud/
@@ -379,6 +388,7 @@ powershell.exe -ExecutionPolicy Bypass -File .\tools\install-windows.ps1 -Source
 You will be asked 3 questions: admin email, password, and confirm password. Everything else is automatic.
 
 The script:
+
 1. Verifies ASP.NET Core 10.0 runtime
 2. Enables IIS and required Windows features
 3. Installs URL Rewrite + ARR via winget
@@ -395,6 +405,7 @@ The script:
 After completion, open `https://localhost/` and log in.
 
 **Optional flags:**
+
 - `-SkipDatabaseInstall` — skip PostgreSQL auto-install (bring your own DB)
 - `-SkipHttps` — skip self-signed certificate + HTTPS binding
 - `-Advanced` — use the full CLI setup wizard instead of the simplified prompts
@@ -717,10 +728,11 @@ docker exec -it dotnetcloud dotnetcloud setup
    - Optional description
 
 4. **TLS Configuration**
-  - Enable/disable HTTPS on Kestrel
-  - Public internet mode: Let's Encrypt automatic certificate
-  - Private testing mode: generate a self-signed certificate automatically
-  - Existing certificate mode: specify a custom certificate path
+
+- Enable/disable HTTPS on Kestrel
+- Public internet mode: Let's Encrypt automatic certificate
+- Private testing mode: generate a self-signed certificate automatically
+- Existing certificate mode: specify a custom certificate path
 
 5. **Module Selection**
    - Files module (recommended)
@@ -933,14 +945,19 @@ sudo systemctl restart apache2
 The setup wizard now supports three HTTPS certificate modes:
 
 1. **Public internet (Let's Encrypt)**
-  - Use when your server is publicly reachable and has a real DNS name.
-  - On Linux, the wizard installs `certbot` automatically for issuance and automatic renewal.
+
+- Use when your server is publicly reachable and has a real DNS name.
+- On Linux, the wizard installs `certbot` automatically for issuance and automatic renewal.
+
 2. **Private testing (self-signed)**
-  - Use for LAN/private environments where you do not want to expose the server publicly.
-  - The wizard generates a self-signed PFX certificate and configures DotNetCloud to use it.
-  - Default system install path: `/etc/dotnetcloud/certs/dotnetcloud-selfsigned.pfx`
+
+- Use for LAN/private environments where you do not want to expose the server publicly.
+- The wizard generates a self-signed PFX certificate and configures DotNetCloud to use it.
+- Default system install path: `/etc/dotnetcloud/certs/dotnetcloud-selfsigned.pfx`
+
 3. **Existing certificate file**
-  - Use your own PFX/PEM certificate path.
+
+- Use your own PFX/PEM certificate path.
 
 > Note: Browsers and clients will show trust warnings for self-signed certificates until you trust the certificate on each device.
 
@@ -1075,6 +1092,7 @@ sudo ./scripts/deploy.sh --force
 This is the full local-source deploy: it builds the CI solution filter (Release), publishes the server to `/opt/dotnetcloud/server`, the CLI to `/opt/dotnetcloud`, and every module host to `/opt/dotnetcloud/modules`, then runs `dotnetcloud migrate`, restarts `dotnetcloud.service`, and verifies health. It fails fast if any step fails.
 
 Notes:
+
 - Use `--force` for local development. Incremental mode diffs `last_deploy..HEAD`, so it cannot see **uncommitted** working-tree changes.
 - The legacy one-command helper `tools/redeploy-baremetal.sh` was consolidated into `scripts/deploy.sh` (removed 2026-09-08); it targeted the old `/opt/dotnetcloud/cli` layout and never deployed module hosts.
 

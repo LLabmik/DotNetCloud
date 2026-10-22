@@ -19,14 +19,16 @@ internal sealed class TrashService : ITrashService
     private readonly IFileStorageEngine _storageEngine;
     private readonly IEventBus _eventBus;
     private readonly ISyncChangeNotifier _syncNotifier;
+    private readonly IQuotaService? _quotaService;
     private readonly ILogger<TrashService> _logger;
 
-    public TrashService(FilesDbContext db, IFileStorageEngine storageEngine, IEventBus eventBus, ISyncChangeNotifier syncNotifier, ILogger<TrashService> logger)
+    public TrashService(FilesDbContext db, IFileStorageEngine storageEngine, IEventBus eventBus, ISyncChangeNotifier syncNotifier, ILogger<TrashService> logger, IQuotaService? quotaService = null)
     {
         _db = db;
         _storageEngine = storageEngine;
         _eventBus = eventBus;
         _syncNotifier = syncNotifier;
+        _quotaService = quotaService;
         _logger = logger;
     }
 
@@ -79,9 +81,17 @@ internal sealed class TrashService : ITrashService
         var (restoreRoot, targetParentId) = await ResolveRestoreTargetAsync(node, cancellationToken);
 
         var now = DateTime.UtcNow;
-        await RestoreSubtreeAsync(restoreRoot, targetParentId, now, cancellationToken);
+        var restoredNodes = await RestoreSubtreeAsync(restoreRoot, targetParentId, now, cancellationToken);
 
         await _db.SaveChangesAsync(cancellationToken);
+
+        // Default content restored from the trash becomes managed and exempt again when its
+        // content still matches what was provisioned.
+        await DefaultContentTracking.MarkRestoredAsync(_db, restoredNodes, cancellationToken);
+        await _db.SaveChangesAsync(cancellationToken);
+
+        if (_quotaService is not null)
+            await _quotaService.RecomputeExemptionAsync(node.OwnerId, cancellationToken);
 
         await _eventBus.PublishAsync(new FileRestoredEvent
         {
@@ -164,6 +174,10 @@ internal sealed class TrashService : ITrashService
             await PermanentDeleteNodeAsync(n, cancellationToken);
         }
 
+        // A permanently purged starter file keeps a tombstone (with no node link) so a later
+        // convergence pass never recreates it.
+        await DefaultContentTracking.MarkPurgedAsync(_db, nodesToDelete.Select(n => n.Id).ToList(), cancellationToken);
+
         await DecrementQuotaAsync(node.OwnerId, totalDeletedSize, cancellationToken);
 
         await _db.SaveChangesAsync(cancellationToken);
@@ -179,6 +193,9 @@ internal sealed class TrashService : ITrashService
         }, caller, cancellationToken);
 
         _logger.LogInformation("Node {NodeId} permanently deleted by {UserId}", nodeId, caller.UserId);
+
+        if (_quotaService is not null)
+            await _quotaService.RecomputeExemptionAsync(node.OwnerId, cancellationToken);
     }
 
     /// <inheritdoc />
@@ -200,12 +217,17 @@ internal sealed class TrashService : ITrashService
             await PermanentDeleteNodeAsync(item, cancellationToken);
         }
 
+        await DefaultContentTracking.MarkPurgedAsync(_db, trashItems.Select(n => n.Id).ToList(), cancellationToken);
+
         await DecrementQuotaAsync(caller.UserId, totalDeletedSize, cancellationToken);
 
         await _db.SaveChangesAsync(cancellationToken);
 
         _logger.LogInformation("Trash emptied for user {UserId}. {Count} items permanently deleted.",
             caller.UserId, trashItems.Count);
+
+        if (_quotaService is not null)
+            await _quotaService.RecomputeExemptionAsync(caller.UserId, cancellationToken);
     }
 
     /// <inheritdoc />
@@ -326,7 +348,7 @@ internal sealed class TrashService : ITrashService
     /// <see cref="FileNode.MaterializedPath"/> and <see cref="FileNode.Depth"/> for every node in the
     /// subtree so the tree stays internally consistent.
     /// </summary>
-    private async Task RestoreSubtreeAsync(
+    private async Task<List<FileNode>> RestoreSubtreeAsync(
         FileNode restoreRoot, Guid? targetParentId, DateTime now, CancellationToken cancellationToken)
     {
         var oldRootPath = restoreRoot.MaterializedPath;
@@ -394,6 +416,10 @@ internal sealed class TrashService : ITrashService
             // about the rebuilt paths.
             await SyncCursorHelper.AssignNextSequenceAsync(_db, descendant, descendant.OwnerId, _syncNotifier, cancellationToken);
         }
+
+        var restored = new List<FileNode>(descendants.Count + 1) { restoreRoot };
+        restored.AddRange(descendants);
+        return restored;
     }
 
     /// <summary>

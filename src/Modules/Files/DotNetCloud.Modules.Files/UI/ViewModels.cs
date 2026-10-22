@@ -68,6 +68,9 @@ public sealed class FileNodeViewModel
     /// <summary>True when the node should be treated as read-only in the UI.</summary>
     public bool IsReadOnly { get; init; }
 
+    /// <summary>True when the node is administrator-managed default content.</summary>
+    public bool IsDefaultContent { get; init; }
+
     /// <summary>Optional synthetic source kind.</summary>
     public string? VirtualSourceKind { get; init; }
 
@@ -196,8 +199,14 @@ public sealed class QuotaViewModel
     /// <summary>Usage percentage (0.0 – 100.0+).</summary>
     public double UsagePercent { get; init; }
 
+    /// <summary>Bytes of administrator-managed default content that are free of charge.</summary>
+    public long ExemptBytes { get; init; }
+
+    /// <summary>Used bytes that count against the quota.</summary>
+    public long ChargeableUsedBytes => Math.Max(0, UsedBytes - ExemptBytes);
+
     /// <summary>Whether the quota limit has been reached or exceeded.</summary>
-    public bool IsExceeded => MaxBytes > 0 && UsedBytes >= MaxBytes;
+    public bool IsExceeded => MaxBytes > 0 && ChargeableUsedBytes >= MaxBytes;
 
     /// <summary>Whether usage is in the critical range (>= 95%).</summary>
     public bool IsCritical => MaxBytes > 0 && UsagePercent >= 95.0;

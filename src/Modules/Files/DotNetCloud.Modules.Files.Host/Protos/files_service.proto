@@ -86,6 +86,39 @@ service FilesService {
   // Client-streaming file upload: first message carries metadata (InitiateUploadRequest),
   // subsequent messages carry chunk data. Server assembles and completes on stream close.
   rpc UploadFileStream (stream UploadFileStreamRequest) returns (UploadFileStreamResponse);
+
+  // Immediately provisions the administrator-managed default content for a newly created user.
+  // Internal, loopback-only; the core has already authenticated the user (same precedent as
+  // ScanMediaFolders).
+  rpc ProvisionUserDefaults (ProvisionUserDefaultsRequest) returns (ProvisionUserDefaultsResponse);
+
+  // Queues a convergence pass for a batch of users (start-up sweeps, daily pass, admin/CLI).
+  rpc EnqueueProvisioning (EnqueueProvisioningRequest) returns (EnqueueProvisioningResponse);
+}
+
+// --- Default user content ---
+
+message ProvisionUserDefaultsRequest {
+  string user_id = 1;
+}
+
+message ProvisionUserDefaultsResponse {
+  bool success = 1;
+  string status = 2;            // Completed | Partial | Skipped | Failed
+  int32 items_created = 3;
+  int32 items_skipped = 4;
+  int64 bytes_copied = 5;
+  string error_message = 6;
+}
+
+message EnqueueProvisioningRequest {
+  repeated string user_ids = 1;  // max 1000 per call
+  bool allow_deletions = 2;      // false for automatic passes
+}
+
+message EnqueueProvisioningResponse {
+  int32 queued = 1;
+  int32 skipped = 2;
 }
 
 // --- Scan Media Folders ---

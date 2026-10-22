@@ -68,6 +68,7 @@ internal sealed class ChunkedUploadService : IChunkedUploadService
 
         await MountedWriteAccessGuard.EnsureWritableNodeAsync(_db, dto.TargetFileNodeId ?? Guid.Empty, cancellationToken);
         await MountedWriteAccessGuard.EnsureWritableFolderAsync(_db, dto.ParentId, cancellationToken);
+        await ReadOnlyContentGuard.EnsureWritableAsync(_db, dto.TargetFileNodeId, "replace", cancellationToken);
 
         FileService.ValidateFilenameCompatibility(dto.FileName, _fileSystemOptions);
 
@@ -226,6 +227,7 @@ internal sealed class ChunkedUploadService : IChunkedUploadService
         if (session.TargetFileNodeId.HasValue)
         {
             await MountedWriteAccessGuard.EnsureWritableNodeAsync(_db, session.TargetFileNodeId.Value, cancellationToken);
+            await ReadOnlyContentGuard.EnsureWritableAsync(_db, session.TargetFileNodeId, "replace", cancellationToken);
         }
 
         await MountedWriteAccessGuard.EnsureWritableFolderAsync(_db, session.TargetParentId, cancellationToken);
@@ -313,6 +315,11 @@ internal sealed class ChunkedUploadService : IChunkedUploadService
 
                     if (existingNode is not null)
                     {
+                        // A same-name upload would replace the user's default-content copy. That is an
+                        // edit of the default file, which is not allowed: copy it first.
+                        if (existingNode.IsReadOnly)
+                            throw new FileReadOnlyException("replace");
+
                         // Re-upload of same file → create new version of the existing node
                         quotaDelta = session.TotalSize - existingNode.Size;
                         existingNode.Size = session.TotalSize;
@@ -557,44 +564,10 @@ internal sealed class ChunkedUploadService : IChunkedUploadService
 
     /// <summary>
     /// Guesses a MIME type from a file name's extension when the client sends null.
+    /// The mapping is shared with the default-content import path so both produce the same value.
     /// </summary>
-    private static string? GuessMimeTypeFromFileName(string fileName)
-    {
-        var ext = Path.GetExtension(fileName);
-        if (string.IsNullOrEmpty(ext))
-            return null;
-        return ext.ToLowerInvariant() switch
-        {
-            // Audio
-            ".mp3" => "audio/mpeg",
-            ".flac" => "audio/flac",
-            ".ogg" or ".oga" => "audio/ogg",
-            ".opus" => "audio/opus",
-            ".aac" => "audio/aac",
-            ".m4a" => "audio/mp4",
-            ".wav" => "audio/wav",
-            ".wma" => "audio/x-ms-wma",
-            ".aiff" or ".aif" => "audio/aiff",
-            // Video
-            ".mp4" or ".m4v" => "video/mp4",
-            ".mkv" => "video/x-matroska",
-            ".avi" => "video/x-msvideo",
-            ".mov" => "video/quicktime",
-            ".webm" => "video/webm",
-            // Images
-            ".jpg" or ".jpeg" => "image/jpeg",
-            ".png" => "image/png",
-            ".gif" => "image/gif",
-            ".webp" => "image/webp",
-            ".svg" => "image/svg+xml",
-            // Documents
-            ".pdf" => "application/pdf",
-            ".txt" => "text/plain",
-            ".docx" => "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-            ".xlsx" => "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            _ => null,
-        };
-    }
+    private static string? GuessMimeTypeFromFileName(string fileName) =>
+        MimeTypeGuesser.FromFileName(fileName);
 
     /// <inheritdoc />
     public async Task CancelUploadAsync(Guid sessionId, CallerContext caller, CancellationToken cancellationToken = default)

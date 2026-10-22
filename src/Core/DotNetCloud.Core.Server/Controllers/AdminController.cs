@@ -613,7 +613,11 @@ public class AdminController : ControllerBase
 
         _logger.LogWarning("Restore from backup triggered by admin: {FilePath}", SanitizeForLog(filePath));
 
-        var options = new RestoreOptions { RestoreDatabase = restoreDatabase };
+        var options = new RestoreOptions
+        {
+            RestoreDatabase = restoreDatabase,
+            DataDirectory = Environment.GetEnvironmentVariable("DOTNETCLOUD_DATA_DIR")
+        };
         var result = await _backupService.RestoreBackupAsync(filePath, options, cancellationToken);
 
         if (!result.Success)

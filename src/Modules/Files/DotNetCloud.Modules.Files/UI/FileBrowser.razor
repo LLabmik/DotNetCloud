@@ -396,6 +396,18 @@ else
                                                                         @onclick="() => OpenNodeAsync(node)">
                                                                     @node.Name
                                                                 </button>
+                                                            }                                                            @if (node.IsDefaultContent)
+                                                            {
+                                                                <span class="default-content-badge" title="Default content — read-only. Copy or delete it.">
+                                                                    <MaterialIcon Icon="lock" Size="MaterialIconSize.Sm" />
+                                                                    <span>Default</span>
+                                                                </span>
+                                                            }                                                            @if (node.IsDefaultContent)
+                                                            {
+                                                                <span class="default-content-badge" title="Default content — read-only. Copy or delete it.">
+                                                                    <MaterialIcon Icon="lock" Size="MaterialIconSize.Sm" />
+                                                                    <span>Default</span>
+                                                                </span>
                                                             }
                                                             @if (node.Tags.Count > 0)
                                                             {
@@ -591,6 +603,7 @@ else
                                         @if (_showVersionHistory && _versionHistoryFileName is not null)
                                         {
                                             <VersionHistoryPanel FileName="@_versionHistoryFileName" InitialVersions="_versionHistoryItems"
+                                                                 IsDefaultContent="_versionHistoryIsDefaultContent"
                                                                  OnClose="HideVersionHistory" OnDownloadVersion="HandleDownloadVersion"
                                                                  OnRestoreVersion="HandleRestoreVersion" OnDeleteVersion="HandleDeleteVersion"
                                                                  OnDeleteAllVersions="HandleDeleteAllVersions" OnLabelSaved="HandleVersionLabelSaved" />

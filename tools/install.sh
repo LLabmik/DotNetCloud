@@ -603,6 +603,27 @@ install_dotnetcloud() {
         fatal "Extraction succeeded but server binary is missing (${INSTALL_DIR}/server/DotNetCloud.Core.Server). The release archive may be corrupted or have an unexpected layout."
     fi
 
+    # Default user content template. This lives in the DATA directory (never under /opt) and is
+    # seeded exactly once: the marker file means "administrator-owned". Upgrades replace the
+    # packaged ${INSTALL_DIR}/seed copy but must never touch the data-directory template.
+    local template_root="${DATA_DIR}/default-user-content"
+    local seed_root="${INSTALL_DIR}/seed/default-user-content"
+    $SUDO mkdir -p "${template_root}"
+    if [[ ! -f "${template_root}/.dotnetcloud-template" ]]; then
+        if [[ -z "$(ls -A "${template_root}" 2>/dev/null)" ]]; then
+            info "Seeding default user content template..."
+            if [[ -d "$seed_root" ]]; then
+                $SUDO cp -r "${seed_root}/." "${template_root}/"
+            fi
+            for d in Documents Photos Music Templates Videos; do
+                $SUDO mkdir -p "${template_root}/${d}"
+            done
+        fi
+        printf 'schema=1\nseeded=%s\n' "$(date -u +%FT%TZ)" | $SUDO tee "${template_root}/.dotnetcloud-template" >/dev/null
+    else
+        info "Default user content template preserved (no changes)."
+    fi
+
     # The CLI publish output includes a dependency copy of the server apphost
     # at the install root. Remove it so `dotnetcloud start` resolves the real
     # server under server/ — not this stray copy, whose content root is

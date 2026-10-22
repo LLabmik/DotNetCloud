@@ -39,4 +39,12 @@ public interface IQuotaService
 
     /// <summary>Recalculates the used bytes for a user by summing file sizes.</summary>
     Task RecalculateAsync(Guid userId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Recomputes <see cref="Models.FileQuota.ExemptBytes"/> from the default-content tracking rows:
+    /// only items that are still present, still owned by the user and still unmodified are exempt.
+    /// Ensures the quota row exists first, because users created before this feature may have none.
+    /// </summary>
+    /// <returns>The recomputed exemption in bytes.</returns>
+    Task<long> RecomputeExemptionAsync(Guid userId, CancellationToken cancellationToken = default);
 }

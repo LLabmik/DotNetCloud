@@ -21,4 +21,25 @@ public interface IFilesApiClient
         Guid ownerId,
         string mediaType,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Immediately provisions administrator-managed default content for a newly created user.
+    /// Failures are reported, never thrown: account creation must not depend on this call.
+    /// </summary>
+    /// <param name="userId">The new user.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    Task<ProvisionUserDefaultsResult> ProvisionUserDefaultsAsync(
+        Guid userId,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Queues a convergence pass for a batch of users. Used by the start-up sweep and daily pass.
+    /// </summary>
+    /// <param name="userIds">Users to converge (the call is chunked internally).</param>
+    /// <param name="allowDeletions">Whether the pass may delete content (automatic passes never do).</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    Task<EnqueueProvisioningResult> EnqueueProvisioningAsync(
+        IReadOnlyCollection<Guid> userIds,
+        bool allowDeletions = false,
+        CancellationToken cancellationToken = default);
 }

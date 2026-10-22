@@ -1,4 +1,5 @@
 using DotNetCloud.Core.Authorization;
+using DotNetCloud.Core.Errors;
 using DotNetCloud.Core.Events;
 using DotNetCloud.Core.Events.Search;
 using DotNetCloud.Modules.Files.DTOs;
@@ -147,6 +148,9 @@ internal sealed class WopiService : IWopiService
 
         if (node.NodeType != FileNodeType.File)
             throw new Core.Errors.InvalidOperationException("Cannot save content to a folder.");
+
+        if (node.IsReadOnly)
+            throw new FileReadOnlyException("edit");
 
         await _permissionService.RequirePermissionAsync(fileId, caller, SharePermission.ReadWrite, cancellationToken);
 
