@@ -18,6 +18,7 @@ using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -69,6 +70,17 @@ internal sealed class FilesHostWebApplicationFactory : WebApplicationFactory<Fil
                     .Options);
             services.AddScoped<CoreDbContext>();
 
+            // Every Files host in this assembly shares one on-disk store (<content root>/storage,
+            // because Files:StoragePath and DOTNETCLOUD_DATA_DIR are not overridden) while each
+            // factory keeps its own in-memory database. MSTest runs test classes in parallel, so
+            // a housekeeping service started by one host would happily delete chunks or blobs
+            // another host just wrote — that is exactly how
+            // FilesThumbnailIntegrationTests.GetThumbnail_WhenGenerated_ReturnsJpegContent started
+            // returning 404 ("whole-file blob ... is missing from storage"). Those services are
+            // meaningless here because the in-memory database is never the authority for the
+            // shared store, so drop the ones whose only job is reclaiming storage.
+            RemoveStorageReclaimingHostedServices(services);
+
             // Inject a deterministic test identity from request header for auth-bound gRPC checks.
             services.AddSingleton<IStartupFilter, TestUserStartupFilter>();
 
@@ -102,6 +114,39 @@ internal sealed class FilesHostWebApplicationFactory : WebApplicationFactory<Fil
                     .AddRequirements(new PermissionRequirement("admin")));
             services.AddSingleton<IAuthorizationHandler, PermissionAuthorizationHandler>();
         });
+    }
+
+    /// <summary>
+    /// Removes the hosted services registered by the Files module that delete files from the
+    /// shared on-disk store.
+    /// </summary>
+    /// <remarks>
+    /// The service types are internal to <c>DotNetCloud.Modules.Files.Data</c>, so they are matched
+    /// by implementation type name. Keep this list in sync with
+    /// <c>FilesServiceRegistration.AddFilesServices</c>.
+    /// </remarks>
+    /// <param name="services">Host service collection.</param>
+    private static void RemoveStorageReclaimingHostedServices(IServiceCollection services)
+    {
+        string[] storageReclaimers =
+        [
+            "TempFileCleanupService",
+            "TrashCleanupService",
+            "UploadSessionCleanupService",
+            "VersionCleanupService",
+            "WholeFileBlobSweepService",
+        ];
+
+        for (var i = services.Count - 1; i >= 0; i--)
+        {
+            var descriptor = services[i];
+            if (descriptor.ServiceType == typeof(IHostedService)
+                && descriptor.ImplementationType is { } implementationType
+                && storageReclaimers.Contains(implementationType.Name, StringComparer.Ordinal))
+            {
+                services.RemoveAt(i);
+            }
+        }
     }
 
     public FilesService.FilesServiceClient CreateFilesClient(Guid authenticatedUserId)
