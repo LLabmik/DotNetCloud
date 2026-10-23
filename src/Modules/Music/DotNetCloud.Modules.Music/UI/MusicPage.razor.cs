@@ -4,6 +4,7 @@ using DotNetCloud.Core.DTOs;
 using DotNetCloud.Core.DTOs.Media;
 using DotNetCloud.Core.Services;
 using DotNetCloud.Modules.Files;
+using DotNetCloud.Modules.Files.DTOs;
 using DotNetCloud.Modules.Music.Services;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
@@ -21,7 +22,7 @@ namespace DotNetCloud.Modules.Music.UI;
 public partial class MusicPage : IAsyncDisposable
 {
     // ── Section / State ──
-    private enum Section { Library, Artists, Albums, Genres, Playlists, Favorites, RecentlyPlayed, Settings }
+    private enum Section { Library, Folders, Artists, Albums, Genres, Playlists, Favorites, RecentlyPlayed, Settings }
 
     private Section _section = Section.Library;
     private bool _loading;
@@ -89,10 +90,30 @@ public partial class MusicPage : IAsyncDisposable
     private bool _loadingAllPresets;
     private bool _downloadingAlbum;
     private bool _visualizerSupported = true; // assume yes until checked
+    private DotNetObjectReference<MusicPage>? _visualizerShortcutRef;
 
     // ── Breadcrumbs ──
     private record BreadcrumbItem(string Label, Action Action);
     private List<BreadcrumbItem> _breadcrumb = [];
+
+    /// <summary>
+    /// One navigation level in the Music folder view. The first level is either the
+    /// source list (multiple sources) or the single source's root.
+    /// </summary>
+    internal sealed record FolderLevel(string Label, MediaLibrarySource? Source, Guid? NodeId, bool IsSourcesRoot);
+
+    /// <summary>
+    /// One row rendered by the Music folder view — either a sub-folder or a file.
+    /// <see cref="Track"/> is non-null when the file is indexed in the music library.
+    /// </summary>
+    internal sealed record FolderEntry(
+        Guid Id,
+        string Name,
+        bool IsFolder,
+        string? MimeType,
+        long Size,
+        DateTime UpdatedAt,
+        TrackDto? Track);
 
     // ── Auth ──
     private CallerContext? _caller;
@@ -132,6 +153,13 @@ public partial class MusicPage : IAsyncDisposable
     private List<(Guid Id, string Name)> _dirBrowserBreadcrumbs = [];
     private string? _dirBrowserError;
 
+    // ── Library Folder View ──
+    private List<FolderLevel> _folderLevels = [];
+    private List<FolderEntry> _folderEntries = [];
+    private List<MediaLibrarySource> _folderSources = [];
+    private bool _folderLoading;
+    private string? _folderError;
+
     // Enrichment state
     private bool _enrichingAlbum;
     private Guid? _enrichingAlbumId;
@@ -149,6 +177,12 @@ public partial class MusicPage : IAsyncDisposable
     private string _fetchArtAlbumTitle = string.Empty;
     private string _fetchArtArtistName = string.Empty;
     private int? _fetchArtYear;
+
+    // Album art lightbox (click any cover to see it larger)
+    private bool _showAlbumArtModal;
+    private Guid _albumArtModalAlbumId;
+    private string _albumArtModalTitle = string.Empty;
+    private string? _albumArtModalArtist;
 
     // Settings: enrichment toggles
     private bool _autoFetchMetadata = true;
@@ -476,6 +510,10 @@ public partial class MusicPage : IAsyncDisposable
                 case Section.Library:
                     _recentAlbums = (await AlbumService.GetRecentAlbumsAsync(caller, 8)).ToList();
                     _recommendations = (await RecommendationService.GetRecentlyPlayedAsync(caller, 10)).ToList();
+                    break;
+
+                case Section.Folders:
+                    await LoadFoldersSectionAsync(resetToRoot: true);
                     break;
 
                 case Section.Artists:
@@ -1072,6 +1110,7 @@ public partial class MusicPage : IAsyncDisposable
         : _section switch
         {
             Section.Library => "Library",
+            Section.Folders => "Folders",
             Section.Artists when _selectedArtist is not null => _selectedArtist.Name,
             Section.Artists => "Artists",
             Section.Albums when _selectedAlbum is not null => _selectedAlbum.Title,
@@ -1598,6 +1637,364 @@ public partial class MusicPage : IAsyncDisposable
         }
     }
 
+    // ── Library Folder View Methods ──────────────────────────
+
+    /// <summary>True when the folder view is showing the list of configured sources.</summary>
+    private bool IsFolderViewAtSourcesRoot => _folderLevels.Count > 0 && _folderLevels[^1].IsSourcesRoot;
+
+    /// <summary>
+    /// Loads the folder view. With <paramref name="resetToRoot"/> the navigation stack is rebuilt
+    /// from the configured music sources (multiple sources are listed at the root; a single source
+    /// is opened directly).
+    /// </summary>
+    private async Task LoadFoldersSectionAsync(bool resetToRoot)
+    {
+        try
+        {
+            _folderLoading = true;
+            _folderError = null;
+            StateHasChanged();
+
+            _caller ??= await GetCallerAsync();
+
+            if (resetToRoot || _folderLevels.Count == 0)
+            {
+                await BuildFolderRootAsync();
+            }
+
+            await LoadCurrentFolderLevelAsync();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error loading the music folder view");
+            _folderError = "Failed to load folders.";
+            _folderEntries.Clear();
+        }
+        finally
+        {
+            _folderLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task BuildFolderRootAsync()
+    {
+        _folderLevels.Clear();
+        _folderEntries.Clear();
+
+        await LoadLibraryPathAsync();
+
+        _folderSources = _librarySources.ToList();
+        if (_folderSources.Count == 0)
+        {
+            return;
+        }
+
+        if (_folderSources.Count == 1)
+        {
+            // A single source *is* the root of the folder view.
+            var only = _folderSources[0];
+            _folderLevels.Add(new FolderLevel(GetFolderSourceLabel(only), only, only.FolderId, IsSourcesRoot: false));
+        }
+        else
+        {
+            _folderLevels.Add(new FolderLevel("Sources", null, null, IsSourcesRoot: true));
+        }
+    }
+
+    private async Task LoadCurrentFolderLevelAsync()
+    {
+        _folderEntries.Clear();
+
+        if (_folderLevels.Count == 0 || IsFolderViewAtSourcesRoot)
+        {
+            return;
+        }
+
+        var caller = _caller ?? await GetCallerAsync();
+        var level = _folderLevels[^1];
+        var nodes = await ListFolderNodesAsync(level, caller);
+
+        var fileNodeIds = nodes
+            .Where(n => !IsFolderNode(n))
+            .Select(n => n.Id)
+            .ToList();
+
+        var tracksByFileNodeId = fileNodeIds.Count == 0
+            ? new Dictionary<Guid, TrackDto>()
+            : (await TrackService.GetTracksByFileNodeIdsAsync(fileNodeIds, caller)).ToDictionary(kv => kv.Key, kv => kv.Value);
+
+        _folderEntries = BuildFolderEntries(nodes, tracksByFileNodeId);
+    }
+
+    /// <summary>
+    /// Builds the display rows for a folder: sub-folders first, then files, each sorted by name.
+    /// </summary>
+    internal static List<FolderEntry> BuildFolderEntries(
+        IEnumerable<FileNodeDto> nodes,
+        IReadOnlyDictionary<Guid, TrackDto> tracksByFileNodeId)
+    {
+        ArgumentNullException.ThrowIfNull(nodes);
+        ArgumentNullException.ThrowIfNull(tracksByFileNodeId);
+
+        return nodes
+            .OrderBy(n => IsFolderNode(n) ? 0 : 1)
+            .ThenBy(n => n.Name, StringComparer.OrdinalIgnoreCase)
+            .Select(n =>
+            {
+                var isFolder = IsFolderNode(n);
+                TrackDto? track = null;
+                if (!isFolder)
+                {
+                    tracksByFileNodeId.TryGetValue(n.Id, out track);
+                }
+
+                return new FolderEntry(n.Id, n.Name, isFolder, n.MimeType, n.Size, n.UpdatedAt, track);
+            })
+            .ToList();
+    }
+
+    private static bool IsFolderNode(FileNodeDto node)
+        => string.Equals(node.NodeType, "Folder", StringComparison.OrdinalIgnoreCase);
+
+    private async Task<IReadOnlyList<FileNodeDto>> ListFolderNodesAsync(FolderLevel level, CallerContext caller)
+    {
+        var source = level.Source
+            ?? throw new InvalidOperationException("The folder level has no source.");
+
+        if (source.SourceKind == MediaLibrarySourceKind.SharedMount)
+        {
+            var nodeId = level.NodeId;
+            if (nodeId is null)
+            {
+                if (source.SharedFolderId is not { } sharedFolderId)
+                {
+                    return [];
+                }
+
+                var mountRoot = await FileService.ResolveMountedNodeAsync(sharedFolderId, source.RelativePath, caller);
+                if (mountRoot is null)
+                {
+                    throw new InvalidOperationException("The shared folder is no longer available.");
+                }
+
+                nodeId = mountRoot.Id;
+                _folderLevels[^1] = level with { NodeId = nodeId };
+            }
+
+            return await FileService.ListChildrenAsync(nodeId.Value, caller);
+        }
+
+        if (level.NodeId is { } folderId)
+        {
+            return await FileService.ListChildrenAsync(folderId, caller);
+        }
+
+        // Owned root source: list the user's Files root, minus the synthetic virtual roots.
+        var rootNodes = await FileService.ListRootAsync(caller);
+        return rootNodes.Where(n => !n.IsVirtual).ToList();
+    }
+
+    private async Task OpenFolderSourceAsync(MediaLibrarySource source)
+    {
+        var nodeId = source.SourceKind == MediaLibrarySourceKind.OwnedFileNode ? source.FolderId : null;
+        _folderLevels.Add(new FolderLevel(GetFolderSourceLabel(source), source, nodeId, IsSourcesRoot: false));
+        await ReloadFolderLevelAsync();
+    }
+
+    private async Task OpenFolderEntryAsync(FolderEntry entry)
+    {
+        if (!entry.IsFolder || _folderLevels.Count == 0)
+        {
+            return;
+        }
+
+        var level = _folderLevels[^1];
+        _folderLevels.Add(new FolderLevel(entry.Name, level.Source, entry.Id, IsSourcesRoot: false));
+        await ReloadFolderLevelAsync();
+    }
+
+    private async Task NavigateFolderCrumbAsync(int index)
+    {
+        if (index < 0 || index > _folderLevels.Count - 1 || index == _folderLevels.Count - 1)
+        {
+            return;
+        }
+
+        _folderLevels.RemoveRange(index + 1, _folderLevels.Count - index - 1);
+        await ReloadFolderLevelAsync();
+    }
+
+    private async Task GoUpFolderAsync()
+    {
+        if (_folderLevels.Count <= 1)
+        {
+            return;
+        }
+
+        _folderLevels.RemoveAt(_folderLevels.Count - 1);
+        await ReloadFolderLevelAsync();
+    }
+
+    private async Task ReloadFolderLevelAsync()
+    {
+        try
+        {
+            _folderLoading = true;
+            _folderError = null;
+            StateHasChanged();
+            await LoadCurrentFolderLevelAsync();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error opening a music folder");
+            _folderError = "This folder could not be opened.";
+            _folderEntries.Clear();
+        }
+        finally
+        {
+            _folderLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task PlayFolderEntryAsync(FolderEntry entry)
+    {
+        if (entry.IsFolder)
+        {
+            await OpenFolderEntryAsync(entry);
+            return;
+        }
+
+        if (entry.Track is not null)
+        {
+            await PlayTrackAsync(entry.Track);
+            return;
+        }
+
+        OpenFolderEntryInFiles(entry);
+    }
+
+    private void OpenFolderEntryInFiles(FolderEntry entry)
+        => Navigation.NavigateTo($"/apps/files?fileId={entry.Id}");
+
+    private static string GetFolderSourceLabel(MediaLibrarySource source)
+    {
+        var label = !string.IsNullOrWhiteSpace(source.DisplayName)
+            ? source.DisplayName
+            : source.DisplayPath;
+
+        if (string.IsNullOrWhiteSpace(label))
+        {
+            label = "Music folder";
+        }
+
+        return label.Trim().TrimEnd('/', '\\');
+    }
+
+    private static string GetFolderSourceMeta(MediaLibrarySource source)
+    {
+        var parts = new List<string>
+        {
+            source.SourceKind == MediaLibrarySourceKind.SharedMount ? "Shared folder" : "Folder"
+        };
+
+        if (!string.IsNullOrWhiteSpace(source.DisplayPath)
+            && !string.Equals(source.DisplayPath.Trim(), GetFolderSourceLabel(source), StringComparison.OrdinalIgnoreCase))
+        {
+            parts.Add(source.DisplayPath.Trim());
+        }
+
+        if (!source.Enabled)
+        {
+            parts.Add("disabled");
+        }
+
+        return string.Join(" · ", parts);
+    }
+
+    private static string GetFolderEntryMeta(FolderEntry entry)
+    {
+        if (entry.IsFolder)
+        {
+            return "Folder";
+        }
+
+        var parts = new List<string>();
+
+        if (entry.Track is not null)
+        {
+            var artist = entry.Track.ArtistName;
+            if (!string.IsNullOrWhiteSpace(entry.Track.AlbumTitle))
+            {
+                artist = $"{artist} — {entry.Track.AlbumTitle}";
+            }
+
+            if (!string.IsNullOrWhiteSpace(artist))
+            {
+                parts.Add(artist);
+            }
+
+            if (entry.Track.Duration > TimeSpan.Zero)
+            {
+                parts.Add(FormatDuration(entry.Track.Duration));
+            }
+        }
+
+        parts.Add(FormatFileSize(entry.Size));
+        return string.Join(" · ", parts);
+    }
+
+    private static string FormatFileSize(long bytes)
+    {
+        if (bytes <= 0)
+        {
+            return "0 B";
+        }
+
+        string[] units = ["B", "KB", "MB", "GB", "TB"];
+        double size = bytes;
+        var unit = 0;
+        while (size >= 1024 && unit < units.Length - 1)
+        {
+            size /= 1024;
+            unit++;
+        }
+
+        return unit == 0
+            ? $"{size:0} {units[unit]}"
+            : $"{size:0.#} {units[unit]}";
+    }
+
+    private static string GetFolderFileIcon(FolderEntry entry)
+    {
+        if (entry.Track is not null)
+        {
+            return "music_note";
+        }
+
+        var mime = entry.MimeType ?? string.Empty;
+        if (mime.StartsWith("image/", StringComparison.OrdinalIgnoreCase))
+        {
+            return "image";
+        }
+
+        if (mime.StartsWith("video/", StringComparison.OrdinalIgnoreCase))
+        {
+            return "movie";
+        }
+
+        if (mime.StartsWith("audio/", StringComparison.OrdinalIgnoreCase))
+        {
+            return "music_note";
+        }
+
+        return "description";
+    }
+
+    private string GetFolderPlayTitle(FolderEntry entry)
+        => entry.Track is null ? "Not in the music library" : $"Play {entry.Name}";
+
     // ── Directory Browser Methods ────────────────────────────
 
     private async Task OpenDirectoryBrowser()
@@ -1948,6 +2345,11 @@ public partial class MusicPage : IAsyncDisposable
             if (!initOk)
                 return;
 
+            // Keyboard shortcuts (N = next preset, B = previous preset, H = hold/resume auto-cycle)
+            // and preset-change notifications are routed from JS back to this page so the UI stays in sync.
+            _visualizerShortcutRef ??= DotNetObjectReference.Create(this);
+            await Js.InvokeVoidAsync("dotnetcloudVisualizer.setDotNetHandler", _visualizerShortcutRef);
+
             // Load preset names
             _visualizerPresets = await Js.InvokeAsync<string[]>("dotnetcloudVisualizer.getPresetNames");
             _allPresetsLoaded = await Js.InvokeAsync<bool>("dotnetcloudVisualizer.isAllPresetsLoaded");
@@ -2050,6 +2452,109 @@ public partial class MusicPage : IAsyncDisposable
         }
     }
 
+    /// <summary>
+    /// Receives visualizer shortcut keys from the browser: <c>n</c> = next preset,
+    /// <c>b</c> = previous preset, <c>h</c> = hold/resume auto-cycle. Invoked from
+    /// <c>butterchurn-visualizer.js</c>.
+    /// </summary>
+    [JSInvokable]
+    public async Task OnVisualizerShortcutAsync(string key)
+    {
+        if (!_visualizerEnabled || !_visualizerStarted)
+        {
+            return;
+        }
+
+        switch ((key ?? string.Empty).ToLowerInvariant())
+        {
+            case "n":
+                await StepVisualizerPresetAsync(1);
+                break;
+            case "b":
+                await StepVisualizerPresetAsync(-1);
+                break;
+            case "h":
+                await ToggleAutoCyclePresetsAsync();
+                break;
+            default:
+                return;
+        }
+
+        await InvokeAsync(StateHasChanged);
+    }
+
+    /// <summary>
+    /// Applies a preset change reported by the visualizer (auto-cycle, random, keyboard or a
+    /// direct load) so the preset dropdown shows the preset that is actually playing.
+    /// </summary>
+    internal void ApplyVisualizerPresetFromJs(string presetName)
+    {
+        if (string.IsNullOrWhiteSpace(presetName))
+        {
+            return;
+        }
+
+        _selectedVisualizerPreset = presetName;
+    }
+
+    /// <summary>The preset currently shown in the dropdown. Exposed for testing.</summary>
+    internal string? SelectedVisualizerPresetForTests => _selectedVisualizerPreset;
+
+    /// <summary>Invoked from JS whenever the active visualizer preset changes.</summary>
+    [JSInvokable]
+    public async Task OnVisualizerPresetChangedAsync(string presetName)
+    {
+        if (!_visualizerEnabled || string.IsNullOrWhiteSpace(presetName))
+        {
+            return;
+        }
+
+        if (string.Equals(_selectedVisualizerPreset, presetName, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        ApplyVisualizerPresetFromJs(presetName);
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task StepVisualizerPresetAsync(int direction)
+    {
+        if (_visualizerPresets.Length == 0)
+        {
+            return;
+        }
+
+        var currentIndex = Array.IndexOf(_visualizerPresets, _selectedVisualizerPreset ?? string.Empty);
+        var nextIndex = GetSteppedPresetIndex(currentIndex, _visualizerPresets.Length, direction);
+        if (nextIndex < 0)
+        {
+            return;
+        }
+
+        await ChangeVisualizerPresetAsync(_visualizerPresets[nextIndex]);
+    }
+
+    /// <summary>
+    /// Returns the wrapped index reached by stepping <paramref name="direction"/> from
+    /// <paramref name="currentIndex"/>. A negative <paramref name="currentIndex"/> (no preset
+    /// loaded yet) steps to the first preset forward, or the last preset backward.
+    /// </summary>
+    internal static int GetSteppedPresetIndex(int currentIndex, int presetCount, int direction)
+    {
+        if (presetCount <= 0)
+        {
+            return -1;
+        }
+
+        var from = currentIndex >= 0
+            ? currentIndex
+            : direction >= 0 ? -1 : 0;
+
+        var next = (from + direction) % presetCount;
+        return next < 0 ? next + presetCount : next;
+    }
+
     public async ValueTask DisposeAsync()
     {
         Playback.OnChange -= OnPlaybackStateChanged;
@@ -2062,6 +2567,9 @@ public partial class MusicPage : IAsyncDisposable
             await Js.InvokeVoidAsync("dotnetcloudVisualizer.dispose");
         }
         catch (JSDisconnectedException) { }
+
+        _visualizerShortcutRef?.Dispose();
+        _visualizerShortcutRef = null;
     }
 
     // ────────────────────────────────────────────────────────
@@ -2116,6 +2624,31 @@ public partial class MusicPage : IAsyncDisposable
             StateHasChanged();
         }
     }
+
+    // ── Album art lightbox ──────────────────────────────────
+
+    /// <summary>Whether the album art lightbox is showing. Exposed for testing.</summary>
+    internal bool IsAlbumArtModalOpen => _showAlbumArtModal;
+
+    /// <summary>The album whose art the lightbox is showing. Exposed for testing.</summary>
+    internal Guid AlbumArtModalAlbumId => _albumArtModalAlbumId;
+
+    /// <summary>Shows the album's cover art in a larger lightbox modal.</summary>
+    internal void OpenAlbumArtModal(MusicAlbumDto album)
+    {
+        if (!album.HasCoverArt)
+        {
+            return;
+        }
+
+        _albumArtModalAlbumId = album.Id;
+        _albumArtModalTitle = album.Title;
+        _albumArtModalArtist = album.ArtistName;
+        _showAlbumArtModal = true;
+    }
+
+    /// <summary>Closes the album art lightbox.</summary>
+    internal void CloseAlbumArtModal() => _showAlbumArtModal = false;
 
     private async Task OnFetchArtModalClosed(FetchArtModalResult result)
     {

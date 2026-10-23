@@ -72,6 +72,14 @@
                     <span class="music-nav-text">Genres</span>
                 }
             </button>
+            <button class="music-nav-item @(_section == Section.Folders ? "active" : "")"
+                    @onclick="() => SwitchSection(Section.Folders)" title="Folders">
+                <span class="nav-icon"><MaterialIcon Icon="folder" Size="MaterialIconSize.Sm" /></span>
+                @if (!_sidebarCollapsed)
+                {
+                    <span class="music-nav-text">Folders</span>
+                }
+            </button>
         </nav>
 
         <div class="music-nav-separator"></div>
@@ -155,6 +163,12 @@
         {
             <div class="visualizer-container @(_showVisualizer ? "" : "visualizer-hidden")">
                 <canvas id="dnc-visualizer-canvas" class="visualizer-canvas"></canvas>
+                @if (_showVisualizer && !_autoCyclePresets)
+                {
+                    @* Hold mode: preset frozen, auto-cycle paused (press H to resume). *@
+                    <span class="visualizer-hold-indicator" aria-hidden="true"
+                          title="Preset held — press H to resume auto-cycling"></span>
+                }
                 @if (_showVisualizer)
                 {
                 <div class="visualizer-controls">
@@ -640,7 +654,9 @@
                         <div class="album-detail-art">
                             @if (_selectedAlbum.HasCoverArt)
                             {
-                                <img src="@GetAlbumArtUrl(_selectedAlbum.Id)" alt="@_selectedAlbum.Title" />
+                                <img src="@GetAlbumArtUrl(_selectedAlbum.Id)" alt="@_selectedAlbum.Title"
+                                     class="album-art-zoomable" title="View larger cover"
+                                     @onclick="() => OpenAlbumArtModal(_selectedAlbum)" />
                             }
                             else
                             {
@@ -757,6 +773,136 @@
                         }
                     </div>
                 }
+            }
+
+            @* ─── Folders (filesystem-style view of the music sources) ─── *@
+            @if (_section == Section.Folders)
+            {
+                <div class="folder-view">
+                    <div class="folder-view-toolbar">
+                        <nav class="folder-breadcrumbs" aria-label="Folder path">
+                            @if (_folderLevels.Count > 1)
+                            {
+                                <button class="folder-up" @onclick="GoUpFolderAsync" title="Up one level">
+                                    <MaterialIcon Icon="chevron_left" Size="MaterialIconSize.Sm" /> Up
+                                </button>
+                            }
+                            @for (int i = 0; i < _folderLevels.Count; i++)
+                            {
+                                var index = i;
+                                var isCurrent = index == _folderLevels.Count - 1;
+                                <button class="folder-crumb @(isCurrent ? "current" : "")"
+                                        @onclick="() => NavigateFolderCrumbAsync(index)"
+                                        disabled="@isCurrent"
+                                        title="@_folderLevels[index].Label">@_folderLevels[index].Label</button>
+                                @if (!isCurrent)
+                                {
+                                    <span class="folder-crumb-sep">›</span>
+                                }
+                            }
+                        </nav>
+                        <button class="btn btn-outline btn-sm folder-refresh"
+                                @onclick="() => LoadFoldersSectionAsync(resetToRoot: false)"
+                                disabled="@_folderLoading"
+                                title="Refresh">
+                            <MaterialIcon Icon="refresh" Size="MaterialIconSize.Sm" /> Refresh
+                        </button>
+                    </div>
+
+                    @if (!string.IsNullOrEmpty(_folderError))
+                    {
+                        <div class="folder-view-message folder-view-error">
+                            <p>@_folderError</p>
+                            <button class="btn btn-outline btn-sm" @onclick="() => LoadFoldersSectionAsync(resetToRoot: true)">Retry</button>
+                        </div>
+                    }
+                    else if (_folderSources.Count == 0)
+                    {
+                        <div class="music-empty">
+                            <div class="empty-icon"><MaterialIcon Icon="folder" Size="MaterialIconSize.Xl" /></div>
+                            <h4>No music folders yet</h4>
+                            <p>Add one or more folders in Library Settings to browse your music by folder.</p>
+                            <button class="btn btn-primary btn-sm" style="margin-top:14px;" @onclick="GoToLibrarySettingsFromHintAsync">
+                                Open Library Settings
+                            </button>
+                        </div>
+                    }
+                    else if (_folderLoading && _folderEntries.Count == 0 && !IsFolderViewAtSourcesRoot)
+                    {
+                        <div class="music-loading">
+                            <div class="loading-spinner"></div>
+                            <p>Loading folder…</p>
+                        </div>
+                    }
+                    else if (IsFolderViewAtSourcesRoot)
+                    {
+                        <div class="folder-list">
+                            @foreach (var source in _folderSources)
+                            {
+                                <button class="folder-row folder-row-source" @onclick="() => OpenFolderSourceAsync(source)">
+                                    <span class="folder-row-icon">
+                                        <MaterialIcon Icon="@(source.SourceKind == DotNetCloud.Core.DTOs.Media.MediaLibrarySourceKind.SharedMount ? "folder_shared" : "folder")" />
+                                    </span>
+                                    <span class="folder-row-main">
+                                        <span class="folder-row-name">@GetFolderSourceLabel(source)</span>
+                                        <span class="folder-row-meta">@GetFolderSourceMeta(source)</span>
+                                    </span>
+                                    <span class="folder-row-chevron"><MaterialIcon Icon="chevron_right" Size="MaterialIconSize.Sm" /></span>
+                                </button>
+                            }
+                        </div>
+                    }
+                    else if (_folderEntries.Count == 0)
+                    {
+                        <div class="folder-view-message">
+                            <p>This folder is empty.</p>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="folder-list">
+                            @foreach (var entry in _folderEntries)
+                            {
+                                @if (entry.IsFolder)
+                                {
+                                    <button class="folder-row folder-row-dir" @onclick="() => OpenFolderEntryAsync(entry)">
+                                        <span class="folder-row-icon"><MaterialIcon Icon="folder" /></span>
+                                        <span class="folder-row-main">
+                                            <span class="folder-row-name">@entry.Name</span>
+                                            <span class="folder-row-meta">@GetFolderEntryMeta(entry)</span>
+                                        </span>
+                                        <span class="folder-row-chevron"><MaterialIcon Icon="chevron_right" Size="MaterialIconSize.Sm" /></span>
+                                    </button>
+                                }
+                                else
+                                {
+                                    var isPlaying = entry.Track is not null && Playback.NowPlaying?.Id == entry.Track.Id;
+                                    <div class="folder-row folder-row-file @(isPlaying ? "playing" : "")"
+                                         @ondblclick="() => PlayFolderEntryAsync(entry)">
+                                        <span class="folder-row-icon"><MaterialIcon Icon="@GetFolderFileIcon(entry)" /></span>
+                                        <span class="folder-row-main">
+                                            <span class="folder-row-name">@entry.Name</span>
+                                            <span class="folder-row-meta">@GetFolderEntryMeta(entry)</span>
+                                        </span>
+                                        <span class="folder-row-actions">
+                                            <button class="btn-icon folder-row-play @(isPlaying ? "active" : "")"
+                                                    @onclick="() => PlayFolderEntryAsync(entry)"
+                                                    disabled="@(entry.Track is null)"
+                                                    title="@GetFolderPlayTitle(entry)">
+                                                <MaterialIcon Icon="play_arrow" Size="MaterialIconSize.Sm" />
+                                            </button>
+                                            <button class="btn-icon folder-row-open"
+                                                    @onclick="() => OpenFolderEntryInFiles(entry)"
+                                                    title="Open in Files">
+                                                <MaterialIcon Icon="open_in_new" Size="MaterialIconSize.Sm" />
+                                            </button>
+                                        </span>
+                                    </div>
+                                }
+                            }
+                        </div>
+                    }
+                </div>
             }
 
             @* ─── Playlists ─── *@
@@ -1388,6 +1534,28 @@
             }
         }
     </main>
+
+    @* ─── Album Art Lightbox ─── *@
+    @if (_showAlbumArtModal)
+    {
+        <div class="album-art-lightbox" @onclick="CloseAlbumArtModal">
+            <div class="album-art-lightbox-panel" @onclick:stopPropagation="true">
+                <button class="album-art-lightbox-close" @onclick="CloseAlbumArtModal" title="Close" aria-label="Close">
+                    <MaterialIcon Icon="close" />
+                </button>
+                <img class="album-art-lightbox-image"
+                     src="@GetAlbumArtUrl(_albumArtModalAlbumId)"
+                     alt="@_albumArtModalTitle" />
+                <div class="album-art-lightbox-caption">
+                    <span class="album-art-lightbox-title">@_albumArtModalTitle</span>
+                    @if (!string.IsNullOrWhiteSpace(_albumArtModalArtist))
+                    {
+                        <span class="album-art-lightbox-artist">@_albumArtModalArtist</span>
+                    }
+                </div>
+            </div>
+        </div>
+    }
 
     @* ─── Create/Edit Playlist Dialog ─── *@
     @if (_showCreatePlaylistDialog || _showEditPlaylistDialog)

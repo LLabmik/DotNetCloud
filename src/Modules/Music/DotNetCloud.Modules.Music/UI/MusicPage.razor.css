@@ -137,6 +137,9 @@
 }
 
 .nav-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   font-size: 1rem;
   width: 20px;
   text-align: center;
@@ -2363,6 +2366,19 @@ a.album-group-title:hover {
   display: block;
 }
 
+/* Hold mode marker: 3×3 px red square 10 px from the bottom/right of the visualizer,
+   painted above the canvas so it stays visible over any preset. */
+.visualizer-hold-indicator {
+  position: absolute;
+  right: 10px;
+  bottom: 10px;
+  width: 3px;
+  height: 3px;
+  background: #ff0000;
+  z-index: 30;
+  pointer-events: none;
+}
+
 .visualizer-controls {
   position: absolute;
   top: 0;
@@ -2501,4 +2517,312 @@ a.album-group-title:hover {
 .visualizer-container:fullscreen.fs-controls-hidden .visualizer-controls {
   opacity: 0 !important;
   pointer-events: none;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   Folder View (library sources browsed as directories)
+   ═══════════════════════════════════════════════════════════ */
+
+.folder-view {
+  padding: 16px 24px 24px;
+}
+
+.folder-view-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+
+.folder-breadcrumbs {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.folder-up {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  background: none;
+  border: 1px solid var(--color-border, #e2e8f0);
+  border-radius: var(--radius, 8px);
+  color: var(--color-text-secondary, #64748b);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  padding: 4px 8px;
+  cursor: pointer;
+  transition: all var(--transition, 200ms ease);
+}
+
+.folder-up:hover {
+  color: var(--color-primary, #3b82f6);
+  border-color: var(--color-primary, #3b82f6);
+  background: rgba(59, 130, 246, 0.06);
+}
+
+.folder-crumb {
+  background: none;
+  border: none;
+  color: var(--color-primary, #3b82f6);
+  font-size: 0.875rem;
+  font-weight: 500;
+  padding: 2px 4px;
+  border-radius: 6px;
+  cursor: pointer;
+  max-width: 240px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.folder-crumb:hover:not(:disabled) {
+  text-decoration: underline;
+}
+
+.folder-crumb.current {
+  color: var(--color-text, #1e293b);
+  font-weight: 600;
+  cursor: default;
+}
+
+.folder-crumb-sep {
+  color: var(--color-muted, #94a3b8);
+  font-size: 0.875rem;
+}
+
+.folder-refresh {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+}
+
+.folder-view-message {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 48px 24px;
+  text-align: center;
+  color: var(--color-text-secondary, #64748b);
+  font-size: 0.875rem;
+}
+
+.folder-view-error {
+  color: #ef4444;
+}
+
+.folder-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  border: 1px solid var(--color-border, #e2e8f0);
+  border-radius: 12px;
+  overflow: hidden;
+  background: var(--color-surface, #ffffff);
+}
+
+.folder-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 10px 14px;
+  border: none;
+  border-bottom: 1px solid var(--color-border-light, rgba(148, 163, 184, 0.18));
+  background: transparent;
+  color: var(--color-text, #1e293b);
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+  transition: background var(--transition, 200ms ease);
+}
+
+.folder-row:last-child {
+  border-bottom: none;
+}
+
+.folder-row:hover {
+  background: rgba(59, 130, 246, 0.06);
+}
+
+.folder-row.playing {
+  background: rgba(59, 130, 246, 0.1);
+}
+
+.folder-row-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  flex-shrink: 0;
+  color: var(--color-text-secondary, #64748b);
+}
+
+.folder-row-dir .folder-row-icon,
+.folder-row-source .folder-row-icon {
+  color: var(--color-primary, #3b82f6);
+}
+
+.folder-row-main {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+
+.folder-row-name {
+  font-size: 0.875rem;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.folder-row-meta {
+  font-size: 0.75rem;
+  color: var(--color-muted, #94a3b8);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.folder-row-chevron {
+  display: inline-flex;
+  color: var(--color-muted, #94a3b8);
+  flex-shrink: 0;
+}
+
+.folder-row-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+.folder-row-play,
+.folder-row-open {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  color: var(--color-text-secondary, #64748b);
+}
+
+.folder-row-play:not(:disabled):hover,
+.folder-row-open:hover {
+  color: var(--color-primary, #3b82f6);
+  background: rgba(59, 130, 246, 0.12);
+}
+
+.folder-row-play.active {
+  color: var(--color-primary, #3b82f6);
+}
+
+.folder-row-play:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   Album Art Lightbox
+   ═══════════════════════════════════════════════════════════ */
+
+.album-art-zoomable {
+  cursor: zoom-in;
+}
+
+.album-art-lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 1100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 32px;
+  background: rgba(8, 12, 20, 0.88);
+  backdrop-filter: blur(4px);
+  animation: album-art-fade-in 120ms ease-out;
+}
+
+.album-art-lightbox-panel {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  max-width: min(92vw, 1080px);
+  max-height: 92vh;
+}
+
+.album-art-lightbox-image {
+  display: block;
+  width: auto;
+  height: auto;
+  max-width: 100%;
+  max-height: calc(92vh - 84px);
+  border-radius: 14px;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.6);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.album-art-lightbox-caption {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  text-align: center;
+  color: #f8fafc;
+}
+
+.album-art-lightbox-title {
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.album-art-lightbox-artist {
+  font-size: 0.8125rem;
+  color: rgba(248, 250, 252, 0.7);
+}
+
+.album-art-lightbox-close {
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 50%;
+  background: rgba(15, 23, 42, 0.8);
+  color: #f8fafc;
+  cursor: pointer;
+  transition:
+    background 150ms ease,
+    transform 150ms ease;
+}
+
+.album-art-lightbox-close:hover {
+  background: rgba(239, 68, 68, 0.85);
+  transform: scale(1.05);
+}
+
+@keyframes album-art-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }

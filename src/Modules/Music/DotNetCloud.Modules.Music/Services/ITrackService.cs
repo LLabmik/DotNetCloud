@@ -20,6 +20,15 @@ public interface ITrackService
     /// <summary>Lists tracks for a specific album.</summary>
     Task<IReadOnlyList<TrackDto>> ListTracksByAlbumAsync(Guid albumId, CallerContext caller, CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Gets the tracks backing a set of Files-module nodes owned by the caller, keyed by FileNode ID.
+    /// Used by folder-style browsing to resolve a whole directory in one query.
+    /// </summary>
+    Task<IReadOnlyDictionary<Guid, TrackDto>> GetTracksByFileNodeIdsAsync(
+        IReadOnlyCollection<Guid> fileNodeIds,
+        CallerContext caller,
+        CancellationToken cancellationToken = default);
+
     /// <summary>Searches tracks by query.</summary>
     Task<IReadOnlyList<TrackDto>> SearchAsync(CallerContext caller, string query, int maxResults = 20, CancellationToken cancellationToken = default);
 
