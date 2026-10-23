@@ -101,6 +101,45 @@ public sealed class TrackService : ITrackService
         return userTracks.Select(ut => MapToDto(ut, caller.UserId)).ToList();
     }
 
+    /// <inheritdoc/>
+    public async Task<IReadOnlyDictionary<Guid, TrackDto>> GetTracksByFileNodeIdsAsync(
+        IReadOnlyCollection<Guid> fileNodeIds,
+        CallerContext caller,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(fileNodeIds);
+        ArgumentNullException.ThrowIfNull(caller);
+
+        if (fileNodeIds.Count == 0)
+            return new Dictionary<Guid, TrackDto>();
+
+        var nodeIds = fileNodeIds.Distinct().ToArray();
+
+        var userTracks = await BaseTrackQuery()
+            .Where(ut => nodeIds.Contains(ut.FileNodeId) && ut.OwnerId == caller.UserId)
+            .ToListAsync(cancellationToken);
+
+        if (userTracks.Count == 0)
+            return new Dictionary<Guid, TrackDto>();
+
+        // Resolve stars in a single query instead of one query per track (MapToDto's default behaviour).
+        var trackIds = userTracks.Select(ut => ut.Id).ToArray();
+        var starredTrackIds = await _db.StarredItems
+            .Where(s => s.UserId == caller.UserId && s.ItemType == StarredItemType.Track && trackIds.Contains(s.ItemId))
+            .Select(s => s.ItemId)
+            .ToListAsync(cancellationToken);
+        var starred = starredTrackIds.ToHashSet();
+
+        var result = new Dictionary<Guid, TrackDto>(userTracks.Count);
+        foreach (var userTrack in userTracks)
+        {
+            // First match wins when several library entries reference the same file node.
+            result.TryAdd(userTrack.FileNodeId, MapToDto(userTrack, starred.Contains(userTrack.Id)));
+        }
+
+        return result;
+    }
+
     /// <summary>
     /// Searches tracks by title, artist name, or album title (case-insensitive).
     /// </summary>
@@ -275,15 +314,24 @@ public sealed class TrackService : ITrackService
 
     internal TrackDto MapToDto(UserTrack userTrack, Guid userId)
     {
+        var isStarred = _db.StarredItems.Any(s =>
+            s.UserId == userId && s.ItemType == StarredItemType.Track && s.ItemId == userTrack.Id);
+
+        return MapToDto(userTrack, isStarred);
+    }
+
+    /// <summary>
+    /// Maps a user track to a DTO using a pre-resolved starred flag, so bulk lookups
+    /// do not issue one star query per track.
+    /// </summary>
+    private static TrackDto MapToDto(UserTrack userTrack, bool isStarred)
+    {
         var canonicalTrack = userTrack.CanonicalTrack;
         var primaryArtist = canonicalTrack?.TrackArtists
             .FirstOrDefault(cta => cta.IsPrimary)?.Artist
             ?? canonicalTrack?.TrackArtists.FirstOrDefault()?.Artist;
 
         var primaryGenre = canonicalTrack?.TrackGenres.FirstOrDefault()?.Genre?.Name;
-
-        var isStarred = _db.StarredItems.Any(s =>
-            s.UserId == userId && s.ItemType == StarredItemType.Track && s.ItemId == userTrack.Id);
 
         return new TrackDto
         {

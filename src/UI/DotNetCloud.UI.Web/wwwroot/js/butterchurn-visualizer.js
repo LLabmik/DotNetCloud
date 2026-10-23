@@ -17,6 +17,10 @@ window.dotnetcloudVisualizer = window.dotnetcloudVisualizer || (function () {
     var cycleTimerId = null;
     var cycleBlendSeconds = 2.0;
 
+    // Blazor callbacks (keyboard shortcuts + preset-change notifications)
+    var dotNetHandler = null;
+    var shortcutListenerAttached = false;
+
     // ResizeObserver
     var resizeObserver = null;
 
@@ -451,6 +455,7 @@ window.dotnetcloudVisualizer = window.dotnetcloudVisualizer || (function () {
             running = true;
             renderLoop();
             setupResizeObserver();
+            attachShortcutListener();
             return true;
         } catch (e) {
             console.error("[Visualizer] Failed to start:", e);
@@ -466,6 +471,7 @@ window.dotnetcloudVisualizer = window.dotnetcloudVisualizer || (function () {
         }
         stopAutoCycle();
         teardownResizeObserver();
+        detachShortcutListener();
     }
 
     function renderLoop() {
@@ -519,6 +525,7 @@ window.dotnetcloudVisualizer = window.dotnetcloudVisualizer || (function () {
         if (!ensurePrecompiled(presetName)) return false;
         visualizer.loadPreset(presets[presetName], blendSeconds || 0);
         currentPresetName = presetName;
+        notifyPresetChanged(presetName);
         return true;
     }
 
@@ -617,6 +624,17 @@ window.dotnetcloudVisualizer = window.dotnetcloudVisualizer || (function () {
             clearTimeout(fsHideTimer);
             fsHideTimer = null;
         }
+        // Drop focus from the fullscreen toggle: otherwise the browser's native
+        // "Space activates the focused button" behaviour toggles fullscreen again.
+        blurContainerControl(container);
+    }
+
+    function blurContainerControl(container) {
+        var active = document.activeElement;
+        if (!active || active === canvas) return;
+        if (container && container.contains(active) && typeof active.blur === "function") {
+            active.blur();
+        }
     }
 
     document.addEventListener('fullscreenchange', onFullscreenChange);
@@ -667,10 +685,72 @@ window.dotnetcloudVisualizer = window.dotnetcloudVisualizer || (function () {
         }
     }
 
+    // ── Keyboard shortcuts ──
+
+    function setDotNetHandler(dotNetRef) {
+        dotNetHandler = dotNetRef;
+    }
+
+    /** Tells the Blazor page which preset is now active (keeps the preset dropdown in sync). */
+    function notifyPresetChanged(presetName) {
+        if (!dotNetHandler || !presetName) return;
+        dotNetHandler.invokeMethodAsync("OnVisualizerPresetChangedAsync", presetName).catch(function (err) {
+            console.warn("[Visualizer] Preset-change notification failed:", err);
+        });
+    }
+
+    function isOverlayVisible() {
+        if (!canvas) return false;
+        var container = canvas.parentElement;
+        return !!container && !container.classList.contains('visualizer-hidden');
+    }
+
+    function isTextEntryTarget(target) {
+        if (!target || !target.tagName) return false;
+        var tag = target.tagName.toLowerCase();
+        return tag === "input" || tag === "textarea" || tag === "select" || target.isContentEditable === true;
+    }
+
+    /**
+     * n = next preset, b = previous preset, h = hold/resume auto-cycle.
+     * Keys are only intercepted while the visualization is running and visible, and never
+     * while typing in a form control; the actions themselves are executed by the Blazor page
+     * so the preset dropdown, auto-cycle button and hold indicator all stay in sync.
+     */
+    function onVisualizerKeyDown(e) {
+        if (!running || !dotNetHandler) return;
+        if (e.defaultPrevented || e.repeat) return;
+        if (e.ctrlKey || e.metaKey || e.altKey) return;
+        if (isTextEntryTarget(e.target)) return;
+        if (!isOverlayVisible()) return;
+
+        var key = (e.key || "").toLowerCase();
+        if (key !== "n" && key !== "b" && key !== "h") return;
+
+        e.preventDefault();
+        dotNetHandler.invokeMethodAsync("OnVisualizerShortcutAsync", key).catch(function (err) {
+            console.warn("[Visualizer] Shortcut handler failed:", err);
+        });
+    }
+
+    function attachShortcutListener() {
+        if (shortcutListenerAttached) return;
+        document.addEventListener("keydown", onVisualizerKeyDown);
+        shortcutListenerAttached = true;
+    }
+
+    function detachShortcutListener() {
+        if (!shortcutListenerAttached) return;
+        document.removeEventListener("keydown", onVisualizerKeyDown);
+        shortcutListenerAttached = false;
+    }
+
     // ── Cleanup ──
 
     function dispose() {
         stop();
+        detachShortcutListener();
+        dotNetHandler = null;
         if (visualizer) {
             visualizer = null;
         }
@@ -695,6 +775,7 @@ window.dotnetcloudVisualizer = window.dotnetcloudVisualizer || (function () {
         toggleFullscreen: toggleFullscreen,
         startAutoCycle: startAutoCycle,
         stopAutoCycle: stopAutoCycle,
+        setDotNetHandler: setDotNetHandler,
         dispose: dispose
     };
 })();

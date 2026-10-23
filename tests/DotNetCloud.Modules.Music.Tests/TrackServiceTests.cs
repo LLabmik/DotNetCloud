@@ -240,4 +240,79 @@ public class TrackServiceTests
         await Assert.ThrowsExactlyAsync<DotNetCloud.Core.Errors.BusinessRuleException>(
             () => _service.DeleteTrackAsync(Guid.CreateVersion7(), _caller));
     }
+
+    // ─── GetTracksByFileNodeIds (folder view bulk lookup) ────────────
+
+    [TestMethod]
+    public async Task GetTracksByFileNodeIds_EmptyInput_ReturnsEmpty()
+    {
+        var result = await _service.GetTracksByFileNodeIdsAsync([], _caller);
+
+        Assert.AreEqual(0, result.Count);
+    }
+
+    [TestMethod]
+    public async Task GetTracksByFileNodeIds_MatchingNodes_KeyedByFileNodeId()
+    {
+        var (_, _, track) = await TestHelpers.SeedCompleteTrackAsync(_db, trackTitle: "Song A", ownerId: _caller.UserId);
+
+        var result = await _service.GetTracksByFileNodeIdsAsync([track.FileNodeId], _caller);
+
+        Assert.AreEqual(1, result.Count);
+        Assert.IsTrue(result.ContainsKey(track.FileNodeId));
+        Assert.AreEqual("Song A", result[track.FileNodeId].Title);
+    }
+
+    [TestMethod]
+    public async Task GetTracksByFileNodeIds_UnknownAndFolderIds_AreIgnored()
+    {
+        var (_, _, track) = await TestHelpers.SeedCompleteTrackAsync(_db, ownerId: _caller.UserId);
+
+        var result = await _service.GetTracksByFileNodeIdsAsync(
+            [track.FileNodeId, Guid.CreateVersion7(), Guid.CreateVersion7()],
+            _caller);
+
+        Assert.AreEqual(1, result.Count);
+        Assert.IsTrue(result.ContainsKey(track.FileNodeId));
+    }
+
+    [TestMethod]
+    public async Task GetTracksByFileNodeIds_OtherOwnersTracks_AreExcluded()
+    {
+        var otherOwner = Guid.CreateVersion7();
+        var (_, _, otherTrack) = await TestHelpers.SeedCompleteTrackAsync(_db, ownerId: otherOwner);
+        var (_, _, ownTrack) = await TestHelpers.SeedCompleteTrackAsync(
+            _db, trackTitle: "Mine", artistName: "Artist2", albumTitle: "Album2", ownerId: _caller.UserId);
+
+        var result = await _service.GetTracksByFileNodeIdsAsync(
+            [otherTrack.FileNodeId, ownTrack.FileNodeId],
+            _caller);
+
+        Assert.AreEqual(1, result.Count);
+        Assert.IsTrue(result.ContainsKey(ownTrack.FileNodeId));
+        Assert.IsFalse(result.ContainsKey(otherTrack.FileNodeId));
+    }
+
+    [TestMethod]
+    public async Task GetTracksByFileNodeIds_StarredTrack_ReturnsIsStarredTrue()
+    {
+        var (_, _, track) = await TestHelpers.SeedCompleteTrackAsync(_db, ownerId: _caller.UserId);
+        await TestHelpers.SeedStarredItemAsync(_db, _caller.UserId, track.Id, StarredItemType.Track);
+
+        var result = await _service.GetTracksByFileNodeIdsAsync([track.FileNodeId], _caller);
+
+        Assert.IsTrue(result[track.FileNodeId].IsStarred);
+    }
+
+    [TestMethod]
+    public async Task GetTracksByFileNodeIds_DuplicateIds_ReturnsOneEntryPerNode()
+    {
+        var (_, _, track) = await TestHelpers.SeedCompleteTrackAsync(_db, ownerId: _caller.UserId);
+
+        var result = await _service.GetTracksByFileNodeIdsAsync(
+            [track.FileNodeId, track.FileNodeId],
+            _caller);
+
+        Assert.AreEqual(1, result.Count);
+    }
 }

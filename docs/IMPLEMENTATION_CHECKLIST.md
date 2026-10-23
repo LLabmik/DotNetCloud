@@ -8,6 +8,61 @@
 
 ---
 
+## Recent Feature — Visualizer keyboard shortcuts (2026-10-23, `feature/blazor-updates`)
+
+> While the visualizer is running and visible: **N** = next preset, **B** = previous preset (both wrap), **H** = hold current preset / resume auto-cycle. Hold mode shows a 3×3 px red square in the bottom-right corner.
+
+- ✓ `document` keydown listener in `butterchurn-visualizer.js` (attach on start, detach on stop/dispose), ignoring repeats, modifiers, text-entry targets and the hidden overlay
+- ✓ Shortcut dispatch to Blazor via `DotNetObjectReference` + `[JSInvokable] OnVisualizerShortcutAsync`, so preset dropdown / auto-cycle button / hold indicator stay in sync
+- ✓ `GetSteppedPresetIndex` wraps N/B in both directions (unknown current preset → first forward, last backward)
+- ✓ Hold indicator: 3×3 px red square, 10 px from right/bottom, `z-index: 30` above the canvas
+- ✓ Space no longer toggles fullscreen (focus is blurred when fullscreen changes)
+- ✓ Help page documents the shortcuts
+- ✓ Preset dropdown follows the active preset: `loadPreset` notifies Blazor (`OnVisualizerPresetChangedAsync`), covering auto-cycle/random/keyboard/select changes
+- ✓ `butterchurn-visualizer.js` cache-buster bumped in `App.razor` (`?v=20261023-01`)
+- ✓ `MusicPageVisualizerShortcutTests` (8) — next/previous wrap, unknown current, single preset, no presets
+- ✓ `MusicPageVisualizerPresetSyncTests` (3) — applies, replaces, ignores empty/whitespace
+- ☐ Deploy + browser verification on mint22 (awaiting approval)
+
+---
+
+## Recent Feature — Music album art lightbox (2026-10-23, `feature/blazor-updates`)
+
+> Clicking the cover on the album detail view opens it at full size in a modal. Album cards keep their original click behaviour.
+
+- ✓ Zoomable cover: album detail header only (scope narrowed after review)
+- ✓ Album cards (Recently Added, discography, Albums grid, Favorites) keep their original click → open album behaviour
+- ✓ Lightbox shows the cover up to 92 vh with title/artist caption, close button and overlay-click dismissal
+- ✓ Albums without cover art are unaffected (placeholder keeps the Fetch Art action)
+- ✓ `MusicPageAlbumArtModalTests` (5) — open, no-cover guard, replace, close, close-when-closed
+- ☐ Deploy + browser verification on mint22 (awaiting approval)
+
+---
+
+## Recent Feature — Music folder view (2026-10-23, `feature/blazor-updates`)
+
+> The Blazor Music module browses its library sources as directories. Multiple sources appear as directories at the root of the folder view; a single source opens directly. Indexed music files play in the global player, and every file can be opened in Files.
+
+**UI**
+- ✓ `Folders` item in the Music sidebar (`MaterialIcon folder`)
+- ✓ `Section.Folders` with breadcrumbs, Up and Refresh in `MusicPage`
+- ✓ Sources root lists every configured source (owned folder or `_DotNetCloud` shared mount); single source auto-opens
+- ✓ Folder rows: sub-folders first, then files, alphabetical; sizes, durations and artist/album metadata
+- ✓ Play indexed tracks (▶ / double-click) and `Open in Files` deep link per file
+- ✓ Empty state links to Library Settings when no sources are configured
+- ✓ Scoped styles for the folder view in `MusicPage.razor.css`
+
+**Services**
+- ✓ `ITrackService.GetTracksByFileNodeIdsAsync` — bulk FileNode → `TrackDto` lookup with a single star query
+- ✓ Star-aware `TrackService.MapToDto` overload (existing behaviour unchanged)
+
+**Tests**
+- ✓ `MusicFolderViewTests` — ordering, case-insensitive sort, track resolution, folder/track separation, metadata copy
+- ✓ `TrackServiceTests` — bulk lookup: empty input, keying, unknown IDs, owner filtering, stars, duplicates
+- ☐ Deploy + browser verification on mint22 (awaiting approval)
+
+---
+
 ## Recent Feature — Default user content template (2026-10-21, `feature/default-user-content`)
 
 > Every new account is seeded from an administrator-managed template at `${DOTNETCLOUD_DATA_DIR}/default-user-content` (`docs/DEFAULT_USER_CONTENT_PLAN.md`). Existing accounts converge on every start-up and daily. Automatic passes are add-only; removals and edits require an explicitly confirmed run. Starter content is read-only, quota-free, and **keeps no version history**.
