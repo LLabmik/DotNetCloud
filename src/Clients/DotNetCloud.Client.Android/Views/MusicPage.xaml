@@ -40,32 +40,19 @@
                 <Grid.GestureRecognizers>
                     <TapGestureRecognizer Command="{Binding CycleRepeatCommand}"/>
                 </Grid.GestureRecognizers>
-                <Label Text="{Binding RepeatIcon}"
-                       FontSize="16"
+                <Label Text="{Binding RepeatGlyph}"
+                       FontFamily="MaterialIcons"
+                       FontSize="22"
+                       TextColor="{Binding RepeatModeColor}"
                        VerticalOptions="Center"
-                       HorizontalOptions="Center">
-                    <Label.Triggers>
-                        <DataTrigger TargetType="Label"
-                                     Binding="{Binding IsRepeatActive}"
-                                     Value="True">
-                            <Setter Property="TextColor"
-                                    Value="#0EA5E9"/>
-                        </DataTrigger>
-                        <DataTrigger TargetType="Label"
-                                     Binding="{Binding IsRepeatActive}"
-                                     Value="False">
-                            <Setter Property="TextColor"
-                                    Value="#94A3B8"/>
-                        </DataTrigger>
-                    </Label.Triggers>
-                </Label>
+                       HorizontalOptions="Center"/>
             </Grid>
 
             <!-- Repeat label — shown to the right of the repeat icon -->
             <Label Grid.Column="2"
                    Text="{Binding RepeatLabel}"
                    FontSize="10"
-                   TextColor="#94A3B8"
+                   TextColor="{Binding RepeatModeColor}"
                    VerticalOptions="Center"
                    IsVisible="{Binding CurrentTrack, Converter={StaticResource IsNotNull}}"/>
 

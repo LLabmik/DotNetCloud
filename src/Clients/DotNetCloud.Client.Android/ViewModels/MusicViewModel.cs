@@ -384,17 +384,17 @@ public sealed partial class MusicViewModel : ObservableObject
     [ObservableProperty]
     private RepeatMode _repeatMode;
 
-    /// <summary>Repeat icon character: 🔁 for Off/All, 🔂 for One.</summary>
+    /// <summary>Repeat icon glyph from the MaterialIcons font: &#xE040; for Off/All, &#xE041; for One.</summary>
     [ObservableProperty]
-    private string _repeatIcon = "🔁";
+    private string _repeatGlyph = "\ue040";
 
     /// <summary>Repeat label text: "Off", "One", or "All".</summary>
     [ObservableProperty]
     private string _repeatLabel = "Off";
 
-    /// <summary>True when repeat mode is not Off (used for active styling).</summary>
+    /// <summary>Accent colour for the repeat control: red (Off), yellow (One), green (All).</summary>
     [ObservableProperty]
-    private bool _isRepeatActive;
+    private Color _repeatModeColor = Color.FromArgb("#EF4444");
 
     // ── Album art ──────────────────────────────────────────────────
 
@@ -1166,7 +1166,7 @@ public sealed partial class MusicViewModel : ObservableObject
     {
         var mode = _player.RepeatMode;
         RepeatMode = mode;
-        RepeatIcon = mode == RepeatMode.One ? "🔂" : "🔁";
+        RepeatGlyph = mode == RepeatMode.One ? "\ue041" : "\ue040";
         RepeatLabel = mode switch
         {
             RepeatMode.Off => "Off",
@@ -1174,7 +1174,12 @@ public sealed partial class MusicViewModel : ObservableObject
             RepeatMode.All => "All",
             _ => "Off",
         };
-        IsRepeatActive = mode != RepeatMode.Off;
+        RepeatModeColor = mode switch
+        {
+            RepeatMode.One => Color.FromArgb("#EAB308"),
+            RepeatMode.All => Color.FromArgb("#22C55E"),
+            _ => Color.FromArgb("#EF4444"),
+        };
     }
 
     [RelayCommand]

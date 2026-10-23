@@ -1696,6 +1696,8 @@ Also fixed Android music play order (2026-09-04, `fix/android-music-play-order`)
 
 Also removed the Android equalizer (2026-10-21, `fix/remove-android-music-eq`): device `AudioEffect.Equalizer` implementations proved unreliable (missing/no-op effects, band mapping that did not track the audible output), so the EQ button/view, sliders, preset save/apply UI, `IEqualizerService`/`AndroidEqualizerService`, `EqBandModel`, the Android client's EQ preset REST methods and the `MODIFY_AUDIO_SETTINGS` permission were deleted. The server preset API and the Blazor web-player EQ are untouched. Android tests updated; Android tests project builds and 550 tests pass; MAUI app builds with 0 warnings.
 
+Also colour-coded the Android repeat control by mode (2026-10-23, `feature/music-repeat-mode-colors`): the emoji label became a `MaterialIcons` font glyph (`\ue040` repeat / `\ue041` repeat_one) so `TextColor` actually applies, and the new `RepeatModeColor` property tints both the icon and the Off/One/All label — red `#EF4444` (Off), yellow `#EAB308` (One), green `#22C55E` (All). `RepeatIcon`/`IsRepeatActive` were replaced by `RepeatGlyph`/`RepeatModeColor`; Android tests updated (547 total, 0 failures) and the MAUI app builds cleanly.
+
 ---
 
 ### Step: phase-2.10.2 - Android Calendar Multi-Event Day List
@@ -2993,6 +2995,8 @@ Also removed the Android equalizer (2026-10-21, `fix/remove-android-music-eq`): 
 **Notes:** Sub-Phase C (Music Module) fully complete including Blazor UI. Starring/favorites with optimistic UI updates, album art, playback controls, play bar with album navigation.
 
 **Enhancement (2026-10-13):** the browser tab title now shows the now-playing track — `♪ {Song} — {Band}` while playing (`⏸` when paused) — kept applied across Blazor `<PageTitle>` navigation via a `MutationObserver` in `music-player.js` (`setNowPlayingTitle` / `clearNowPlayingTitle`) driven by `GlobalMusicPlaybar`. The override is captured/restored around the page's own title and cleared when playback stops or the playbar is disposed (logout).
+
+**Enhancement (2026-10-23):** the playbar's repeat control is colour-coded by mode — Off = red, One = yellow, All = green. The emoji glyph was replaced with the `MaterialIcon` component (`repeat` / `repeat_one`, paths added to `MaterialSvgIcons`) so the SVG honours `currentColor`, and both the icon and the Off/One/All label use a mode class (`gmp-repeat-mode-off/one/all`) styled in `app.css`.
 
 ---
 
