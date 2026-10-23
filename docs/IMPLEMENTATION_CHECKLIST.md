@@ -4054,6 +4054,7 @@ Zero-tap sign-in (Apr 2027) and the API 36 target bump are tracked separately (d
 - ✓ Implement EQ preset save/load/apply (server presets + virtual band mapping)
 - ✓ Remove Android equalizer (2026-10-21): native `AudioEffect.Equalizer` was unreliable across devices, so the EQ button/view, band sliders, preset UI, `IEqualizerService`/`AndroidEqualizerService`, Android EQ REST client methods and `MODIFY_AUDIO_SETTINGS` were removed. Server preset API and Blazor EQ are unchanged.
 - ✓ Implement repeat modes (Off / One / All) with visual indicator
+- ✓ Colour-code the repeat control by mode (Off = red, One = yellow, All = green) — emoji label replaced with a `MaterialIcons` glyph so `TextColor` applies, and `RepeatModeColor` tints both icon and label
 - ✓ Fix music auto-advance: playing a track from the list queues the full displayed list so `RepeatMode.Off` advances through the queue instead of stopping after one song
 - ✓ Fix `MEDIA_ERROR_SERVER_DIED (-38)` feedback loop that froze the app at track transitions (break error→Stop→error recursion)
 - ✓ Use a fresh `MediaPlayer` per track (release+recreate) and retry the same track on -38 so the _very next_ song plays
@@ -4814,6 +4815,7 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 - ✓ Step 5.13 — Subsonic API Compatibility
 - ✓ Step 5.14 — Music API, gRPC & Blazor UI
   - ✓ **Enhancement (2026-10-13):** now-playing track shown in the browser tab title (`♪ Song — Band`, `⏸` when paused). The override survives Blazor page navigation (`MutationObserver` in `music-player.js`) and is cleared when playback stops or on logout (`GlobalMusicPlaybar`).
+  - ✓ **Enhancement (2026-10-23):** `GlobalMusicPlaybar` repeat control is colour-coded by mode — Off = red, One = yellow, All = green — via `MaterialIcon` (`repeat` / `repeat_one`, added to `MaterialSvgIcons`) and the `gmp-repeat-mode-off/one/all` classes in `app.css`; icon and label share the mode colour
 
 ### Per-Device Music EQ Default — feature/local-eq-selection
 

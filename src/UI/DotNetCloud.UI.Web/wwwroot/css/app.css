@@ -6579,6 +6579,22 @@ textarea.form-control {
   color: var(--color-primary, #3b82f6) !important;
 }
 
+/* Repeat mode colours — Off = red, One = yellow, All = green */
+.global-music-playbar .gmp-repeat-mode-off {
+  color: #ef4444;
+  vertical-align: middle;
+}
+
+.global-music-playbar .gmp-repeat-mode-one {
+  color: #eab308;
+  vertical-align: middle;
+}
+
+.global-music-playbar .gmp-repeat-mode-all {
+  color: #22c55e;
+  vertical-align: middle;
+}
+
 /* ── Progress bar ── */
 .gmp-progress {
   display: flex;

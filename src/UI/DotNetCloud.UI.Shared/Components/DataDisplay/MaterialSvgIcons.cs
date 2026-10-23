@@ -107,6 +107,8 @@ public static class MaterialSvgIcons
         ["pause"] = "M6 19h4V5H6v14zm8-14v14h4V5h-4z",
         ["skip_next"] = "M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z",
         ["skip_previous"] = "M6 6h2v12H6zm3.5 6l8.5 6V6z",
+        ["repeat"] = "M7 7h10v3l4-4-4-4v3H5v6h2V7zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2v4z",
+        ["repeat_one"] = "M7 7h10v3l4-4-4-4v3H5v6h2V7zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2v4zm-4-2V9h-1l-2 1v1h1.5v4H13z",
 
         // Actions
         ["edit"] = "M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z",

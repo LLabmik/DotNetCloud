@@ -100,13 +100,11 @@
                     @(Playback.IsPlaying ? "⏸" : "▶")
                 </button>
                 <button class="gmp-btn" @onclick="PlayNextAsync" title="Next">⏭</button>
-                <button class="gmp-btn" @onclick="CycleRepeatAsync" title="Repeat">
-                    <span class="@(Playback.Repeat != RepeatMode.Off ? "active-control" : "")">
-                        @(Playback.Repeat == RepeatMode.One ? "🔂" : "🔁")
-                    </span>
+                <button class="gmp-btn" @onclick="CycleRepeatAsync" title="Repeat: @RepeatLabel">
+                    <MaterialIcon Icon="@(Playback.Repeat == RepeatMode.One ? "repeat_one" : "repeat")"
+                                  Size="MaterialIconSize.Sm" CssClass="@RepeatModeCssClass" />
                 </button>
-                <span class="gmp-repeat-label">@(Playback.Repeat == RepeatMode.Off ? "Off" : Playback.Repeat ==
-                                    RepeatMode.All ? "All" : "One")</span>
+                <span class="gmp-repeat-label @RepeatModeCssClass">@RepeatLabel</span>
                 </div>
                 <div class="gmp-progress">
                     <span class="gmp-time">@MusicPlaybackState.FormatDuration(Playback.PlaybackPosition)</span>
@@ -347,6 +345,24 @@
     private bool _settingsLoaded;
     private LocalEqState? _localEqState;
     private CancellationTokenSource? _saveCts;
+
+    /// <summary>
+    /// CSS class applying the repeat-mode colour: red for Off, yellow for One, green for All.
+    /// </summary>
+    private string RepeatModeCssClass => Playback.Repeat switch
+    {
+        RepeatMode.One => "gmp-repeat-mode-one",
+        RepeatMode.All => "gmp-repeat-mode-all",
+        _ => "gmp-repeat-mode-off",
+    };
+
+    /// <summary>Human-readable repeat mode label shown next to the repeat button.</summary>
+    private string RepeatLabel => Playback.Repeat switch
+    {
+        RepeatMode.One => "One",
+        RepeatMode.All => "All",
+        _ => "Off",
+    };
 
     protected override void OnInitialized()
     {

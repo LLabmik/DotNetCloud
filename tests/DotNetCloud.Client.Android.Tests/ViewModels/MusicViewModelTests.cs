@@ -5,6 +5,7 @@ using DotNetCloud.Client.Android.Music;
 using DotNetCloud.Client.Android.Services;
 using DotNetCloud.Client.Android.ViewModels;
 using DotNetCloud.Core.DTOs;
+using Microsoft.Maui.Graphics;
 using Moq;
 
 namespace DotNetCloud.Client.Android.Tests.ViewModels;
@@ -71,9 +72,9 @@ public sealed class MusicViewModelTests
 
         // Repeat defaults
         Assert.AreEqual(RepeatMode.Off, _vm.RepeatMode);
-        Assert.AreEqual("🔁", _vm.RepeatIcon);
+        Assert.AreEqual("\ue040", _vm.RepeatGlyph);
         Assert.AreEqual("Off", _vm.RepeatLabel);
-        Assert.IsFalse(_vm.IsRepeatActive);
+        Assert.AreEqual(Color.FromArgb("#EF4444"), _vm.RepeatModeColor);
     }
 
     // ── Alphabet rail (letter-tap feedback) ────────────────────────────
@@ -183,9 +184,9 @@ public sealed class MusicViewModelTests
         _player.Raise(x => x.RepeatModeChanged += null, EventArgs.Empty);
 
         Assert.AreEqual(RepeatMode.Off, _vm.RepeatMode);
-        Assert.AreEqual("🔁", _vm.RepeatIcon);
+        Assert.AreEqual("\ue040", _vm.RepeatGlyph);
         Assert.AreEqual("Off", _vm.RepeatLabel);
-        Assert.IsFalse(_vm.IsRepeatActive);
+        Assert.AreEqual(Color.FromArgb("#EF4444"), _vm.RepeatModeColor);
     }
 
     [TestMethod]
@@ -195,9 +196,9 @@ public sealed class MusicViewModelTests
         _player.Raise(x => x.RepeatModeChanged += null, EventArgs.Empty);
 
         Assert.AreEqual(RepeatMode.One, _vm.RepeatMode);
-        Assert.AreEqual("🔂", _vm.RepeatIcon);
+        Assert.AreEqual("\ue041", _vm.RepeatGlyph);
         Assert.AreEqual("One", _vm.RepeatLabel);
-        Assert.IsTrue(_vm.IsRepeatActive);
+        Assert.AreEqual(Color.FromArgb("#EAB308"), _vm.RepeatModeColor);
     }
 
     [TestMethod]
@@ -207,9 +208,9 @@ public sealed class MusicViewModelTests
         _player.Raise(x => x.RepeatModeChanged += null, EventArgs.Empty);
 
         Assert.AreEqual(RepeatMode.All, _vm.RepeatMode);
-        Assert.AreEqual("🔁", _vm.RepeatIcon);
+        Assert.AreEqual("\ue040", _vm.RepeatGlyph);
         Assert.AreEqual("All", _vm.RepeatLabel);
-        Assert.IsTrue(_vm.IsRepeatActive);
+        Assert.AreEqual(Color.FromArgb("#22C55E"), _vm.RepeatModeColor);
     }
 
     // ── LoadArtistsAsync ───────────────────────────────────────────────
