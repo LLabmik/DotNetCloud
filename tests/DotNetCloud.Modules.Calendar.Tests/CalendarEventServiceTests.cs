@@ -200,6 +200,63 @@ public class CalendarEventServiceTests
     }
 
     [TestMethod]
+    public async Task UpdateEvent_WithReminders_ReplacesReminders()
+    {
+        var created = await _eventService.CreateEventAsync(new CreateCalendarEventDto
+        {
+            CalendarId = _calendar.Id,
+            Title = "Reminder Replace",
+            StartUtc = DateTime.UtcNow.AddHours(1),
+            EndUtc = DateTime.UtcNow.AddHours(2),
+            Reminders = [new EventReminderDto { MinutesBefore = 15 }]
+        }, _caller);
+
+        var updated = await _eventService.UpdateEventAsync(
+            created.Id,
+            new UpdateCalendarEventDto
+            {
+                Reminders = [new EventReminderDto { MinutesBefore = 45, Method = ReminderMethod.Email }]
+            },
+            _caller);
+
+        Assert.AreEqual(1, updated.Reminders.Count);
+        Assert.AreEqual(45, updated.Reminders[0].MinutesBefore);
+        Assert.AreEqual(ReminderMethod.Email, updated.Reminders[0].Method);
+
+        var stored = await _db.EventReminders.Where(r => r.EventId == created.Id).ToListAsync();
+        Assert.AreEqual(1, stored.Count);
+        Assert.AreEqual(45, stored[0].MinutesBefore);
+    }
+
+    [TestMethod]
+    public async Task UpdateEvent_WithAttendees_ReplacesAttendees()
+    {
+        var created = await _eventService.CreateEventAsync(new CreateCalendarEventDto
+        {
+            CalendarId = _calendar.Id,
+            Title = "Attendee Replace",
+            StartUtc = DateTime.UtcNow.AddHours(1),
+            EndUtc = DateTime.UtcNow.AddHours(2),
+            Attendees = [new EventAttendeeDto { Email = "old@example.com" }]
+        }, _caller);
+
+        var updated = await _eventService.UpdateEventAsync(
+            created.Id,
+            new UpdateCalendarEventDto
+            {
+                Attendees = [new EventAttendeeDto { Email = "new@example.com", DisplayName = "New" }]
+            },
+            _caller);
+
+        Assert.AreEqual(1, updated.Attendees.Count);
+        Assert.AreEqual("new@example.com", updated.Attendees[0].Email);
+
+        var stored = await _db.EventAttendees.Where(a => a.EventId == created.Id).ToListAsync();
+        Assert.AreEqual(1, stored.Count);
+        Assert.AreEqual("new@example.com", stored[0].Email);
+    }
+
+    [TestMethod]
     public async Task UpdateEvent_PublishesUpdatedEvent()
     {
         var created = await _eventService.CreateEventAsync(MakeEventDto(), _caller);

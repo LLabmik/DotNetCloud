@@ -156,6 +156,47 @@ public class ContactServiceTests
     }
 
     [TestMethod]
+    public async Task UpdateContact_WithEmails_ReplacesEmails()
+    {
+        var created = await _service.CreateContactAsync(new CreateContactDto
+        {
+            ContactType = ContactType.Person,
+            DisplayName = "Email Replace",
+            Emails = [new ContactEmailDto { Address = "old@example.com" }]
+        }, _caller);
+
+        var updated = await _service.UpdateContactAsync(created.Id, new UpdateContactDto
+        {
+            Emails = [new ContactEmailDto { Address = "new@example.com", IsPrimary = true }]
+        }, _caller);
+
+        Assert.AreEqual(1, updated.Emails.Count);
+        Assert.AreEqual("new@example.com", updated.Emails[0].Address);
+
+        var stored = await _db.ContactEmails.Where(e => e.ContactId == created.Id).ToListAsync();
+        Assert.AreEqual(1, stored.Count);
+        Assert.AreEqual("new@example.com", stored[0].Address);
+    }
+
+    [TestMethod]
+    public async Task UpdateContact_ChangesDisplayName_PersistsToDatabase()
+    {
+        var created = await _service.CreateContactAsync(new CreateContactDto
+        {
+            ContactType = ContactType.Person,
+            DisplayName = "Original Name"
+        }, _caller);
+
+        _db.ChangeTracker.Clear();
+
+        await _service.UpdateContactAsync(created.Id, new UpdateContactDto { DisplayName = "Persisted Name" }, _caller);
+
+        _db.ChangeTracker.Clear();
+        var reloaded = await _db.Contacts.FirstAsync(c => c.Id == created.Id);
+        Assert.AreEqual("Persisted Name", reloaded.DisplayName);
+    }
+
+    [TestMethod]
     public async Task DeleteContact_SoftDeletes()
     {
         var dto = new CreateContactDto

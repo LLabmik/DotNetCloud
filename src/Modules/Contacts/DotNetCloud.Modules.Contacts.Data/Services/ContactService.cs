@@ -186,7 +186,16 @@ public sealed class ContactService : IContactService
     {
         ArgumentNullException.ThrowIfNull(dto);
 
-        var contact = await QueryContacts()
+        // Tracked on purpose: scalar edits on this entity must be persisted by SaveChangesAsync.
+        // (Read paths use QueryContacts(), which is AsNoTracking.)
+        var contact = await _db.Contacts
+            .Include(c => c.Emails)
+            .Include(c => c.PhoneNumbers)
+            .Include(c => c.Addresses)
+            .Include(c => c.CustomFields)
+            .Include(c => c.GroupMemberships)
+            .Include(c => c.Shares)
+            .Include(c => c.Attachments)
             .FirstOrDefaultAsync(c => c.Id == contactId && c.OwnerId == caller.UserId, cancellationToken)
             ?? throw new Core.Errors.ValidationException(Core.Errors.ErrorCodes.ContactNotFound, "Contact not found.");
 
@@ -215,14 +224,18 @@ public sealed class ContactService : IContactService
         if (dto.WebsiteUrl is not null)
             contact.WebsiteUrl = dto.WebsiteUrl;
 
+        // NOTE: children are added through their DbSet, not the navigation collection. A child with a
+        // client-generated key discovered only via a tracked navigation is tracked as Modified (not
+        // Added), which turns the INSERT into an UPDATE against a non-existent row.
         if (dto.Emails is not null)
         {
             _db.ContactEmails.RemoveRange(contact.Emails);
             contact.Emails.Clear();
             foreach (var email in dto.Emails)
             {
-                contact.Emails.Add(new ContactEmail
+                _db.ContactEmails.Add(new ContactEmail
                 {
+                    ContactId = contact.Id,
                     Address = email.Address,
                     Label = email.Label,
                     IsPrimary = email.IsPrimary,
@@ -237,8 +250,9 @@ public sealed class ContactService : IContactService
             contact.PhoneNumbers.Clear();
             foreach (var phone in dto.PhoneNumbers)
             {
-                contact.PhoneNumbers.Add(new ContactPhone
+                _db.ContactPhones.Add(new ContactPhone
                 {
+                    ContactId = contact.Id,
                     Number = phone.Number,
                     Label = phone.Label,
                     IsPrimary = phone.IsPrimary,
@@ -253,8 +267,9 @@ public sealed class ContactService : IContactService
             contact.Addresses.Clear();
             foreach (var addr in dto.Addresses)
             {
-                contact.Addresses.Add(new ContactAddress
+                _db.ContactAddresses.Add(new ContactAddress
                 {
+                    ContactId = contact.Id,
                     Label = addr.Label,
                     Street = addr.Street,
                     City = addr.City,
@@ -273,7 +288,12 @@ public sealed class ContactService : IContactService
             contact.CustomFields.Clear();
             foreach (var (key, value) in dto.CustomFields)
             {
-                contact.CustomFields.Add(new ContactCustomField { Key = key, Value = value });
+                _db.ContactCustomFields.Add(new ContactCustomField
+                {
+                    ContactId = contact.Id,
+                    Key = key,
+                    Value = value
+                });
             }
         }
 
