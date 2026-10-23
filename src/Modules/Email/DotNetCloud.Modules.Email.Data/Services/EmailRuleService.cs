@@ -105,16 +105,19 @@ public sealed class EmailRuleService : IEmailRuleService
         if (request.StopProcessing.HasValue)
             rule.StopProcessing = request.StopProcessing.Value;
 
+        // NOTE: children are added through their DbSet, not the navigation collection. A child with a
+        // client-generated key discovered only via a tracked navigation is tracked as Modified (not
+        // Added), which turns the INSERT into an UPDATE against a non-existent row.
         if (request.ConditionGroups is not null)
         {
             _db.EmailRuleConditionGroups.RemoveRange(rule.ConditionGroups);
             rule.ConditionGroups.Clear();
             foreach (var cg in request.ConditionGroups)
             {
-                var group = new EmailRuleConditionGroup { MatchMode = cg.MatchMode };
+                var group = new EmailRuleConditionGroup { RuleId = rule.Id, MatchMode = cg.MatchMode };
                 foreach (var c in cg.Conditions)
                     group.Conditions.Add(new EmailRuleCondition { Field = c.Field, Operator = c.Operator, Value = c.Value });
-                rule.ConditionGroups.Add(group);
+                _db.EmailRuleConditionGroups.Add(group);
             }
         }
 
@@ -123,7 +126,7 @@ public sealed class EmailRuleService : IEmailRuleService
             _db.EmailRuleActions.RemoveRange(rule.Actions);
             rule.Actions.Clear();
             foreach (var a in request.Actions)
-                rule.Actions.Add(new EmailRuleAction { ActionType = a.ActionType, TargetValue = a.TargetValue });
+                _db.EmailRuleActions.Add(new EmailRuleAction { RuleId = rule.Id, ActionType = a.ActionType, TargetValue = a.TargetValue });
         }
 
         rule.UpdatedAt = DateTime.UtcNow;

@@ -2,6 +2,7 @@ using DotNetCloud.Core.Authorization;
 using DotNetCloud.Core.Events;
 using DotNetCloud.Modules.Email.Data;
 using DotNetCloud.Modules.Email.Data.Services;
+using DotNetCloud.Modules.Email.Models;
 using DotNetCloud.Modules.Email.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -50,5 +51,57 @@ public class EmailRuleServiceTests
     {
         var result = await _service.GetAsync(Guid.CreateVersion7(), _caller);
         Assert.IsNull(result);
+    }
+
+    [TestMethod]
+    public async Task UpdateAsync_WithConditionGroups_ReplacesGroups()
+    {
+        var created = await _service.CreateAsync(new CreateEmailRuleRequest
+        {
+            Name = "Rule",
+            ConditionGroups =
+            [
+                new CreateConditionGroupRequest
+                {
+                    Conditions =
+                    [
+                        new CreateConditionRequest
+                        {
+                            Field = EmailRuleField.Subject,
+                            Operator = EmailRuleOperator.Contains,
+                            Value = "old"
+                        }
+                    ]
+                }
+            ],
+            Actions = [new CreateRuleActionRequest { ActionType = EmailRuleActionType.MarkRead }]
+        }, _caller);
+
+        var updated = await _service.UpdateAsync(created.Id, new UpdateEmailRuleRequest
+        {
+            ConditionGroups =
+            [
+                new CreateConditionGroupRequest
+                {
+                    Conditions =
+                    [
+                        new CreateConditionRequest
+                        {
+                            Field = EmailRuleField.Subject,
+                            Operator = EmailRuleOperator.Contains,
+                            Value = "new"
+                        }
+                    ]
+                }
+            ],
+            Actions = [new CreateRuleActionRequest { ActionType = EmailRuleActionType.Star }]
+        }, _caller);
+
+        Assert.AreEqual(1, updated.ConditionGroups.Count);
+        var group = updated.ConditionGroups.Single();
+        Assert.AreEqual(1, group.Conditions.Count);
+        Assert.AreEqual("new", group.Conditions.Single().Value);
+        Assert.AreEqual(1, updated.Actions.Count);
+        Assert.AreEqual(EmailRuleActionType.Star, updated.Actions.Single().ActionType);
     }
 }

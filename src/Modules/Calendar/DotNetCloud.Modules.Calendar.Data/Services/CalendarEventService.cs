@@ -244,8 +244,12 @@ public sealed class CalendarEventService : ICalendarEventService
             calendarEvent.Attendees.Clear();
             foreach (var attendee in dto.Attendees)
             {
-                calendarEvent.Attendees.Add(new EventAttendee
+                // Add through the DbSet rather than the navigation collection. A child entity with a
+                // client-generated key that is discovered only via a tracked navigation is tracked as
+                // Modified (not Added), which turns the INSERT into an UPDATE against a non-existent row.
+                _db.EventAttendees.Add(new EventAttendee
                 {
+                    EventId = calendarEvent.Id,
                     UserId = attendee.UserId,
                     Email = attendee.Email,
                     DisplayName = attendee.DisplayName,
@@ -261,8 +265,10 @@ public sealed class CalendarEventService : ICalendarEventService
             calendarEvent.Reminders.Clear();
             foreach (var reminder in dto.Reminders)
             {
-                calendarEvent.Reminders.Add(new EventReminder
+                // Same reason as above: explicit DbSet.Add marks the new reminder as Added.
+                _db.EventReminders.Add(new EventReminder
                 {
+                    EventId = calendarEvent.Id,
                     Method = reminder.Method,
                     MinutesBefore = reminder.MinutesBefore
                 });
