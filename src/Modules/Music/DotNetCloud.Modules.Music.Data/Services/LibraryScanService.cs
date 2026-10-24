@@ -106,8 +106,16 @@ public sealed class LibraryScanService
                 var canonical = await _db.CanonicalTracks
                     .FirstOrDefaultAsync(ct => ct.ContentHash == existing.CanonicalTrackHash, cancellationToken);
 
-                if (canonical is not null && canonical.TrackNumber is null && canonical.DiscNumber is null
-                    && canonical.ContentHash.Length == 36) // GUID length, not SHA-256 (64)
+                // Two backfill cases:
+                //  - GUID-hash rows got no real tags at import time (TrackNumber/DiscNumber null);
+                //  - DurationTicks == 0 rows were imported when a corrupt embedded-art frame made
+                //    TagLib reject the whole file (metadata extraction now falls back to the audio
+                //    payload, so re-reading repairs the duration/bitrate/sample-rate).
+                var needsTagBackfill = canonical is not null && canonical.TrackNumber is null && canonical.DiscNumber is null
+                    && canonical.ContentHash.Length == 36; // GUID length, not SHA-256 (64)
+                var needsDurationBackfill = canonical is not null && canonical.DurationTicks == 0;
+
+                if (canonical is not null && (needsTagBackfill || needsDurationBackfill))
                 {
                     _logger.LogInformation("Backfilling metadata for canonical track {Hash} (FileNode {FileNodeId})",
                         existing.CanonicalTrackHash, fileNodeId);
@@ -126,19 +134,50 @@ public sealed class LibraryScanService
 
                     if (backfillMetadata is not null)
                     {
-                        canonical.Title = !IsGarbageValue(backfillMetadata.Title)
-                            ? backfillMetadata.Title
-                            : canonical.Title;
-                        canonical.TrackNumber = backfillMetadata.TrackNumber;
-                        canonical.DiscNumber = backfillMetadata.DiscNumber;
-                        canonical.Year = backfillMetadata.Year;
-                        canonical.Bitrate = backfillMetadata.Bitrate;
-                        canonical.SampleRate = backfillMetadata.SampleRate;
-                        canonical.Channels = backfillMetadata.Channels;
+                        if (needsTagBackfill)
+                        {
+                            canonical.Title = !IsGarbageValue(backfillMetadata.Title)
+                                ? backfillMetadata.Title
+                                : canonical.Title;
+                            canonical.TrackNumber = backfillMetadata.TrackNumber;
+                            canonical.DiscNumber = backfillMetadata.DiscNumber;
+                            canonical.Year = backfillMetadata.Year;
+                            canonical.Bitrate = backfillMetadata.Bitrate;
+                            canonical.SampleRate = backfillMetadata.SampleRate;
+                            canonical.Channels = backfillMetadata.Channels;
+                        }
+                        else
+                        {
+                            // Duration repair only — never clobber values that are already present.
+                            canonical.Bitrate ??= backfillMetadata.Bitrate;
+                            canonical.SampleRate ??= backfillMetadata.SampleRate;
+                            canonical.Channels ??= backfillMetadata.Channels;
+                        }
+
+                        var durationRepaired = false;
+                        if (canonical.DurationTicks == 0 && backfillMetadata.DurationTicks > 0)
+                        {
+                            canonical.DurationTicks = backfillMetadata.DurationTicks;
+                            durationRepaired = true;
+                        }
+
                         canonical.UpdatedAt = DateTime.UtcNow;
                         await _db.SaveChangesAsync(cancellationToken);
-                        _logger.LogInformation("Backfilled metadata for canonical track {Hash}: Track#={TrackNum}, Disc#={DiscNum}, Year={Year}",
-                            existing.CanonicalTrackHash, backfillMetadata.TrackNumber, backfillMetadata.DiscNumber, backfillMetadata.Year);
+                        _logger.LogInformation("Backfilled metadata for canonical track {Hash}: Track#={TrackNum}, Disc#={DiscNum}, Year={Year}, Duration={Duration}",
+                            existing.CanonicalTrackHash, backfillMetadata.TrackNumber, backfillMetadata.DiscNumber,
+                            backfillMetadata.Year, TimeSpan.FromTicks(canonical.DurationTicks));
+
+                        if (durationRepaired)
+                        {
+                            await RecomputeAlbumTotalDurationsAsync(existing.CanonicalTrackHash, cancellationToken);
+                        }
+                    }
+                    else
+                    {
+                        // Record the attempt so GetIndexedFileNodeIdsAsync does not hand this file
+                        // back to the scanner on every pass.
+                        canonical.UpdatedAt = DateTime.UtcNow;
+                        await _db.SaveChangesAsync(cancellationToken);
                     }
                 }
 
@@ -463,6 +502,18 @@ public sealed class LibraryScanService
         Guid ownerId,
         CancellationToken cancellationToken = default)
     {
+        // If this owner already has the file indexed, do NOT clone it: the (FileNodeId, OwnerId)
+        // unique index rejects the insert, and IndexFileAsync is the path that repairs missing
+        // metadata (e.g. a zero duration from an earlier import). Returning null lets the caller
+        // fall through to it. Soft-deleted rows count as owned — IndexFileAsync restores them.
+        var alreadyIndexedForOwner = await _db.UserTracks
+            .IgnoreQueryFilters()
+            .AnyAsync(ut => ut.FileNodeId == fileNodeId && ut.OwnerId == ownerId, cancellationToken);
+        if (alreadyIndexedForOwner)
+        {
+            return null;
+        }
+
         string? contentHash = null;
 
         // Strategy 1: Look up canonical track by ContentHash
@@ -1253,6 +1304,39 @@ public sealed class LibraryScanService
     }
 
     /// <summary>
+    /// Recomputes <see cref="CanonicalAlbum.TotalDurationTicks"/> for every album that contains the
+    /// given canonical track. Used after a duration backfill so the album header (e.g. "9 tracks · 43:00")
+    /// is correct immediately instead of after another full scan.
+    /// </summary>
+    private async Task RecomputeAlbumTotalDurationsAsync(string canonicalTrackHash, CancellationToken cancellationToken)
+    {
+        var albumIds = await _db.UserTracks
+            .IgnoreQueryFilters()
+            .Where(ut => ut.CanonicalTrackHash == canonicalTrackHash && ut.CanonicalAlbumId != null)
+            .Select(ut => ut.CanonicalAlbumId!.Value)
+            .Distinct()
+            .ToListAsync(cancellationToken);
+
+        foreach (var albumId in albumIds)
+        {
+            var total = await _db.CanonicalTracks
+                .Where(ct => ct.UserTracks.Any(ut => ut.CanonicalAlbumId == albumId))
+                .SumAsync(ct => (long?)ct.DurationTicks, cancellationToken) ?? 0;
+
+            var album = await _db.CanonicalAlbums.FindAsync([albumId], cancellationToken);
+            if (album is not null)
+            {
+                album.TotalDurationTicks = total;
+                album.UpdatedAt = DateTime.UtcNow;
+            }
+
+            _albumDurationCache.Remove(albumId);
+        }
+
+        await _db.SaveChangesAsync(cancellationToken);
+    }
+
+    /// <summary>
     /// Ensures canonical junction records (CanonicalTrackArtist, CanonicalTrackGenre, CanonicalAlbumArtist)
     /// exist. Uses pre-loaded in-memory sets when available (batch operations) to avoid per-track DB queries.
     /// Falls back to DB queries for single-file indexing paths.
@@ -1793,8 +1877,18 @@ public sealed class LibraryScanService
     /// </summary>
     public async Task<HashSet<Guid>> GetIndexedFileNodeIdsAsync(Guid ownerId, CancellationToken cancellationToken = default)
     {
+        // Tracks whose canonical row has no duration are treated as "not fully indexed" so the next
+        // scan re-reads them: a corrupt embedded-art frame used to make TagLib reject the file, which
+        // stored DurationTicks = 0. Metadata extraction now falls back to the audio payload, and
+        // IndexFileAsync repairs the canonical row when it sees such a file again.
+        // A 7-day retry window keeps files that genuinely have no readable duration (e.g. corrupt
+        // audio) from being re-downloaded on every scan — a repair attempt bumps UpdatedAt.
+        var retryCutoff = DateTime.UtcNow.AddDays(-7);
         var ids = await _db.UserTracks
             .Where(ut => ut.OwnerId == ownerId)
+            .Where(ut => ut.CanonicalTrack == null
+                         || ut.CanonicalTrack.DurationTicks > 0
+                         || ut.CanonicalTrack.UpdatedAt >= retryCutoff)
             .Select(ut => ut.FileNodeId)
             .ToListAsync(cancellationToken);
         return [.. ids];
