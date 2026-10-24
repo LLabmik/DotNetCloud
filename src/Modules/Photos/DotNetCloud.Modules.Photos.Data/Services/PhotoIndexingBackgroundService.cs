@@ -1,3 +1,4 @@
+using DotNetCloud.Core.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -24,18 +25,23 @@ internal sealed class PhotoIndexingBackgroundService : BackgroundService
     };
 
     private readonly IServiceScopeFactory _scopeFactory;
+    private readonly IBackgroundServiceTracker? _tracker;
     private readonly ILogger<PhotoIndexingBackgroundService> _logger;
     private readonly TimeSpan _scanInterval;
+
+    private const string ServiceName = "Photo Indexing Scan";
 
     /// <summary>
     /// Initializes a new instance of the <see cref="PhotoIndexingBackgroundService"/> class.
     /// </summary>
     public PhotoIndexingBackgroundService(
         IServiceScopeFactory scopeFactory,
-        ILogger<PhotoIndexingBackgroundService> logger)
+        ILogger<PhotoIndexingBackgroundService> logger,
+        IBackgroundServiceTracker? tracker = null)
     {
         _scopeFactory = scopeFactory;
         _logger = logger;
+        _tracker = tracker;
         // Rescan every 30 minutes for unindexed images
         _scanInterval = TimeSpan.FromMinutes(30);
     }
@@ -50,7 +56,9 @@ internal sealed class PhotoIndexingBackgroundService : BackgroundService
         {
             try
             {
-                await ScanForUnindexedPhotosAsync(stoppingToken);
+                await _tracker.RunTrackedAsync(
+                    ServiceName,
+                    () => ScanForUnindexedPhotosAsync(stoppingToken));
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
             {

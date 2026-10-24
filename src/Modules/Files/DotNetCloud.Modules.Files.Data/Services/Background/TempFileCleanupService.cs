@@ -49,6 +49,7 @@ internal sealed class TempFileCleanupService : BackgroundService
     private void RunTrackedCleanup(string trigger)
     {
         var sw = Stopwatch.StartNew();
+        _tracker.RecordRunStarting(ServiceName);
         try
         {
             _logger.LogInformation("{Service} cycle starting ({Trigger})", ServiceName, trigger);

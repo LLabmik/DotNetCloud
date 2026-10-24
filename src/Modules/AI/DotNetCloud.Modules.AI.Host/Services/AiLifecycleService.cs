@@ -1,3 +1,4 @@
+using DotNetCloud.Core.Grpc;
 using DotNetCloud.Core.Grpc.Lifecycle;
 using DotNetCloud.Core.Modules;
 using Grpc.Core;
@@ -8,7 +9,7 @@ namespace DotNetCloud.Modules.AI.Host.Services;
 /// Lifecycle gRPC service for the AI module.
 /// Allows the core supervisor to initialize, start, stop, health-check, and inspect the AI module.
 /// </summary>
-public sealed class AiLifecycleService : ModuleLifecycle.ModuleLifecycleBase
+public sealed class AiLifecycleService : TrackedModuleLifecycleBase
 {
     private readonly AiModule _module;
     private readonly ILogger<AiLifecycleService> _logger;

@@ -1,5 +1,7 @@
 using DotNetCloud.Core.Authorization;
+using DotNetCloud.Core.Grpc;
 using DotNetCloud.Core.Grpc.Lifecycle;
+using DotNetCloud.Core.Services;
 using DotNetCloud.Core.Modules;
 using Grpc.Core;
 
@@ -9,19 +11,25 @@ namespace DotNetCloud.Modules.Email.Host.Services;
 /// gRPC lifecycle service for the Email module.
 /// Receives lifecycle commands from the core supervisor.
 /// </summary>
-public sealed class EmailLifecycleService : ModuleLifecycle.ModuleLifecycleBase
+public sealed class EmailLifecycleService : TrackedModuleLifecycleBase
 {
     private readonly EmailModule _module;
+    private readonly IBackgroundServiceTracker? _tracker;
     private readonly ILogger<EmailLifecycleService> _logger;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="EmailLifecycleService"/> class.
     /// </summary>
-    public EmailLifecycleService(EmailModule module, ILogger<EmailLifecycleService> logger)
+    public EmailLifecycleService(EmailModule module, ILogger<EmailLifecycleService> logger,
+        IBackgroundServiceTracker? tracker = null)
     {
         _module = module;
         _logger = logger;
+        _tracker = tracker;
     }
+
+    /// <inheritdoc />
+    protected override IBackgroundServiceTracker? BackgroundServiceTracker => _tracker;
 
     /// <inheritdoc />
     public override async Task<InitializeResponse> Initialize(InitializeRequest request, ServerCallContext context)

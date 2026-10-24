@@ -573,6 +573,17 @@ public sealed class DotNetCloudApiClient
         return envelope?.Data ?? [];
     }
 
+    /// <summary>
+    /// Gets the live system status (CPU, memory, traffic, presence, background tasks)
+    /// for the admin System page.
+    /// </summary>
+    public async Task<AdminSystemStatusDto?> GetSystemStatusAsync(CancellationToken ct = default)
+    {
+        var envelope = await _http.GetFromJsonAsync<ApiEnvelope<AdminSystemStatusDto>>(
+            "api/v1/core/admin/system", JsonOptions, ct);
+        return envelope?.Data;
+    }
+
     // -----------------------------------------------------------------------
     // Sync Device Status (Admin)
     // -----------------------------------------------------------------------

@@ -12,6 +12,19 @@
 
 ---
 
+> **Recent feature (2026-10-24, branch `feature/admin-system-page`):** **new admin-only System page at `/admin/system`**
+> showing CPU/memory per app process (core + every running module host), users online and active SignalR connections,
+> global bytes in/out since core start (HTTP payload + WebSocket frames), and scheduled background tasks for core plus
+> module hosts. Built as five layers: a 1 s singleton `SystemMetricsSampler` (PID-change resets the CPU baseline, first
+> sample reports `cpuAvailable=false`); `TrafficAccounting` fed by a middleware that wraps `IHttpResponseBodyFeature`,
+> `IRequestBodyPipeFeature.Reader` and `IHttpWebSocketFeature` (delegating `SendFileAsync` and never buffering); a
+> `BackgroundServiceTracker`/`TrackedModuleLifecycleBase` pair aggregated over a new `GetBackgroundServices` gRPC call
+> with a 1.5 s timeout and an `unavailableModules` fallback; `AdminSystemController` (requires `RequireAdmin`, no DB
+> access on the polling path); and a `SystemPage.razor` that polls with a `PeriodicTimer`. No new NuGet dependencies.
+> Tests: 28 new (`SystemMetricsSamplerTests`, `TrafficAccountingTests`, `Counting*Feature*Tests`,
+> `BackgroundServiceTrackerTests`, `AdminSystemControllerTests`); Core.Server.Tests **851 pass / 2 skip**, solution
+> build clean. ☐ Live end-to-end verification on the deployed instance not yet performed.
+
 > **Recent fix (2026-10-23, branch `fix/blazor-music`):** **tracks showed no duration and album headers read `0:00` — TagLib returned a zero
 > duration for files with junk between the ID3v2 tag and the first MPEG frame.** Many `music.canonical_tracks` rows sorted with
 > `DurationTicks = 0` (album pages showed blanks and `0:00` totals). A probe against the deployed `TagLibSharp` proved the parse *succeeds*
@@ -6700,3 +6713,57 @@ timestamp — as a date **and** time.
 - The supervisor never initialising module lifecycles is a **platform-level gap** worth its own fix: it also
   disables every other module-host event handler (search indexing, notifications, …).
 - No gRPC/proto change — the value is UI-only, consumed by the in-process Blazor components.
+
+## Admin System Page — CPU / Memory / Traffic / Tasks / Users Online (2026-10-24, `feature/admin-system-page`)
+
+### Status
+
+**completed** — implemented, solution builds clean, unit tests green. Live end-to-end verification on a deployed
+instance is still outstanding (see Notes).
+
+Plan document: `docs/ADMIN_SYSTEM_PAGE_PLAN.md`.
+
+### Deliverables
+
+- ✓ `Diagnostics/SystemMetricsSampler.cs` — singleton `IHostedService` sampling every 1 s: per-process CPU from a
+  `(timestamp, cpuTime)` baseline, working-set memory, core GC heap, uptime, `processorCount`. A PID change (module
+  restart) resets that process's baseline and reports `null` for one tick; the first sample reports
+  `cpuAvailable=false`.
+- ✓ `Diagnostics/CpuUsageCalculator.cs` — pure `Δcpu / (Δwall × ProcessorCount)` math, clamped to 100.
+- ✓ `Diagnostics/ProcessMetricsSnapshot.cs`, `Diagnostics/TrafficAccounting.cs` — immutable snapshot record and
+  lock-free (Interlocked) in/out/total counters.
+- ✓ `Modules/Supervisor/ModuleProcessInfo.cs` + `Supervisor/ModuleProcessHandle.cs` — new `CpuTime` accessor read from
+  `Process.TotalProcessorTime` inside the existing lock/try-catch (`null` when the process has exited).
+- ✓ `Middleware/TrafficAccountingMiddleware.cs` + `Diagnostics/CountingResponseBodyFeature.cs`,
+  `CountingRequestBodyPipeFeature.cs`, `CountingWebSocketFeature.cs` — count HTTP payload bytes and
+  WebSocket/SignalR frames. The response wrapper delegates `SendFileAsync` (no buffering, sendfile preserved) and
+  every wrapper fails open so a counting error can never break a request.
+- ✓ `Core.Grpc` — `GetBackgroundServices` added to `module_lifecycle.proto`, `BackgroundServiceProtoMapper.cs`, and
+  `TrackedModuleLifecycleBase.cs`; every module host lifecycle service now derives from the tracked base so its local
+  `BackgroundServiceTracker` is queryable over gRPC.
+- ✓ `Services/BackgroundServiceTrackerExtensions.cs` + `IBackgroundServiceTracker.cs` — `IsRunning` state, last-run
+  status/duration/message.
+- ✓ `Controllers/AdminSystemController.cs` — `GET api/v1/core/admin/system`, `[Authorize(Policy = RequireAdmin)]`,
+  merges presence, traffic, tasks (core + modules in parallel with a 1.5 s timeout) and the cached snapshot. Never
+  fails the endpoint: unreachable modules land in `unavailableModules`. No DB access on the polling path.
+- ✓ `Pages/Admin/SystemPage.razor` (+ `.css`), `Services/AdminSystemDtos.cs`,
+  `DotNetCloudApiClient.GetSystemStatusAsync` — 5 s `PeriodicTimer` polling, `IAsyncDisposable` (no leaked circuits),
+  `RequireAdmin` page policy, and a nav entry using `MaterialIcon`.
+- ✓ Tests (28): `SystemMetricsSamplerTests`, `TrafficAccountingTests`, `CountingResponseBodyFeatureTests`,
+  `CountingRequestBodyPipeFeatureTests`, `CountingWebSocketTests`, `BackgroundServiceTrackerTests`,
+  `AdminSystemControllerTests`.
+
+### Notes
+
+- Locked design decisions: app processes only (no machine-wide/cgroup metric, no new NuGet dependency); traffic
+  counters are global and reset when the core process restarts (UI shows "since &lt;timestamp&gt;"); WebSocket frames
+  count; module-host background services are in scope; `/admin/health` is unchanged and still linked.
+- Traffic is measured in exactly one place because all client HTTP (module REST, uploads/downloads, Collabora) passes
+  through core Kestrel/YARP.
+- Verification done: full solution build clean (0 errors), `Core.Server.Tests` **851 pass / 2 skipped**, and the
+  complete suite green across every other test project. `Client.Core.Tests` was also reduced from **3m02s → 21s**
+  by injecting `TimeProvider` into `ChunkedTransferClient` so retry backoff no longer sleeps in tests.
+- ☐ Outstanding: the plan's Phase 6 manual verification (deploy to the dev instance and confirm CPU/memory against
+  `top`, counter movement on a large upload/download, WebSocket increments, task `Running` → completed transitions,
+  `unavailableModules` on module stop, throughput delta &lt; 5 %, 10-minute soak, and 403 for non-admins).
+

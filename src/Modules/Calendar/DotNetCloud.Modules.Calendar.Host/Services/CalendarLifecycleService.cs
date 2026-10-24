@@ -1,4 +1,6 @@
+using DotNetCloud.Core.Grpc;
 using DotNetCloud.Core.Grpc.Lifecycle;
+using DotNetCloud.Core.Services;
 using DotNetCloud.Core.Modules;
 using Grpc.Core;
 
@@ -8,19 +10,25 @@ namespace DotNetCloud.Modules.Calendar.Host.Services;
 /// Implements the <see cref="ModuleLifecycle.ModuleLifecycleBase"/> gRPC service
 /// so the core supervisor can control the Calendar module's lifecycle and check health.
 /// </summary>
-public sealed class CalendarLifecycleService : ModuleLifecycle.ModuleLifecycleBase
+public sealed class CalendarLifecycleService : TrackedModuleLifecycleBase
 {
     private readonly CalendarModule _module;
+    private readonly IBackgroundServiceTracker? _tracker;
     private readonly ILogger<CalendarLifecycleService> _logger;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="CalendarLifecycleService"/> class.
     /// </summary>
-    public CalendarLifecycleService(CalendarModule module, ILogger<CalendarLifecycleService> logger)
+    public CalendarLifecycleService(CalendarModule module, ILogger<CalendarLifecycleService> logger,
+        IBackgroundServiceTracker? tracker = null)
     {
         _module = module;
         _logger = logger;
+        _tracker = tracker;
     }
+
+    /// <inheritdoc />
+    protected override IBackgroundServiceTracker? BackgroundServiceTracker => _tracker;
 
     /// <inheritdoc />
     public override async Task<InitializeResponse> Initialize(

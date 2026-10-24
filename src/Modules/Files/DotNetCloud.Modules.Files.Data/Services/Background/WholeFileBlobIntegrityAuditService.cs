@@ -57,6 +57,7 @@ internal sealed class WholeFileBlobIntegrityAuditService : BackgroundService
     private async Task RunCycleAsync(string trigger, CancellationToken cancellationToken)
     {
         var sw = Stopwatch.StartNew();
+        _tracker.RecordRunStarting(ServiceName);
         try
         {
             _logger.LogDebug("{Service} cycle starting ({Trigger})", ServiceName, trigger);

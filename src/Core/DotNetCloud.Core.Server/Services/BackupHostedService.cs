@@ -113,6 +113,8 @@ public sealed class BackupHostedService : BackgroundService
         var sw = Stopwatch.StartNew();
         var options = BuildBackupOptionsFromSettings(settings);
 
+        _tracker.RecordRunStarting(ServiceName);
+
         try
         {
             var result = await backupService.CreateBackupAsync(null, options, cancellationToken);

@@ -1,3 +1,4 @@
+using DotNetCloud.Core.Grpc;
 using DotNetCloud.Core.Grpc.Lifecycle;
 using Grpc.Core;
 
@@ -9,7 +10,7 @@ namespace DotNetCloud.Core.Search.Extraction.Host.Services;
 /// initialize/start/stop are no-ops that report success. The manifest identifies
 /// the worker as <c>dotnetcloud.extraction</c>.
 /// </summary>
-public sealed class ExtractionLifecycleService : ModuleLifecycle.ModuleLifecycleBase
+public sealed class ExtractionLifecycleService : TrackedModuleLifecycleBase
 {
     private readonly ILogger<ExtractionLifecycleService> _logger;
 

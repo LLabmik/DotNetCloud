@@ -1,5 +1,7 @@
 using DotNetCloud.Core.Authorization;
+using DotNetCloud.Core.Grpc;
 using DotNetCloud.Core.Grpc.Lifecycle;
+using DotNetCloud.Core.Services;
 using DotNetCloud.Core.Modules;
 using Grpc.Core;
 
@@ -9,19 +11,25 @@ namespace DotNetCloud.Modules.Tracks.Host.Services;
 /// gRPC lifecycle service for the Tracks module.
 /// Receives lifecycle commands (initialize, start, stop, health check) from the core supervisor.
 /// </summary>
-public sealed class TracksLifecycleService : ModuleLifecycle.ModuleLifecycleBase
+public sealed class TracksLifecycleService : TrackedModuleLifecycleBase
 {
     private readonly TracksModule _module;
+    private readonly IBackgroundServiceTracker? _tracker;
     private readonly ILogger<TracksLifecycleService> _logger;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="TracksLifecycleService"/> class.
     /// </summary>
-    public TracksLifecycleService(TracksModule module, ILogger<TracksLifecycleService> logger)
+    public TracksLifecycleService(TracksModule module, ILogger<TracksLifecycleService> logger,
+        IBackgroundServiceTracker? tracker = null)
     {
         _module = module;
         _logger = logger;
+        _tracker = tracker;
     }
+
+    /// <inheritdoc />
+    protected override IBackgroundServiceTracker? BackgroundServiceTracker => _tracker;
 
     /// <inheritdoc />
     public override async Task<InitializeResponse> Initialize(InitializeRequest request, ServerCallContext context)

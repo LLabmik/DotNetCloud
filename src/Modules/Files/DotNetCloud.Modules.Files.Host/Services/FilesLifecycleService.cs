@@ -1,4 +1,6 @@
+using DotNetCloud.Core.Grpc;
 using DotNetCloud.Core.Grpc.Lifecycle;
+using DotNetCloud.Core.Services;
 using DotNetCloud.Core.Modules;
 using Grpc.Core;
 
@@ -8,19 +10,25 @@ namespace DotNetCloud.Modules.Files.Host.Services;
 /// Implements the <see cref="ModuleLifecycle.ModuleLifecycleBase"/> gRPC service
 /// so the core supervisor can control the Files module's lifecycle and check health.
 /// </summary>
-public sealed class FilesLifecycleService : ModuleLifecycle.ModuleLifecycleBase
+public sealed class FilesLifecycleService : TrackedModuleLifecycleBase
 {
     private readonly FilesModule _module;
+    private readonly IBackgroundServiceTracker? _tracker;
     private readonly ILogger<FilesLifecycleService> _logger;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="FilesLifecycleService"/> class.
     /// </summary>
-    public FilesLifecycleService(FilesModule module, ILogger<FilesLifecycleService> logger)
+    public FilesLifecycleService(FilesModule module, ILogger<FilesLifecycleService> logger,
+        IBackgroundServiceTracker? tracker = null)
     {
         _module = module;
         _logger = logger;
+        _tracker = tracker;
     }
+
+    /// <inheritdoc />
+    protected override IBackgroundServiceTracker? BackgroundServiceTracker => _tracker;
 
     /// <inheritdoc />
     public override async Task<InitializeResponse> Initialize(

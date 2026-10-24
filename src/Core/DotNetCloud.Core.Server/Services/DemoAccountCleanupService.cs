@@ -48,6 +48,7 @@ public sealed class DemoAccountCleanupService : BackgroundService
         _logger.LogInformation("DemoAccountCleanupService started.");
 
         // Run an immediate check on startup
+        _tracker.RecordRunStarting(ServiceName);
         try
         {
             await CleanupExpiredDemoAccountsAsync(stoppingToken);
@@ -72,6 +73,7 @@ public sealed class DemoAccountCleanupService : BackgroundService
                 break;
             }
 
+            _tracker.RecordRunStarting(ServiceName);
             try
             {
                 await CleanupExpiredDemoAccountsAsync(stoppingToken);

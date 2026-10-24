@@ -117,6 +117,7 @@ public sealed class SearchReindexHostedService : BackgroundService
 
         // Run an immediate full reindex on startup, then wait for the interval
         var sw = Stopwatch.StartNew();
+        _tracker.RecordRunStarting(ServiceName);
         try
         {
             _logger.LogInformation("Starting initial full reindex after startup");
@@ -146,6 +147,7 @@ public sealed class SearchReindexHostedService : BackgroundService
                 // Wait for either the interval to elapse or a manual trigger
                 var triggered = await WaitForNextRunAsync(stoppingToken);
                 sw = Stopwatch.StartNew();
+                _tracker.RecordRunStarting(ServiceName);
 
                 if (triggered && _manualReindexRequested)
                 {

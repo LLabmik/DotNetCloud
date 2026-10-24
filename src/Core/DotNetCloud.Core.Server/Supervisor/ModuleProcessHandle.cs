@@ -63,6 +63,28 @@ internal sealed class ModuleProcessHandle : IDisposable
         }
     }
 
+    /// <summary>
+    /// Total processor time consumed by the module process, or <c>null</c> when the
+    /// process has exited or the value cannot be read.
+    /// </summary>
+    public TimeSpan? TotalProcessorTime
+    {
+        get
+        {
+            lock (_lock)
+            {
+                try
+                {
+                    return _process?.HasExited == false ? _process.TotalProcessorTime : null;
+                }
+                catch
+                {
+                    return null;
+                }
+            }
+        }
+    }
+
     public bool IsRunning
     {
         get
@@ -158,6 +180,7 @@ internal sealed class ModuleProcessHandle : IDisposable
                 MaxRestartAttempts = MaxRestartAttempts,
                 TotalRestarts = TotalRestarts,
                 MemoryUsageBytes = MemoryUsageBytes,
+                CpuTime = TotalProcessorTime,
                 LastError = LastError
             };
         }

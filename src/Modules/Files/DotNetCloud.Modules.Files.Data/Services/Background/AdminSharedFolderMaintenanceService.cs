@@ -168,6 +168,7 @@ internal sealed class AdminSharedFolderMaintenanceService : BackgroundService, I
     private async Task RunCycleAsync(string trigger, CancellationToken cancellationToken)
     {
         var sw = Stopwatch.StartNew();
+        _tracker.RecordRunStarting(ServiceName);
 
         try
         {

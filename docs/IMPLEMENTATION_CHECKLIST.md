@@ -1349,6 +1349,12 @@ Core platform boots, authenticates a user, loads a module, serves the Blazor UI.
   - ✓ System settings
   - ✓ Backup/restore settings (BackupSettings.razor admin page)
 - ✓ Create health monitoring dashboard
+- ✓ Create system monitoring page at `/admin/system` (5 s polling):
+  - ✓ Process CPU/memory for core + module hosts (`SystemMetricsSampler`)
+  - ✓ Global traffic accounting (HTTP payload bytes + WebSocket/SignalR frames)
+  - ✓ Users online + active connection count
+  - ✓ Scheduled tasks (core + module hosts merged over gRPC)
+  - ✓ Admin-only API (`GET api/v1/core/admin/system`) and nav entry
 
 #### Module Plugin System
 

@@ -1,6 +1,7 @@
 using System.Runtime.CompilerServices;
 using System.Threading.Channels;
 using DotNetCloud.Core.DTOs;
+using DotNetCloud.Core.Services;
 using DotNetCloud.Modules.Music.Services;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -62,18 +63,23 @@ internal sealed class MusicEnrichmentBackgroundService : BackgroundService
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly InMemoryMusicEnrichmentBackgroundQueue _queue;
     private readonly ScanProgressState _scanProgressState;
+    private readonly IBackgroundServiceTracker? _tracker;
     private readonly ILogger<MusicEnrichmentBackgroundService> _logger;
+
+    private const string ServiceName = "Music Enrichment Worker";
 
     public MusicEnrichmentBackgroundService(
         IServiceScopeFactory scopeFactory,
         InMemoryMusicEnrichmentBackgroundQueue queue,
         ScanProgressState scanProgressState,
-        ILogger<MusicEnrichmentBackgroundService> logger)
+        ILogger<MusicEnrichmentBackgroundService> logger,
+        IBackgroundServiceTracker? tracker = null)
     {
         _scopeFactory = scopeFactory;
         _queue = queue;
         _scanProgressState = scanProgressState;
         _logger = logger;
+        _tracker = tracker;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -82,7 +88,7 @@ internal sealed class MusicEnrichmentBackgroundService : BackgroundService
         {
             try
             {
-                await RunJobAsync(job, stoppingToken);
+                await _tracker.RunTrackedAsync(ServiceName, () => RunJobAsync(job, stoppingToken));
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
             {

@@ -1,3 +1,4 @@
+using DotNetCloud.Core.Grpc;
 using DotNetCloud.Core.Grpc.Lifecycle;
 using DotNetCloud.Core.Modules;
 using Grpc.Core;
@@ -8,7 +9,7 @@ namespace DotNetCloud.Modules.Contacts.Host.Services;
 /// Implements the <see cref="ModuleLifecycle.ModuleLifecycleBase"/> gRPC service
 /// so the core supervisor can control the Contacts module's lifecycle and check health.
 /// </summary>
-public sealed class ContactsLifecycleService : ModuleLifecycle.ModuleLifecycleBase
+public sealed class ContactsLifecycleService : TrackedModuleLifecycleBase
 {
     private readonly ContactsModule _module;
     private readonly ILogger<ContactsLifecycleService> _logger;

@@ -455,6 +455,13 @@ public class Program
         builder.Services.AddScoped<DotNetCloud.Core.Capabilities.ICrossModuleLinkResolver, CrossModuleLinkResolver>();
         builder.Services.AddSingleton<DotNetCloud.Core.Services.IBackgroundServiceTracker, DotNetCloud.Core.Services.BackgroundServiceTracker>();
 
+        // Admin System page: process-wide traffic counters plus a 1-second metrics
+        // sampler shared by every admin polling the page.
+        builder.Services.AddSingleton(TimeProvider.System);
+        builder.Services.AddSingleton<DotNetCloud.Core.Server.Diagnostics.TrafficAccounting>();
+        builder.Services.AddSingleton<DotNetCloud.Core.Server.Diagnostics.SystemMetricsSampler>();
+        builder.Services.AddHostedService(sp => sp.GetRequiredService<DotNetCloud.Core.Server.Diagnostics.SystemMetricsSampler>());
+
         // Update service — queries GitHub Releases API with caching
         builder.Services.AddMemoryCache();
         builder.Services.AddHttpClient("GitHubReleases", client =>
@@ -1005,6 +1012,10 @@ public class Program
 
         app.UseAuthentication();
         app.UseAuthorization();
+
+        // Count client HTTP payload and WebSocket frame bytes for the admin System page.
+        // Must run after authentication so only authenticated user traffic is counted.
+        app.UseMiddleware<DotNetCloud.Core.Server.Middleware.TrafficAccountingMiddleware>();
 
         // Prevent browsers from caching user-specific API responses (stale cross-user data).
         // Media/stream endpoints are excluded by the middleware itself.

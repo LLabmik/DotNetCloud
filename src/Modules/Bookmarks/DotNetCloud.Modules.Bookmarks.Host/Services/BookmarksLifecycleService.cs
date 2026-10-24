@@ -1,4 +1,5 @@
 using DotNetCloud.Core.Authorization;
+using DotNetCloud.Core.Grpc;
 using DotNetCloud.Core.Grpc.Lifecycle;
 using DotNetCloud.Core.Modules;
 using Grpc.Core;
@@ -9,7 +10,7 @@ namespace DotNetCloud.Modules.Bookmarks.Host.Services;
 /// gRPC lifecycle service for the Bookmarks module.
 /// Receives lifecycle commands from the core supervisor.
 /// </summary>
-public sealed class BookmarksLifecycleService : ModuleLifecycle.ModuleLifecycleBase
+public sealed class BookmarksLifecycleService : TrackedModuleLifecycleBase
 {
     private readonly BookmarksModule _module;
     private readonly ILogger<BookmarksLifecycleService> _logger;

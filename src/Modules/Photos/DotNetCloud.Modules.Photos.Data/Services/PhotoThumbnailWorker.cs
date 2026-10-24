@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using DotNetCloud.Core.Services;
 using DotNetCloud.Modules.Photos.Services;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -16,17 +17,22 @@ internal sealed class PhotoThumbnailWorker : BackgroundService
 {
     private readonly IPhotoThumbnailQueue _queue;
     private readonly IServiceScopeFactory _scopeFactory;
+    private readonly IBackgroundServiceTracker? _tracker;
     private readonly ILogger<PhotoThumbnailWorker> _logger;
+
+    private const string ServiceName = "Photo Thumbnail Worker";
 
     /// <summary>Initializes the background thumbnail worker.</summary>
     public PhotoThumbnailWorker(
         IPhotoThumbnailQueue queue,
         IServiceScopeFactory scopeFactory,
-        ILogger<PhotoThumbnailWorker> logger)
+        ILogger<PhotoThumbnailWorker> logger,
+        IBackgroundServiceTracker? tracker = null)
     {
         _queue = queue;
         _scopeFactory = scopeFactory;
         _logger = logger;
+        _tracker = tracker;
     }
 
     /// <inheritdoc />
@@ -45,6 +51,9 @@ internal sealed class PhotoThumbnailWorker : BackgroundService
             }
 
             var stopwatch = Stopwatch.StartNew();
+            _tracker?.RecordRunStarting(ServiceName);
+            var runSuccess = true;
+            string? runMessage = null;
             try
             {
                 await using var scope = _scopeFactory.CreateAsyncScope();
@@ -62,8 +71,15 @@ internal sealed class PhotoThumbnailWorker : BackgroundService
             }
             catch (Exception ex)
             {
+                runSuccess = false;
+                runMessage = ex.Message;
+
                 // A single unreadable/corrupt image must not stop thumbnail generation for the rest.
                 _logger.LogWarning(ex, "Background thumbnail generation failed for photo {PhotoId}", item.PhotoId);
+            }
+            finally
+            {
+                _tracker?.RecordRun(ServiceName, DateTimeOffset.UtcNow, stopwatch.Elapsed, runSuccess, runMessage);
             }
         }
     }

@@ -41,7 +41,26 @@ public class MaterialSvgIconsTests
     [DataRow("chat")]
     [DataRow("edit_note")]
     [DataRow("history")]
+    [DataRow("speed")]
     public void GetPath_IconUsedByAdminNav_ReturnsPathData(string icon)
+    {
+        Assert.IsTrue(MaterialSvgIcons.HasPath(icon), $"Icon '{icon}' has no SVG path and would render as text.");
+        var path = MaterialSvgIcons.GetPath(icon);
+        Assert.IsNotNull(path, $"Icon '{icon}' returned a null path.");
+        Assert.IsTrue(path!.Length > 10, $"Icon '{icon}' path data is unexpectedly short.");
+    }
+
+    /// <summary>
+    /// Icons referenced by the admin System page stat cards and status strip.
+    /// </summary>
+    [TestMethod]
+    [DataRow("speed")]
+    [DataRow("memory")]
+    [DataRow("swap_vert")]
+    [DataRow("group")]
+    [DataRow("schedule")]
+    [DataRow("warning")]
+    public void GetPath_IconUsedByAdminSystemPage_ReturnsPathData(string icon)
     {
         Assert.IsTrue(MaterialSvgIcons.HasPath(icon), $"Icon '{icon}' has no SVG path and would render as text.");
         var path = MaterialSvgIcons.GetPath(icon);

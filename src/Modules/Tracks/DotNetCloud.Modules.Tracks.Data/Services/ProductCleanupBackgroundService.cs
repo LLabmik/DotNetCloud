@@ -1,3 +1,4 @@
+using DotNetCloud.Core.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -12,27 +13,31 @@ namespace DotNetCloud.Modules.Tracks.Data.Services;
 public sealed class ProductCleanupBackgroundService : BackgroundService
 {
     private readonly IServiceProvider _serviceProvider;
+    private readonly IBackgroundServiceTracker? _tracker;
     private readonly ILogger<ProductCleanupBackgroundService> _logger;
     private static readonly TimeSpan CleanupInterval = TimeSpan.FromHours(6);
     private static readonly TimeSpan RetentionPeriod = TimeSpan.FromDays(30);
+    private const string ServiceName = "Tracks Product Cleanup";
 
-    public ProductCleanupBackgroundService(IServiceProvider serviceProvider, ILogger<ProductCleanupBackgroundService> logger)
+    public ProductCleanupBackgroundService(IServiceProvider serviceProvider, ILogger<ProductCleanupBackgroundService> logger,
+        IBackgroundServiceTracker? tracker = null)
     {
         _serviceProvider = serviceProvider;
         _logger = logger;
+        _tracker = tracker;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         // Run once at startup
-        await RunCleanupAsync(stoppingToken);
+        await _tracker.RunTrackedAsync(ServiceName, () => RunCleanupAsync(stoppingToken));
 
         while (!stoppingToken.IsCancellationRequested)
         {
             try
             {
                 await Task.Delay(CleanupInterval, stoppingToken);
-                await RunCleanupAsync(stoppingToken);
+                await _tracker.RunTrackedAsync(ServiceName, () => RunCleanupAsync(stoppingToken));
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
             {
