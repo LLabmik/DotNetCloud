@@ -31,6 +31,23 @@ public partial class MessageList : ComponentBase
     private string _lightboxImageUrl = string.Empty;
     private string _lightboxImageAlt = string.Empty;
 
+    /// <summary>
+    /// Image URLs that failed to load; those images are no longer rendered.
+    /// </summary>
+    /// <remarks>
+    /// Replaces the previous inline <c>onerror=""</c> attributes, which the hardened CSP blocks
+    /// (no <c>'unsafe-inline'</c>/<c>'unsafe-hashes'</c> for scripts).
+    /// </remarks>
+    private readonly HashSet<string> _failedImageUrls = new(StringComparer.Ordinal);
+
+    private void OnImageError(string? url)
+    {
+        if (!string.IsNullOrEmpty(url))
+        {
+            _failedImageUrls.Add(url);
+        }
+    }
+
     /// <summary>Converts UTC message timestamps to the viewer's browser timezone.</summary>
     [Inject]
     private BrowserTimeProvider TimeProvider { get; set; } = default!;

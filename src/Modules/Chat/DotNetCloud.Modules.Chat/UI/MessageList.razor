@@ -134,10 +134,11 @@
                                     {
                                         <div class="attachment-preview">
                                             @if (attachment.MimeType.StartsWith("image/", StringComparison.OrdinalIgnoreCase) &&
-                    !string.IsNullOrEmpty(attachment.ThumbnailUrl))
+                    !string.IsNullOrEmpty(attachment.ThumbnailUrl) &&
+                    !_failedImageUrls.Contains(attachment.ThumbnailUrl))
                                             {
                                                 <img src="@attachment.ThumbnailUrl" alt="@attachment.FileName" class="image-preview"
-                                                     onerror="this.style.display='none'"
+                                                     @onerror="() => OnImageError(attachment.ThumbnailUrl)"
                                                      @onclick="() => OpenImageLightbox(attachment.ThumbnailUrl, attachment.FileName)" />
                                             }
                                             else if (attachment.MimeType.Contains("pdf", StringComparison.OrdinalIgnoreCase))
@@ -159,11 +160,12 @@
                             var previewHost = GetLinkHost(preview.Url);
                             <a class="link-preview-card" href="@preview.Url" target="_blank" rel="noopener noreferrer"
                                title="@preview.Url">
-                                @if (!string.IsNullOrWhiteSpace(preview.ImageUrl))
+                                @if (!string.IsNullOrWhiteSpace(preview.ImageUrl)
+                                     && !_failedImageUrls.Contains(preview.ImageUrl))
                                 {
                                     <div class="link-preview-thumb">
                                         <img src="@preview.ImageUrl" alt="" loading="lazy" referrerpolicy="no-referrer"
-                                             onerror="this.closest('.link-preview-thumb').style.display='none'" />
+                                             @onerror="() => OnImageError(preview.ImageUrl)" />
                                     </div>
                                 }
 
@@ -177,10 +179,11 @@
                                         <div class="link-preview-desc">@preview.Description</div>
                                     }
                                     <div class="link-preview-site">
-                                        @if (!string.IsNullOrWhiteSpace(preview.FaviconUrl))
+                                        @if (!string.IsNullOrWhiteSpace(preview.FaviconUrl)
+                                             && !_failedImageUrls.Contains(preview.FaviconUrl))
                                         {
                                             <img class="link-preview-favicon" src="@preview.FaviconUrl" alt="" loading="lazy"
-                                                 referrerpolicy="no-referrer" onerror="this.style.display='none'" />
+                                                 referrerpolicy="no-referrer" @onerror="() => OnImageError(preview.FaviconUrl)" />
                                         }
                                         <span>@(string.IsNullOrWhiteSpace(preview.SiteName) ? previewHost : preview.SiteName)</span>
                                     </div>

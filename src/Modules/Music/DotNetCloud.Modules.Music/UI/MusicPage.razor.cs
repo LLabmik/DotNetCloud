@@ -434,26 +434,37 @@ public partial class MusicPage : IAsyncDisposable
         InvokeAsync(StateHasChanged);
     }
 
-    private async void OnTrackChanged(TrackDto track)
+    private void OnTrackChanged(TrackDto track)
     {
         // Play audio via JS interop when a new track starts.
-        // This is needed because GlobalMusicPlaybar (in a separate Blazor circuit)
-        // cannot receive MusicPlaybackState events directly.
-        await InvokeAsync(async () =>
+        // This is needed because the global playbar may live in a separate Blazor circuit
+        // and cannot receive MusicPlaybackState events directly.
+        //
+        // async void: every exception must be observed here, otherwise an unhandled fault
+        // escapes to the circuit and the page stops responding.
+        _ = PlayTrackAudioAsync(track);
+    }
+
+    private async Task PlayTrackAudioAsync(TrackDto track)
+    {
+        try
         {
-            try
+            await InvokeAsync(async () =>
             {
                 if (track.FileNodeId != Guid.Empty)
                 {
                     var audioUrl = MusicPlaybackState.GetAudioUrl(track);
                     await Js.InvokeVoidAsync("dotnetcloudMusicPlayer.play", audioUrl);
                 }
-            }
-            catch (Exception ex)
-            {
-                Logger.LogWarning(ex, "Failed to start audio playback for track {TrackId}", track.Id);
-            }
-        });
+            });
+        }
+        catch (JSDisconnectedException) { }
+        catch (ObjectDisposedException) { }
+        catch (InvalidOperationException) { }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Failed to start audio playback for track {TrackId}", track.Id);
+        }
     }
 
     private async void OnActivePlaylistChanged()
@@ -920,14 +931,26 @@ public partial class MusicPage : IAsyncDisposable
         ActivePlaylist.ClearPlaylist();
         Playback.PlayTrack(track);
 
-        // Start visualizer render loop if enabled
+        // Start visualizer render loop if enabled.
+        // Guarded: a JS failure here must never fault the dblclick handler — an unhandled
+        // exception from a Blazor Server event handler tears down the circuit and the
+        // page appears frozen.
         if (_visualizerEnabled && !_visualizerStarted)
         {
-            _visualizerStarted = await Js.InvokeAsync<bool>("dotnetcloudVisualizer.start");
-            if (_visualizerStarted && _autoCyclePresets)
+            try
             {
-                await Js.InvokeVoidAsync("dotnetcloudVisualizer.startAutoCycle", _autoCycleInterval, _visualizerBlendDuration);
+                _visualizerStarted = await Js.InvokeAsync<bool>("dotnetcloudVisualizer.start");
+                if (_visualizerStarted && _autoCyclePresets)
+                {
+                    await Js.InvokeVoidAsync("dotnetcloudVisualizer.startAutoCycle", _autoCycleInterval, _visualizerBlendDuration);
+                }
             }
+            catch (JSDisconnectedException) { }
+            catch (JSException ex)
+            {
+                Logger.LogWarning(ex, "Failed to start the music visualizer");
+            }
+            catch (InvalidOperationException) { }
         }
     }
 
@@ -2562,11 +2585,18 @@ public partial class MusicPage : IAsyncDisposable
         ActivePlaylist.OnPlaylistChanged -= OnActivePlaylistChanged;
         ScanProgress.OnProgressChanged -= OnScanProgressChanged;
 
-        try
+        // JS interop is unavailable while the component is statically rendered or the circuit
+        // is already gone; calling it there throws and surfaces as an unhandled exception.
+        if (RendererInfo.IsInteractive)
         {
-            await Js.InvokeVoidAsync("dotnetcloudVisualizer.dispose");
+            try
+            {
+                await Js.InvokeVoidAsync("dotnetcloudVisualizer.dispose");
+            }
+            catch (JSDisconnectedException) { }
+            catch (ObjectDisposedException) { }
+            catch (InvalidOperationException) { }
         }
-        catch (JSDisconnectedException) { }
 
         _visualizerShortcutRef?.Dispose();
         _visualizerShortcutRef = null;

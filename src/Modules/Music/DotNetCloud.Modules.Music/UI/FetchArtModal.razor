@@ -89,10 +89,14 @@
                             <div class="fetch-art-result-card selected"
                                  @onclick="() => SelectResultByIndex(0)">
                                 <div class="result-thumb">
-                                    @if (!string.IsNullOrEmpty(_results[0].ThumbnailUrl))
+                                    @{
+                                        var firstThumbUrl = _results[0].ThumbnailUrl;
+                                    }
+                                    @if (!string.IsNullOrEmpty(firstThumbUrl)
+                                         && !_failedThumbnailUrls.Contains(firstThumbUrl))
                                     {
-                                        <img src="@_results[0].ThumbnailUrl" alt="@_results[0].Title"
-                                             onerror="this.parentElement.innerHTML='<span class=\'result-thumb-placeholder\'>♫</span>'" />
+                                        <img src="@firstThumbUrl" alt="@_results[0].Title"
+                                             @onerror="() => OnThumbnailError(firstThumbUrl)" />
                                     }
                                     else
                                     {
@@ -128,10 +132,11 @@
                                 <div class="fetch-art-result-card @(isSelected ? "selected" : "")"
                                      @onclick="() => SelectResultByIndex(index)">
                                     <div class="result-thumb">
-                                        @if (!string.IsNullOrEmpty(r.ThumbnailUrl))
+                                        @if (!string.IsNullOrEmpty(r.ThumbnailUrl)
+                                             && !_failedThumbnailUrls.Contains(r.ThumbnailUrl))
                                         {
                                             <img src="@r.ThumbnailUrl" alt="@r.Title"
-                                                 onerror="this.parentElement.innerHTML='<span class=\'result-thumb-placeholder\'>♫</span>'" />
+                                                 @onerror="() => OnThumbnailError(r.ThumbnailUrl)" />
                                         }
                                         else
                                         {

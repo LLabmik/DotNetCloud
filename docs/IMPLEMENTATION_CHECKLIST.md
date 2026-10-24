@@ -3,8 +3,28 @@
 > **Document Version:** 1.0  
 > **Purpose:** Comprehensive task breakdown for implementing the DotNetCloud architecture  
 > **Scope:** All phases from Foundation (Phase 0) through Auto-Updates (Phase 11)  
-> **Last Updated:** 2026-10-21
+> **Last Updated:** 2026-10-23
 > **Audience:** Development team, project managers, technical leads
+
+---
+
+## Recent Fix — CSP blocked inline event handlers (music playbar / album art) + silent first-play (2026-10-23, `fix/blazor-music`)
+
+> Reported live: double-clicking a track on `/apps/music` (Duran Duran, "Rio" → "09 The Chauffeur") left the page unresponsive and logged `Executing inline event handler violates the following Content Security Policy directive 'script-src …'` — the hardened CSP allows no `'unsafe-inline'`/`'unsafe-hashes'` for script, so an `onerror=""` attribute is dead code that also spams the console.
+
+- ✓ **Root cause of the hard lock (found with the integrated browser): the now-playing tab-title loop.** `music-player.js`'s `MutationObserver` compared `document.title !== nowPlayingTitle`; Chrome **collapses whitespace runs in `document.title`**, so the label written for `"09  The Chauffeur"` (double space, as tagged on every Rio track) read back as `"09 The Chauffeur"` — never equal. The observer therefore re-applied the title forever: an infinite main-thread loop that hard-locked the tab and starved queued JS interop, which is why `play` never issued its request (no `/api/v1/files/{id}/content` in the log) and why only that album locked.
+- ✓ **Fix** — `normalizeTitle()` (whitespace-collapse both sides) for every comparison; the re-entrancy flag is cleared on a **later microtask** so the observer ignores our own write; a safety valve stops the observer after 20 rewrites/second. `music-player.js?v=20261023-03`.
+- ✓ **Verified live in the browser (2026-10-23)** on production: double-click on "09 The Chauffeur" returns immediately, the tab stays responsive, `audio.paused=false` with `currentTime` advancing (12 s), the row highlights, and the title reads `♪ 09 The Chauffeur — Duran Duran`. No console errors.
+- ✓ **Root cause 1 (reported console error)** — the global playbar's album art used an inline `onerror="this.style.display='none';this.nextElementSibling.style.display='block'"` to reveal its SVG fallback. When the cover fails (or after any playbar render) the browser blocks it, the fallback never appears and the CSP violation is logged.
+- ✓ **Fix 1** — replaced with a Blazor `@onerror="OnAlbumArtError"` handler that records the album id and renders the fallback SVG through the render tree (no inline JS).
+- ✓ **Same defect fixed elsewhere** — `FetchArtModal` (2 result thumbs), Chat `MessageList` (attachment preview, link-preview thumb, favicon) and Contacts `ContactsPage` (avatar) all used raw `onerror=""`; Chat `VideoCallDialog` used an inline `onclick=""`. All converted to Blazor handlers backed by component state.
+- ✓ **Regression guard** — new `CspInlineScriptTests.RazorSources_DoNotUseRawInlineEventHandlers` scans every `src/**/*.razor` (skipping `bin`/`obj` and comments) and fails the build on any new raw `on…=` handler; verified it fails on an injected probe file.
+- ✓ **Root cause 2 (silent first play)** — `music-player.js` `play()` began with `if (!audio) return;`, so the first track click after a page load did nothing at all when the playbar had not yet called `init()` (no audio, no network request, no error).
+- ✓ **Fix 2** — `play()`/`resume()`/`pause()`/`stop()`/`seek()`/`setVolume()`/`setMuted()` now lazily create the audio element and (re)attach the media listeners + 500 ms poll, so playback works regardless of init ordering. Cache-buster `music-player.js?v=20261023-02`.
+- ✓ **Crash fix** — `GlobalMusicPlaybar.DisposeAsync`/`MusicPage.DisposeAsync` called JS interop while statically rendered, throwing `InvalidOperationException: JavaScript interop calls cannot be issued at this time…` as an **unhandled exception on every page request** (seen in the production log at 22:06:47, 22:07:29 and 22:07:37). They now check `RendererInfo.IsInteractive` and swallow `InvalidOperationException`/`ObjectDisposedException`/`JSDisconnectedException`.
+- ✓ **Hardening** — `MusicPage.OnTrackChanged` (was `async void` with `InvokeAsync` outside `try`), the playbar's `OnTrackChanged`/`StartPlaybackJsAsync` and the visualizer start in `PlayTrackAsync` now observe/log failures, so a JS fault can no longer escape an event handler and tear down the circuit.
+- ✓ **Tests** — Music **433**, Chat **1488**, Contacts **154**, UI.Shared **193**, CSP **4** — all pass; `dotnet build DotNetCloud.CI.slnf -c Debug` 0 warnings / 0 errors; `node --check` on `music-player.js` clean.
+- ☐ Deploy + browser verification on the production host (awaiting approval)
 
 ---
 

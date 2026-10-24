@@ -6,6 +6,7 @@ window.dotnetcloudMusicPlayer = window.dotnetcloudMusicPlayer || (function () {
     /** @type {DotNet.DotNetObject|null} */
     let dotNetRef = null;
     let updateInterval = null;
+    let listenersAttached = false;
 
     // ── Web Audio API for Equalizer ──
     /** @type {AudioContext|null} */
@@ -24,6 +25,8 @@ window.dotnetcloudMusicPlayer = window.dotnetcloudMusicPlayer || (function () {
     /** @type {MutationObserver|null} Watches <head> so the override survives Blazor <PageTitle> updates. */
     let titleObserver = null;
     let applyingTitle = false;
+    let titleWriteCount = 0;
+    let titleCountResetTimer = null;
 
     // 10-band EQ center frequencies (Hz)
     const EQ_FREQUENCIES = [31, 63, 125, 250, 500, 1000, 2000, 4000, 8000, 16000];
@@ -66,8 +69,15 @@ window.dotnetcloudMusicPlayer = window.dotnetcloudMusicPlayer || (function () {
         }
     }
 
-    function init(dotNetObjRef) {
-        dotNetRef = dotNetObjRef;
+    /**
+     * Creates (or reuses) the hidden audio element.
+     * Idempotent, so play() works even when the playbar has not called init() yet
+     * (previously play() silently did nothing in that case — the first track click
+     * after a page load produced no audio and no network request).
+     * @returns {HTMLAudioElement}
+     */
+    function ensureAudio() {
+        if (audio && document.body.contains(audio)) return audio;
         audio = document.getElementById("dnc-music-audio");
         if (!audio) {
             audio = new Audio();
@@ -77,8 +87,12 @@ window.dotnetcloudMusicPlayer = window.dotnetcloudMusicPlayer || (function () {
             audio.style.display = "none";
             document.body.appendChild(audio);
         }
+        return audio;
+    }
 
-        // Remove any existing listeners before re-attaching (idempotent re-init)
+    /** (Re)attaches the media event listeners. Idempotent. */
+    function attachAudioListeners() {
+        if (!audio) return;
         audio.removeEventListener("ended", onEnded);
         audio.removeEventListener("error", onError);
         audio.removeEventListener("canplay", onCanPlay);
@@ -88,6 +102,19 @@ window.dotnetcloudMusicPlayer = window.dotnetcloudMusicPlayer || (function () {
         audio.addEventListener("error", onError);
         audio.addEventListener("canplay", onCanPlay);
         audio.addEventListener("loadedmetadata", onMetadata);
+        listenersAttached = true;
+    }
+
+    /** Starts the 500ms progress poll if it is not already running. */
+    function ensurePolling() {
+        if (updateInterval) return;
+        updateInterval = setInterval(onTimeUpdate, 500);
+    }
+
+    function init(dotNetObjRef) {
+        dotNetRef = dotNetObjRef;
+        ensureAudio();
+        attachAudioListeners();
 
         // Poll current time every 500ms (more responsive than timeupdate event)
         if (updateInterval) clearInterval(updateInterval);
@@ -107,7 +134,7 @@ window.dotnetcloudMusicPlayer = window.dotnetcloudMusicPlayer || (function () {
      * Returns true if audio is currently loaded and not paused.
      */
     function isPlaying() {
-        return audio && !audio.paused && audio.src;
+        return !!audio && !audio.paused && !!audio.src;
     }
 
     function dispose() {
@@ -119,6 +146,7 @@ window.dotnetcloudMusicPlayer = window.dotnetcloudMusicPlayer || (function () {
             audio.removeEventListener("error", onError);
             audio.removeEventListener("canplay", onCanPlay);
             audio.removeEventListener("loadedmetadata", onMetadata);
+            listenersAttached = false;
             audio.src = "";
         }
         if (audioCtx) {
@@ -132,7 +160,11 @@ window.dotnetcloudMusicPlayer = window.dotnetcloudMusicPlayer || (function () {
     }
 
     function play(url) {
-        if (!audio) return;
+        // Lazy-initialise: the playbar may not have called init() yet on the first track click.
+        if (!ensureAudio()) return;
+        if (!listenersAttached) attachAudioListeners();
+        ensurePolling();
+
         // Initialise the Web Audio EQ chain on first play (requires user gesture)
         ensureEqChain();
         // Resume AudioContext if suspended (browser autoplay policy)
@@ -147,7 +179,7 @@ window.dotnetcloudMusicPlayer = window.dotnetcloudMusicPlayer || (function () {
     }
 
     function resume() {
-        if (audio && audio.src) {
+        if (ensureAudio() && audio.src) {
             if (audioCtx && audioCtx.state === "suspended") {
                 audioCtx.resume();
             }
@@ -158,15 +190,15 @@ window.dotnetcloudMusicPlayer = window.dotnetcloudMusicPlayer || (function () {
     }
 
     function pause() {
-        if (audio) audio.pause();
+        if (ensureAudio()) audio.pause();
     }
 
     function stop() {
-        if (audio) { audio.pause(); audio.src = ""; }
+        if (ensureAudio()) { audio.pause(); audio.src = ""; }
     }
 
     function seek(seconds) {
-        if (audio && isFinite(seconds)) audio.currentTime = seconds;
+        if (ensureAudio() && isFinite(seconds)) audio.currentTime = seconds;
     }
 
     /**
@@ -175,7 +207,7 @@ window.dotnetcloudMusicPlayer = window.dotnetcloudMusicPlayer || (function () {
      */
     function handleProgressClick(clientX) {
         var progressBar = document.querySelector(".gmp-progress-bar");
-        if (!progressBar || !audio || !isFinite(audio.duration) || audio.duration <= 0) return;
+        if (!progressBar || !ensureAudio() || !isFinite(audio.duration) || audio.duration <= 0) return;
         var rect = progressBar.getBoundingClientRect();
         var fraction = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
         audio.currentTime = fraction * audio.duration;
@@ -187,11 +219,11 @@ window.dotnetcloudMusicPlayer = window.dotnetcloudMusicPlayer || (function () {
 
     function setVolume(level) {
         // level: 0-100
-        if (audio) audio.volume = Math.max(0, Math.min(1, level / 100));
+        if (ensureAudio()) audio.volume = Math.max(0, Math.min(1, level / 100));
     }
 
     function setMuted(muted) {
-        if (audio) audio.muted = !!muted;
+        if (ensureAudio()) audio.muted = !!muted;
     }
 
     /**
@@ -218,18 +250,47 @@ window.dotnetcloudMusicPlayer = window.dotnetcloudMusicPlayer || (function () {
 
     // ── Browser tab title (now-playing) ──
 
+    /**
+     * Collapses whitespace runs so values compare the way the browser reports document.title.
+     * Chrome (and the HTML spec) normalize the title's text: writing "09  The Chauffeur" reads
+     * back as "09 The Chauffeur". Comparing the raw written string against the readback never
+     * matches, which used to make the MutationObserver re-apply the title forever — an infinite
+     * main-thread loop that hard-locked the tab (and starved queued JS interop calls, so playback
+     * never even issued its request).
+     * @param {string|null|undefined} value
+     * @returns {string}
+     */
+    function normalizeTitle(value) {
+        return value == null ? "" : String(value).replace(/\s+/g, " ").trim();
+    }
+
     function applyNowPlayingTitle() {
-        if (!nowPlayingTitle || document.title === nowPlayingTitle) return;
+        if (!nowPlayingTitle) return;
+        if (normalizeTitle(document.title) === normalizeTitle(nowPlayingTitle)) return;
+
         applyingTitle = true;
         document.title = nowPlayingTitle;
-        applyingTitle = false;
+        // Clear the flag on a LATER microtask: the MutationObserver record for this write is
+        // delivered first, so it must still see applyingTitle === true. Clearing the flag
+        // synchronously reopened the loop described above.
+        queueMicrotask(function () { applyingTitle = false; });
+
+        // Safety valve: never let the title sync spin the main thread, whatever the cause.
+        if (titleWriteCount === 0) {
+            titleCountResetTimer = setTimeout(function () { titleWriteCount = 0; titleCountResetTimer = null; }, 1000);
+        }
+        titleWriteCount++;
+        if (titleWriteCount > 20) {
+            stopTitleObserver();
+            console.warn("[music] now-playing title sync disabled: too many rewrites in one second");
+        }
     }
 
     function startTitleObserver() {
         if (titleObserver || !document.head) return;
         titleObserver = new MutationObserver(function () {
             if (applyingTitle) return;
-            if (document.title !== nowPlayingTitle) {
+            if (normalizeTitle(document.title) !== normalizeTitle(nowPlayingTitle)) {
                 // Blazor's <PageTitle> (via HeadOutlet) changed the tab title — remember it
                 // so it can be restored later, then re-apply the now-playing override on top.
                 pageTitle = document.title;
@@ -244,6 +305,11 @@ window.dotnetcloudMusicPlayer = window.dotnetcloudMusicPlayer || (function () {
             titleObserver.disconnect();
             titleObserver = null;
         }
+        if (titleCountResetTimer) {
+            clearTimeout(titleCountResetTimer);
+            titleCountResetTimer = null;
+        }
+        titleWriteCount = 0;
     }
 
     /**
@@ -266,10 +332,10 @@ window.dotnetcloudMusicPlayer = window.dotnetcloudMusicPlayer || (function () {
     function clearNowPlayingTitle() {
         nowPlayingTitle = null;
         stopTitleObserver();
-        if (pageTitle !== null && document.title !== pageTitle) {
+        if (pageTitle !== null && normalizeTitle(document.title) !== normalizeTitle(pageTitle)) {
             applyingTitle = true;
             document.title = pageTitle;
-            applyingTitle = false;
+            queueMicrotask(function () { applyingTitle = false; });
         }
     }
 
