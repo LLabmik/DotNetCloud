@@ -1,4 +1,6 @@
+using DotNetCloud.Core.Grpc;
 using DotNetCloud.Core.Grpc.Lifecycle;
+using DotNetCloud.Core.Services;
 using DotNetCloud.Core.Modules;
 using Grpc.Core;
 
@@ -8,19 +10,25 @@ namespace DotNetCloud.Modules.Chat.Host.Services;
 /// Implements the <see cref="ModuleLifecycle.ModuleLifecycleBase"/> gRPC service
 /// so the core supervisor can control the Chat module's lifecycle and check health.
 /// </summary>
-public sealed class ChatLifecycleService : ModuleLifecycle.ModuleLifecycleBase
+public sealed class ChatLifecycleService : TrackedModuleLifecycleBase
 {
     private readonly ChatModule _module;
+    private readonly IBackgroundServiceTracker? _tracker;
     private readonly ILogger<ChatLifecycleService> _logger;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="ChatLifecycleService"/> class.
     /// </summary>
-    public ChatLifecycleService(ChatModule module, ILogger<ChatLifecycleService> logger)
+    public ChatLifecycleService(ChatModule module, ILogger<ChatLifecycleService> logger,
+        IBackgroundServiceTracker? tracker = null)
     {
         _module = module;
         _logger = logger;
+        _tracker = tracker;
     }
+
+    /// <inheritdoc />
+    protected override IBackgroundServiceTracker? BackgroundServiceTracker => _tracker;
 
     /// <inheritdoc />
     public override async Task<InitializeResponse> Initialize(

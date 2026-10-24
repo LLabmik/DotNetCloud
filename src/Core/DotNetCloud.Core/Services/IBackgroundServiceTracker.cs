@@ -19,6 +19,14 @@ public interface IBackgroundServiceTracker
     void RecordRun(string serviceName, DateTimeOffset completedAt, TimeSpan duration, bool success, string? message = null);
 
     /// <summary>
+    /// Records that a background service cycle is starting. Used by the admin System
+    /// page to show which services are currently running. Call inside the existing
+    /// try/finally so the flag always clears.
+    /// </summary>
+    /// <param name="serviceName">Human-readable service name.</param>
+    void RecordRunStarting(string serviceName);
+
+    /// <summary>
     /// Gets the current status snapshot for all tracked services.
     /// </summary>
     IReadOnlyDictionary<string, BackgroundServiceStatus> GetAll();
@@ -49,6 +57,12 @@ public sealed class BackgroundServiceStatus
 
     /// <summary>Total number of failed cycles since startup.</summary>
     public int TotalFailures { get; set; }
+
+    /// <summary>Whether a cycle is currently executing.</summary>
+    public bool IsRunning { get; set; }
+
+    /// <summary>When the currently running cycle started (null when idle).</summary>
+    public DateTimeOffset? CurrentRunStartedAt { get; set; }
 }
 
 /// <summary>
@@ -57,6 +71,25 @@ public sealed class BackgroundServiceStatus
 public sealed class BackgroundServiceTracker : IBackgroundServiceTracker
 {
     private readonly ConcurrentDictionary<string, BackgroundServiceStatus> _services = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public void RecordRunStarting(string serviceName)
+    {
+        _services.AddOrUpdate(
+            serviceName,
+            name => new BackgroundServiceStatus
+            {
+                ServiceName = name,
+                IsRunning = true,
+                CurrentRunStartedAt = DateTimeOffset.UtcNow,
+            },
+            (_, existing) =>
+            {
+                existing.IsRunning = true;
+                existing.CurrentRunStartedAt = DateTimeOffset.UtcNow;
+                return existing;
+            });
+    }
 
     /// <inheritdoc />
     public void RecordRun(string serviceName, DateTimeOffset completedAt, TimeSpan duration, bool success, string? message = null)
@@ -79,6 +112,8 @@ public sealed class BackgroundServiceTracker : IBackgroundServiceTracker
                 existing.LastRunDuration = duration;
                 existing.LastRunSuccess = success;
                 existing.LastRunMessage = message;
+                existing.IsRunning = false;
+                existing.CurrentRunStartedAt = null;
                 if (success)
                     existing.TotalRuns++;
                 else

@@ -1,4 +1,6 @@
+using DotNetCloud.Core.Grpc;
 using DotNetCloud.Core.Grpc.Lifecycle;
+using DotNetCloud.Core.Services;
 using DotNetCloud.Core.Modules;
 using Grpc.Core;
 
@@ -8,19 +10,25 @@ namespace DotNetCloud.Modules.Photos.Host.Services;
 /// Lifecycle gRPC service for the Photos module.
 /// Allows the core supervisor to initialize, start, stop, health-check, and inspect the module.
 /// </summary>
-public sealed class PhotosLifecycleService : ModuleLifecycle.ModuleLifecycleBase
+public sealed class PhotosLifecycleService : TrackedModuleLifecycleBase
 {
     private readonly PhotosModule _module;
+    private readonly IBackgroundServiceTracker? _tracker;
     private readonly ILogger<PhotosLifecycleService> _logger;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="PhotosLifecycleService"/> class.
     /// </summary>
-    public PhotosLifecycleService(PhotosModule module, ILogger<PhotosLifecycleService> logger)
+    public PhotosLifecycleService(PhotosModule module, ILogger<PhotosLifecycleService> logger,
+        IBackgroundServiceTracker? tracker = null)
     {
         _module = module;
         _logger = logger;
+        _tracker = tracker;
     }
+
+    /// <inheritdoc />
+    protected override IBackgroundServiceTracker? BackgroundServiceTracker => _tracker;
 
     /// <inheritdoc />
     public override async Task<InitializeResponse> Initialize(InitializeRequest request, ServerCallContext context)

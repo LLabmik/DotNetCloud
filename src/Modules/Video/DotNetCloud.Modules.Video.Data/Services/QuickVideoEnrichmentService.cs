@@ -1,3 +1,4 @@
+using DotNetCloud.Core.Services;
 using DotNetCloud.Modules.Video.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -22,7 +23,10 @@ internal sealed class QuickVideoEnrichmentService : BackgroundService
 {
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly IVideoEnrichmentBackgroundQueue _queue;
+    private readonly IBackgroundServiceTracker? _tracker;
     private readonly ILogger<QuickVideoEnrichmentService> _logger;
+
+    private const string ServiceName = "Quick Video Enrichment Poll";
 
     // Video IDs already fast-tracked in this process lifetime (id → created-at UTC),
     // so videos that fail a TMDB match are not re-enqueued on every poll. Entries age
@@ -35,11 +39,13 @@ internal sealed class QuickVideoEnrichmentService : BackgroundService
     public QuickVideoEnrichmentService(
         IServiceScopeFactory scopeFactory,
         IVideoEnrichmentBackgroundQueue queue,
-        ILogger<QuickVideoEnrichmentService> logger)
+        ILogger<QuickVideoEnrichmentService> logger,
+        IBackgroundServiceTracker? tracker = null)
     {
         _scopeFactory = scopeFactory;
         _queue = queue;
         _logger = logger;
+        _tracker = tracker;
     }
 
     /// <inheritdoc />
@@ -49,7 +55,9 @@ internal sealed class QuickVideoEnrichmentService : BackgroundService
         {
             try
             {
-                await ProcessPendingBurstsAsync(stoppingToken);
+                await _tracker.RunTrackedAsync(
+                    ServiceName,
+                    () => ProcessPendingBurstsAsync(stoppingToken));
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
             {

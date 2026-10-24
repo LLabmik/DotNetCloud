@@ -1,8 +1,10 @@
 using DotNetCloud.Core.Capabilities;
+using DotNetCloud.Core.Services;
 using DotNetCloud.Modules.Chat.Data.Services;
 using DotNetCloud.Modules.Chat.Services;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -21,6 +23,8 @@ public static class ChatServiceRegistration
     public static IServiceCollection AddChatServices(this IServiceCollection services, IConfiguration configuration)
     {
         services.Configure<FcmPushOptions>(configuration.GetSection(FcmPushOptions.SectionName));
+
+        services.TryAddSingleton<IBackgroundServiceTracker, BackgroundServiceTracker>();
 
         services.AddHttpClient("fcm");
 

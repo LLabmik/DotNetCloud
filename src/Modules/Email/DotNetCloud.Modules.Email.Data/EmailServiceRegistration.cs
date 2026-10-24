@@ -1,7 +1,9 @@
+using DotNetCloud.Core.Services;
 using DotNetCloud.Modules.Email.Data.Services;
 using DotNetCloud.Modules.Email.Services;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
 
 namespace DotNetCloud.Modules.Email.Data;
@@ -16,6 +18,8 @@ public static class EmailServiceRegistration
     /// </summary>
     public static IServiceCollection AddEmailServices(this IServiceCollection services, IConfiguration configuration)
     {
+        services.TryAddSingleton<IBackgroundServiceTracker, BackgroundServiceTracker>();
+
         services.AddScoped<IEmailAccountService, EmailAccountService>();
         services.AddScoped<IEmailSendService, EmailSendService>();
         services.AddScoped<IEmailRuleService, EmailRuleService>();

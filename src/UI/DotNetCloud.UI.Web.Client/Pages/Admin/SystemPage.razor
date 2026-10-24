@@ -1,0 +1,360 @@
+@page "/admin/system"
+@rendermode @(new Microsoft.AspNetCore.Components.Web.InteractiveAutoRenderMode(prerender: false))
+@attribute [Authorize(Policy = "RequireAdmin")]
+@implements IAsyncDisposable
+
+<PageTitle>System - DotNetCloud</PageTitle>
+
+<div class="page-header system-header">
+    <div>
+        <h1>System</h1>
+        <p class="text-muted system-subtitle">Live process, traffic and background-task metrics. Refreshes every 5 seconds.</p>
+    </div>
+    <div class="system-header-actions">
+        @if (_status is not null)
+        {
+            <span class="system-updated @(_stale ? "system-updated--stale" : string.Empty)">
+                @( _stale ? $"stale — last updated {FormatTimeAgo(_lastSuccessUtc)}" : $"updated {FormatTimeAgo(_lastSuccessUtc)}" )
+            </span>
+        }
+        <a href="/admin/health" class="btn btn-outline">Health details</a>
+        <button class="btn btn-outline" @onclick="RefreshAsync" disabled="@_refreshing">Refresh</button>
+    </div>
+</div>
+
+@if (_status is null)
+{
+    @if (_initialLoadFailed)
+    {
+        <div class="empty-state">
+            <p>Unable to retrieve system metrics.</p>
+        </div>
+    }
+    else
+    {
+        <LoadingIndicator Message="Loading system metrics..." />
+    }
+}
+else
+{
+    @* ── Top stat cards ─────────────────────────────────────────── *@
+    <div class="dash-stats">
+        <div class="dash-stat-card">
+            <div class="dash-stat-icon dash-stat-icon--modules">
+                <MaterialIcon Icon="speed" />
+            </div>
+            <div class="dash-stat-body">
+                <span class="dash-stat-label">CPU (@_status.ProcessorCount cores)</span>
+                <span class="dash-stat-value">@FormatPercent(_status.CpuPercent)</span>
+                <span class="dash-stat-sub">app processes only</span>
+            </div>
+        </div>
+
+        <div class="dash-stat-card">
+            <div class="dash-stat-icon dash-stat-icon--storage">
+                <MaterialIcon Icon="memory" />
+            </div>
+            <div class="dash-stat-body">
+                <span class="dash-stat-label">Memory</span>
+                <span class="dash-stat-value">@FormatBytes(_status.WorkingSetBytes)</span>
+                <span class="dash-stat-sub">GC heap @FormatBytes(_status.GcHeapBytes)</span>
+            </div>
+        </div>
+
+        <div class="dash-stat-card">
+            <div class="dash-stat-icon dash-stat-icon--users">
+                <MaterialIcon Icon="group" />
+            </div>
+            <div class="dash-stat-body">
+                <span class="dash-stat-label">Users online</span>
+                <span class="dash-stat-value">@_status.Users.Online</span>
+                <span class="dash-stat-sub">@_status.Users.Connections connection(s)</span>
+            </div>
+        </div>
+
+        <div class="dash-stat-card">
+            <div class="dash-stat-icon dash-stat-icon--orgs">
+                <MaterialIcon Icon="swap_vert" />
+            </div>
+            <div class="dash-stat-body">
+                <span class="dash-stat-label">Data transferred</span>
+                <span class="dash-stat-value">@FormatBytes(_status.Traffic.BytesTotal)</span>
+                <span class="dash-stat-sub">
+                    ↓ @FormatBytes(_status.Traffic.BytesIn) · ↑ @FormatBytes(_status.Traffic.BytesOut)
+                </span>
+            </div>
+        </div>
+    </div>
+
+    @* ── Uptime / rate strip ───────────────────────────────────── *@
+    <div class="system-strip">
+        <span><MaterialIcon Icon="schedule" Size="MaterialIconSize.Sm" /> Uptime @FormatUptime(_status.UptimeSeconds)</span>
+        <span><MaterialIcon Icon="speed" Size="MaterialIconSize.Sm" /> Rate ↓ @FormatRate(_status.Traffic.InPerSecond) · ↑ @FormatRate(_status.Traffic.OutPerSecond)</span>
+        @if (_status.UnavailableModules.Count > 0)
+        {
+            <span class="system-strip-warning">
+                <MaterialIcon Icon="warning" Size="MaterialIconSize.Sm" />
+                Unavailable: @string.Join(", ", _status.UnavailableModules)
+            </span>
+        }
+    </div>
+
+    @* ── Processes ─────────────────────────────────────────────── *@
+    <div class="dash-section">
+        <div class="dash-section-header">
+            <h2>Processes</h2>
+        </div>
+        <div class="table-container">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Process</th>
+                        <th>Module</th>
+                        <th class="num">PID</th>
+                        <th class="num">CPU</th>
+                        <th class="num">Working set</th>
+                        <th class="num">GC heap</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var process in _status.Processes)
+                    {
+                        <tr>
+                            <td>@process.Name</td>
+                            <td class="text-muted">@process.Id</td>
+                            <td class="num">@process.Pid</td>
+                            <td class="num">@FormatPercent(process.CpuPercent)</td>
+                            <td class="num">@FormatBytes(process.WorkingSetBytes ?? 0)</td>
+                            <td class="num">@(process.GcHeapBytes is null ? "—" : FormatBytes(process.GcHeapBytes.Value))</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    @* ── Background tasks ──────────────────────────────────────── *@
+    <div class="dash-section">
+        <div class="dash-section-header">
+            <h2>Background tasks</h2>
+        </div>
+        @if (_status.Tasks.Count == 0)
+        {
+            <p class="text-muted">No background task data available yet.</p>
+        }
+        else
+        {
+            <div class="table-container">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Status</th>
+                            <th>Module</th>
+                            <th>Service</th>
+                            <th>Running for</th>
+                            <th>Last run</th>
+                            <th class="num">Duration</th>
+                            <th>Result</th>
+                            <th class="num">Runs</th>
+                            <th class="num">Failures</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var task in _status.Tasks)
+                        {
+                            <tr>
+                                <td>
+                                    @if (task.IsRunning)
+                                    {
+                                        <span class="badge badge-info">Running</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge badge-success">Idle</span>
+                                    }
+                                </td>
+                                <td>@task.ModuleName</td>
+                                <td class="bg-svc-name">@task.ServiceName</td>
+                                <td>@(task.IsRunning ? FormatTimeAgo(task.CurrentRunStartedAt) : "—")</td>
+                                <td title="@task.LastRunAt.ToString("O")">@FormatTimeAgo(task.LastRunAt)</td>
+                                <td class="num">@FormatDuration(task.LastRunDurationMs)</td>
+                                <td>
+                                    <span class="badge badge-@(task.LastRunSuccess ? "success" : "danger")">
+                                        @(task.LastRunSuccess ? "OK" : "Failed")
+                                    </span>
+                                    @if (!string.IsNullOrWhiteSpace(task.LastRunMessage))
+                                    {
+                                        <span class="system-task-message">@task.LastRunMessage</span>
+                                    }
+                                </td>
+                                <td class="num">@task.TotalRuns</td>
+                                <td class="num">
+                                    @if (task.TotalFailures > 0)
+                                    {
+                                        <span class="text-danger">@task.TotalFailures</span>
+                                    }
+                                    else
+                                    {
+                                        <span>0</span>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </div>
+
+    <p class="system-footer-note">
+        Data transfer counted since @_status.Traffic.SinceUtc.ToLocalTime().ToString("g")
+        (HTTP payload + WebSocket frames, authenticated traffic only). Counters reset when the core process restarts.
+    </p>
+}
+
+@code {
+    private static readonly TimeSpan PollInterval = TimeSpan.FromSeconds(5);
+
+    [Inject] private DotNetCloudApiClient ApiClient { get; set; } = default!;
+    [Inject] private ToastService Toast { get; set; } = default!;
+
+    private readonly CancellationTokenSource _cts = new();
+    private AdminSystemStatusDto? _status;
+    private DateTimeOffset? _lastSuccessUtc;
+    private bool _stale;
+    private bool _refreshing;
+    private bool _initialLoadFailed;
+    private bool _errorToastShown;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await FetchAsync();
+        _ = PollAsync(_cts.Token);
+    }
+
+    private async Task PollAsync(CancellationToken cancellationToken)
+    {
+        using var timer = new PeriodicTimer(PollInterval);
+        try
+        {
+            while (await timer.WaitForNextTickAsync(cancellationToken))
+            {
+                await InvokeAsync(async () =>
+                {
+                    await FetchAsync();
+                    StateHasChanged();
+                });
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // The page was navigated away from; the loop ends with it.
+        }
+    }
+
+    private async Task FetchAsync()
+    {
+        try
+        {
+            var status = await ApiClient.GetSystemStatusAsync(_cts.Token);
+            if (status is null)
+            {
+                throw new InvalidOperationException("Empty system status response.");
+            }
+
+            _status = status;
+            _lastSuccessUtc = DateTimeOffset.UtcNow;
+            _stale = false;
+            _initialLoadFailed = false;
+            _errorToastShown = false;
+        }
+        catch (OperationCanceledException) when (_cts.IsCancellationRequested)
+        {
+            // Component disposed.
+        }
+        catch
+        {
+            _stale = _status is not null;
+            _initialLoadFailed = _status is null;
+
+            // One toast per outage, not one per polling tick.
+            if (!_errorToastShown)
+            {
+                _errorToastShown = true;
+                Toast.ShowError("System metrics could not be refreshed.");
+            }
+        }
+    }
+
+    private async Task RefreshAsync()
+    {
+        _refreshing = true;
+        try
+        {
+            await FetchAsync();
+        }
+        finally
+        {
+            _refreshing = false;
+        }
+    }
+
+    /// <inheritdoc />
+    public ValueTask DisposeAsync()
+    {
+        _cts.Cancel();
+        _cts.Dispose();
+        return ValueTask.CompletedTask;
+    }
+
+    private static string FormatPercent(double? percent) =>
+        percent is null ? "—" : $"{percent.Value:F1}%";
+
+    private static string FormatBytes(long bytes)
+    {
+        string[] units = ["B", "KB", "MB", "GB", "TB"];
+        var value = (double)Math.Max(0, bytes);
+        var unit = 0;
+
+        while (value >= 1024 && unit < units.Length - 1)
+        {
+            value /= 1024;
+            unit++;
+        }
+
+        return unit == 0 ? $"{value:F0} {units[unit]}" : $"{value:F1} {units[unit]}";
+    }
+
+    private static string FormatRate(double bytesPerSecond) => $"{FormatBytes((long)Math.Round(bytesPerSecond))}/s";
+
+    private static string FormatDuration(double ms)
+    {
+        if (ms < 1000) return $"{ms:F0} ms";
+        if (ms < 60_000) return $"{ms / 1000:F1} s";
+        return $"{ms / 60_000:F1} min";
+    }
+
+    private static string FormatUptime(long seconds)
+    {
+        var span = TimeSpan.FromSeconds(Math.Max(0, seconds));
+        if (span.TotalDays >= 1) return $"{(int)span.TotalDays}d {span.Hours}h";
+        if (span.TotalHours >= 1) return $"{(int)span.TotalHours}h {span.Minutes}m";
+        if (span.TotalMinutes >= 1) return $"{(int)span.TotalMinutes}m {span.Seconds}s";
+        return $"{span.Seconds}s";
+    }
+
+    private static string FormatTimeAgo(DateTimeOffset? time)
+    {
+        if (time is null || time.Value == default || time.Value == DateTimeOffset.MinValue)
+        {
+            return "—";
+        }
+
+        var elapsed = DateTimeOffset.UtcNow - time.Value;
+        if (elapsed < TimeSpan.Zero) elapsed = TimeSpan.Zero;
+        if (elapsed.TotalSeconds < 60) return $"{(int)elapsed.TotalSeconds}s ago";
+        if (elapsed.TotalMinutes < 60) return $"{(int)elapsed.TotalMinutes}m ago";
+        if (elapsed.TotalHours < 24) return $"{(int)elapsed.TotalHours}h {(int)elapsed.Minutes % 60}m ago";
+        return $"{(int)elapsed.TotalDays}d {(int)elapsed.TotalHours % 24}h ago";
+    }
+}

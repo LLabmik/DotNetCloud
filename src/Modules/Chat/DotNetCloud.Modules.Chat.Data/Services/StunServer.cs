@@ -1,3 +1,4 @@
+using DotNetCloud.Core.Services;
 using DotNetCloud.Modules.Chat.Services;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -36,17 +37,22 @@ public sealed class StunServer : BackgroundService
     private static readonly byte[] SoftwareValue = "DotNetCloud STUN/1.0"u8.ToArray();
 
     private readonly IceServerOptions _options;
+    private readonly IBackgroundServiceTracker? _tracker;
     private readonly ILogger<StunServer> _logger;
+
+    private const string ServiceName = "Chat Built-in STUN Server";
 
     /// <summary>
     /// Initializes a new instance of the <see cref="StunServer"/> class.
     /// </summary>
     public StunServer(
         IOptions<IceServerOptions> options,
-        ILogger<StunServer> logger)
+        ILogger<StunServer> logger,
+        IBackgroundServiceTracker? tracker = null)
     {
         _options = options.Value;
         _logger = logger;
+        _tracker = tracker;
     }
 
     /// <inheritdoc />
@@ -65,6 +71,9 @@ public sealed class StunServer : BackgroundService
         socket.Bind(new IPEndPoint(IPAddress.IPv6Any, port));
 
         _logger.LogInformation("Built-in STUN server listening on UDP port {Port} (dual-stack IPv4/IPv6)", port);
+
+        _tracker?.RecordRunStarting(ServiceName);
+        var runStartedAt = System.Diagnostics.Stopwatch.GetTimestamp();
 
         var buffer = new byte[576]; // RFC 5389 minimum MTU
         var remoteEp = new IPEndPoint(IPAddress.IPv6Any, 0);
@@ -120,6 +129,11 @@ public sealed class StunServer : BackgroundService
         }
 
         _logger.LogInformation("Built-in STUN server stopped");
+        _tracker?.RecordRun(
+            ServiceName,
+            DateTimeOffset.UtcNow,
+            System.Diagnostics.Stopwatch.GetElapsedTime(runStartedAt),
+            success: true);
     }
 
     /// <summary>

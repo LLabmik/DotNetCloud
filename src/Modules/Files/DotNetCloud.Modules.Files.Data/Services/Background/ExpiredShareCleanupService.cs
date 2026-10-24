@@ -47,6 +47,7 @@ internal sealed class ExpiredShareCleanupService : BackgroundService
     private async Task RunCycleAsync(string trigger, CancellationToken ct)
     {
         var sw = Stopwatch.StartNew();
+        _tracker.RecordRunStarting(ServiceName);
         try
         {
             _logger.LogInformation("{Service} cycle starting ({Trigger})", ServiceName, trigger);

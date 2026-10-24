@@ -1,3 +1,4 @@
+using DotNetCloud.Core.Services;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -11,15 +12,19 @@ namespace DotNetCloud.Modules.Tracks.Data.Services;
 public sealed class RecurringWorkItemBackgroundService : BackgroundService
 {
     private readonly IServiceScopeFactory _scopeFactory;
+    private readonly IBackgroundServiceTracker? _tracker;
     private readonly ILogger<RecurringWorkItemBackgroundService> _logger;
     private static readonly TimeSpan TickInterval = TimeSpan.FromMinutes(15);
+    private const string ServiceName = "Tracks Recurring Work Items";
 
     public RecurringWorkItemBackgroundService(
         IServiceScopeFactory scopeFactory,
-        ILogger<RecurringWorkItemBackgroundService> logger)
+        ILogger<RecurringWorkItemBackgroundService> logger,
+        IBackgroundServiceTracker? tracker = null)
     {
         _scopeFactory = scopeFactory;
         _logger = logger;
+        _tracker = tracker;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -36,15 +41,18 @@ public sealed class RecurringWorkItemBackgroundService : BackgroundService
         {
             try
             {
-                using var scope = _scopeFactory.CreateScope();
-                var service = scope.ServiceProvider.GetRequiredService<RecurringWorkItemService>();
-                var createdIds = await service.ProcessDueRecurringItemsAsync(stoppingToken);
-
-                if (createdIds.Count > 0)
+                await _tracker.RunTrackedAsync(ServiceName, async () =>
                 {
-                    _logger.LogInformation("Created {Count} work items from recurring rules: {Ids}",
-                        createdIds.Count, string.Join(", ", createdIds));
-                }
+                    using var scope = _scopeFactory.CreateScope();
+                    var service = scope.ServiceProvider.GetRequiredService<RecurringWorkItemService>();
+                    var createdIds = await service.ProcessDueRecurringItemsAsync(stoppingToken);
+
+                    if (createdIds.Count > 0)
+                    {
+                        _logger.LogInformation("Created {Count} work items from recurring rules: {Ids}",
+                            createdIds.Count, string.Join(", ", createdIds));
+                    }
+                });
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
             {

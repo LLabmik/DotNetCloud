@@ -62,6 +62,8 @@ public sealed class AdminBroadcastSchedulerHostedService : BackgroundService
             var ok = true;
             var message = string.Empty;
 
+            _tracker.RecordRunStarting(ServiceName);
+
             try
             {
                 var published = await PublishDueBroadcastsAsync(stoppingToken);

@@ -1,3 +1,5 @@
+using System.Diagnostics;
+using DotNetCloud.Core.Services;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
@@ -9,25 +11,34 @@ namespace DotNetCloud.Modules.Chat.Services;
 internal sealed class NotificationDeliveryBackgroundService : BackgroundService
 {
     private const int MaxAttempts = 3;
+    private const string ServiceName = "Chat Push Notification Delivery";
 
     private readonly INotificationDeliveryQueue _queue;
     private readonly IQueuedNotificationDispatcher _dispatcher;
+    private readonly IBackgroundServiceTracker? _tracker;
     private readonly ILogger<NotificationDeliveryBackgroundService> _logger;
 
     public NotificationDeliveryBackgroundService(
         INotificationDeliveryQueue queue,
         IQueuedNotificationDispatcher dispatcher,
-        ILogger<NotificationDeliveryBackgroundService> logger)
+        ILogger<NotificationDeliveryBackgroundService> logger,
+        IBackgroundServiceTracker? tracker = null)
     {
         _queue = queue;
         _dispatcher = dispatcher;
         _logger = logger;
+        _tracker = tracker;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         await foreach (var item in _queue.ReadAllAsync(stoppingToken))
         {
+            _tracker?.RecordRunStarting(ServiceName);
+            var runStartedAt = Stopwatch.GetTimestamp();
+            var runSuccess = true;
+            string? runMessage = null;
+
             try
             {
                 var delay = item.NextAttemptUtc - DateTime.UtcNow;
@@ -50,8 +61,19 @@ internal sealed class NotificationDeliveryBackgroundService : BackgroundService
             }
             catch (Exception ex)
             {
+                runSuccess = false;
+                runMessage = ex.Message;
                 _logger.LogWarning(ex, "Queued push delivery failed unexpectedly for user {UserId}", item.UserId);
                 await RequeueWithBackoffAsync(item, stoppingToken);
+            }
+            finally
+            {
+                _tracker?.RecordRun(
+                    ServiceName,
+                    DateTimeOffset.UtcNow,
+                    Stopwatch.GetElapsedTime(runStartedAt),
+                    runSuccess,
+                    runMessage);
             }
         }
     }

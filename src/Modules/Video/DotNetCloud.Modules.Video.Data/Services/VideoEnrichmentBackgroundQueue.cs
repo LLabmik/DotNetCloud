@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Threading.Channels;
+using DotNetCloud.Core.Services;
 using DotNetCloud.Core.Authorization;
 using DotNetCloud.Core.DTOs;
 using DotNetCloud.Modules.Video.Models;
@@ -77,18 +78,23 @@ internal sealed class VideoEnrichmentBackgroundService : BackgroundService
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly InMemoryVideoEnrichmentBackgroundQueue _queue;
     private readonly VideoScanProgressState _scanProgress;
+    private readonly IBackgroundServiceTracker? _tracker;
     private readonly ILogger<VideoEnrichmentBackgroundService> _logger;
+
+    private const string ServiceName = "Video Enrichment Worker";
 
     public VideoEnrichmentBackgroundService(
         IServiceScopeFactory scopeFactory,
         InMemoryVideoEnrichmentBackgroundQueue queue,
         VideoScanProgressState scanProgress,
-        ILogger<VideoEnrichmentBackgroundService> logger)
+        ILogger<VideoEnrichmentBackgroundService> logger,
+        IBackgroundServiceTracker? tracker = null)
     {
         _scopeFactory = scopeFactory;
         _queue = queue;
         _scanProgress = scanProgress;
         _logger = logger;
+        _tracker = tracker;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -97,7 +103,7 @@ internal sealed class VideoEnrichmentBackgroundService : BackgroundService
         {
             try
             {
-                await RunJobAsync(job, stoppingToken);
+                await _tracker.RunTrackedAsync(ServiceName, () => RunJobAsync(job, stoppingToken));
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
             {

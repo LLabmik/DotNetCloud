@@ -1,11 +1,13 @@
 using DotNetCloud.Core.Data.Extensions;
 using DotNetCloud.Core.Data.Naming;
+using DotNetCloud.Core.Services;
 using DotNetCloud.Modules.Tracks.Data;
 using DotNetCloud.Modules.Tracks.Data.Services;
 using DotNetCloud.Modules.Tracks.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace DotNetCloud.Modules.Tracks.Data;
 
@@ -20,6 +22,7 @@ public static class TracksServiceRegistration
     public static IServiceCollection AddTracksServices(this IServiceCollection services, IConfiguration configuration)
     {
         // Real-time services (singletons — live for the lifetime of the process)
+        services.TryAddSingleton<IBackgroundServiceTracker, BackgroundServiceTracker>();
         services.AddSingleton<TracksInProcessSignalRService>();
         services.AddSingleton<ITracksSignalRService>(sp => sp.GetRequiredService<TracksInProcessSignalRService>());
         services.AddSingleton<ITracksRealtimeService, TracksRealtimeService>();

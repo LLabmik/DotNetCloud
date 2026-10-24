@@ -1,3 +1,4 @@
+using DotNetCloud.Core.Services;
 using DotNetCloud.Modules.Video.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -19,16 +20,21 @@ internal sealed class DailyVideoEnrichmentService : BackgroundService
 
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly InMemoryVideoEnrichmentBackgroundQueue _queue;
+    private readonly IBackgroundServiceTracker? _tracker;
     private readonly ILogger<DailyVideoEnrichmentService> _logger;
+
+    private const string ServiceName = "Daily Video Enrichment Enqueue";
 
     public DailyVideoEnrichmentService(
         IServiceScopeFactory scopeFactory,
         InMemoryVideoEnrichmentBackgroundQueue queue,
-        ILogger<DailyVideoEnrichmentService> logger)
+        ILogger<DailyVideoEnrichmentService> logger,
+        IBackgroundServiceTracker? tracker = null)
     {
         _scopeFactory = scopeFactory;
         _queue = queue;
         _logger = logger;
+        _tracker = tracker;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -40,7 +46,9 @@ internal sealed class DailyVideoEnrichmentService : BackgroundService
         {
             try
             {
-                await EnqueuePendingEnrichmentJobsAsync(stoppingToken);
+                await _tracker.RunTrackedAsync(
+                    ServiceName,
+                    () => EnqueuePendingEnrichmentJobsAsync(stoppingToken));
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
             {

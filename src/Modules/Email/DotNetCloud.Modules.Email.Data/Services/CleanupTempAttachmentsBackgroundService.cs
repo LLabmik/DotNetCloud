@@ -5,6 +5,8 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
+using DotNetCloud.Core.Services;
+
 namespace DotNetCloud.Modules.Email.Data.Services;
 
 /// <summary>
@@ -15,7 +17,10 @@ namespace DotNetCloud.Modules.Email.Data.Services;
 public sealed class CleanupTempAttachmentsBackgroundService : BackgroundService
 {
     private readonly IServiceProvider _serviceProvider;
+    private readonly IBackgroundServiceTracker? _tracker;
     private readonly ILogger<CleanupTempAttachmentsBackgroundService> _logger;
+
+    private const string ServiceName = "Email Temp Attachment Cleanup";
     private static readonly TimeSpan CleanupInterval = TimeSpan.FromHours(1);
     private static readonly TimeSpan AttachmentTtl = TimeSpan.FromHours(24);
 
@@ -24,10 +29,12 @@ public sealed class CleanupTempAttachmentsBackgroundService : BackgroundService
     /// </summary>
     public CleanupTempAttachmentsBackgroundService(
         IServiceProvider serviceProvider,
-        ILogger<CleanupTempAttachmentsBackgroundService> logger)
+        ILogger<CleanupTempAttachmentsBackgroundService> logger,
+        IBackgroundServiceTracker? tracker = null)
     {
         _serviceProvider = serviceProvider;
         _logger = logger;
+        _tracker = tracker;
     }
 
     /// <inheritdoc />
@@ -42,7 +49,7 @@ public sealed class CleanupTempAttachmentsBackgroundService : BackgroundService
         {
             try
             {
-                await CleanupOrphanedAttachmentsAsync(stoppingToken);
+                await _tracker.RunTrackedAsync(ServiceName, () => CleanupOrphanedAttachmentsAsync(stoppingToken));
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
             {

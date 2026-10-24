@@ -63,6 +63,7 @@ public sealed class AuditLogPurgeHostedService : BackgroundService
             var sw = System.Diagnostics.Stopwatch.StartNew();
             var ok = true;
             var message = string.Empty;
+            _tracker.RecordRunStarting(ServiceName);
             try
             {
                 var purged = await PurgeExpiredAuditLogsAsync(stoppingToken);

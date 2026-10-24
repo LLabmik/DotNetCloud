@@ -1,8 +1,10 @@
 using DotNetCloud.Core.Import;
+using DotNetCloud.Core.Services;
 using DotNetCloud.Modules.Calendar.Data.Services;
 using DotNetCloud.Modules.Calendar.Services;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace DotNetCloud.Modules.Calendar.Data;
 
@@ -23,6 +25,7 @@ public static class CalendarServiceRegistration
         services.AddScoped<IImportProvider, CalendarImportProvider>();
         services.AddSingleton<IRecurrenceEngine, RecurrenceEngine>();
         services.AddScoped<IOccurrenceExpansionService, OccurrenceExpansionService>();
+        services.TryAddSingleton<IBackgroundServiceTracker, BackgroundServiceTracker>();
         services.AddHostedService<ReminderDispatchService>();
 
         return services;

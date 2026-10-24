@@ -1,3 +1,4 @@
+using DotNetCloud.Core.Services;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -11,18 +12,22 @@ namespace DotNetCloud.Modules.Tracks.Data.Services;
 public sealed class WebhookRetryBackgroundService : BackgroundService
 {
     private readonly IServiceScopeFactory _scopeFactory;
+    private readonly IBackgroundServiceTracker? _tracker;
     private readonly ILogger<WebhookRetryBackgroundService> _logger;
     private static readonly TimeSpan TickInterval = TimeSpan.FromSeconds(30);
+    private const string ServiceName = "Tracks Webhook Retry";
 
     /// <summary>
     /// Initializes a new instance of the <see cref="WebhookRetryBackgroundService"/> class.
     /// </summary>
     public WebhookRetryBackgroundService(
         IServiceScopeFactory scopeFactory,
-        ILogger<WebhookRetryBackgroundService> logger)
+        ILogger<WebhookRetryBackgroundService> logger,
+        IBackgroundServiceTracker? tracker = null)
     {
         _scopeFactory = scopeFactory;
         _logger = logger;
+        _tracker = tracker;
     }
 
     /// <inheritdoc />
@@ -40,7 +45,9 @@ public sealed class WebhookRetryBackgroundService : BackgroundService
         {
             try
             {
-                using var scope = _scopeFactory.CreateScope();
+                await _tracker.RunTrackedAsync(ServiceName, async () =>
+                {
+                    using var scope = _scopeFactory.CreateScope();
                 var deliveryService = scope.ServiceProvider.GetRequiredService<WebhookDeliveryService>();
                 var webhookService = scope.ServiceProvider.GetRequiredService<WebhookService>();
 
@@ -68,6 +75,7 @@ public sealed class WebhookRetryBackgroundService : BackgroundService
                         }
                     }
                 }
+                });
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
             {

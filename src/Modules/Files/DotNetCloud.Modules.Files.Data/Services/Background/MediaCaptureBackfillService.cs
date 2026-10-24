@@ -90,6 +90,7 @@ internal sealed class MediaCaptureBackfillService : BackgroundService
     /// <returns>The number of image nodes examined.</returns>
     internal async Task<int> BackfillAsync(CancellationToken cancellationToken)
     {
+        _tracker.RecordRunStarting(ServiceName);
         var total = 0;
         DateTime? after = null;
 

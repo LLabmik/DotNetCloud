@@ -1,3 +1,5 @@
+using System.Diagnostics;
+using DotNetCloud.Core.Services;
 using DotNetCloud.Modules.Chat.Services;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -29,19 +31,25 @@ internal sealed class ChatRetentionBackgroundService : BackgroundService
     private static readonly TimeSpan FailureRetryInterval = TimeSpan.FromMinutes(15);
 
     private readonly IServiceScopeFactory _scopeFactory;
+    private readonly IBackgroundServiceTracker? _tracker;
     private readonly ILogger<ChatRetentionBackgroundService> _logger;
+
+    private const string ServiceName = "Chat Retention Sweep";
 
     /// <summary>
     /// Initializes a new instance of the <see cref="ChatRetentionBackgroundService"/> class.
     /// </summary>
     /// <param name="scopeFactory">Factory used to create a scope per sweep.</param>
     /// <param name="logger">Logger instance.</param>
+    /// <param name="tracker">Optional background service tracker.</param>
     public ChatRetentionBackgroundService(
         IServiceScopeFactory scopeFactory,
-        ILogger<ChatRetentionBackgroundService> logger)
+        ILogger<ChatRetentionBackgroundService> logger,
+        IBackgroundServiceTracker? tracker = null)
     {
         _scopeFactory = scopeFactory;
         _logger = logger;
+        _tracker = tracker;
     }
 
     /// <inheritdoc />
@@ -55,6 +63,11 @@ internal sealed class ChatRetentionBackgroundService : BackgroundService
         while (!stoppingToken.IsCancellationRequested)
         {
             var interval = FailureRetryInterval;
+
+            _tracker?.RecordRunStarting(ServiceName);
+            var runStartedAt = Stopwatch.GetTimestamp();
+            var runSuccess = true;
+            string? runMessage = null;
 
             try
             {
@@ -76,8 +89,19 @@ internal sealed class ChatRetentionBackgroundService : BackgroundService
             }
             catch (Exception ex)
             {
+                runSuccess = false;
+                runMessage = ex.Message;
                 _logger.LogError(ex, "Chat retention sweep failed; retrying in {Minutes} minute(s).",
                     FailureRetryInterval.TotalMinutes);
+            }
+            finally
+            {
+                _tracker?.RecordRun(
+                    ServiceName,
+                    DateTimeOffset.UtcNow,
+                    Stopwatch.GetElapsedTime(runStartedAt),
+                    runSuccess,
+                    runMessage);
             }
 
             if (await DelayAsync(interval, stoppingToken).ConfigureAwait(false) is false)

@@ -1,3 +1,4 @@
+using DotNetCloud.Core.Grpc;
 using DotNetCloud.Core.Grpc.Lifecycle;
 using DotNetCloud.Core.Modules;
 using Grpc.Core;
@@ -8,7 +9,7 @@ namespace DotNetCloud.Modules.Example.Host.Services;
 /// Implements the <see cref="ModuleLifecycle.ModuleLifecycleBase"/> gRPC service
 /// so the core supervisor can control this module's lifecycle and check health.
 /// </summary>
-public sealed class ExampleLifecycleService : ModuleLifecycle.ModuleLifecycleBase
+public sealed class ExampleLifecycleService : TrackedModuleLifecycleBase
 {
     private readonly ExampleModule _module;
     private readonly ILogger<ExampleLifecycleService> _logger;

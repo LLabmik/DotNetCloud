@@ -70,6 +70,7 @@ internal sealed class DefaultUserContentRetryService : BackgroundService
 
     private async Task RunCycleAsync(CancellationToken cancellationToken)
     {
+        _tracker.RecordRunStarting(ServiceName);
         try
         {
             for (var i = 0; i < BatchSize && !cancellationToken.IsCancellationRequested; i++)

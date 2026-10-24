@@ -78,6 +78,13 @@ public sealed record ModuleProcessInfo
     public long? MemoryUsageBytes { get; init; }
 
     /// <summary>
+    /// Total processor time consumed by the module process, or null if the process
+    /// has exited or the value is unavailable. Used by the system metrics sampler to
+    /// derive CPU percentages from successive samples.
+    /// </summary>
+    public TimeSpan? CpuTime { get; init; }
+
+    /// <summary>
     /// The configured memory limit in bytes, or null if no limit is set.
     /// </summary>
     public long? MemoryLimitBytes { get; init; }

@@ -1,4 +1,5 @@
 using DotNetCloud.Core.Authorization;
+using DotNetCloud.Core.Grpc;
 using DotNetCloud.Core.Grpc.Lifecycle;
 using DotNetCloud.Core.Modules;
 using Grpc.Core;
@@ -9,7 +10,7 @@ namespace DotNetCloud.Modules.Notes.Host.Services;
 /// gRPC lifecycle service for the Notes module.
 /// Receives lifecycle commands (initialize, start, stop, health check) from the core supervisor.
 /// </summary>
-public sealed class NotesLifecycleService : ModuleLifecycle.ModuleLifecycleBase
+public sealed class NotesLifecycleService : TrackedModuleLifecycleBase
 {
     private readonly NotesModule _module;
     private readonly ILogger<NotesLifecycleService> _logger;

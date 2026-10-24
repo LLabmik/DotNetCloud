@@ -5,6 +5,8 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
+using DotNetCloud.Core.Services;
+
 namespace DotNetCloud.Modules.Email.Data.Services;
 
 /// <summary>
@@ -14,14 +16,19 @@ namespace DotNetCloud.Modules.Email.Data.Services;
 public sealed class EmailSyncBackgroundService : BackgroundService, IEmailSyncService
 {
     private readonly IServiceScopeFactory _scopeFactory;
+    private readonly IBackgroundServiceTracker? _tracker;
     private readonly ILogger<EmailSyncBackgroundService> _logger;
     private readonly Dictionary<Guid, EmailSyncStatus> _statuses = new();
     private readonly TimeSpan _syncInterval = TimeSpan.FromMinutes(5);
 
-    public EmailSyncBackgroundService(IServiceScopeFactory scopeFactory, ILogger<EmailSyncBackgroundService> logger)
+    private const string ServiceName = "Email Account Sync";
+
+    public EmailSyncBackgroundService(IServiceScopeFactory scopeFactory, ILogger<EmailSyncBackgroundService> logger,
+        IBackgroundServiceTracker? tracker = null)
     {
         _scopeFactory = scopeFactory;
         _logger = logger;
+        _tracker = tracker;
     }
 
     /// <inheritdoc />
@@ -86,7 +93,7 @@ public sealed class EmailSyncBackgroundService : BackgroundService, IEmailSyncSe
         // Initial sync on startup
         try
         {
-            await SyncAllAsync(stoppingToken);
+            await _tracker.RunTrackedAsync(ServiceName, () => SyncAllAsync(stoppingToken));
         }
         catch (Exception ex)
         {
@@ -97,7 +104,7 @@ public sealed class EmailSyncBackgroundService : BackgroundService, IEmailSyncSe
         {
             try
             {
-                await SyncAllAsync(stoppingToken);
+                await _tracker.RunTrackedAsync(ServiceName, () => SyncAllAsync(stoppingToken));
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
             {

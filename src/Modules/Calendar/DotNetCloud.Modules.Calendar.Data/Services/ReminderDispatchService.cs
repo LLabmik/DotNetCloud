@@ -1,6 +1,7 @@
 using DotNetCloud.Core.Authorization;
 using DotNetCloud.Core.DTOs;
 using DotNetCloud.Core.Events;
+using DotNetCloud.Core.Services;
 using DotNetCloud.Modules.Calendar.Models;
 using DotNetCloud.Modules.Calendar.Services;
 using Microsoft.EntityFrameworkCore;
@@ -32,17 +33,22 @@ public sealed class ReminderDispatchService : BackgroundService
     internal static readonly TimeSpan MaximumLookAheadWindow = TimeSpan.FromDays(366);
 
     private readonly IServiceScopeFactory _scopeFactory;
+    private readonly IBackgroundServiceTracker? _tracker;
     private readonly ILogger<ReminderDispatchService> _logger;
+
+    private const string ServiceName = "Calendar Reminder Dispatch";
 
     /// <summary>
     /// Initializes a new instance of the <see cref="ReminderDispatchService"/> class.
     /// </summary>
     public ReminderDispatchService(
         IServiceScopeFactory scopeFactory,
-        ILogger<ReminderDispatchService> logger)
+        ILogger<ReminderDispatchService> logger,
+        IBackgroundServiceTracker? tracker = null)
     {
         _scopeFactory = scopeFactory;
         _logger = logger;
+        _tracker = tracker;
     }
 
     /// <inheritdoc />
@@ -59,7 +65,9 @@ public sealed class ReminderDispatchService : BackgroundService
         {
             try
             {
-                await ScanAndDispatchAsync(stoppingToken);
+                await _tracker.RunTrackedAsync(
+                    ServiceName,
+                    () => ScanAndDispatchAsync(stoppingToken)).ConfigureAwait(false);
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
             {
