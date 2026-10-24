@@ -1,5 +1,6 @@
 using DotNetCloud.Modules.Chat.DTOs;
 using Microsoft.AspNetCore.Components;
+using Microsoft.JSInterop;
 
 namespace DotNetCloud.Modules.Chat.UI;
 
@@ -324,5 +325,27 @@ public partial class VideoCallDialog : ComponentBase
     protected async Task HandlePipClick()
     {
         await OnPipClick.InvokeAsync();
+    }
+
+    /// <summary>JS runtime used to call the video-call fullscreen helper.</summary>
+    [Inject]
+    private IJSRuntime Js { get; set; } = default!;
+
+    /// <summary>
+    /// Toggles fullscreen for the given participant's video tile.
+    /// </summary>
+    /// <remarks>
+    /// This used to be an inline <c>onclick=""</c> attribute, which the hardened CSP blocks
+    /// (no <c>'unsafe-inline'</c>/<c>'unsafe-hashes'</c> for scripts).
+    /// </remarks>
+    protected async Task ToggleFullscreenAsync(Guid participantUserId)
+    {
+        try
+        {
+            await Js.InvokeVoidAsync("dotnetcloudVideoCall.toggleFullscreen", $"video-tile-{participantUserId}");
+        }
+        catch (JSDisconnectedException) { }
+        catch (JSException) { }
+        catch (InvalidOperationException) { }
     }
 }

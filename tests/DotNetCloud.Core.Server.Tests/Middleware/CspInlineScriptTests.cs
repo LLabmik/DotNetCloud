@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using DotNetCloud.Core.ServiceDefaults.Middleware;
 
 namespace DotNetCloud.Core.Server.Tests.Middleware;
@@ -97,6 +98,73 @@ public sealed class CspInlineScriptTests
 
         Assert.AreEqual(0, missing.Count,
             "appsettings.json ContentSecurityPolicy does not allow-list: " + string.Join("; ", missing));
+    }
+
+    /// <summary>
+    /// Fails when a razor file uses a raw inline event handler such as
+    /// <c>onerror="this.style.display='none'"</c> or <c>onclick="foo()"</c>.
+    /// </summary>
+    /// <remarks>
+    /// The hardened CSP (<c>script-src 'self' 'wasm-unsafe-eval' 'sha256-…'</c>) has no
+    /// <c>'unsafe-inline'</c>/<c>'unsafe-hashes'</c>, so the browser <b>blocks</b> inline handlers and
+    /// logs "Executing inline event handler violates the following Content Security Policy directive".
+    /// The old MFA/register handlers were converted to Blazor events for exactly this reason; this test
+    /// stops new ones (e.g. album-art/avatar <c>onerror</c> fallbacks) from creeping back in.
+    /// </remarks>
+    [TestMethod]
+    public void RazorSources_DoNotUseRawInlineEventHandlers()
+    {
+        var root = FindRepositoryRoot();
+        if (root is null)
+        {
+            Assert.Inconclusive("Repository root (DotNetCloud.sln) not found; run the tests from the repository.");
+        }
+
+        // Lowercase on… attribute preceded by whitespace (not the @on… Blazor directive) whose value is quoted.
+        var inlineHandlerPattern = new Regex("(?<![@\\w-])on[a-z]+\\s*=\\s*[\"']", RegexOptions.Compiled);
+        // Razor comments (@* … *@) may document the pattern; blank them out while preserving line numbers.
+        var razorCommentPattern = new Regex("@\\*.*?\\*@", RegexOptions.Compiled | RegexOptions.Singleline);
+
+        var offenders = new List<string>();
+
+        foreach (var file in Directory.EnumerateFiles(Path.Combine(root!, "src"), "*.razor", SearchOption.AllDirectories))
+        {
+            if (file.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}", StringComparison.Ordinal) ||
+                file.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}", StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            var text = razorCommentPattern.Replace(
+                File.ReadAllText(file),
+                match => new string('\n', match.Value.Count(c => c == '\n')));
+
+            var lineNumber = 0;
+            foreach (var line in text.Split('\n'))
+            {
+                lineNumber++;
+                var trimmed = line.TrimStart();
+
+                // Skip C# line/doc comments inside @code blocks.
+                if (trimmed.StartsWith("//", StringComparison.Ordinal) ||
+                    trimmed.StartsWith("*", StringComparison.Ordinal))
+                {
+                    continue;
+                }
+
+                if (inlineHandlerPattern.IsMatch(line))
+                {
+                    offenders.Add($"{Path.GetRelativePath(root!, file).Replace('\\', '/')}:{lineNumber}");
+                }
+            }
+        }
+
+        Assert.AreEqual(
+            0,
+            offenders.Count,
+            "Raw inline event handlers are blocked by the hardened CSP (no 'unsafe-inline'/'unsafe-hashes'). " +
+            "Use a Blazor @on… handler or a named JS function instead. Offenders: " +
+            string.Join("; ", offenders));
     }
 
     private static List<InlineScript> FindInlineScripts(string repositoryRoot)

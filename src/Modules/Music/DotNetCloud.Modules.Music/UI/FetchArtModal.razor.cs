@@ -38,6 +38,23 @@ public partial class FetchArtModal
     private bool _isApplying;
     private string? _errorMessage;
 
+    /// <summary>
+    /// Thumbnail URLs that failed to load. The ♫ placeholder is rendered instead of the image.
+    /// </summary>
+    /// <remarks>
+    /// Replaces the previous inline <c>onerror=""</c> attributes, which the hardened CSP blocks
+    /// (no <c>'unsafe-inline'</c>/<c>'unsafe-hashes'</c> for scripts).
+    /// </remarks>
+    private readonly HashSet<string> _failedThumbnailUrls = new(StringComparer.Ordinal);
+
+    private void OnThumbnailError(string? url)
+    {
+        if (!string.IsNullOrEmpty(url))
+        {
+            _failedThumbnailUrls.Add(url);
+        }
+    }
+
     protected override void OnInitialized()
     {
         _editAlbumTitle = AlbumTitle;
@@ -86,6 +103,7 @@ public partial class FetchArtModal
         _errorMessage = null;
         _state = ModalState.Searching;
         _selectedResultIndex = -1;
+        _failedThumbnailUrls.Clear();
 
         try
         {

@@ -131,9 +131,9 @@
                 @{
                     var avatarUrl = ApiClient.GetAvatarUrlAsync(_selectedContact.Id).Result;
                 }
-                @if (avatarUrl is not null)
+                @if (avatarUrl is not null && !_avatarFailed)
                 {
-                    <img class="contacts-avatar" src="@avatarUrl" alt="Avatar" onerror="this.style.display='none'" />
+                    <img class="contacts-avatar" src="@avatarUrl" alt="Avatar" @onerror="OnAvatarError" />
                 }
                 <h2>@_selectedContact.DisplayName</h2>
                 <p><strong>Organization:</strong> @_selectedContact.Organization</p>
@@ -200,6 +200,7 @@
     private ContactRelatedEntitiesDto _related = new();
     private ContactDto? _selectedContact;
     private ContactEditorModel? _editingContact;
+    private bool _avatarFailed;
     private string _searchQuery = string.Empty;
     private string _activeSection = "all";
     private bool _isLoading;
@@ -314,11 +315,24 @@ _sidebarCollapsed.ToString().ToLowerInvariant() });
 
     private async Task SelectContactAsync(Guid contactId)
     {
+        _avatarFailed = false;
         _selectedContact = await ApiClient.GetContactAsync(contactId);
         _related = _selectedContact is null
             ? new ContactRelatedEntitiesDto()
             : await ApiClient.GetRelatedAsync(_selectedContact.Id);
         _editingContact = null;
+    }
+
+    /// <summary>
+    /// Hides the avatar when it fails to load.
+    /// </summary>
+    /// <remarks>
+    /// Replaces the previous inline <c>onerror=""</c> attribute, which the hardened CSP blocks
+    /// (no <c>'unsafe-inline'</c>/<c>'unsafe-hashes'</c> for scripts).
+    /// </remarks>
+    private void OnAvatarError()
+    {
+        _avatarFailed = true;
     }
 
     private void BeginCreateContact()

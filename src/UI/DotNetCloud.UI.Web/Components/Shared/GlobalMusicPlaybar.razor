@@ -26,21 +26,30 @@
                 {
                     <a href="" @onclick="NavigateToPlayingAlbum"
                        @onclick:preventDefault title="View album">
-                        <img src="@MusicPlaybackState.GetAlbumArtUrl(Playback.NowPlaying.AlbumId.Value)" alt=""
-                             onerror="this.style.display='none';this.nextElementSibling.style.display='block'" />
-                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" fill="none"
-                             style="display:none;width:100%;height:100%">
-                            <defs>
-                                <linearGradient id="gmpbg" x1="0" y1="0" x2="1" y2="1">
-                                    <stop offset="0%" stop-color="#cbd5e1" />
-                                    <stop offset="100%" stop-color="#94a3b8" />
-                                </linearGradient>
-                            </defs>
-                            <rect width="200" height="200" rx="12" fill="url(#gmpbg)" />
-                            <circle cx="100" cy="96" r="56" fill="#475569" opacity="0.55" />
-                            <circle cx="100" cy="96" r="12" fill="#cbd5e1" />
-                            <circle cx="100" cy="96" r="4" fill="#475569" />
-                        </svg>
+                        @* The old markup used an inline onerror="" to swap in the fallback SVG, but the
+                           hardened CSP (no 'unsafe-inline'/'unsafe-hashes' for script) blocks inline
+                           event handlers. Track the failure in component state instead. *@
+                        @if (_albumArtFailedForAlbumId == Playback.NowPlaying.AlbumId)
+                        {
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" fill="none"
+                                 style="width:100%;height:100%">
+                                <defs>
+                                    <linearGradient id="gmpbg" x1="0" y1="0" x2="1" y2="1">
+                                        <stop offset="0%" stop-color="#cbd5e1" />
+                                        <stop offset="100%" stop-color="#94a3b8" />
+                                    </linearGradient>
+                                </defs>
+                                <rect width="200" height="200" rx="12" fill="url(#gmpbg)" />
+                                <circle cx="100" cy="96" r="56" fill="#475569" opacity="0.55" />
+                                <circle cx="100" cy="96" r="12" fill="#cbd5e1" />
+                                <circle cx="100" cy="96" r="4" fill="#475569" />
+                            </svg>
+                        }
+                        else
+                        {
+                            <img src="@MusicPlaybackState.GetAlbumArtUrl(Playback.NowPlaying.AlbumId.Value)" alt=""
+                                 @onerror="OnAlbumArtError" />
+                        }
                     </a>
                 }
                 else
@@ -322,6 +331,9 @@
 @code {
     private bool _musicModuleEnabled;
     private bool _jsInitialized;
+
+    /// <summary>Album whose cover failed to load; the fallback SVG is rendered instead.</summary>
+    private Guid? _albumArtFailedForAlbumId;
     private DotNetObjectReference<GlobalMusicPlaybar>? _dotNetRef;
     private string _newPresetName = string.Empty;
     private Guid? _selectedPresetId;
@@ -401,6 +413,19 @@
     {
         InvokeAsync(StateHasChanged);
         _ = InvokeAsync(UpdateTabTitleAsync);
+    }
+
+    /// <summary>
+    /// Handles a failed album-art image load by switching to the inline SVG fallback.
+    /// </summary>
+    /// <remarks>
+    /// This used to be an inline <c>onerror=""</c> attribute in the markup, which the hardened
+    /// Content-Security-Policy blocks (it allows no <c>'unsafe-inline'</c>/<c>'unsafe-hashes'</c>
+    /// for scripts). Using a Blazor event handler keeps the fallback working under the strict policy.
+    /// </remarks>
+    private void OnAlbumArtError()
+    {
+        _albumArtFailedForAlbumId = Playback.NowPlaying?.AlbumId;
     }
 
     private void OnModuleRegistryChanged()
@@ -720,7 +745,21 @@
 
     private void OnTrackChanged(TrackDto track)
     {
-        InvokeAsync(async () => await StartPlaybackJsAsync(track));
+        // Fire-and-forget, but observe failures: an unhandled exception from a faulted task here
+        // would otherwise be lost (and a hung playback init leaves the UI looking frozen).
+        _ = InvokeAsync(async () =>
+        {
+            try
+            {
+                await StartPlaybackJsAsync(track);
+            }
+            catch (JSDisconnectedException) { }
+            catch (ObjectDisposedException) { }
+            catch (Exception ex)
+            {
+                Logger.LogWarning(ex, "Failed to start JS playback for track {TrackId}", track.Id);
+            }
+        });
         _ = InvokeAsync(UpdateTabTitleAsync);
     }
 
@@ -1073,22 +1112,35 @@
         ModuleRegistry.OnChange -= OnModuleRegistryChanged;
         _saveCts?.Cancel();
         _saveCts?.Dispose();
-        try
-        {
-            // Restore the page's own tab title when the global playbar goes away (e.g. logout).
-            await Js.InvokeVoidAsync("dotnetcloudMusicPlayer.clearNowPlayingTitle");
-        }
-        catch (JSDisconnectedException) { }
-        catch (ObjectDisposedException) { }
-        if (_jsInitialized)
+
+        // JS interop is not available while the component is statically rendered (e.g. the
+        // static prerender/disposal pass of a page request), and calling it there used to throw
+        // InvalidOperationException out of DisposeAsync — an unhandled exception on every page
+        // request. Only talk to JS when the component is actually interactive.
+        if (RendererInfo.IsInteractive)
         {
             try
             {
-                // Detach rather than dispose — keep audio playing if circuit is still alive
-                await Js.InvokeVoidAsync("dotnetcloudMusicPlayer.detach");
+                // Restore the page's own tab title when the global playbar goes away (e.g. logout).
+                await Js.InvokeVoidAsync("dotnetcloudMusicPlayer.clearNowPlayingTitle");
             }
             catch (JSDisconnectedException) { }
+            catch (ObjectDisposedException) { }
+            catch (InvalidOperationException) { }
+
+            if (_jsInitialized)
+            {
+                try
+                {
+                    // Detach rather than dispose — keep audio playing if circuit is still alive
+                    await Js.InvokeVoidAsync("dotnetcloudMusicPlayer.detach");
+                }
+                catch (JSDisconnectedException) { }
+                catch (ObjectDisposedException) { }
+                catch (InvalidOperationException) { }
+            }
         }
+
         _dotNetRef?.Dispose();
     }
 }
