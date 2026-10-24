@@ -3,6 +3,7 @@ using System.Text.Json;
 using DotNetCloud.Client.Core.Api;
 using DotNetCloud.Client.Core.LocalState;
 using DotNetCloud.Client.Core.Transfer;
+using DotNetCloud.Client.Core.Tests.TestSupport;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Moq;
@@ -26,7 +27,7 @@ public class ChunkedTransferClientTests
     }
 
     private ChunkedTransferClient CreateClient(IDotNetCloudApiClient api, ILocalStateDb? stateDb = null) =>
-        new(api, stateDb, NullLogger<ChunkedTransferClient>.Instance)
+        new(api, stateDb, NullLogger<ChunkedTransferClient>.Instance, NoWaitTimeProvider.Instance)
         {
             ChunkCacheDirectory = _testCacheDir,
         };

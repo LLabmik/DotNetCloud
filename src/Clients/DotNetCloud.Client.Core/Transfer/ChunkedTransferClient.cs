@@ -41,13 +41,26 @@ public sealed class ChunkedTransferClient : IChunkedTransferClient
     private readonly IDotNetCloudApiClient _api;
     private readonly ILocalStateDb? _stateDb;
     private readonly ILogger<ChunkedTransferClient> _logger;
+    private readonly TimeProvider _timeProvider;
 
     /// <summary>Initializes a new <see cref="ChunkedTransferClient"/>.</summary>
-    public ChunkedTransferClient(IDotNetCloudApiClient api, ILocalStateDb? stateDb, ILogger<ChunkedTransferClient> logger)
+    /// <param name="api">API client used for chunk transfers.</param>
+    /// <param name="stateDb">Optional local state database for resumable sessions.</param>
+    /// <param name="logger">Logger instance.</param>
+    /// <param name="timeProvider">
+    /// Clock used for retry backoff delays. Defaults to <see cref="TimeProvider.System"/>;
+    /// tests supply a provider that does not wait.
+    /// </param>
+    public ChunkedTransferClient(
+        IDotNetCloudApiClient api,
+        ILocalStateDb? stateDb,
+        ILogger<ChunkedTransferClient> logger,
+        TimeProvider? timeProvider = null)
     {
         _api = api;
         _stateDb = stateDb;
         _logger = logger;
+        _timeProvider = timeProvider ?? TimeProvider.System;
     }
 
     /// <inheritdoc/>
@@ -301,7 +314,7 @@ public sealed class ChunkedTransferClient : IChunkedTransferClient
                                 _logger.LogDebug(
                                     "Rate-limit cooldown: waiting {DelayMs}ms before chunk {Hash} attempt {Attempt} (last 429 was {ElapsedMs}ms ago).",
                                     (int)wait.TotalMilliseconds, chunk.Hash, attempt, (int)elapsed.TotalMilliseconds);
-                                await Task.Delay(wait, cancellationToken);
+                                await Task.Delay(wait, _timeProvider, cancellationToken);
                             }
                         }
 
@@ -330,7 +343,7 @@ public sealed class ChunkedTransferClient : IChunkedTransferClient
                             _logger.LogWarning(ex,
                                 "Chunk {Hash} upload attempt {Attempt}/{MaxAttempts} failed (502 Bad Gateway). Retrying in {DelayMs}ms.",
                                 chunk.Hash, attempt, ChunkUploadMaxRetries, (int)delay.TotalMilliseconds);
-                            await Task.Delay(delay, cancellationToken);
+                            await Task.Delay(delay, _timeProvider, cancellationToken);
                         }
                         catch (HttpRequestException ex) when (
                             attempt < ChunkUploadMaxRetries &&
@@ -344,7 +357,7 @@ public sealed class ChunkedTransferClient : IChunkedTransferClient
                             _logger.LogWarning(ex,
                                 "Chunk {Hash} upload attempt {Attempt}/{MaxAttempts} failed. Retrying in {DelayMs}ms.",
                                 chunk.Hash, attempt, ChunkUploadMaxRetries, (int)delay.TotalMilliseconds);
-                            await Task.Delay(delay, cancellationToken);
+                            await Task.Delay(delay, _timeProvider, cancellationToken);
                         }
                         catch (HttpRequestException ex) when (
                             ex.StatusCode == System.Net.HttpStatusCode.NotFound &&
@@ -372,7 +385,7 @@ public sealed class ChunkedTransferClient : IChunkedTransferClient
                             _logger.LogWarning(ex,
                                 "Chunk {Hash} upload attempt {Attempt}/{MaxAttempts} timed out. Retrying in {DelayMs}ms.",
                                 chunk.Hash, attempt, ChunkUploadMaxRetries, (int)delay.TotalMilliseconds);
-                            await Task.Delay(delay, cancellationToken);
+                            await Task.Delay(delay, _timeProvider, cancellationToken);
                         }
                     }
 
@@ -631,7 +644,7 @@ public sealed class ChunkedTransferClient : IChunkedTransferClient
                             {
                                 var delay = TimeSpan.FromSeconds(Math.Pow(2, attempt - 1))
                                             + TimeSpan.FromMilliseconds(Random.Shared.Next(0, 500));
-                                await Task.Delay(delay, cancellationToken);
+                                await Task.Delay(delay, _timeProvider, cancellationToken);
                             }
                         }
                         catch (HttpRequestException ex) when (
@@ -643,7 +656,7 @@ public sealed class ChunkedTransferClient : IChunkedTransferClient
                             _logger.LogWarning(ex,
                                 "Chunk {Hash} download attempt {Attempt}/{MaxAttempts} failed with network error. Retrying in {DelayMs}ms.",
                                 chunk.Hash, attempt, ChunkDownloadMaxAttempts, (int)delay.TotalMilliseconds);
-                            await Task.Delay(delay, cancellationToken);
+                            await Task.Delay(delay, _timeProvider, cancellationToken);
                         }
                         catch (TaskCanceledException ex) when (
                             attempt < ChunkDownloadMaxAttempts &&
@@ -654,7 +667,7 @@ public sealed class ChunkedTransferClient : IChunkedTransferClient
                             _logger.LogWarning(ex,
                                 "Chunk {Hash} download attempt {Attempt}/{MaxAttempts} timed out. Retrying in {DelayMs}ms.",
                                 chunk.Hash, attempt, ChunkDownloadMaxAttempts, (int)delay.TotalMilliseconds);
-                            await Task.Delay(delay, cancellationToken);
+                            await Task.Delay(delay, _timeProvider, cancellationToken);
                         }
                     }
 
