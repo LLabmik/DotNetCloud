@@ -8,6 +8,21 @@
 
 ---
 
+## Recent Fix — Music track durations were 0 (junk between the ID3v2 tag and the MPEG frame stream) (2026-10-23, `fix/blazor-music`)
+
+> Following the playback fix, many tracks showed no duration and album headers read `0:00` (e.g. Duran Duran *Rio* → "9 tracks · 0:00"). A probe against the deployed `TagLibSharp` showed the parse **succeeds** but reports `duration=00:00:00 br=0` for files that `ffprobe` plays as 2:57/5:01.
+
+- ✓ **Root cause** — some encoders leave junk (padding, a stale tag) between the ID3v2 tag and the first MPEG frame, so TagLib parses the tags but cannot locate the frame chain and reports a zero duration/bitrate. No exception is thrown, so the existing corrupt-art fallback never ran and `music.canonical_tracks.DurationTicks` stayed 0.
+- ✓ **Fix** — `MusicMetadataService.TryReadMpegAudioInfo` walks the MPEG frame chain itself: locates a sync validated by **3 consecutive frame headers** (so random audio data cannot false-positive), counts frames, and derives duration/bitrate/sample-rate/channels. Values TagLib reported as zero are filled from that scan, both on the "parsed but zero" path and as a last resort when the tags are unreadable.
+- ✓ **Repair plumbing** — `LibraryScanService` already re-reads canonical rows with `DurationTicks = 0` (7-day retry window) and `RecomputeAlbumTotalDurationsAsync` refreshes `canonical_albums.TotalDurationTicks` whenever a duration changes.
+- ✓ **Tests** — `MusicMetadataServiceTests` (new) covers the corrupt-art fallback and adds junk-before-frames fixtures; the frame scanner is asserted against an exact frame count (`50 × 1152 / 44100`) plus bitrate/sample-rate/channels. Music suite **439** pass.
+- ✓ **Verified through the new code path on real library files** — `06 - Judas Priest - Cheater.mp3` → 2:57.89 (ffprobe 2:57.89), `04-Bittersweet Feast.mp3` → 5:01.21 (ffprobe 5:01.22), `09  The Chauffeur.mp3` → 5:21.62.
+- ✓ **Deployed and re-scanned** — deploy 15/15 targets, all assembly hashes verified; scan reported `imported 34 / skipped 21671 / failed 0` with **no duplicate-key errors**; the owner's zero-duration tracks dropped **34 → 9**; UI now shows `Rio · 9 tracks · 42:49` (5:37 / 3:40 / 5:33 / 5:21) and `Rocka Rolla · 11 tracks · 41:47` with every row timed.
+- ☐ The 9 remaining are genuinely unreadable sources: 7 Dream Theater `audio/ogg` files that are 20 MB of null bytes (`ffprobe`: "Invalid data"), one 0-byte `LIVE025.MP3`, and one index entry whose file no longer exists on the mount.
+- ☐ Commit/push awaiting approval
+
+---
+
 ## Recent Fix — CSP blocked inline event handlers (music playbar / album art) + silent first-play (2026-10-23, `fix/blazor-music`)
 
 > Reported live: double-clicking a track on `/apps/music` (Duran Duran, "Rio" → "09 The Chauffeur") left the page unresponsive and logged `Executing inline event handler violates the following Content Security Policy directive 'script-src …'` — the hardened CSP allows no `'unsafe-inline'`/`'unsafe-hashes'` for script, so an `onerror=""` attribute is dead code that also spams the console.
@@ -24,7 +39,7 @@
 - ✓ **Crash fix** — `GlobalMusicPlaybar.DisposeAsync`/`MusicPage.DisposeAsync` called JS interop while statically rendered, throwing `InvalidOperationException: JavaScript interop calls cannot be issued at this time…` as an **unhandled exception on every page request** (seen in the production log at 22:06:47, 22:07:29 and 22:07:37). They now check `RendererInfo.IsInteractive` and swallow `InvalidOperationException`/`ObjectDisposedException`/`JSDisconnectedException`.
 - ✓ **Hardening** — `MusicPage.OnTrackChanged` (was `async void` with `InvokeAsync` outside `try`), the playbar's `OnTrackChanged`/`StartPlaybackJsAsync` and the visualizer start in `PlayTrackAsync` now observe/log failures, so a JS fault can no longer escape an event handler and tear down the circuit.
 - ✓ **Tests** — Music **433**, Chat **1488**, Contacts **154**, UI.Shared **193**, CSP **4** — all pass; `dotnet build DotNetCloud.CI.slnf -c Debug` 0 warnings / 0 errors; `node --check` on `music-player.js` clean.
-- ☐ Deploy + browser verification on the production host (awaiting approval)
+- ✓ Deploy + browser verification on the production host (committed and pushed as `0cf71e09` on `fix/blazor-music`; PR to be opened by the moderator)
 
 ---
 

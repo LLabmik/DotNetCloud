@@ -57,6 +57,39 @@ public class MusicIndexingCallbackTests
     }
 
     [TestMethod]
+    public async Task TryIndexFromExistingOwnerAsync_OwnerAlreadyHasFile_ReturnsNullInsteadOfDuplicating()
+    {
+        // Re-indexing a file that this owner already has (the duration-repair path) must not go
+        // through the cross-owner clone, which inserts a second (FileNodeId, OwnerId) row and
+        // trips the uq_user_tracks_file_node_owner_id unique index.
+        var fileNodeId = Guid.CreateVersion7();
+        var ownerId = Guid.CreateVersion7();
+        var hash = new string('a', 64);
+
+        _db.CanonicalTracks.Add(new CanonicalTrack
+        {
+            ContentHash = hash,
+            Title = "Existing Track",
+            MimeType = "audio/mpeg"
+        });
+        _db.UserTracks.Add(new UserTrack
+        {
+            FileNodeId = fileNodeId,
+            OwnerId = ownerId,
+            CanonicalTrackHash = hash,
+            ContentHash = hash
+        });
+        await _db.SaveChangesAsync();
+
+        var result = await _libraryScanService.TryIndexFromExistingOwnerAsync(
+            fileNodeId, "song.mp3", "audio/mpeg", 1000, ownerId);
+
+        Assert.IsNull(result, "An already-owned file must fall through to IndexFileAsync (metadata repair).");
+        Assert.AreEqual(1, _db.UserTracks.Count(ut => ut.FileNodeId == fileNodeId && ut.OwnerId == ownerId),
+            "The cross-owner clone must not create a duplicate user track.");
+    }
+
+    [TestMethod]
     public async Task IndexAudioAsync_SetsCorrectOwner()
     {
         var fileNodeId = Guid.CreateVersion7();
