@@ -303,8 +303,8 @@ public partial class BacklogView : ComponentBase
     /// </summary>
     private async Task DownloadFileAsync(byte[] bytes, string fileName)
     {
-        var base64 = Convert.ToBase64String(bytes);
-        await JS.InvokeVoidAsync("eval",
-            $"var a=document.createElement('a');a.href='data:text/csv;base64,{base64}';a.download='{fileName}';document.body.appendChild(a);a.click();document.body.removeChild(a);");
+        // Named helper (dom-helpers.js): the app CSP forbids 'unsafe-eval'.
+        await JS.InvokeVoidAsync("dotnetcloudDom.downloadData",
+            Convert.ToBase64String(bytes), fileName, "text/csv");
     }
 }

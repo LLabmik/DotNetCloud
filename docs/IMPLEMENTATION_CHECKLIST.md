@@ -3,7 +3,7 @@
 > **Document Version:** 1.0  
 > **Purpose:** Comprehensive task breakdown for implementing the DotNetCloud architecture  
 > **Scope:** All phases from Foundation (Phase 0) through Auto-Updates (Phase 11)  
-> **Last Updated:** 2026-10-23
+> **Last Updated:** 2026-10-24
 > **Audience:** Development team, project managers, technical leads
 
 ---
@@ -21,6 +21,20 @@
 - ✓ Phase 4 — 19 large `@code` components (≥ 200 lines) → `.razor.cs`; `WorkItemListView` (existing code-behind) merged by hand; **0 `@code` blocks left in any `.razor`**, allowlist file deleted
 - ✓ Inert CSS repaired — 100 dead `:global(...)` dark-mode selectors in 21 `.razor.css` files converted to working `.dark-mode` ancestor selectors (Blazor scopes only the last compound; verified in the emitted bundles), and 4 `.material-icon` descendant rules gained `::deep`
 - ✓ Phase 5 — 113 multi-declaration inline `style=` attributes across 20 files → classes (14 new `.razor.css` sidecars); rule refined so a **single** declaration stays inline; the gate now fails on 2+ declarations (178 single/dynamic attributes explicitly allowed)
+
+---
+
+## Recent Fix — CSP blocked eval-based JS interop (music album download) (2026-10-24, `fix/music-downloads`)
+
+> Reported live: clicking **Download** on an album in `/apps/music` did nothing. The server log at 23:02:15 held the only clue — `ERR Error downloading album … Microsoft.JSInterop.JSException: Evaluating a string as JavaScript violates the following Content Security Policy directive because 'unsafe-eval' is not an allowed source of script` — and **no** `/api/v1/music/albums/{id}/download` request ever reached the API.
+
+- ✓ **Root cause** — `MusicPage.DownloadAlbumAsync` built the download anchor with `Js.InvokeVoidAsync("eval", "var a=document.createElement('a')…")`. The hardened CSP (`script-src 'self' 'wasm-unsafe-eval' 'sha256-…'`, no `'unsafe-eval'`) rejects the string, so the anchor is never clicked.
+- ✓ **Fix** — new CSP-safe helper module `src/UI/DotNetCloud.UI.Web/wwwroot/js/dom-helpers.js` (`window.dotnetcloudDom.{triggerDownload, downloadData, click, scrollIntoView}`), loaded from `App.razor` (`?v=20261024-01`). Music download now calls `dotnetcloudDom.triggerDownload(url)`.
+- ✓ **Same defect fixed elsewhere** — Tracks Kanban *Export CSV*, Backlog *Export CSV*, CSV import *file picker* and command-palette *scroll selected* all used `eval` and were equally dead; each now calls a named helper.
+- ✓ **Regression guard** — new `CspInlineScriptTests.ServiceSources_DoNotEvaluateStringsAsJavaScript` scans every `src/**/*.cs` and `src/**/*.razor` (skipping `bin`/`obj` and comments) and fails the build on any `InvokeVoidAsync("eval", …)`.
+- ✓ **Tests** — CSP **5**, Music **439**, Tracks **205** — all pass; `dotnet build DotNetCloud.sln` 0 errors.
+- ✓ **Deployed** — `sudo ./scripts/deploy.sh --force --verify`: 15/15 targets, all hashes verified, `/health/ready` 200; `dom-helpers.js` served (200), `dotnetcloudDom.triggerDownload` present in the deployed `DotNetCloud.Modules.Music.dll`, helper names in `DotNetCloud.Modules.Tracks.dll`.
+- ☐ Browser E2E (album → Download → ZIP) awaiting user confirmation
 
 ---
 
