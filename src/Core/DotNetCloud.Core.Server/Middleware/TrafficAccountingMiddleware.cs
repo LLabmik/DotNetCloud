@@ -1,5 +1,6 @@
 using DotNetCloud.Core.Server.Diagnostics;
 using Microsoft.AspNetCore.Http.Features;
+using System.Security.Claims;
 
 namespace DotNetCloud.Core.Server.Middleware;
 
@@ -26,6 +27,12 @@ namespace DotNetCloud.Core.Server.Middleware;
 /// </remarks>
 public sealed class TrafficAccountingMiddleware
 {
+    /// <summary>Path of the admin System page endpoint, excluded so polling never counts itself.</summary>
+    private const string AdminSystemPath = "/api/v1/core/admin/system";
+
+    /// <summary>Key used to cache the resolved user id for the lifetime of the request.</summary>
+    private const string UserIdItemKey = "DotNetCloud.Traffic.UserId";
+
     private readonly RequestDelegate _next;
     private readonly TrafficAccounting _accounting;
     private readonly ILogger<TrafficAccountingMiddleware> _logger;
@@ -62,7 +69,7 @@ public sealed class TrafficAccountingMiddleware
         var originalRequestPipeFeature = context.Features.Get<IRequestBodyPipeFeature>();
         var originalWebSocketFeature = context.Features.Get<IHttpWebSocketFeature>();
 
-        var counter = new RequestTrafficCounter(_accounting);
+        var counter = new RequestTrafficCounter(_accounting, ResolveUserId(context));
         var requestContentLength = context.Request.ContentLength;
 
         try
@@ -120,10 +127,40 @@ public sealed class TrafficAccountingMiddleware
             return false;
         }
 
+        // The admin System page polls this endpoint every 5 s; counting it would put
+        // self-inflicted traffic on the watching admin's own row.
+        if (context.Request.Path.StartsWithSegments(AdminSystemPath, StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
         // Module → core capability calls are internal, not user traffic.
         var contentType = context.Request.ContentType;
         return contentType is null
             || !contentType.StartsWith("application/grpc", StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// Resolves the authenticated user once per request. Anything unparsable falls back to
+    /// <c>null</c>, which keeps the bytes in the global counter only.
+    /// </summary>
+    private static Guid? ResolveUserId(HttpContext context)
+    {
+        if (context.Items.TryGetValue(UserIdItemKey, out var cached) && cached is Guid cachedId)
+        {
+            return cachedId;
+        }
+
+        var raw = context.User.FindFirstValue(ClaimTypes.NameIdentifier)
+                  ?? context.User.FindFirstValue("sub");
+
+        if (Guid.TryParse(raw, out var userId))
+        {
+            context.Items[UserIdItemKey] = userId;
+            return userId;
+        }
+
+        return null;
     }
 
     private static bool RequestCanHaveBody(HttpContext context)
@@ -145,9 +182,14 @@ public sealed class TrafficAccountingMiddleware
     private sealed class RequestTrafficCounter
     {
         private readonly TrafficAccounting _accounting;
+        private readonly Guid? _userId;
         private long _bytesIn;
 
-        public RequestTrafficCounter(TrafficAccounting accounting) => _accounting = accounting;
+        public RequestTrafficCounter(TrafficAccounting accounting, Guid? userId)
+        {
+            _accounting = accounting;
+            _userId = userId;
+        }
 
         public long BytesIn => Interlocked.Read(ref _bytesIn);
 
@@ -159,9 +201,26 @@ public sealed class TrafficAccountingMiddleware
             }
 
             Interlocked.Add(ref _bytesIn, count);
-            _accounting.AddIn(count);
+            if (_userId is { } userId)
+            {
+                _accounting.AddIn(userId, count);
+            }
+            else
+            {
+                _accounting.AddIn(count);
+            }
         }
 
-        public void CountOut(long count) => _accounting.AddOut(count);
+        public void CountOut(long count)
+        {
+            if (_userId is { } userId)
+            {
+                _accounting.AddOut(userId, count);
+            }
+            else
+            {
+                _accounting.AddOut(count);
+            }
+        }
     }
 }

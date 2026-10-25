@@ -1384,6 +1384,7 @@ Core platform boots, authenticates a user, loads a module, serves the Blazor UI.
   - ✓ Global traffic accounting (HTTP payload bytes + WebSocket/SignalR frames)
   - ✓ Users online + active connection count
   - ✓ Scheduled tasks (core + module hosts merged over gRPC)
+  - ✓ Per-user live traffic table (top 25, presence column, idle grey-out)
   - ✓ Admin-only API (`GET api/v1/core/admin/system`) and nav entry
 
 #### Module Plugin System

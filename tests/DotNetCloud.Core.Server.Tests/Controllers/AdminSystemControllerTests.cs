@@ -2,6 +2,7 @@ using System.Reflection;
 using System.Text.Json;
 using DotNetCloud.Core.Auth.Authorization;
 using DotNetCloud.Core.Capabilities;
+using DotNetCloud.Core.DTOs;
 using DotNetCloud.Core.Modules.Supervisor;
 using DotNetCloud.Core.Server.Controllers;
 using DotNetCloud.Core.Server.Diagnostics;
@@ -146,17 +147,113 @@ public sealed class AdminSystemControllerTests
         Assert.IsFalse(data.GetProperty("cpuAvailable").GetBoolean());
     }
 
+    [TestMethod]
+    public async Task GetSystemStatusAsync_WithTrackedUsers_ReturnsPerUserRowsWithPresence()
+    {
+        var busyUser = Guid.NewGuid();
+        var quietUser = Guid.NewGuid();
+
+        var presence = new Mock<IPresenceTracker>();
+        presence.Setup(p => p.GetOnlineUsersAsync()).ReturnsAsync(new HashSet<Guid>() as IReadOnlySet<Guid>);
+        presence.Setup(p => p.GetActiveConnectionCountAsync()).ReturnsAsync(0);
+        presence.Setup(p => p.GetOnlineStatusAsync(It.IsAny<IEnumerable<Guid>>()))
+            .ReturnsAsync(new Dictionary<Guid, PresenceState>
+            {
+                [busyUser] = PresenceState.Online,
+                [quietUser] = PresenceState.Offline,
+            });
+
+        var userDirectory = new Mock<IUserDirectory>();
+        userDirectory
+            .Setup(u => u.GetDisplayNamesAsync(It.IsAny<IEnumerable<Guid>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new Dictionary<Guid, string> { [busyUser] = "Ben", [quietUser] = "Ada" });
+
+        var traffic = new TrafficAccounting(TimeProvider.System);
+        traffic.AddOut(quietUser, 100);
+        traffic.AddOut(busyUser, 9_000);
+        traffic.AddIn(busyUser, 1_000);
+
+        var controller = CreateController(
+            new BackgroundServiceTracker(),
+            traffic,
+            presence.Object,
+            out _,
+            userDirectory: userDirectory.Object);
+
+        var result = await controller.GetSystemStatusAsync();
+
+        var ok = result as OkObjectResult;
+        Assert.IsNotNull(ok);
+
+        using var document = JsonDocument.Parse(JsonSerializer.Serialize(ok!.Value, JsonOptions));
+        var usersTraffic = document.RootElement.GetProperty("data").GetProperty("usersTraffic");
+
+        Assert.AreEqual(2, usersTraffic.GetProperty("total").GetInt32());
+        Assert.AreEqual(2, usersTraffic.GetProperty("showing").GetInt32());
+
+        var entries = usersTraffic.GetProperty("entries");
+        Assert.AreEqual(2, entries.GetArrayLength());
+
+        // Ordered by total bytes descending.
+        Assert.AreEqual("Ben", entries[0].GetProperty("displayName").GetString());
+        Assert.AreEqual(10_000, entries[0].GetProperty("bytesTotal").GetInt64());
+        Assert.AreEqual("Online", entries[0].GetProperty("presenceState").GetString());
+        Assert.IsFalse(entries[0].GetProperty("isIdle").GetBoolean());
+
+        // A user transferring without a hub connection reports NotConnected, not an error.
+        Assert.AreEqual("Ada", entries[1].GetProperty("displayName").GetString());
+        Assert.AreEqual("NotConnected", entries[1].GetProperty("presenceState").GetString());
+    }
+
+    [TestMethod]
+    public async Task GetSystemStatusAsync_MoreThan25TrackedUsers_TruncatesToTop25()
+    {
+        var presence = new Mock<IPresenceTracker>();
+        presence.Setup(p => p.GetOnlineUsersAsync()).ReturnsAsync(new HashSet<Guid>() as IReadOnlySet<Guid>);
+        presence.Setup(p => p.GetActiveConnectionCountAsync()).ReturnsAsync(0);
+
+        var traffic = new TrafficAccounting(TimeProvider.System);
+        for (var i = 0; i < 30; i++)
+        {
+            traffic.AddOut(Guid.NewGuid(), (i + 1) * 100L);
+        }
+
+        var controller = CreateController(new BackgroundServiceTracker(), traffic, presence.Object, out _);
+
+        var result = await controller.GetSystemStatusAsync();
+
+        var ok = result as OkObjectResult;
+        Assert.IsNotNull(ok);
+
+        using var document = JsonDocument.Parse(JsonSerializer.Serialize(ok!.Value, JsonOptions));
+        var usersTraffic = document.RootElement.GetProperty("data").GetProperty("usersTraffic");
+
+        Assert.AreEqual(30, usersTraffic.GetProperty("total").GetInt32());
+        Assert.AreEqual(AdminSystemController.MaxTrafficRows, usersTraffic.GetProperty("showing").GetInt32());
+        Assert.AreEqual(AdminSystemController.MaxTrafficRows, usersTraffic.GetProperty("entries").GetArrayLength());
+    }
+
     private static AdminSystemController CreateController(
         IBackgroundServiceTracker tracker,
         TrafficAccounting traffic,
         IPresenceTracker presence,
         out SystemMetricsSampler sampler,
-        Mock<IProcessSupervisor>? supervisor = null)
+        Mock<IProcessSupervisor>? supervisor = null,
+        IUserDirectory? userDirectory = null)
     {
         if (supervisor is null)
         {
             supervisor = new Mock<IProcessSupervisor>();
             supervisor.Setup(s => s.GetAllModuleInfo()).Returns([]);
+        }
+
+        if (userDirectory is null)
+        {
+            var userDirectoryMock = new Mock<IUserDirectory>();
+            userDirectoryMock
+                .Setup(u => u.GetDisplayNamesAsync(It.IsAny<IEnumerable<Guid>>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync((IReadOnlyDictionary<Guid, string>)new Dictionary<Guid, string>());
+            userDirectory = userDirectoryMock.Object;
         }
 
         sampler = new SystemMetricsSampler(
@@ -169,6 +266,7 @@ public sealed class AdminSystemControllerTests
             sampler,
             traffic,
             presence,
+            userDirectory,
             tracker,
             supervisor.Object,
             NullLogger<AdminSystemController>.Instance);

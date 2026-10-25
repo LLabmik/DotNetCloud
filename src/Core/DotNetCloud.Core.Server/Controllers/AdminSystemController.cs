@@ -1,5 +1,6 @@
 using DotNetCloud.Core.Auth.Authorization;
 using DotNetCloud.Core.Capabilities;
+using DotNetCloud.Core.DTOs;
 using DotNetCloud.Core.Grpc.Lifecycle;
 using DotNetCloud.Core.Modules.Supervisor;
 using DotNetCloud.Core.Server.Diagnostics;
@@ -28,9 +29,13 @@ public class AdminSystemController : ControllerBase
 {
     private static readonly TimeSpan ModuleCallTimeout = TimeSpan.FromMilliseconds(1500);
 
+    /// <summary>Maximum number of per-user traffic rows returned to the page.</summary>
+    internal const int MaxTrafficRows = 25;
+
     private readonly SystemMetricsSampler _sampler;
     private readonly TrafficAccounting _traffic;
     private readonly IPresenceTracker _presence;
+    private readonly IUserDirectory _userDirectory;
     private readonly IBackgroundServiceTracker _backgroundServiceTracker;
     private readonly IProcessSupervisor _supervisor;
     private readonly ILogger<AdminSystemController> _logger;
@@ -42,6 +47,7 @@ public class AdminSystemController : ControllerBase
         SystemMetricsSampler sampler,
         TrafficAccounting traffic,
         IPresenceTracker presence,
+        IUserDirectory userDirectory,
         IBackgroundServiceTracker backgroundServiceTracker,
         IProcessSupervisor supervisor,
         ILogger<AdminSystemController> logger)
@@ -49,6 +55,7 @@ public class AdminSystemController : ControllerBase
         _sampler = sampler ?? throw new ArgumentNullException(nameof(sampler));
         _traffic = traffic ?? throw new ArgumentNullException(nameof(traffic));
         _presence = presence ?? throw new ArgumentNullException(nameof(presence));
+        _userDirectory = userDirectory ?? throw new ArgumentNullException(nameof(userDirectory));
         _backgroundServiceTracker = backgroundServiceTracker ?? throw new ArgumentNullException(nameof(backgroundServiceTracker));
         _supervisor = supervisor ?? throw new ArgumentNullException(nameof(supervisor));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
@@ -102,6 +109,8 @@ public class AdminSystemController : ControllerBase
         var uptimeSeconds = snapshot?.UptimeSeconds
             ?? Math.Max(0, (long)(now - startedAtUtc).TotalSeconds);
 
+        var usersTraffic = await BuildUsersTrafficAsync().ConfigureAwait(false);
+
         var payload = new
         {
             sampledAtUtc = snapshot?.SampledAtUtc ?? now,
@@ -136,11 +145,86 @@ public class AdminSystemController : ControllerBase
                 sinceUtc = _traffic.StartedAtUtc,
             },
             tasks = orderedTasks,
+            usersTraffic,
             unavailableModules,
         };
 
         return Ok(new { success = true, data = payload });
     }
+
+    /// <summary>
+    /// Builds the per-user traffic section: top talkers, display names and presence state.
+    /// </summary>
+    private async Task<object> BuildUsersTrafficAsync()
+    {
+        var all = _traffic.GetPerUserSnapshot()
+            .OrderByDescending(s => s.BytesIn + s.BytesOut)
+            .ThenBy(s => s.UserId)
+            .ToList();
+
+        var top = all.Take(MaxTrafficRows).ToList();
+
+        IReadOnlyDictionary<Guid, string> names = new Dictionary<Guid, string>();
+        IReadOnlyDictionary<Guid, PresenceState> presenceStates = new Dictionary<Guid, PresenceState>();
+
+        if (top.Count > 0)
+        {
+            var ids = top.Select(s => s.UserId).ToList();
+
+            try
+            {
+                var resolved = await _userDirectory.GetDisplayNamesAsync(ids).ConfigureAwait(false);
+                if (resolved is not null)
+                {
+                    names = resolved;
+                }
+            }
+            catch (Exception ex)
+            {
+                // Names are cosmetic — never fail the page for them.
+                _logger.LogDebug(ex, "Display name lookup failed for per-user traffic");
+            }
+
+            try
+            {
+                var resolved = await _presence.GetOnlineStatusAsync(ids).ConfigureAwait(false);
+                if (resolved is not null)
+                {
+                    presenceStates = resolved;
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogDebug(ex, "Presence lookup failed for per-user traffic");
+            }
+        }
+
+        return new
+        {
+            total = all.Count,
+            showing = top.Count,
+            entries = top.Select(s => new
+            {
+                userId = s.UserId,
+                displayName = names.TryGetValue(s.UserId, out var name) ? name : s.UserId.ToString(),
+                bytesIn = s.BytesIn,
+                bytesOut = s.BytesOut,
+                bytesTotal = s.BytesIn + s.BytesOut,
+                lastActivityUtc = s.LastActivityUtc,
+                isIdle = s.IsIdle,
+                presenceState = DescribePresence(
+                    presenceStates.TryGetValue(s.UserId, out var state) ? state : PresenceState.Offline),
+            }).ToList(),
+        };
+    }
+
+    private static string DescribePresence(PresenceState state) => state switch
+    {
+        PresenceState.Online => "Online",
+        PresenceState.Away => "Away",
+        PresenceState.DoNotDisturb => "DoNotDisturb",
+        _ => "NotConnected",
+    };
 
     private async Task<(List<TaskEntry> Tasks, List<string> UnavailableModules)> CollectModuleTasksAsync()
     {

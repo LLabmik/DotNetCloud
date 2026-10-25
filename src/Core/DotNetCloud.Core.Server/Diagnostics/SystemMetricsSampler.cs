@@ -89,6 +89,9 @@ public sealed class SystemMetricsSampler : BackgroundService
     /// </summary>
     internal SystemMetricsSnapshot Sample()
     {
+        // Cheap once a second and keeps the per-user traffic map bounded without a new timer.
+        _traffic.PruneIdle();
+
         var now = _timeProvider.GetUtcNow();
         var timestamp = _timeProvider.GetTimestamp();
         var processorCount = Environment.ProcessorCount;

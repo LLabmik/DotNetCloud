@@ -6725,7 +6725,6 @@ timestamp — as a date **and** time.
 - The supervisor never initialising module lifecycles is a **platform-level gap** worth its own fix: it also
   disables every other module-host event handler (search indexing, notifications, …).
 - No gRPC/proto change — the value is UI-only, consumed by the in-process Blazor components.
-
 ## Admin System Page — CPU / Memory / Traffic / Tasks / Users Online (2026-10-24, `feature/admin-system-page`)
 
 ### Status
@@ -6836,4 +6835,54 @@ Plan document: `docs/ADMIN_SYSTEM_PAGE_PLAN.md`.
 - All UI projects are now compliant with the structural rule. The only remaining debt is the 202 static inline
   `style=` attributes, concentrated in `VideoPage` (39), `MusicPage` (27), `PhotosPage` (21), `MediaLibraries` (19),
   `Admin/Organizations` (16), `CalendarPage` (15) and `Admin/Groups` (13).
+
+## Admin System Page — Per-User Live Traffic (2026-10-24, `feature/add-user-traffic-to-admin-system-page`)
+
+### Status
+
+**completed** — implemented, solution builds clean, tests green. Live verification on a deployed instance still
+outstanding (see Notes).
+
+Plan document: `docs/ADMIN_SYSTEM_PAGE_PER_USER_TRAFFIC_PLAN.md`.
+
+### Deliverables
+
+- ✓ `TrafficAccounting` now keeps a bounded `ConcurrentDictionary<Guid, UserTrafficEntry>` beside the global
+  counters; `AddIn(Guid, long)` / `AddOut(Guid, long)` attribute bytes to a user. Still lock-free
+  (`Interlocked` only).
+- ✓ `UserTrafficEntry` — per-user in/out counters plus an activity clock refreshed only every **1 KB** of
+  attributed traffic, so SignalR/Blazor keep-alive pings (which are counted as bytes) cannot keep a user
+  permanently "active".
+- ✓ `PruneIdle()` — drops users quiet past the idle threshold + 5-minute grace, then enforces a 512-entry cap;
+  invoked from the existing 1-second sampler tick (no new timer).
+- ✓ Idle threshold is pushed from the existing `PresenceActivityMonitor` sweep (which already re-reads
+  `PresenceIdleTimeoutMinutes` every 30 s) — one knob, no extra settings read.
+- ✓ `TrafficAccountingMiddleware` resolves the authenticated user once per request (cookie **and** bearer token,
+  both via `ClaimsPrincipal`), attributes counted bytes, and excludes `/api/v1/core/admin/system` so the page's
+  own polling never inflates the watching admin's row. Unparseable ids fall back to global-only counting.
+- ✓ `AdminSystemController` returns `usersTraffic` — top **25** by total bytes, `total`/`showing` counts, bulk
+  `IUserDirectory.GetDisplayNamesAsync` for names (the only DB read on the polling path, one indexed batch) and
+  `presenceState` (`Online` / `Away` / `DoNotDisturb` / `NotConnected`).
+- ✓ `SystemPage` gained a **Traffic by user** table (User · Presence · State · Last activity · In · Out · Total)
+  with greyed idle rows, "showing top 25 of N", and the required source captions: the online-user tile now reads
+  **SignalR sessions** and the table explains that it counts clients outside that count (e.g. the desktop sync
+  client, which streams over SSE).
+- ✓ Tests (+13): per-user attribution, 1 KB activity quantum vs keep-alive-sized writes, prune grace and
+  re-materialisation, idle-threshold changes, middleware attribution/exclusion/anonymous handling, per-user API
+  payload with presence mapping, and top-25 truncation.
+
+### Notes
+
+- **No "unattributed" bucket.** The middleware only counts authenticated requests and skips internal gRPC, so
+  every counted byte has a user. Because entries are forgotten after the grace window while the global counters
+  keep running, the sum of per-user rows legitimately sits below the global total — the page deliberately shows
+  no reconciliation figure.
+- **Presence is display-only** — it never drives row existence, counting or expiry. A row cannot grey out while
+  bytes are still flowing because of a hub reconnect.
+- Per-user totals are "since this entry became active", not daily usage; the column is labelled accordingly.
+- Verification done: full solution build clean, `Core.Server.Tests` **864 pass / 2 skipped**.
+- ☐ Outstanding: deploy (`sudo ./scripts/deploy.sh --force --verify`) and confirm live — rows climb while
+  browsing, an idle tab greys out, a second account appears as its own row, a sync client shows
+  `Not connected`, and the admin's own row does not grow from polling.
+
 

@@ -74,3 +74,51 @@
   font-size: 0.8125rem;
   color: var(--color-text-muted, #6b7280);
 }
+
+.system-footer-note--inline {
+  margin-top: 8px;
+}
+
+.system-section-count {
+  font-size: 0.8125rem;
+  color: var(--color-text-muted, #6b7280);
+}
+
+.system-source-note {
+  margin: 0 0 12px;
+  max-width: 90ch;
+  font-size: 0.8125rem;
+  color: var(--color-text-muted, #6b7280);
+}
+
+.traffic-row--idle {
+  opacity: 0.55;
+}
+
+.presence-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  white-space: nowrap;
+  background: rgba(107, 114, 128, 0.12);
+  color: #4b5563;
+}
+
+.presence-chip--online {
+  background: rgba(22, 163, 74, 0.12);
+  color: #15803d;
+}
+
+.presence-chip--away {
+  background: rgba(217, 119, 6, 0.12);
+  color: #b45309;
+}
+
+.presence-chip--dnd {
+  background: rgba(220, 38, 38, 0.12);
+  color: #b91c1c;
+}
