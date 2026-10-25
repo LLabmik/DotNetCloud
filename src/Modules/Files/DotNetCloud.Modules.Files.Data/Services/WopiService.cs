@@ -25,6 +25,7 @@ internal sealed class WopiService : IWopiService
     private readonly IEventBus _eventBus;
     private readonly ILogger<WopiService> _logger;
     private readonly IFileVersioningSettingsProvider _versioningSettings;
+    private readonly ISyncChangeNotifier _syncNotifier;
     private readonly IUserDirectory? _userDirectory;
 
     public WopiService(
@@ -35,6 +36,7 @@ internal sealed class WopiService : IWopiService
         IEventBus eventBus,
         ILogger<WopiService> logger,
         IFileVersioningSettingsProvider versioningSettings,
+        ISyncChangeNotifier syncNotifier,
         IUserDirectory? userDirectory = null)
     {
         _db = db;
@@ -44,6 +46,7 @@ internal sealed class WopiService : IWopiService
         _eventBus = eventBus;
         _logger = logger;
         _versioningSettings = versioningSettings;
+        _syncNotifier = syncNotifier;
         _userDirectory = userDirectory;
     }
 
@@ -244,6 +247,13 @@ internal sealed class WopiService : IWopiService
         node.ContentHash = manifestHash;
         node.StoragePath = ContentHasher.GetFileStoragePath(manifestHash);
         node.UpdatedAt = DateTime.UtcNow;
+
+        // A web-editor save is a server-originated change: clear the device stamp so the change
+        // is not suppressed as "self-origin" for the device that last uploaded the file, then
+        // stamp the owner's sync sequence so cursor-based clients see it in sync/changes and
+        // receive the SSE notification.
+        node.OriginatingDeviceId = null;
+        await SyncCursorHelper.AssignNextSequenceAsync(_db, node, node.OwnerId, _syncNotifier, cancellationToken);
 
         await _db.SaveChangesAsync(cancellationToken);
 

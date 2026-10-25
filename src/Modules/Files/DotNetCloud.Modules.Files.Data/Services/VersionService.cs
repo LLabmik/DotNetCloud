@@ -21,6 +21,7 @@ internal sealed class VersionService : IVersionService
     private readonly ILogger<VersionService> _logger;
     private readonly IPermissionService _permissions;
     private readonly IFileVersioningSettingsProvider _versioningSettings;
+    private readonly ISyncChangeNotifier _syncNotifier;
     private readonly IFileStorageEngine? _storageEngine;
 
     public VersionService(
@@ -29,6 +30,7 @@ internal sealed class VersionService : IVersionService
         ILogger<VersionService> logger,
         IPermissionService permissions,
         IFileVersioningSettingsProvider versioningSettings,
+        ISyncChangeNotifier syncNotifier,
         IFileStorageEngine? storageEngine = null)
     {
         _db = db;
@@ -36,6 +38,7 @@ internal sealed class VersionService : IVersionService
         _logger = logger;
         _permissions = permissions;
         _versioningSettings = versioningSettings;
+        _syncNotifier = syncNotifier;
         _storageEngine = storageEngine;
     }
 
@@ -116,6 +119,12 @@ internal sealed class VersionService : IVersionService
         node.StoragePath = sourceVersion.StoragePath;
         node.Size = sourceVersion.Size;
         node.UpdatedAt = DateTime.UtcNow;
+
+        // A restore is a server-originated content change: clear the device stamp so it is not
+        // suppressed as "self-origin" on the device that last uploaded the file, then stamp the
+        // owner's sync sequence so cursor-based clients download the restored content.
+        node.OriginatingDeviceId = null;
+        await SyncCursorHelper.AssignNextSequenceAsync(_db, node, node.OwnerId, _syncNotifier, cancellationToken);
 
         var newVersion = new FileVersion
         {
