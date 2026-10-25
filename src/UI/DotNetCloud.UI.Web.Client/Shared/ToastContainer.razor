@@ -10,17 +10,3 @@
         </div>
     }
 </div>
-
-@code {
-    protected override void OnInitialized()
-    {
-        ToastService.OnChange += OnToastChanged;
-    }
-
-    private void OnToastChanged() => InvokeAsync(StateHasChanged);
-
-    public void Dispose()
-    {
-        ToastService.OnChange -= OnToastChanged;
-    }
-}

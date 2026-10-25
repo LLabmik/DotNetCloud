@@ -20,16 +20,3 @@
         </button>
     </div>
 </div>
-
-@code {
-    [Parameter, EditorRequired]
-    public ExampleNotesPage.NoteViewModel Note { get; set; } = default!;
-
-    [Parameter]
-    public EventCallback<Guid> OnDelete { get; set; }
-
-    private async Task HandleDelete()
-    {
-        await OnDelete.InvokeAsync(Note.Id);
-    }
-}

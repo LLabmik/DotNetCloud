@@ -428,69 +428,75 @@
 
 /* ── Dark mode ── */
 
-:global(.dark-mode) .fetch-art-modal,
-:global(.dark-mode) .fetch-art-modal-header,
-:global(.dark-mode) .fetch-art-modal-body {
+.dark-mode .fetch-art-modal,
+.dark-mode .fetch-art-modal-header,
+.dark-mode .fetch-art-modal-body {
   background: var(--color-surface, #1e293b);
 }
 
-:global(.dark-mode) .fetch-art-modal-header h3 {
+.dark-mode .fetch-art-modal-header h3 {
   color: var(--color-text, #f1f5f9);
 }
 
-:global(.dark-mode) .fetch-art-close {
+.dark-mode .fetch-art-close {
   background: #334155;
   color: #94a3b8;
 }
 
-:global(.dark-mode) .fetch-art-close:hover {
+.dark-mode .fetch-art-close:hover {
   background: #475569;
   color: #f1f5f9;
 }
 
-:global(.dark-mode) .fetch-art-form-hint {
+.dark-mode .fetch-art-form-hint {
   background: #0f172a;
   border-color: #334155;
   color: #94a3b8;
 }
 
-:global(.dark-mode) .fetch-art-label {
+.dark-mode .fetch-art-label {
   color: var(--color-text, #f1f5f9);
 }
 
-:global(.dark-mode) .fetch-art-field input {
+.dark-mode .fetch-art-field input {
   background: #0f172a;
   color: var(--color-text, #f1f5f9);
   border-color: #334155;
 }
 
-:global(.dark-mode) .fetch-art-query-info {
+.dark-mode .fetch-art-query-info {
   background: #422006;
   border-color: #78350f;
 }
 
-:global(.dark-mode) .query-label {
+.dark-mode .query-label {
   color: #fbbf24;
 }
 
-:global(.dark-mode) .fetch-art-query-info code {
+.dark-mode .fetch-art-query-info code {
   color: #fde68a;
 }
 
-:global(.dark-mode) .fetch-art-result-card:hover {
+.dark-mode .fetch-art-result-card:hover {
   box-shadow: 0 2px 8px rgba(99, 102, 241, 0.2);
 }
 
-:global(.dark-mode) .result-thumb {
+.dark-mode .result-thumb {
   background: #334155;
 }
 
-:global(.dark-mode) .btn-cancel {
+.dark-mode .btn-cancel {
   background: var(--color-surface, #1e293b);
   color: var(--color-text-secondary, #94a3b8);
   border-color: #334155;
 }
 
-:global(.dark-mode) .fetch-art-empty h4 {
+.dark-mode .fetch-art-empty h4 {
   color: var(--color-text, #f1f5f9);
+}
+
+/* The modal keeps a light surface even in dark mode (album-art preview colours). */
+.fetch-art-modal-surface {
+  background: #fff;
+  color: #1e293b;
 }

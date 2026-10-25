@@ -6,17 +6,3 @@
         <button class="btn btn-primary" @onclick="OnDismiss">@DismissText</button>
     }
 </div>
-
-@code {
-    [Parameter]
-    public Exception? Exception { get; set; }
-
-    [Parameter]
-    public EventCallback OnDismiss { get; set; }
-
-    /// <summary>
-    /// Text shown on the dismiss/retry button. Defaults to "Try Again".
-    /// </summary>
-    [Parameter]
-    public string DismissText { get; set; } = "Try Again";
-}

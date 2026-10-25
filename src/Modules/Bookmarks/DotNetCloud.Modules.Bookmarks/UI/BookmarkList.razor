@@ -43,10 +43,3 @@
         </tbody>
     </table>
 </div>
-
-@code {
-    [Parameter, EditorRequired] public required IReadOnlyList<BookmarkItem> Items { get; set; }
-    [Parameter] public Func<BookmarkItem, Task> OnSelect { get; set; } = _ => Task.CompletedTask;
-    [Parameter] public Func<BookmarkItem, Task> OnToggleFavorite { get; set; } = _ => Task.CompletedTask;
-    [Parameter] public Func<BookmarkItem, Task> OnDelete { get; set; } = _ => Task.CompletedTask;
-}

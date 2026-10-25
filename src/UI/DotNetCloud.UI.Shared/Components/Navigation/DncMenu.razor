@@ -16,13 +16,3 @@
         </li>
     }
 </ul>
-
-@code {
-    /// <summary>The menu items.</summary>
-    [Parameter, EditorRequired]
-    public IReadOnlyList<NavItem> Items { get; set; } = [];
-
-    /// <summary>Additional CSS class.</summary>
-    [Parameter]
-    public string? CssClass { get; set; }
-}

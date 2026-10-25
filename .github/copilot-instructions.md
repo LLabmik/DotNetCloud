@@ -99,6 +99,60 @@ A concern is a **core capability**, not a module, when it has no user-owned doma
 
 ---
 
+## 🧩 Blazor Code & Style Separation (MANDATORY)
+
+**Rule:** A `.razor` file contains **markup and Razor directives only**. All C# logic belongs in a `.razor.cs` code-behind file; all component CSS belongs in a `.razor.css` scoped stylesheet. Code and styles must **never** live in the `.razor` file.
+
+**Forbidden in `.razor` files:**
+
+- ❌ `@code { ... }` blocks
+- ❌ `<style> ... </style>` blocks
+- ❌ Static inline `style="..."` with **more than one declaration** — e.g. `style="font-weight: bold; background-color: blue;"` must become a class in `.razor.css`
+- ✅ A **single** declaration in `style` is fine and needs no class — e.g. `style="font-weight: bold"`, `style="display:none"`, `style="width: 80px"`
+
+**Required pattern:**
+
+```razor
+@* CalendarPage.razor — markup + directives only *@
+@page "/calendar"
+@using DotNetCloud.Core.DTOs
+@inject ICalendarApiClient ApiClient
+
+<div class="calendar-page-layout">...</div>
+```
+
+```csharp
+// CalendarPage.razor.cs
+namespace DotNetCloud.Modules.Calendar.UI;
+
+/// <summary>Code-behind for the calendar page.</summary>
+public partial class CalendarPage
+{
+    [Inject] private ICalendarApiClient ApiClient { get; set; } = default!;
+
+    private string _activeView = "month";
+}
+```
+
+```css
+/* CalendarPage.razor.css — Blazor CSS isolation */
+.calendar-page-layout { display: flex; }
+```
+
+**Details:**
+
+- Code-behind class name must match the component file name and be declared `partial` (add `: ComponentBase` when no `@inherits` is present — a `partial` class without a base type merges with the generated one).
+- Code-behind namespace must match the `.razor` file's namespace (folder-derived or explicit `@namespace`).
+- Directives stay in the `.razor` file: `@page`, `@using`, `@inject`, `@inherits`, `@implements`, `@attribute`, `@layout`, `@typeparam`, `@rendermode`, `@key`-style markup constructs.
+- Dynamic inline styles that depend on runtime state (e.g. `style="width: @pct%"`) are allowed, but prefer a CSS custom property (`style="--pct: @pct"`) defined in `.razor.css`.
+- A `<style>` block emitted as component *content* (e.g. inside an email/HTML preview `MarkupString`) is not component CSS and is exempt.
+
+**Why:** Keeps markup readable, makes logic testable and analyzable as C#, and ensures styles compile through CSS isolation instead of leaking globally.
+
+**Enforcement plan / existing violation inventory:** `docs/BLAZOR_CODE_STANDARDS_PLAN.md`.
+
+---
+
 ## � Client/Server Mediation Handoff Protocol (MANDATORY)
 
 **Reference doc:** `docs/development/CLIENT_SERVER_MEDIATION_HANDOFF.md`

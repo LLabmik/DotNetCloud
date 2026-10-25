@@ -404,39 +404,39 @@
   margin-top: 0.5rem;
 }
 
-:global(.dark-mode) .shared-folder-stat-icon--folders {
+.dark-mode .shared-folder-stat-icon--folders {
   background: #1e3a5f;
   color: #93c5fd;
 }
 
-:global(.dark-mode) .shared-folder-stat-icon--enabled {
+.dark-mode .shared-folder-stat-icon--enabled {
   background: #14532d;
   color: #86efac;
 }
 
-:global(.dark-mode) .shared-folder-stat-icon--scheduled {
+.dark-mode .shared-folder-stat-icon--scheduled {
   background: #451a03;
   color: #fcd34d;
 }
 
-:global(.dark-mode) .shared-folder-stat-icon--reindex {
+.dark-mode .shared-folder-stat-icon--reindex {
   background: #2e1065;
   color: #c4b5fd;
 }
 
-:global(.dark-mode) .group-chip {
+.dark-mode .group-chip {
   background: #164e63;
   color: #a5f3fc;
 }
 
-:global(.dark-mode) .status-pill--neutral {
+.dark-mode .status-pill--neutral {
   background: #374151;
   color: #e5e7eb;
 }
 
-:global(.dark-mode) .shared-folder-group-panel,
-:global(.dark-mode) .shared-folder-group-option,
-:global(.dark-mode) .shared-folder-group-empty {
+.dark-mode .shared-folder-group-panel,
+.dark-mode .shared-folder-group-option,
+.dark-mode .shared-folder-group-empty {
   background: color-mix(in srgb, var(--color-surface) 90%, #0f172a 10%);
 }
 

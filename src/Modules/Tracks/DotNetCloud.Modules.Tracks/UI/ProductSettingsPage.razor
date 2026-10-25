@@ -181,8 +181,7 @@
                         <div class="tracks-settings-add-member">
                             <input type="text" class="form-control form-control-sm" placeholder="Search users..."
                                    @bind="_memberSearchTerm" @bind:event="oninput" @onkeyup="HandleMemberSearch" />
-                            <select class="form-control form-control-sm" @bind="_addMemberRole"
-                                    style="width: auto; margin-left: 0.5rem;">
+                            <select class="form-control form-control-sm tracks-role-select" @bind="_addMemberRole">
                                 <option value="Viewer">Viewer</option>
                                 <option value="Member">Member</option>
                                 <option value="Admin">Admin</option>

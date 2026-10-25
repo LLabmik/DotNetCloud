@@ -1,0 +1,32 @@
+/* Shared admin table/dialog chrome for this page. */
+.dialog-toolbar-right {
+    display: flex;
+    justify-content: flex-end;
+    margin-bottom: 0.75rem;
+}
+
+.empty-row {
+    color: var(--text-secondary);
+    padding: 1rem 0;
+}
+
+.filter-row {
+    margin-bottom: 0.75rem;
+    display: flex;
+    gap: 1rem;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.role-check {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    font-size: 0.85rem;
+    cursor: pointer;
+}
+
+.scroll-panel {
+    max-height: 300px;
+    overflow-y: auto;
+}

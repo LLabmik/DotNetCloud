@@ -3,7 +3,7 @@
 
 @* ─── Fetch Art Modal — Multi-source album cover art search ─── *@
 <div class="dialog-overlay" @onclick="CancelAsync">
-    <div class="fetch-art-modal" style="background:#fff;color:#1e293b" @onclick:stopPropagation="true">
+    <div class="fetch-art-modal fetch-art-modal-surface" @onclick:stopPropagation="true">
         <div class="fetch-art-modal-header">
             <h3>@GetTitle()</h3>
             <button class="fetch-art-close" @onclick="CancelAsync" aria-label="Close" title="Close">✕</button>

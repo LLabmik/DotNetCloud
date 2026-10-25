@@ -57,7 +57,7 @@
   margin-bottom: 0;
 }
 
-.ds-hero .ds-hero-note .material-icon {
+.ds-hero .ds-hero-note ::deep .material-icon {
   color: var(--color-primary);
   flex-shrink: 0;
 }
@@ -135,7 +135,7 @@
   margin-bottom: 10px;
 }
 
-.ds-platform .material-icon {
+.ds-platform ::deep .material-icon {
   color: var(--color-primary);
 }
 
@@ -240,7 +240,7 @@
   transform: rotate(90deg);
 }
 
-.ds-install summary .material-icon {
+.ds-install summary ::deep .material-icon {
   color: var(--color-primary);
 }
 

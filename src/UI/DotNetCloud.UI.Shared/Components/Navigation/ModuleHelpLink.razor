@@ -20,18 +20,3 @@
         }
     </button>
 </div>
-
-@code {
-    /// <summary>The module identifier used in the URL path (e.g., "files", "notes").</summary>
-    [Parameter, EditorRequired]
-    public string ModuleId { get; set; } = string.Empty;
-
-    /// <summary>Whether the parent sidebar is collapsed (icon-only mode).</summary>
-    [Parameter]
-    public bool Collapsed { get; set; }
-
-    private void NavigateToHelp()
-    {
-        Navigation.NavigateTo($"/apps/{ModuleId}/help");
-    }
-}

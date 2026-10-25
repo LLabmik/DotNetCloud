@@ -221,16 +221,16 @@
 
 /* ── Dark Mode ── */
 
-:global(.dark-mode) .automation-rule-card {
+.dark-mode .automation-rule-card {
     background: var(--color-surface);
     border-color: var(--color-border);
 }
 
-:global(.dark-mode) .automation-empty,
-:global(.dark-mode) .automation-loading {
+.dark-mode .automation-empty,
+.dark-mode .automation-loading {
     color: var(--color-text-secondary);
 }
 
-:global(.dark-mode) .automation-error {
+.dark-mode .automation-error {
     color: #fca5a5;
 }

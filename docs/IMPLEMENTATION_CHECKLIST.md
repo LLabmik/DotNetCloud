@@ -8,6 +8,22 @@
 
 ---
 
+## Code Standard — Blazor code & style separation (2026-10-24, `fix/blazor-code-standards`)
+
+> A `.razor` file holds markup and Razor directives only. C# lives in `Component.razor.cs`, component CSS in `Component.razor.css`. Static inline `style="…"` is forbidden.
+
+- ✓ Rule added to `.github/copilot-instructions.md`, `CLAUDE.md`, `CONTRIBUTING.md`
+- ✓ Baseline audit + phased enforcement plan: `docs/BLAZOR_CODE_STANDARDS_PLAN.md`
+- ✓ Phase 0 — Client scoped-CSS delivery fixed in `App.razor`; `scripts/check-blazor-standards.sh` + 130-entry allowlist; blocking CI step in `build-test.yml` (verified: baseline green, injected `@code` fails)
+- ✓ Phase 1 — all 8 inline `<style>` blocks (≈1 099 CSS lines) → `.razor.css`; `DocumentEditor`'s overlay rule moved to `FileBrowser.razor.css` (its real owner); `::deep` used for the `MaterialIcon` descendant in `UserDndToggle`; both module + UI.Web scoped bundles verified
+- ✓ Phase 2 — all 67 small `@code` components (< 50 lines) → `.razor.cs`; allowlist 126 → 59; CI solution build 0 warnings/0 errors and every touched test project green (UI.Shared, Bookmarks, Calendar, Contacts, Notes, Email, Example, Tracks, Files, Core.Server)
+- ✓ Phase 3 — 40 medium `@code` components (50–199 lines) → `.razor.cs`
+- ✓ Phase 4 — 19 large `@code` components (≥ 200 lines) → `.razor.cs`; `WorkItemListView` (existing code-behind) merged by hand; **0 `@code` blocks left in any `.razor`**, allowlist file deleted
+- ✓ Inert CSS repaired — 100 dead `:global(...)` dark-mode selectors in 21 `.razor.css` files converted to working `.dark-mode` ancestor selectors (Blazor scopes only the last compound; verified in the emitted bundles), and 4 `.material-icon` descendant rules gained `::deep`
+- ✓ Phase 5 — 113 multi-declaration inline `style=` attributes across 20 files → classes (14 new `.razor.css` sidecars); rule refined so a **single** declaration stays inline; the gate now fails on 2+ declarations (178 single/dynamic attributes explicitly allowed)
+
+---
+
 ## Recent Fix — Music track durations were 0 (junk between the ID3v2 tag and the MPEG frame stream) (2026-10-23, `fix/blazor-music`)
 
 > Following the playback fix, many tracks showed no duration and album headers read `0:00` (e.g. Duran Duran *Rio* → "9 tracks · 0:00"). A probe against the deployed `TagLibSharp` showed the parse **succeeds** but reports `duration=00:00:00 br=0` for files that `ffprobe` plays as 2:57/5:01.

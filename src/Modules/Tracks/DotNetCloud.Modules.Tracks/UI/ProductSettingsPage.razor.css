@@ -61,11 +61,11 @@
 
 /* ── Dark Mode ── */
 
-:global(.dark-mode) .tracks-member-name {
+.dark-mode .tracks-member-name {
   color: var(--color-text);
 }
 
-:global(.dark-mode) .tracks-icon-btn:hover {
+.dark-mode .tracks-icon-btn:hover {
   background: color-mix(in srgb, var(--color-danger) 15%, transparent);
 }
 
@@ -153,4 +153,9 @@
   height: 14px;
   accent-color: var(--color-primary);
   cursor: pointer;
+}
+
+.tracks-role-select {
+  width: auto;
+  margin-left: 0.5rem;
 }

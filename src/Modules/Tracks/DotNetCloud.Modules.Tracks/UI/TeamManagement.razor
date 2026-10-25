@@ -75,7 +75,7 @@
                                 <p class="tracks-muted">Use the search below to add or manage team members.</p>
 
                                 <div class="tracks-add-member-row" style="position: relative;">
-                                    <div style="flex: 1; position: relative;">
+                                    <div class="tracks-member-search-wrapper">
                                         <input type="text" class="tracks-input" placeholder="Search by name or email..."
                                                @bind="_addMemberSearch" @bind:event="oninput" @bind:after="SearchUsersAsync" />
                                         @if (_searchResults.Count > 0)

@@ -144,17 +144,17 @@
 
         @if (_showLibrarySetupHint && _librarySources.Count == 0)
         {
-            <div class="library-setup-hint" style="display:flex;align-items:center;gap:12px;margin:12px 0;padding:10px 14px;border:1px solid var(--color-border, rgba(255,255,255,0.14));border-left:3px solid var(--color-primary, #3b82f6);border-radius:10px;background:var(--color-surface, rgba(255,255,255,0.03));">
-                <span style="display:inline-flex;color:var(--color-primary, #3b82f6);flex-shrink:0;">
+            <div class="library-setup-hint">
+                <span class="library-hint-icon">
                     <MaterialIcon Icon="movie" Size="MaterialIconSize.Lg" />
                 </span>
-                <span style="flex:1;min-width:0;font-size:13px;line-height:1.4;color:var(--color-text-secondary, rgba(255,255,255,0.7));">
+                <span class="library-hint-text">
                     No video library folder selected yet. Open <strong style="color:var(--color-text, #fff);">Library Settings</strong> to pick the folder your videos live in — new videos you add there are detected and imported automatically.
                 </span>
-                <span style="display:inline-flex;flex-shrink:0;">
+                <span class="library-hint-actions">
                     <button type="button" class="btn btn-outline btn-sm" @onclick="GoToLibrarySettingsFromHintAsync">Open Library Settings</button>
                 </span>
-                <button type="button" class="btn btn-icon" @onclick="DismissLibrarySetupHint" title="Dismiss" aria-label="Dismiss" style="flex-shrink:0;color:var(--color-text-secondary, rgba(255,255,255,0.6));">
+                <button type="button" class="btn btn-icon library-hint-dismiss" @onclick="DismissLibrarySetupHint" title="Dismiss" aria-label="Dismiss">
                     <MaterialIcon Icon="close" />
                 </button>
             </div>
@@ -162,8 +162,8 @@
 
         @if (_importNotice is not null)
         {
-            <div class="import-notice" style="display:flex;align-items:center;gap:10px;margin:12px 0;padding:10px 14px;border:1px solid rgba(16,185,129,0.4);border-left:3px solid #10b981;border-radius:10px;background:rgba(16,185,129,0.08);">
-                <span style="flex:1;min-width:0;font-size:13px;color:var(--color-text, #fff);">@_importNotice</span>
+            <div class="import-notice">
+                <span class="import-notice-text">@_importNotice</span>
                 <button type="button" class="btn btn-outline btn-sm" @onclick="DismissImportNotice">Dismiss</button>
             </div>
         }
@@ -1014,10 +1014,10 @@
                             admin shared folders mounted under _DotNetCloud are both supported, and overlapping folders are deduplicated during scans.</p>
                         <div class="form-group">
                             <label>Selected Sources</label>
-                            <div style="display: flex; flex-direction: column; gap: 8px; margin-top: 8px;">
+                            <div class="library-source-list">
                                 @if (_librarySources.Count == 0)
                                 {
-                                    <div class="hint" style="padding: 12px; border: 1px dashed rgba(255,255,255,0.16); border-radius: 12px;">
+                                    <div class="hint library-source-empty">
                                         No sources selected yet. Add folders from your library or from _DotNetCloud shared mounts.
                                     </div>
                                 }
@@ -1025,9 +1025,9 @@
                                 {
                                     @foreach (var source in _librarySources)
                                     {
-                                        <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px; border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; background: rgba(255,255,255,0.03);">
-                                            <div style="display: flex; flex-direction: column; gap: 4px; min-width: 0;">
-                                                <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                                        <div class="library-source-item">
+                                            <div class="library-source-info">
+                                                <div class="library-source-title">
                                                     <span class="tag-chip">@GetLibrarySourceKindLabel(source)</span>
                                                     <strong>@source.DisplayName</strong>
                                                 </div>
@@ -1150,12 +1150,12 @@
                         @* ─── Enrichment Result Banner ─── *@
                         @if (_lastEnrichmentResult is not null && !_isScanActive)
                         {
-                            <div class="enrichment-result-banner" style="margin-top: 12px; padding: 12px; border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; background: rgba(255,255,255,0.03);">
-                                <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
+                            <div class="enrichment-result-banner">
+                                <div class="enrichment-result-title">
                                     <strong>Enrichment Complete</strong>
                                     <span class="hint">@FormatDuration(_lastEnrichmentResult.ElapsedTime)</span>
                                 </div>
-                                <div style="display: flex; flex-wrap: wrap; gap: 12px; font-size: 13px;">
+                                <div class="enrichment-result-stats">
                                     <span>🎬 @_lastEnrichmentResult.TmdbEnriched from TMDB</span>
                                     <span>🖼️ @_lastEnrichmentResult.ScreenshotFallback screenshot fallback</span>
                                     <span>✅ @_lastEnrichmentResult.FilesProcessed / @_lastEnrichmentResult.TotalFiles files processed</span>
@@ -1169,23 +1169,23 @@
 
                         @if (!string.IsNullOrWhiteSpace(_settingsError))
                         {
-                            <div class="alert alert-danger" style="margin-top: 12px; font-size: 13px;">@_settingsError</div>
+                            <div class="alert alert-danger settings-msg">@_settingsError</div>
                         }
                         @if (!string.IsNullOrWhiteSpace(_settingsSuccess))
                         {
-                            <div class="alert alert-success" style="margin-top: 12px; font-size: 13px;">@_settingsSuccess</div>
+                            <div class="alert alert-success settings-msg">@_settingsSuccess</div>
                         }
 
                         @if (_tmdbAvailable)
                         {
-                            <div class="enrichment-settings" style="margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--color-border, rgba(255,255,255,0.08));">
+                            <div class="enrichment-settings">
                                 <h5 style="margin-bottom: 10px;">TMDB Enrichment</h5>
                                 <p class="hint" style="margin-bottom: 8px;">Auto-fetch movie posters and metadata from TMDB for videos in your library.</p>
-                                <label class="checkbox-label" style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px; cursor: pointer;">
+                                <label class="checkbox-label enrichment-toggle">
                                     <input type="checkbox" checked="@_autoFetchMetadata" @onchange="OnAutoFetchMetadataChanged" />
                                     Auto-fetch movie metadata from TMDB after library scan
                                 </label>
-                                <label class="checkbox-label" style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px; cursor: pointer;">
+                                <label class="checkbox-label enrichment-toggle">
                                     <input type="checkbox" checked="@_autoFetchPosters" @onchange="OnAutoFetchPostersChanged" />
                                     Auto-fetch movie posters from TMDB after library scan
                                 </label>
@@ -1195,16 +1195,16 @@
                                 </button>
                                 @if (!string.IsNullOrWhiteSpace(_enrichmentToast))
                                 {
-                                    <div class="alert alert-info" style="margin-top: 8px; font-size: 13px;">@_enrichmentToast</div>
+                                    <div class="alert alert-info settings-msg-sm">@_enrichmentToast</div>
                                 }
                             </div>
                         }
 
-                        <div class="settings-danger-zone" style="margin-top: 24px; padding-top: 16px; border-top: 1px solid rgba(255,255,255,0.08);">
-                            <h5 style="color: var(--color-danger, #e55); margin-bottom: 8px;">Reset Collection</h5>
+                        <div class="settings-danger-zone">
+                            <h5 class="settings-danger-title">Reset Collection</h5>
                             <p class="hint" style="margin-bottom: 8px;">Deletes all indexed video metadata (videos, collections, subtitles, watch progress, watch history, shares).
                                 Your actual video files are NOT affected. After resetting, click Scan Now to rebuild from scratch.</p>
-                            <button class="btn btn-outline btn-sm" style="border-color: var(--color-danger, #e55); color: var(--color-danger, #e55);"
+                            <button class="btn btn-outline btn-sm settings-danger-button"
                                     @onclick="() => _showResetConfirm = true">
                                 Reset Collection
                             </button>
@@ -1319,7 +1319,7 @@
                             </p>
                             @if (_newMediaSampleNames.Count > 0)
                             {
-                                <ul style="margin:8px 0 0 18px;padding:0;font-size:13px;color:var(--color-muted,rgba(255,255,255,0.6));">
+                                <ul class="new-media-sample-list">
                                     @foreach (var name in _newMediaSampleNames.Take(5))
                                     {
                                         <li>@name</li>

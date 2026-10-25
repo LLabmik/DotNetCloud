@@ -6767,3 +6767,61 @@ Plan document: `docs/ADMIN_SYSTEM_PAGE_PLAN.md`.
   `top`, counter movement on a large upload/download, WebSocket increments, task `Running` → completed transitions,
   `unavailableModules` on module stop, throughput delta &lt; 5 %, 10-minute soak, and 403 for non-admins).
 
+---
+
+## Blazor Code & Style Separation Standard (2026-10-24, `fix/blazor-code-standards`)
+
+**Status:** standard adopted — burn-down pending
+
+### Deliverables
+
+- ✓ Mandatory rule added to `.github/copilot-instructions.md`, `CLAUDE.md` and `CONTRIBUTING.md`: a `.razor` file
+  contains markup and Razor directives only — C# goes to `Component.razor.cs`, component CSS to `Component.razor.css`;
+  static inline `style="…"` is forbidden; `@page`/`@using`/`@inject`/`@inherits`/`@implements`/`@attribute`/`@layout`/
+  `@typeparam`/`@rendermode` stay in the `.razor`.
+- ✓ Baseline audit: 286 `.razor`, 95 `.razor.cs`, 68 `.razor.css`; **126** files still carry an inline `@code` block
+  (14,510 C# lines), **8** carry an inline `<style>` block (≈1,099 CSS lines), 34 files carry 202 static inline styles;
+  160 files already compliant.
+- ✓ Enforcement plan written: `docs/BLAZOR_CODE_STANDARDS_PLAN.md` — six phases (Client CSS-delivery unblock + lint/CI
+  gate → inline `<style>` → small → medium → large `@code` → inline-style burn-down), with a per-file verification
+  protocol, migration gotchas and the full 126-file inventory.
+- ✓ Phase 0: `App.razor` now links `DotNetCloud.UI.Web.Client.styles.css` (the WASM client's scoped bundle was
+  emitted but never linked, so every Client-page `.razor.css` was inert); `scripts/check-blazor-standards.sh` +
+  `scripts/blazor-standards-allowlist.txt` (130 baseline paths) added, and a blocking *Check Blazor code & style
+  standards* step wired into `.github/workflows/build-test.yml`. Verified: baseline green, injected `@code` fails.
+- ✓ Phase 1: all 8 inline `<style>` blocks (≈1,099 CSS lines) moved to `.razor.css`. `DocumentEditor`'s
+  `.document-editor-overlay` rule went to `FileBrowser.razor.css` (FileBrowser renders that div); `UserDndToggle`
+  needs `::deep` for the `MaterialIcon` descendant. Rules confirmed present in the emitted Tracks/Files/UI.Web
+  scoped bundles. Allowlist down to 126 entries.
+- ✓ Phase 2: all 67 components with `< 50` lines of inline C# migrated to `.razor.cs` (UI.Shared 36, module UI 11,
+  web/client shell + pages 20). Allowlist down to 59 entries. Release CI-solution build 0 warnings / 0 errors; tests
+  green for UI.Shared, Bookmarks, Calendar, Contacts, Notes, Email, Example, Tracks, Files (991) and Core.Server
+  (851 passed / 2 skipped). Notable: `@inherits` components keep the base type out of the code-behind; `@inject`
+  directives stay in the `.razor`; `Microsoft.JSInterop` / `Components.Web` usings are required for extension methods
+  and `ErrorBoundary`.
+- ✓ Phases 3–4: the remaining 59 `@code` blocks (40 medium, 19 large) migrated to `.razor.cs`; `WorkItemListView`
+  merged into its pre-existing code-behind. `WorkItemListView` also needed
+  `Microsoft.AspNetCore.Components.Web` for `KeyboardEventArgs`, and the generic `DncDataTable<TItem>` needed a
+  non-`cref` doc comment. Result: **no `@code` block remains in any `.razor`**, the allowlist file is deleted, and
+  `check-blazor-standards.sh` runs unconditionally.
+- ✓ Inert CSS repaired: 100 dead `:global(...)` dark-mode selectors across 21 `.razor.css` files became
+  `.dark-mode …` ancestor selectors (verified: Blazor scopes only the last compound, so the pattern now compiles to
+  `.dark-mode .x[b-scope]`), plus `::deep` on 4 `.material-icon` descendant rules. Verified in the emitted
+  Tracks/UI.Web/Client bundles.
+- ✓ Phase 5: 113 multi-declaration inline `style=` attributes across 20 files moved to classes (14 new
+  `.razor.css` sidecars), and the gate now fails on any new 2+-declaration attribute. Rule refined: a **single**
+  declaration (`style="display:none"`) is explicitly allowed — 178 single/dynamic attributes remain inline by design.
+
+### Notes
+
+- Rule enforced end-to-end: `scripts/check-blazor-standards.sh` fails on any `@code`/`<style>` block and on any inline
+  `style` with more than one declaration; single-declaration inline styles are allowed.
+- `.razor.css` under `src/UI/DotNetCloud.UI.Web.Client/` is live — `App.razor` now links
+  `DotNetCloud.UI.Web.Client.styles.css` (the WASM SDK emits that bundle at the server wwwroot root; it is not part
+  of `DotNetCloud.Core.Server.styles.css` because the client project is not an RCL).
+- No bUnit/render-test infrastructure exists, so `@code` moves rely on the compiler (both halves are the same partial
+  class) plus a manual smoke check of each touched page.
+- All UI projects are now compliant with the structural rule. The only remaining debt is the 202 static inline
+  `style=` attributes, concentrated in `VideoPage` (39), `MusicPage` (27), `PhotosPage` (21), `MediaLibraries` (19),
+  `Admin/Organizations` (16), `CalendarPage` (15) and `Admin/Groups` (13).
+

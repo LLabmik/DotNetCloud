@@ -6,17 +6,3 @@
 <PageTitle>Notes - DotNetCloud</PageTitle>
 
 <ModulePageHost RouteKey="notes.page" Parameters="_parameters" />
-
-@code {
-    [SupplyParameterFromQuery(Name = "noteId")]
-    public string? NoteId { get; set; }
-
-    private Dictionary<string, object>? _parameters;
-
-    protected override void OnParametersSet()
-    {
-        _parameters = string.IsNullOrEmpty(NoteId)
-            ? null
-            : new Dictionary<string, object> { ["NoteId"] = NoteId };
-    }
-}
