@@ -354,14 +354,40 @@ a:hover {
   font-size: 13px;
 }
 .user-name-link {
-  color: var(--color-text-secondary);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 200px;
+  padding: 6px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  background: var(--color-surface);
+  color: var(--color-text);
   font-size: 13px;
+  font-weight: 500;
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
   text-decoration: none;
-  transition: color 0.15s ease;
+  cursor: pointer;
+  transition:
+    background var(--transition),
+    border-color var(--transition),
+    color var(--transition);
 }
 .user-name-link:hover {
+  background: var(--color-bg);
+  border-color: var(--color-primary);
   color: var(--color-primary);
-  text-decoration: underline;
+  text-decoration: none;
+}
+.user-name-link:active {
+  transform: translateY(1px);
+}
+.user-name-link:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
 }
 
 /* --- Page Content --- */
