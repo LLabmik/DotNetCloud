@@ -3,7 +3,7 @@
 > **Document Version:** 1.0  
 > **Purpose:** Comprehensive task breakdown for implementing the DotNetCloud architecture  
 > **Scope:** All phases from Foundation (Phase 0) through Auto-Updates (Phase 11)  
-> **Last Updated:** 2026-10-24
+> **Last Updated:** 2026-10-25
 > **Audience:** Development team, project managers, technical leads
 
 ---
@@ -21,6 +21,23 @@
 - ✓ Phase 4 — 19 large `@code` components (≥ 200 lines) → `.razor.cs`; `WorkItemListView` (existing code-behind) merged by hand; **0 `@code` blocks left in any `.razor`**, allowlist file deleted
 - ✓ Inert CSS repaired — 100 dead `:global(...)` dark-mode selectors in 21 `.razor.css` files converted to working `.dark-mode` ancestor selectors (Blazor scopes only the last compound; verified in the emitted bundles), and 4 `.material-icon` descendant rules gained `::deep`
 - ✓ Phase 5 — 113 multi-declaration inline `style=` attributes across 20 files → classes (14 new `.razor.css` sidecars); rule refined so a **single** declaration stays inline; the gate now fails on 2+ declarations (178 single/dynamic attributes explicitly allowed)
+
+---
+
+## Recent Fix — Music playbar lost all controls and blew up the album art (2026-10-25, `fix/music-playbar`)
+
+> Reported live: after the code/style-separation refactor (`56b80e9f`), the global playbar on `/apps/music` showed an oversized cover and **no** transport buttons, progress bar, or queue/EQ/volume controls.
+
+- ✓ **Root cause** — the refactor turned the artwork's inline `style="width:100%;height:100%"` into `GlobalMusicPlaybar.razor.css`'s `.gmp-art { width:100%; height:100% }`, which targets the **wrapper**. CSS isolation rewrites it to `.gmp-art[b-luui2lq9op]` (specificity 0,2,0), beating the global `.gmp-art { width:52px; height:52px }` in `app.css` (0,1,0). The artwork grew to the whole grid column (326×331 px vs 52×52), the implicit grid row stretched to the art's height, and the vertically-centred middle column was pushed out of view — measured `controls.top = 744` in a 686 px viewport.
+- ✓ **Fix** — the scoped rule now targets only the artwork (`.gmp-art img, .gmp-art svg { display:block; width:100%; height:100% }`) so the wrapper keeps its global 52 px sizing.
+- ✓ **Verified** — failure and fix reproduced in the integrated browser against the real `app.css` plus the emitted isolation selectors: art 326×331 → 52×52, controls back inside the viewport with every button, timecode and the extras cluster visible. `dotnet build` (Release + Debug) 0 warnings / 0 errors; emitted bundle contains `.gmp-art img[b-luui2lq9op]` and the generated Razor code applies `b-luui2lq9op` to the `img`/`svg`.
+- ✓ **Not a systemic defect** — the other 43 `.razor.css` sidecars added by the refactor only restate the inline declarations they replaced; no other scoped class overrides a global size rule.
+- ✓ **All nine playbar controls now render through `MaterialIcon`** — the transport row still used raw glyphs (`⇄ ⏮ ▶ ⏭ ☰ 🔊 ✕ ★`) and the equalizer button carried a hand-written inline SVG (the words "repeat"/"EQ" seen in the local test harness were placeholder text in that harness, not the component). Now: `shuffle`, `skip_previous`, `play_arrow`/`pause`, `skip_next`, `repeat`/`repeat_one`, `queue_music`, `graphic_eq`, `volume_up`/`volume_down`/`volume_off`, `close`, `star`/`star_border`.
+- ✓ **Icon paths added** — `shuffle`, `queue_music`, `graphic_eq`, `volume_down`, `star_border` were missing from `MaterialSvgIcons` (a missing name renders the raw name as text), so they were added; `.gmp-btn`/`.gmp-star` now centre the SVG via `inline-flex`; `app.css` cache-buster bumped to `?v=20261025-01`.
+- ✓ **Regression test** — `MaterialSvgIconsTests.GetPath_IconUsedByMusicPlaybar_ReturnsPathData` covers all 15 playbar icon names; UI.Shared suite **215** pass.
+- ✓ **Deployed** — `sudo ./scripts/deploy.sh --force --verify`: 15/15 targets, all assembly hashes verified; `DotNetCloud.UI.Shared.dll` / `DotNetCloud.UI.Web.dll` md5 match the build output; the deployed `app.css` carries the `inline-flex` button rule and the scoped bundle the corrected `.gmp-art img/svg` rule; live HTML references `app.css?v=20261025-01`; `/health/ready` **200 Healthy** (an initial 503 was the calendar host still warming up).
+- ☐ Browser check of the playbar on `/apps/music` awaiting user confirmation
+- ✓ Commit/push approved by the user (`fix/music-playbar`)
 
 ---
 

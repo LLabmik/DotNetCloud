@@ -33,6 +33,35 @@ public class MaterialSvgIconsTests
     }
 
     /// <summary>
+    /// Icons used by the global music playbar's transport, star and extras controls. A missing
+    /// path renders the raw icon name as text inside the playbar button (e.g. the word
+    /// "repeat"), which is exactly what the MaterialIcon fallback must never do.
+    /// </summary>
+    [TestMethod]
+    [DataRow("shuffle")]
+    [DataRow("skip_previous")]
+    [DataRow("play_arrow")]
+    [DataRow("pause")]
+    [DataRow("skip_next")]
+    [DataRow("repeat")]
+    [DataRow("repeat_one")]
+    [DataRow("queue_music")]
+    [DataRow("graphic_eq")]
+    [DataRow("volume_up")]
+    [DataRow("volume_down")]
+    [DataRow("volume_off")]
+    [DataRow("close")]
+    [DataRow("star")]
+    [DataRow("star_border")]
+    public void GetPath_IconUsedByMusicPlaybar_ReturnsPathData(string icon)
+    {
+        Assert.IsTrue(MaterialSvgIcons.HasPath(icon), $"Icon '{icon}' has no SVG path and would render as text.");
+        var path = MaterialSvgIcons.GetPath(icon);
+        Assert.IsNotNull(path, $"Icon '{icon}' returned a null path.");
+        Assert.IsTrue(path!.Length > 10, $"Icon '{icon}' path data is unexpectedly short.");
+    }
+
+    /// <summary>
     /// Icons referenced by the admin navigation menu entries that render through
     /// <see cref="MaterialIcon"/>. A missing path falls back to plain text, which shows the raw
     /// icon name in the sidebar instead of a glyph.
