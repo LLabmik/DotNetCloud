@@ -47,7 +47,7 @@
   <PropertyGroup>
     <MajorVersion>0</MajorVersion>
     <MinorVersion>6</MinorVersion>
-    <PatchVersion>14</PatchVersion>
+    <PatchVersion>15</PatchVersion>
     <PreReleaseVersion></PreReleaseVersion>
     <Version>$(MajorVersion).$(MinorVersion).$(PatchVersion)</Version>
     <AssemblyVersion>$(Version)</AssemblyVersion>
