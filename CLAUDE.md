@@ -141,6 +141,27 @@ Always use **targeted edits** (minimal context around changed lines) to preserve
 
 **Module-to-icon mapping:** Use `ModuleIconProvider.GetIcon(moduleId)` for search/nav module icons. Use `FileTypeIconProvider.GetIcon(mimeType)` for file type icons.
 
+## Blazor Code & Style Separation (MANDATORY)
+
+A `.razor` file contains **markup and Razor directives only**. All C# logic belongs in a `.razor.cs` code-behind file and all component CSS belongs in a `.razor.css` scoped stylesheet — code and styles must **never** live in the `.razor` file.
+
+**Forbidden:**
+
+- ❌ `@code { ... }` blocks in `.razor`
+- ❌ `<style> ... </style>` blocks in `.razor`
+- ❌ Static inline `style="..."` with **more than one declaration** (move it to a class in `.razor.css`)
+- ✅ A **single** declaration in `style` is fine (`style="font-weight: bold"`, `style="display:none"`) — no class needed
+
+**Required:**
+
+- ✅ C# → `Component.razor.cs` as `public partial class Component` (add `: ComponentBase` when no `@inherits`), namespace matching the `.razor` file
+- ✅ CSS → `Component.razor.css` (Blazor CSS isolation)
+- ✅ Directives (`@page`, `@using`, `@inject`, `@inherits`, `@implements`, `@attribute`, `@layout`, `@typeparam`, `@rendermode`) stay in `.razor`
+- ✅ Runtime-dependent inline styles are allowed, but prefer CSS custom properties (`style="--pct: @pct"`)
+- ✅ `<style>` emitted as *content* (e.g. inside an email/HTML preview `MarkupString`) is exempt
+
+Enforcement plan and violation inventory: `docs/BLAZOR_CODE_STANDARDS_PLAN.md`.
+
 ## Code Conventions
 
 - **File-scoped namespaces**, nullable reference types enabled, `TreatWarningsAsErrors` — all enforced via `Directory.Build.props`.

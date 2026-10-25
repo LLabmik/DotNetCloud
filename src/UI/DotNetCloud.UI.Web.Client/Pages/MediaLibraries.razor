@@ -25,18 +25,18 @@ else
         <section class="profile-card">
             <h2>📷 Photos Library</h2>
             <p class="hint">Manage these sources in the Photos module settings page.</p>
-            <div style="display: flex; flex-direction: column; gap: 8px; margin: 12px 0;">
+            <div class="media-source-list">
                 @if (_photoSources.Count == 0)
                 {
-                    <div class="hint" style="padding: 12px; border: 1px dashed rgba(255,255,255,0.16); border-radius: 12px;">No photo sources selected.</div>
+                    <div class="hint media-source-empty">No photo sources selected.</div>
                 }
                 else
                 {
                     @foreach (var source in _photoSources)
                     {
-                        <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px; border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; background: rgba(255,255,255,0.03);">
-                            <div style="display: flex; flex-direction: column; gap: 4px; min-width: 0;">
-                                <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                        <div class="media-source-card">
+                            <div class="media-source-info">
+                                <div class="media-source-title">
                                     <span class="tag-chip">@GetSourceKindLabel(source)</span>
                                     <strong>@source.DisplayName</strong>
                                 </div>
@@ -62,18 +62,18 @@ else
         <section class="profile-card">
             <h2>🎵 Music Library</h2>
             <p class="hint">Manage these sources in the Music module settings page.</p>
-            <div style="display: flex; flex-direction: column; gap: 8px; margin: 12px 0;">
+            <div class="media-source-list">
                 @if (_musicSources.Count == 0)
                 {
-                    <div class="hint" style="padding: 12px; border: 1px dashed rgba(255,255,255,0.16); border-radius: 12px;">No music sources selected.</div>
+                    <div class="hint media-source-empty">No music sources selected.</div>
                 }
                 else
                 {
                     @foreach (var source in _musicSources)
                     {
-                        <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px; border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; background: rgba(255,255,255,0.03);">
-                            <div style="display: flex; flex-direction: column; gap: 4px; min-width: 0;">
-                                <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                        <div class="media-source-card">
+                            <div class="media-source-info">
+                                <div class="media-source-title">
                                     <span class="tag-chip">@GetSourceKindLabel(source)</span>
                                     <strong>@source.DisplayName</strong>
                                 </div>
@@ -99,18 +99,18 @@ else
         <section class="profile-card">
             <h2>🎬 Video Library</h2>
             <p class="hint">Manage these sources in the Video module settings page.</p>
-            <div style="display: flex; flex-direction: column; gap: 8px; margin: 12px 0;">
+            <div class="media-source-list">
                 @if (_videoSources.Count == 0)
                 {
-                    <div class="hint" style="padding: 12px; border: 1px dashed rgba(255,255,255,0.16); border-radius: 12px;">No video sources selected.</div>
+                    <div class="hint media-source-empty">No video sources selected.</div>
                 }
                 else
                 {
                     @foreach (var source in _videoSources)
                     {
-                        <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px; border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; background: rgba(255,255,255,0.03);">
-                            <div style="display: flex; flex-direction: column; gap: 4px; min-width: 0;">
-                                <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                        <div class="media-source-card">
+                            <div class="media-source-info">
+                                <div class="media-source-title">
                                     <span class="tag-chip">@GetSourceKindLabel(source)</span>
                                     <strong>@source.DisplayName</strong>
                                 </div>
@@ -137,91 +137,4 @@ else
     {
         <div class="alert alert-danger" style="margin-top: 16px;">@_error</div>
     }
-}
-
-@code {
-    [Inject] private DotNetCloudApiClient Api { get; set; } = default!;
-    [Inject] private ToastService Toast { get; set; } = default!;
-
-    private bool _loading = true;
-    private bool _scanning;
-    private string? _scanningType;
-    private string? _error;
-
-    private IReadOnlyList<MediaLibrarySource> _photoSources = [];
-    private IReadOnlyList<MediaLibrarySource> _musicSources = [];
-    private IReadOnlyList<MediaLibrarySource> _videoSources = [];
-
-    private MediaScanResultResponse? _lastPhotoResult;
-    private MediaScanResultResponse? _lastMusicResult;
-    private MediaScanResultResponse? _lastVideoResult;
-
-    protected override async Task OnInitializedAsync()
-    {
-        try
-        {
-            var paths = await Api.GetMediaLibraryPathsAsync();
-            if (paths is not null)
-            {
-                _photoSources = paths.PhotosSources;
-                _musicSources = paths.MusicSources;
-                _videoSources = paths.VideoSources;
-            }
-        }
-        catch
-        {
-            Toast.ShowError("Failed to load media library settings.");
-        }
-        finally
-        {
-            _loading = false;
-        }
-    }
-
-    private async Task ScanAsync(string mediaType)
-    {
-        _scanning = true;
-        _scanningType = mediaType;
-        _error = null;
-        StateHasChanged();
-
-        try
-        {
-            var result = await Api.ScanMediaLibraryAsync(mediaType);
-
-            switch (mediaType)
-            {
-                case "Photos": _lastPhotoResult = result; break;
-                case "Music": _lastMusicResult = result; break;
-                case "Video": _lastVideoResult = result; break;
-            }
-
-            if (result is not null && result.Failed > 0)
-            {
-                Toast.ShowWarning($"Scan complete with {result.Failed} errors. {result.Imported} files imported.");
-            }
-            else if (result is not null)
-            {
-                Toast.ShowSuccess($"Scan complete: {result.Imported} imported, {result.Skipped} already up to date.");
-            }
-        }
-        catch (Exception ex)
-        {
-            _error = $"Scan failed: {ex.Message}";
-            Toast.ShowError("Media library scan failed.");
-        }
-        finally
-        {
-            _scanning = false;
-            _scanningType = null;
-        }
-    }
-
-    private static string FormatResult(MediaScanResultResponse r) =>
-        $"Found {r.TotalFound} · Imported {r.Imported} · Skipped {r.Skipped}" +
-        (r.Removed > 0 ? $" · Removed {r.Removed}" : string.Empty) +
-        (r.Failed > 0 ? $" · Failed {r.Failed}" : string.Empty);
-
-    private static string GetSourceKindLabel(MediaLibrarySource source)
-        => source.SourceKind == MediaLibrarySourceKind.SharedMount ? "Shared" : "Owned";
 }

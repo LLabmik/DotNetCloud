@@ -14,20 +14,3 @@ else
         <span>@Link.DisplayLabel</span>
     </span>
 }
-
-@code {
-    [Parameter]
-    public required CrossModuleLinkDto Link { get; set; }
-
-    private static string GetIcon(CrossModuleLinkType linkType)
-    {
-        return linkType switch
-        {
-            CrossModuleLinkType.Contact => "person",
-            CrossModuleLinkType.CalendarEvent => "calendar_today",
-            CrossModuleLinkType.Note => "edit_note",
-            CrossModuleLinkType.File => "folder",
-            _ => "link"
-        };
-    }
-}

@@ -1161,7 +1161,7 @@
    Dark Mode
    ═══════════════════════════════════════════════════════════ */
 
-:global(.dark-mode) .video-layout {
+.dark-mode .video-layout {
   --color-bg: #0f172a;
   --color-surface: #1e293b;
   --color-text: #f1f5f9;
@@ -1170,15 +1170,15 @@
   --color-muted: #64748b;
 }
 
-:global(.dark-mode) .video-thumb {
+.dark-mode .video-thumb {
   background: #0f172a;
 }
 
-:global(.dark-mode) .tmdb-poster {
+.dark-mode .tmdb-poster {
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
 }
 
-:global(.dark-mode) .tmdb-genre-tag {
+.dark-mode .tmdb-genre-tag {
   background: #0f172a;
   border-color: #334155;
 }
@@ -1701,31 +1701,31 @@
    Dark Mode Overrides — Series & Episodes
    ═══════════════════════════════════════════════════════════ */
 
-:global(.dark-mode) .series-card {
+.dark-mode .series-card {
   background: var(--color-surface, #1e293b);
   border-color: #334155;
 }
 
-:global(.dark-mode) .season-card {
+.dark-mode .season-card {
   background: var(--color-surface, #1e293b);
   border-color: #334155;
 }
 
-:global(.dark-mode) .episode-row {
+.dark-mode .episode-row {
   background: var(--color-surface, #1e293b);
   border-color: #334155;
 }
 
-:global(.dark-mode) .episode-row:hover {
+.dark-mode .episode-row:hover {
   background: rgba(59, 130, 246, 0.05);
 }
 
-:global(.dark-mode) .season-card-poster-placeholder,
-:global(.dark-mode) .episode-row-thumb-placeholder {
+.dark-mode .season-card-poster-placeholder,
+.dark-mode .episode-row-thumb-placeholder {
   background: linear-gradient(135deg, #0f172a, #1e293b);
 }
 
-:global(.dark-mode) .series-card-poster-placeholder {
+.dark-mode .series-card-poster-placeholder {
   background: linear-gradient(135deg, #0f172a, #1e293b);
 }
 
@@ -2310,4 +2310,151 @@
 
 .video-player-root ::deep .dnc-error-close:hover {
   background: #2563eb;
+}
+
+/* ── Library setup hint / import notice ─────────────────────────────── */
+.library-setup-hint {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 12px 0;
+  padding: 10px 14px;
+  border: 1px solid var(--color-border, rgba(255, 255, 255, 0.14));
+  border-left: 3px solid var(--color-primary, #3b82f6);
+  border-radius: 10px;
+  background: var(--color-surface, rgba(255, 255, 255, 0.03));
+}
+.library-hint-icon {
+  display: inline-flex;
+  color: var(--color-primary, #3b82f6);
+  flex-shrink: 0;
+}
+.library-hint-text {
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--color-text-secondary, rgba(255, 255, 255, 0.7));
+}
+.library-hint-actions {
+  display: inline-flex;
+  flex-shrink: 0;
+}
+.library-hint-dismiss {
+  flex-shrink: 0;
+  color: var(--color-text-secondary, rgba(255, 255, 255, 0.6));
+}
+.import-notice {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 12px 0;
+  padding: 10px 14px;
+  border: 1px solid rgba(16, 185, 129, 0.4);
+  border-left: 3px solid #10b981;
+  border-radius: 10px;
+  background: rgba(16, 185, 129, 0.08);
+}
+.import-notice-text {
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+  color: var(--color-text, #fff);
+}
+
+/* ── Library sources editor ─────────────────────────────────────────── */
+.library-source-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 8px;
+}
+.library-source-empty {
+  padding: 12px;
+  border: 1px dashed rgba(255, 255, 255, 0.16);
+  border-radius: 12px;
+}
+.library-source-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.03);
+}
+.library-source-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.library-source-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* ── Enrichment result banner ───────────────────────────────────────── */
+.enrichment-result-banner {
+  margin-top: 12px;
+  padding: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.03);
+}
+.enrichment-result-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+.enrichment-result-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  font-size: 13px;
+}
+
+/* ── Enrichment / danger settings ───────────────────────────────────── */
+.settings-msg {
+  margin-top: 12px;
+  font-size: 13px;
+}
+.settings-msg-sm {
+  margin-top: 8px;
+  font-size: 13px;
+}
+.enrichment-settings {
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid var(--color-border, rgba(255, 255, 255, 0.08));
+}
+.enrichment-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+  cursor: pointer;
+}
+.settings-danger-zone {
+  margin-top: 24px;
+  padding-top: 16px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+.settings-danger-title {
+  color: var(--color-danger, #e55);
+  margin-bottom: 8px;
+}
+.settings-danger-button {
+  border-color: var(--color-danger, #e55);
+  color: var(--color-danger, #e55);
+}
+.new-media-sample-list {
+  margin: 8px 0 0 18px;
+  padding: 0;
+  font-size: 13px;
+  color: var(--color-muted, rgba(255, 255, 255, 0.6));
 }

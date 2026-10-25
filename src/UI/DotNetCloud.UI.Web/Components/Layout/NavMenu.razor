@@ -303,18 +303,3 @@
         </NotAuthorized>
     </AuthorizeView>
 </nav>
-
-@code {
-    [Parameter]
-    public bool Collapsed { get; set; }
-
-    protected override void OnInitialized()
-    {
-        ModuleRegistry.OnChange += StateHasChanged;
-    }
-
-    public void Dispose()
-    {
-        ModuleRegistry.OnChange -= StateHasChanged;
-    }
-}

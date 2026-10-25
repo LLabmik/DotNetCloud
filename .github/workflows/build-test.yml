@@ -42,6 +42,13 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      # Blazor code & style separation: .razor files must not contain @code or
+      # <style> blocks (see docs/BLAZOR_CODE_STANDARDS_PLAN.md). Pre-existing
+      # debt is grandfathered in scripts/blazor-standards-allowlist.txt, which
+      # shrinks as files are migrated — never add entries to it.
+      - name: Check Blazor code & style standards
+        run: ./scripts/check-blazor-standards.sh
+
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:

@@ -1253,3 +1253,36 @@
     padding: 16px;
   }
 }
+
+/* ── Event attendees editor ─────────────────────────────────────────── */
+.attendee-row {
+  margin-bottom: 4px;
+  flex-wrap: wrap;
+}
+.attendee-chip {
+  background: #e0e7ff;
+  color: #3730a3;
+  padding: 4px 8px;
+  margin-right: 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.attendee-chip-remove {
+  padding: 0 4px;
+  font-size: 12px;
+  line-height: 1;
+}
+.contact-search-box {
+  position: relative;
+  max-width: 200px;
+}
+.contact-search-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  z-index: 1000;
+  max-height: 200px;
+  overflow-y: auto;
+  width: 280px;
+}

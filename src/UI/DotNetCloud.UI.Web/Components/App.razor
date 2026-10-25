@@ -16,6 +16,10 @@
     <link rel="stylesheet" href="_content/DotNetCloud.UI.Web/css/app.css?v=20261024-01" />
     <link rel="stylesheet" href="_content/DotNetCloud.UI.Web/css/widgets.variants.css?v=20260912-01" />
     <link rel="stylesheet" href="DotNetCloud.Core.Server.styles.css" />
+    @* Scoped CSS for the WASM client project (src/UI/DotNetCloud.UI.Web.Client). The WASM SDK emits this
+       bundle at the server wwwroot root, but it is NOT part of DotNetCloud.Core.Server.styles.css (the client
+       project is not an RCL), so it must be linked explicitly or every .razor.css under Client/ stays inert. *@
+    <link rel="stylesheet" href="DotNetCloud.UI.Web.Client.styles.css" />
     <link rel="stylesheet" href="_content/DotNetCloud.UI.Shared/shared-components.css?v=20260908-01" />
     <link rel="stylesheet" href="_content/DotNetCloud.UI.Web/lib/highlightjs/github-dark-dimmed.min.css" />
     <HeadOutlet @rendermode="InteractiveServer" />
@@ -76,25 +80,3 @@
 </body>
 
 </html>
-
-@code {
-    [CascadingParameter]
-    private HttpContext? HttpContext { get; set; }
-
-    protected override void OnInitialized()
-    {
-        HttpContext?.Response.Cookies.Append(
-            CookieRequestCultureProvider.DefaultCookieName,
-            CookieRequestCultureProvider.MakeCookieValue(
-                new RequestCulture(
-                    CultureInfo.CurrentCulture,
-                    CultureInfo.CurrentUICulture)),
-            new CookieOptions
-            {
-                HttpOnly = true,
-                Secure = true,
-                SameSite = SameSiteMode.Lax,
-                MaxAge = TimeSpan.FromDays(365),
-            });
-    }
-}

@@ -9,18 +9,3 @@
 </form>
 
 <DncConfirmDialog @ref="_confirmDialog" />
-
-@code {
-    private DncConfirmDialog? _confirmDialog;
-
-    private async Task PromptLogoutAsync()
-    {
-        var confirmed = await _confirmDialog!.ShowAsync(
-            "Are you sure you want to sign out? Any unsaved changes will be lost.",
-            "Sign Out");
-        if (confirmed)
-        {
-            await Js.InvokeVoidAsync("DotNetCloudLogout.submitLogoutForm");
-        }
-    }
-}

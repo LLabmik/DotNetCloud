@@ -240,16 +240,16 @@
 
 /* ── Dark Mode ── */
 
-:global(.dark-mode) .goal-card {
+.dark-mode .goal-card {
     background: var(--color-surface);
     border-color: var(--color-border);
 }
 
-:global(.dark-mode) .goal-card:hover {
+.dark-mode .goal-card:hover {
     box-shadow: 0 2px 16px rgba(0, 0, 0, 0.3);
 }
 
-:global(.dark-mode) .goals-empty,
-:global(.dark-mode) .goals-loading {
+.dark-mode .goals-empty,
+.dark-mode .goals-loading {
     color: var(--color-text-secondary);
 }

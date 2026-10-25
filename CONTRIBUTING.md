@@ -161,6 +161,50 @@ All icons in Blazor UI must use the `MaterialIcon` component from `DotNetCloud.U
 
 See `src/UI/DotNetCloud.UI.Shared/Components/DataDisplay/MaterialIcon.razor` for full usage. Add missing icon SVG paths to `MaterialSvgIcons.cs`.
 
+### Blazor Code & Style Separation (MANDATORY)
+
+A `.razor` file must contain **markup and Razor directives only**. Code and styles never live in the `.razor` file:
+
+- **C# logic** goes in a `.razor.cs` code-behind file — `public partial class <ComponentName>` (add `: ComponentBase` when there is no `@inherits`), in the same namespace as the component.
+- **Component CSS** goes in a `.razor.css` scoped stylesheet (Blazor CSS isolation).
+- **Forbidden:** `@code { ... }` blocks, `<style> ... </style>` blocks, and static inline `style="..."` attributes carrying **more than one declaration** (e.g. `style="font-weight: bold; background-color: blue;"`).
+- **Allowed:** a **single** declaration in `style` — `style="font-weight: bold"`, `style="display:none"`, `style="width: 80px"` — no CSS class needed.
+- **Allowed in `.razor`:** `@page`, `@using`, `@inject`, `@inherits`, `@implements`, `@attribute`, `@layout`, `@typeparam`, `@rendermode`.
+- Runtime-dependent inline styles (e.g. `style="--pct: @pct"`) are allowed, but prefer CSS custom properties defined in `.razor.css`.
+- A `<style>` block emitted as component *content* (e.g. inside an HTML/email preview `MarkupString`) is not component CSS and is exempt.
+
+```razor
+@* ✅ CORRECT: Calendar.razor *@
+@page "/calendar"
+@inject ICalendarApiClient ApiClient
+<div class="calendar-page">...</div>
+```
+
+```csharp
+// Calendar.razor.cs
+namespace DotNetCloud.Modules.Calendar.UI;
+
+public partial class Calendar
+{
+    [Inject] private ICalendarApiClient ApiClient { get; set; } = default!;
+}
+```
+
+```css
+/* Calendar.razor.css */
+.calendar-page { display: flex; }
+```
+
+See `docs/BLAZOR_CODE_STANDARDS_PLAN.md` for the enforcement plan and violation burn-down.
+
+**Run the check before pushing:**
+
+```bash
+./scripts/check-blazor-standards.sh
+```
+
+It fails on a new `@code`/`<style>` block and warns on static inline styles. Pre-existing debt is grandfathered in `scripts/blazor-standards-allowlist.txt` — when you migrate a file, delete its entry in the same change; never add one.
+
 ### C# Style Guide
 
 ```csharp
