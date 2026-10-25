@@ -23,7 +23,7 @@
 	<PropertyGroup>
 		<ApplicationTitle>DotNetCloud</ApplicationTitle>
 		<ApplicationId>net.dotnetcloud.client</ApplicationId>
-		<ApplicationDisplayVersion>0.6.14</ApplicationDisplayVersion>
+		<ApplicationDisplayVersion>0.6.15</ApplicationDisplayVersion>
 		<ApplicationVersion>21</ApplicationVersion>
 	</PropertyGroup>
 

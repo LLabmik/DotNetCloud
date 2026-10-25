@@ -33,6 +33,7 @@ public sealed class TrayIconManager : IDisposable
     private readonly ILogger<TrayIconManager> _logger;
 
     private TrayIcon? _trayIcon;
+    private TrayIcons? _trayIcons;
     private SettingsWindow? _settingsWindow;
     private SyncProgressWindow? _syncProgressWindow;
     private QuickReplyWindow? _quickReplyWindow;
@@ -67,6 +68,12 @@ public sealed class TrayIconManager : IDisposable
         _trayIcon.Menu = menu;
         _trayIcon.Icon = CreateStatusIcon(TrayState.Offline, _trayVm.ChatUnreadCount, _trayVm.ChatHasMentions);
         _trayIcon.ToolTipText = _trayVm.Tooltip;
+
+        // Avalonia 12.1.4+ creates the native tray icon lazily, when the icon is added to the
+        // application's TrayIcons collection. Constructing a TrayIcon no longer attaches it, so
+        // without this the icon never appears on any platform.
+        AttachToApplication(_trayIcon);
+
         _trayIcon.IsVisible = true;
 
         // Ensure menu shows on click (Avalonia TrayIcon menu behavior varies by platform)
@@ -82,6 +89,39 @@ public sealed class TrayIconManager : IDisposable
 
         _logger.LogInformation("Tray icon initialized with {MenuCount} menu items. State: {State}",
             menu.Items.Count, _trayVm.OverallState);
+    }
+
+    /// <summary>
+    /// Registers the tray icon in the application's <see cref="TrayIcons"/> collection, which is
+    /// what makes Avalonia create the native tray icon (see <c>TrayIcon.Attach</c>).
+    /// </summary>
+    private void AttachToApplication(TrayIcon trayIcon)
+    {
+        var app = Application.Current;
+        if (app is null)
+        {
+            _logger.LogWarning("Application.Current is null; the tray icon cannot be attached.");
+            return;
+        }
+
+        var icons = TrayIcon.GetIcons(app);
+        if (icons is null)
+        {
+            icons = new TrayIcons();
+            TrayIcon.SetIcons(app, icons);
+        }
+
+        icons.Add(trayIcon);
+        _trayIcons = icons;
+    }
+
+    /// <summary>Removes the tray icon from the application collection, disposing the native icon.</summary>
+    private void DetachFromApplication()
+    {
+        if (_trayIcon is not null)
+            _trayIcons?.Remove(_trayIcon);
+
+        _trayIcons = null;
     }
 
     // ── Menu construction ─────────────────────────────────────────────────
@@ -448,6 +488,7 @@ public sealed class TrayIconManager : IDisposable
             if (_trayIcon is not null)
             {
                 _trayIcon.IsVisible = false;
+                DetachFromApplication();
                 _trayIcon.Dispose();
                 _trayIcon = null;
             }
@@ -838,6 +879,7 @@ public sealed class TrayIconManager : IDisposable
     public void Dispose()
     {
         _trayVm.PropertyChanged -= OnTrayViewModelChanged;
+        DetachFromApplication();
         _trayIcon?.Dispose();
         _trayIcon = null;
     }
