@@ -31,6 +31,7 @@ public class WopiServiceTests
         IDownloadService? download = null,
         IEventBus? eventBus = null,
         VersionRetentionOptions? retention = null,
+        ISyncChangeNotifier? syncNotifier = null,
         IUserDirectory? userDirectory = null)
     {
         return new WopiService(
@@ -41,6 +42,7 @@ public class WopiServiceTests
             eventBus ?? Mock.Of<IEventBus>(),
             NullLogger<WopiService>.Instance,
             TestFileVersioningSettings.From(retention ?? new VersionRetentionOptions { MaxVersionCount = 0 }),
+            syncNotifier ?? Mock.Of<ISyncChangeNotifier>(),
             userDirectory);
     }
 
@@ -341,6 +343,46 @@ public class WopiServiceTests
         // Verify event was published
         eventBusMock.Verify(
             e => e.PublishAsync(It.IsAny<Events.FileUploadedEvent>(), It.IsAny<CallerContext>(), It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
+
+    [TestMethod]
+    public async Task PutFileAsync_NewContent_StampsSyncSequenceAndNotifies()
+    {
+        using var db = CreateContext();
+        var userId = Guid.CreateVersion7();
+        var lastUploadingDeviceId = Guid.CreateVersion7();
+        var node = new FileNode
+        {
+            Name = "sync-me.docx",
+            NodeType = FileNodeType.File,
+            OwnerId = userId,
+            CurrentVersion = 1,
+            // The device that last uploaded the file must not have this change suppressed as
+            // self-origin, so a server-side save has to clear the stamp.
+            OriginatingDeviceId = lastUploadingDeviceId,
+        };
+        db.FileNodes.Add(node);
+        await db.SaveChangesAsync();
+
+        var storageMock = new Mock<IFileStorageEngine>();
+        storageMock.Setup(s => s.WriteChunkAsync(It.IsAny<string>(), It.IsAny<ReadOnlyMemory<byte>>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+        var notifierMock = new Mock<ISyncChangeNotifier>();
+
+        var service = CreateService(db, storageMock.Object, syncNotifier: notifierMock.Object);
+
+        using var content = new MemoryStream(Encoding.UTF8.GetBytes("web editor save"));
+        await service.PutFileAsync(node.Id, content, UserCaller(userId));
+
+        var updatedNode = await db.FileNodes.FindAsync(node.Id);
+        Assert.IsNotNull(updatedNode);
+        Assert.IsNotNull(updatedNode.SyncSequence, "A WOPI save must stamp the owner's sync sequence.");
+        Assert.IsTrue(updatedNode.SyncSequence > 0);
+        Assert.IsNull(updatedNode.OriginatingDeviceId, "A server-side save must clear the originating device stamp.");
+
+        notifierMock.Verify(
+            n => n.NotifyAsync(userId, updatedNode.SyncSequence!.Value, It.IsAny<CancellationToken>()),
             Times.Once);
     }
 
