@@ -11,10 +11,10 @@
         <p class="text-muted system-subtitle">Live process, traffic and background-task metrics. Refreshes every 5 seconds.</p>
     </div>
     <div class="system-header-actions">
-        @if (_status is not null)
+        @if (_status is not null && _stale)
         {
-            <span class="system-updated @(_stale ? "system-updated--stale" : string.Empty)">
-                @( _stale ? $"stale — last updated {FormatTimeAgo(_lastSuccessUtc)}" : $"updated {FormatTimeAgo(_lastSuccessUtc)}" )
+            <span class="system-updated system-updated--stale">
+                stale — last updated @FormatTimeAgo(_lastSuccessUtc)
             </span>
         }
         <a href="/admin/health" class="btn btn-outline">Health details</a>
@@ -61,14 +61,14 @@ else
             </div>
         </div>
 
-        <div class="dash-stat-card">
+        <div class="dash-stat-card" title="Distinct users with an active SignalR (chat/Blazor) connection. Does not include sync clients.">
             <div class="dash-stat-icon dash-stat-icon--users">
                 <MaterialIcon Icon="group" />
             </div>
             <div class="dash-stat-body">
                 <span class="dash-stat-label">Users online</span>
                 <span class="dash-stat-value">@_status.Users.Online</span>
-                <span class="dash-stat-sub">@_status.Users.Connections connection(s)</span>
+                <span class="dash-stat-sub">@_status.Users.Connections connection(s) · SignalR sessions</span>
             </div>
         </div>
 
@@ -131,6 +131,81 @@ else
                 </tbody>
             </table>
         </div>
+    </div>
+
+    @* ── Per-user traffic ──────────────────────────────────────── *@
+    <div class="dash-section">
+        <div class="dash-section-header">
+            <h2>Traffic by user</h2>
+            @if (_status.UsersTraffic.Showing < _status.UsersTraffic.Total)
+            {
+                <span class="system-section-count">
+                    showing top @_status.UsersTraffic.Showing of @_status.UsersTraffic.Total
+                </span>
+            }
+        </div>
+
+        <p class="system-source-note">
+            <strong>Transferred (this session)</strong> — counts every client, including ones that are not in the
+            online-user count above, such as the desktop sync client (which streams over SSE rather than a SignalR
+            hub). Rows can therefore outnumber the online-user count. Totals restart when a user goes quiet.
+        </p>
+
+        @if (_status.UsersTraffic.Entries.Count == 0)
+        {
+            <p class="text-muted">No user traffic yet.</p>
+        }
+        else
+        {
+            <div class="table-container">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>User</th>
+                            <th>SignalR</th>
+                            <th>State</th>
+                            <th>Last activity</th>
+                            <th class="num">In</th>
+                            <th class="num">Out</th>
+                            <th class="num">Total</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var row in _status.UsersTraffic.Entries)
+                        {
+                            <tr class="@(row.IsIdle ? "traffic-row--idle" : string.Empty)">
+                                <td>@row.DisplayName</td>
+                                <td>
+                                    <span class="presence-chip presence-chip--@PresenceCssClass(row.PresenceState)"
+                                          title="@PresenceTooltip(row.PresenceState)">
+                                        @PresenceLabel(row.PresenceState)
+                                    </span>
+                                </td>
+                                <td>
+                                    @if (row.IsIdle)
+                                    {
+                                        <span class="badge badge-warning">Idle</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge badge-success">Active</span>
+                                    }
+                                </td>
+                                <td title="@row.LastActivityUtc.ToString("O")">@FormatTimeAgo(row.LastActivityUtc)</td>
+                                <td class="num">@FormatBytes(row.BytesIn)</td>
+                                <td class="num">@FormatBytes(row.BytesOut)</td>
+                                <td class="num">@FormatBytes(row.BytesTotal)</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+
+            <p class="system-footer-note system-footer-note--inline">
+                These figures come from network counters. The online-user count comes from SignalR connections.
+                They measure different things.
+            </p>
+        }
     </div>
 
     @* ── Background tasks ──────────────────────────────────────── *@

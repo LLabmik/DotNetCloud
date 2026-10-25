@@ -144,6 +144,30 @@ public partial class SystemPage : ComponentBase, IAsyncDisposable
 
     private static string FormatRate(double bytesPerSecond) => $"{FormatBytes((long)Math.Round(bytesPerSecond))}/s";
 
+    private static string PresenceLabel(string state) => state switch
+    {
+        "Online" => "Online",
+        "Away" => "Away",
+        "DoNotDisturb" => "DND",
+        _ => "Not connected",
+    };
+
+    private static string PresenceCssClass(string state) => state switch
+    {
+        "Online" => "online",
+        "Away" => "away",
+        "DoNotDisturb" => "dnd",
+        _ => "none",
+    };
+
+    private static string PresenceTooltip(string state) => state switch
+    {
+        "Online" => "Connected to a SignalR hub and recently active.",
+        "Away" => "Connected to a SignalR hub, but idle.",
+        "DoNotDisturb" => "Connected to a SignalR hub with do-not-disturb enabled.",
+        _ => "Transferring traffic without a SignalR hub connection — typical for sync or token/REST clients.",
+    };
+
     private static string FormatDuration(double ms)
     {
         if (ms < 1000) return $"{ms:F0} ms";
@@ -161,8 +185,7 @@ public partial class SystemPage : ComponentBase, IAsyncDisposable
     }
 
     private static string FormatTimeAgo(DateTimeOffset? time)
-    {
-        if (time is null || time.Value == default || time.Value == DateTimeOffset.MinValue)
+    {        if (time is null || time.Value == default || time.Value == DateTimeOffset.MinValue)
         {
             return "—";
         }

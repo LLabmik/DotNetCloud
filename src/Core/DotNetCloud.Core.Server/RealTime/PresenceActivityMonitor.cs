@@ -1,4 +1,5 @@
 using DotNetCloud.Core.Constants;
+using DotNetCloud.Core.Server.Diagnostics;
 using DotNetCloud.Core.Services;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -28,17 +29,20 @@ internal sealed class PresenceActivityMonitor : BackgroundService
     private readonly PresenceService _presenceService;
     private readonly UserConnectionTracker _connectionTracker;
     private readonly IServiceScopeFactory _scopeFactory;
+    private readonly TrafficAccounting? _traffic;
     private readonly ILogger<PresenceActivityMonitor> _logger;
 
     public PresenceActivityMonitor(
         PresenceService presenceService,
         UserConnectionTracker connectionTracker,
         IServiceScopeFactory scopeFactory,
-        ILogger<PresenceActivityMonitor> logger)
+        ILogger<PresenceActivityMonitor> logger,
+        TrafficAccounting? traffic = null)
     {
         _presenceService = presenceService;
         _connectionTracker = connectionTracker;
         _scopeFactory = scopeFactory;
+        _traffic = traffic;
         _logger = logger;
     }
 
@@ -104,6 +108,10 @@ internal sealed class PresenceActivityMonitor : BackgroundService
     internal async Task SweepAsync(TimeSpan idleThreshold, CancellationToken cancellationToken)
     {
         _presenceService.UpdateIdleThreshold(idleThreshold);
+
+        // Per-user traffic rows use the same definition of "still here" and are pruned on the
+        // sampler tick; this only forwards the admin-configured threshold.
+        _traffic?.UpdateIdleThreshold(idleThreshold);
 
         var onlineUsers = _connectionTracker.GetOnlineUsers();
         foreach (var userId in onlineUsers)

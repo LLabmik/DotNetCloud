@@ -38,6 +38,9 @@ public sealed class AdminSystemStatusDto
     /// <summary>Traffic counters since the core process started.</summary>
     public AdminSystemTrafficDto Traffic { get; set; } = new();
 
+    /// <summary>Per-user traffic for users that are currently active.</summary>
+    public AdminSystemUsersTrafficDto UsersTraffic { get; set; } = new();
+
     /// <summary>Background tasks across the core and module hosts.</summary>
     public List<AdminSystemTaskDto> Tasks { get; set; } = [];
 
@@ -134,4 +137,55 @@ public sealed class AdminSystemTaskDto
 
     /// <summary>Total failed cycles since startup.</summary>
     public int TotalFailures { get; set; }
+}
+
+/// <summary>
+/// Per-user traffic rows for users with tracked traffic in this process lifetime.
+/// </summary>
+/// <remarks>
+/// Counters are live and in-memory: a user who goes quiet is dropped after the idle grace
+/// window and restarts at zero when they return, so these numbers are "since this session
+/// became active", not a cumulative total.
+/// </remarks>
+public sealed class AdminSystemUsersTrafficDto
+{
+    /// <summary>Total number of users currently tracked (before truncation).</summary>
+    public int Total { get; set; }
+
+    /// <summary>Number of rows actually returned.</summary>
+    public int Showing { get; set; }
+
+    /// <summary>Top talkers, ordered by total bytes descending.</summary>
+    public List<AdminSystemUserTrafficDto> Entries { get; set; } = [];
+}
+
+/// <summary>Traffic for one user while they are active.</summary>
+public sealed class AdminSystemUserTrafficDto
+{
+    /// <summary>The user ID.</summary>
+    public Guid UserId { get; set; }
+
+    /// <summary>Resolved display name, or the user ID when the lookup failed.</summary>
+    public string DisplayName { get; set; } = string.Empty;
+
+    /// <summary>Bytes received from the user in this session.</summary>
+    public long BytesIn { get; set; }
+
+    /// <summary>Bytes sent to the user in this session.</summary>
+    public long BytesOut { get; set; }
+
+    /// <summary>Total bytes in both directions.</summary>
+    public long BytesTotal { get; set; }
+
+    /// <summary>When the user last moved a quantum of traffic (UTC).</summary>
+    public DateTimeOffset LastActivityUtc { get; set; }
+
+    /// <summary>Whether the user has been quiet past the idle threshold.</summary>
+    public bool IsIdle { get; set; }
+
+    /// <summary>
+    /// SignalR-derived presence: <c>Online</c>, <c>Away</c>, <c>DoNotDisturb</c> or
+    /// <c>NotConnected</c>. Display-only — never used for counting or expiry.
+    /// </summary>
+    public string PresenceState { get; set; } = string.Empty;
 }
