@@ -81,8 +81,8 @@ public class CsvImportWizardBase : ComponentBase, IDisposable
 
     protected async Task OpenFilePicker()
     {
-        await JsRuntime.InvokeVoidAsync("eval",
-            "document.querySelector('.csv-upload-zone input[type=file]')?.click()");
+        // Named helper (dom-helpers.js): the app CSP forbids 'unsafe-eval'.
+        await JsRuntime.InvokeVoidAsync("dotnetcloudDom.click", ".csv-upload-zone input[type=file]");
     }
 
     protected async Task HandleFileSelected(InputFileChangeEventArgs e)

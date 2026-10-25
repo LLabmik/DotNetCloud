@@ -167,6 +167,70 @@ public sealed class CspInlineScriptTests
             string.Join("; ", offenders));
     }
 
+    /// <summary>
+    /// Fails when C#/Razor code evaluates a JavaScript string through JS interop, e.g.
+    /// <c>Js.InvokeVoidAsync("eval", "…")</c>.
+    /// </summary>
+    /// <remarks>
+    /// The hardened CSP (<c>script-src 'self' 'wasm-unsafe-eval' …</c>) does not allow <c>'unsafe-eval'</c>,
+    /// so the browser throws "Evaluating a string as JavaScript violates the following Content Security
+    /// Policy directive". That silently broke the Music album download (2026-10-24) and the Tracks CSV
+    /// export/import helpers. Call a named function (e.g. <c>dotnetcloudDom.triggerDownload</c>) instead.
+    /// </remarks>
+    [TestMethod]
+    public void ServiceSources_DoNotEvaluateStringsAsJavaScript()
+    {
+        var root = FindRepositoryRoot();
+        if (root is null)
+        {
+            Assert.Inconclusive("Repository root (DotNetCloud.sln) not found; run the tests from the repository.");
+        }
+
+        var evalInteropPattern = new Regex(
+            "(?:InvokeVoidAsync|InvokeAsync\\s*<[^>]+>)\\s*\\(\\s*\"eval\"\\s*[,)]",
+            RegexOptions.Compiled);
+
+        var offenders = new List<string>();
+
+        foreach (var pattern in new[] { "*.cs", "*.razor" })
+        {
+            foreach (var file in Directory.EnumerateFiles(Path.Combine(root!, "src"), pattern, SearchOption.AllDirectories))
+            {
+                if (file.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}", StringComparison.Ordinal) ||
+                    file.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}", StringComparison.Ordinal))
+                {
+                    continue;
+                }
+
+                var lineNumber = 0;
+                foreach (var line in File.ReadAllLines(file))
+                {
+                    lineNumber++;
+                    var trimmed = line.TrimStart();
+
+                    // Skip C# line/doc comments, which may describe the forbidden pattern.
+                    if (trimmed.StartsWith("//", StringComparison.Ordinal) ||
+                        trimmed.StartsWith("*", StringComparison.Ordinal))
+                    {
+                        continue;
+                    }
+
+                    if (evalInteropPattern.IsMatch(line))
+                    {
+                        offenders.Add($"{Path.GetRelativePath(root!, file).Replace('\\', '/')}:{lineNumber}");
+                    }
+                }
+            }
+        }
+
+        Assert.AreEqual(
+            0,
+            offenders.Count,
+            "JS interop must not evaluate strings: the app CSP forbids 'unsafe-eval', so the browser throws " +
+            "an EvalError and the action silently fails. Use a named JS function instead. Offenders: " +
+            string.Join("; ", offenders));
+    }
+
     private static List<InlineScript> FindInlineScripts(string repositoryRoot)
     {
         var sourceRoot = Path.Combine(repositoryRoot, "src");

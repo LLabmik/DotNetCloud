@@ -1064,9 +1064,9 @@ public partial class MusicPage : IAsyncDisposable
         try
         {
             var url = $"/api/v1/music/albums/{albumId}/download";
-            // Embed URL directly — eval() doesn't forward extra arguments
-            await Js.InvokeVoidAsync("eval",
-                $"var a=document.createElement('a');a.href='{url}';a.download='';a.style.display='none';document.body.appendChild(a);a.click();document.body.removeChild(a);");
+            // Named helper (dom-helpers.js): the app CSP forbids 'unsafe-eval', so an
+            // eval()-based anchor would throw a JSException in the browser.
+            await Js.InvokeVoidAsync("dotnetcloudDom.triggerDownload", url);
         }
         catch (Exception ex)
         {

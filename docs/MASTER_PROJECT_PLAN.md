@@ -12,6 +12,18 @@
 
 ---
 
+> **Recent fix (2026-10-24, branch `fix/music-downloads`):** **Blazor Music album download did nothing — `eval`-based JS interop blocked by the CSP.**
+> `MusicPage.DownloadAlbumAsync` created the download anchor with `Js.InvokeVoidAsync("eval", …)`; the hardened
+> CSP has no `'unsafe-eval'`, so the browser threw `EvalError: Evaluating a string as JavaScript violates the following
+> Content Security Policy directive` (logged as `ERR Error downloading album … JSException`) and no request reached
+> `/api/v1/music/albums/{id}/download`. Fix: new CSP-safe `wwwroot/js/dom-helpers.js`
+> (`window.dotnetcloudDom.{triggerDownload, downloadData, click, scrollIntoView}`) loaded from `App.razor`, and the
+> music download now calls `dotnetcloudDom.triggerDownload(url)`. The same `eval` pattern was equally dead in four
+> Tracks call sites (Kanban + Backlog CSV export, CSV import file picker, command-palette scroll) and was converted too.
+> New `CspInlineScriptTests.ServiceSources_DoNotEvaluateStringsAsJavaScript` guard. Tests: CSP **5**, Music **439**,
+> Tracks **205** pass; solution build 0 errors. ✓ Deployed 15/15 (hashes verified, `/health/ready` 200, `dom-helpers.js`
+> served 200, helper strings present in the deployed Music/Tracks assemblies). ☐ Browser E2E awaiting user confirmation.
+
 > **Recent feature (2026-10-24, branch `feature/admin-system-page`):** **new admin-only System page at `/admin/system`**
 > showing CPU/memory per app process (core + every running module host), users online and active SignalR connections,
 > global bytes in/out since core start (HTTP payload + WebSocket frames), and scheduled background tasks for core plus

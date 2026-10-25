@@ -294,8 +294,8 @@ public class TracksCommandPaletteBase : ComponentBase, IDisposable
 
     private async Task ScrollSelectedIntoViewAsync()
     {
-        await JsRuntime.InvokeVoidAsync("eval",
-            "document.querySelector('.cp-item-selected')?.scrollIntoView({ block: 'nearest' })");
+        // Named helper (dom-helpers.js): the app CSP forbids 'unsafe-eval'.
+        await JsRuntime.InvokeVoidAsync("dotnetcloudDom.scrollIntoView", ".cp-item-selected", "nearest");
     }
 
     protected int FindFlatIndex(PaletteItem item)
