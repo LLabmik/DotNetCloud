@@ -11,10 +11,10 @@
         <p class="text-muted system-subtitle">Live process, traffic and background-task metrics. Refreshes every 5 seconds.</p>
     </div>
     <div class="system-header-actions">
-        @if (_status is not null)
+        @if (_status is not null && _stale)
         {
-            <span class="system-updated @(_stale ? "system-updated--stale" : string.Empty)">
-                @( _stale ? $"stale — last updated {FormatTimeAgo(_lastSuccessUtc)}" : $"updated {FormatTimeAgo(_lastSuccessUtc)}" )
+            <span class="system-updated system-updated--stale">
+                stale — last updated @FormatTimeAgo(_lastSuccessUtc)
             </span>
         }
         <a href="/admin/health" class="btn btn-outline">Health details</a>
@@ -162,7 +162,7 @@ else
                     <thead>
                         <tr>
                             <th>User</th>
-                            <th>Presence</th>
+                            <th>SignalR</th>
                             <th>State</th>
                             <th>Last activity</th>
                             <th class="num">In</th>

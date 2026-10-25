@@ -260,3 +260,7 @@ Naming: `MethodName_Condition_ExpectedResult`.
 - Deploy (`sudo ./scripts/deploy.sh --force --verify`) and verify against a live admin session before commit
   approval: counters climb for the browsing user, an idle tab greys out, a second account shows as its own
   row, and unattributed stays flat while browsing.
+- ✓ Done 2026-10-25: deployed and verified live — per-user counters climb between polls, a quiet user greys out
+  as `Idle` and is dropped after the grace window, a second account appears as its own row, and the page's own
+  polling is excluded. The presence column is headed **SignalR** (renamed after the live check, since a traffic
+  "Active" next to a hub-derived "Away" read as a contradiction).

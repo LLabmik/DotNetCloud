@@ -6840,8 +6840,7 @@ Plan document: `docs/ADMIN_SYSTEM_PAGE_PLAN.md`.
 
 ### Status
 
-**completed** — implemented, solution builds clean, tests green. Live verification on a deployed instance still
-outstanding (see Notes).
+**completed** — implemented, solution builds clean, tests green, **deployed and verified live** on mint22.
 
 Plan document: `docs/ADMIN_SYSTEM_PAGE_PER_USER_TRAFFIC_PLAN.md`.
 
@@ -6880,9 +6879,14 @@ Plan document: `docs/ADMIN_SYSTEM_PAGE_PER_USER_TRAFFIC_PLAN.md`.
 - **Presence is display-only** — it never drives row existence, counting or expiry. A row cannot grey out while
   bytes are still flowing because of a hub reconnect.
 - Per-user totals are "since this entry became active", not daily usage; the column is labelled accordingly.
-- Verification done: full solution build clean, `Core.Server.Tests` **864 pass / 2 skipped**.
-- ☐ Outstanding: deploy (`sudo ./scripts/deploy.sh --force --verify`) and confirm live — rows climb while
-  browsing, an idle tab greys out, a second account appears as its own row, a sync client shows
-  `Not connected`, and the admin's own row does not grow from polling.
+- ✓ Verification done: full solution build clean, `Core.Server.Tests` **864 pass / 2 skipped**, deployed with
+  `--force --verify` (15/15 targets, hashes verified, `/health/ready` Healthy 14/14).
+- ✓ Verified live on mint22: per-user rows appear and counters climb between 5 s polls (265.3 → 265.4 KB); a
+  second account showed as its own row; a user 5 min quiet rendered greyed as **Idle** inside the grace window and
+  was dropped afterwards; the online-user tile reads "N connection(s) · SignalR sessions"; the table caption and
+  footer note render; browser console clean.
+- ✓ Cosmetic follow-ups from the live check: the traffic table's presence column is headed **SignalR** (it had
+  read "Presence" next to a traffic-derived "Active", which looked self-contradictory), and the header's
+  "updated Ns ago" stamp is gone — only the **stale** warning is shown, when a refresh actually fails.
 
 
