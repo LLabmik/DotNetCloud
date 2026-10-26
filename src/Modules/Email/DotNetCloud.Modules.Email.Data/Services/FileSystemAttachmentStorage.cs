@@ -1,4 +1,5 @@
 using System.Security.Cryptography;
+using System.Text.RegularExpressions;
 using DotNetCloud.Modules.Email.Services;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -25,6 +26,11 @@ public sealed class AttachmentStorageOptions
 public sealed class FileSystemAttachmentStorage : IAttachmentStorage
 {
     private const int BufferSize = 80 * 1024; // 80 KB buffer
+
+    /// <summary>A storage key is exactly one lowercase SHA-256 hex digest.</summary>
+    private static readonly Regex StorageKeyPattern = new(
+        "^[0-9a-f]{64}$",
+        RegexOptions.Compiled | RegexOptions.CultureInvariant);
 
     private readonly string _basePath;
     private readonly long _maxAttachmentSize;
@@ -70,7 +76,8 @@ public sealed class FileSystemAttachmentStorage : IAttachmentStorage
         content.Position = 0;
 
         // Ensure directory exists for content-addressable path
-        var storagePath = GetStoragePath(hexHash);
+        var storagePath = TryGetStoragePath(hexHash)
+            ?? throw new InvalidOperationException("Generated attachment key failed validation.");
         var dir = Path.GetDirectoryName(storagePath)!;
         Directory.CreateDirectory(dir);
 
@@ -107,8 +114,8 @@ public sealed class FileSystemAttachmentStorage : IAttachmentStorage
     /// <inheritdoc />
     public Task<Stream?> OpenReadAsync(string storageKey, CancellationToken ct = default)
     {
-        var path = GetStoragePath(storageKey);
-        if (!File.Exists(path))
+        var path = TryGetStoragePath(storageKey);
+        if (path is null || !File.Exists(path))
             return Task.FromResult<Stream?>(null);
 
         return Task.FromResult<Stream?>(new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read, BufferSize, FileOptions.Asynchronous));
@@ -117,8 +124,8 @@ public sealed class FileSystemAttachmentStorage : IAttachmentStorage
     /// <inheritdoc />
     public Task<bool> DeleteAsync(string storageKey, CancellationToken ct = default)
     {
-        var path = GetStoragePath(storageKey);
-        if (!File.Exists(path))
+        var path = TryGetStoragePath(storageKey);
+        if (path is null || !File.Exists(path))
             return Task.FromResult(false);
 
         File.Delete(path);
@@ -129,8 +136,8 @@ public sealed class FileSystemAttachmentStorage : IAttachmentStorage
     /// <inheritdoc />
     public Task<long> GetSizeAsync(string storageKey, CancellationToken ct = default)
     {
-        var path = GetStoragePath(storageKey);
-        if (!File.Exists(path))
+        var path = TryGetStoragePath(storageKey);
+        if (path is null || !File.Exists(path))
             return Task.FromResult(0L);
 
         var fi = new FileInfo(path);
@@ -163,21 +170,46 @@ public sealed class FileSystemAttachmentStorage : IAttachmentStorage
     /// </summary>
     public DateTime? GetCreationTime(string storageKey)
     {
-        var path = GetStoragePath(storageKey);
-        if (!File.Exists(path))
+        var path = TryGetStoragePath(storageKey);
+        if (path is null || !File.Exists(path))
             return null;
 
         return new FileInfo(path).CreationTimeUtc;
     }
 
     /// <summary>
-    /// Resolves a storage key to its filesystem path.
-    /// Pattern: {basePath}/{hash[0..2]}/{hash[2..4]}/{hash}
+    /// Resolves a storage key to its filesystem path, or <see langword="null"/> when the key is
+    /// not a valid content hash or would resolve outside the storage root.
     /// </summary>
-    private string GetStoragePath(string storageKey)
+    /// <remarks>
+    /// The key arrives from a client in the attachment and send APIs, so it must never be treated
+    /// as an arbitrary path. Accepting only 64 lowercase hex characters removes separators and
+    /// drive/root syntax entirely; the containment check is a second line of defence for any
+    /// platform-specific path parsing that slips through.
+    /// </remarks>
+    private string? TryGetStoragePath(string storageKey)
     {
-        var prefix2 = storageKey[..2];
-        var prefix4 = storageKey[2..4];
-        return Path.Combine(_basePath, prefix2, prefix4, storageKey);
+        if (string.IsNullOrEmpty(storageKey) || !StorageKeyPattern.IsMatch(storageKey))
+        {
+            _logger.LogWarning("Rejected attachment storage key with unexpected format.");
+            return null;
+        }
+
+        var candidate = Path.Combine(_basePath, storageKey[..2], storageKey[2..4], storageKey);
+        var fullPath = Path.GetFullPath(candidate);
+
+        var root = Path.GetFullPath(_basePath);
+        if (!root.EndsWith(Path.DirectorySeparatorChar))
+        {
+            root += Path.DirectorySeparatorChar;
+        }
+
+        if (!fullPath.StartsWith(root, StringComparison.Ordinal))
+        {
+            _logger.LogWarning("Rejected attachment storage key that resolved outside the storage root.");
+            return null;
+        }
+
+        return fullPath;
     }
 }

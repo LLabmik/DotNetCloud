@@ -32,6 +32,7 @@ public sealed class NotesGrpcApiClient : INotesApiClient, IDisposable
 {
     private readonly NotesGrpcClientOptions _options;
     private readonly ModuleEndpointProvider _endpointProvider;
+    private readonly Supervisor.IModuleGrpcChannelProvider _channelManager;
     private readonly IHttpContextAccessor _httpContextAccessor;
     private readonly ILogger<NotesGrpcApiClient> _logger;
     private readonly Lazy<GrpcChannel> _channel;
@@ -42,11 +43,13 @@ public sealed class NotesGrpcApiClient : INotesApiClient, IDisposable
     public NotesGrpcApiClient(
         IOptions<NotesGrpcClientOptions> options,
         ModuleEndpointProvider endpointProvider,
+        Supervisor.IModuleGrpcChannelProvider channelManager,
         IHttpContextAccessor httpContextAccessor,
         ILogger<NotesGrpcApiClient> logger)
     {
         _options = options.Value;
         _endpointProvider = endpointProvider;
+        _channelManager = channelManager;
         _httpContextAccessor = httpContextAccessor;
         _logger = logger;
         _channel = new Lazy<GrpcChannel>(CreateChannel);
@@ -64,15 +67,8 @@ public sealed class NotesGrpcApiClient : INotesApiClient, IDisposable
     {
         var address = _endpointProvider.GetEndpoint("dotnetcloud.notes");
         _logger.LogInformation("NotesGrpcApiClient connecting to {Address}", address);
-        return GrpcChannel.ForAddress(address, new GrpcChannelOptions
-        {
-            UnsafeUseInsecureChannelCallCredentials = true,
-            HttpHandler = new SocketsHttpHandler
-            {
-                EnableMultipleHttp2Connections = true,
-                ConnectTimeout = TimeSpan.FromSeconds(5)
-            }
-        });
+        // Managed channel: it attaches the supervisor-issued credential the module host requires.
+        return _channelManager.GetOrCreateChannel("dotnetcloud.notes", address);
     }
 
     // ─── Note CRUD ──────────────────────────────────────────────────────────
@@ -483,15 +479,8 @@ public sealed class NotesGrpcApiClient : INotesApiClient, IDisposable
     /// <inheritdoc />
     public void Dispose()
     {
-        if (!_disposed)
-        {
-            _disposed = true;
-            if (_channel.IsValueCreated)
-            {
-                try
-                { _channel.Value.Dispose(); }
-                catch { /* best effort */ }
-            }
-        }
+        // The channel belongs to GrpcChannelManager and is shared, so there is nothing to release.
+        if (_disposed) return;
+        _disposed = true;
     }
 }

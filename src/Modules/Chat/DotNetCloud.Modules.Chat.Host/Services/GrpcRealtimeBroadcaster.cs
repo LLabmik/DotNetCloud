@@ -1,5 +1,6 @@
 using System.Text.Json;
 using DotNetCloud.Core.Capabilities;
+using DotNetCloud.Core.Grpc;
 using DotNetCloud.Core.Grpc.Capabilities;
 using Grpc.Core;
 using Grpc.Net.Client;
@@ -63,7 +64,7 @@ internal sealed class GrpcRealtimeBroadcaster : IRealtimeBroadcaster, IDisposabl
         try
         {
             var payloadJson = JsonSerializer.Serialize(message);
-            var metadata = new Metadata { { "module-id", _moduleId } };
+            var metadata = ModuleIdentityMetadata.Create(_moduleId);
 
             await _client.BroadcastRealtimeEventAsync(new BroadcastRealtimeEventRequest
             {
@@ -86,7 +87,7 @@ internal sealed class GrpcRealtimeBroadcaster : IRealtimeBroadcaster, IDisposabl
         try
         {
             var payloadJson = JsonSerializer.Serialize(message);
-            var metadata = new Metadata { { "module-id", _moduleId } };
+            var metadata = ModuleIdentityMetadata.Create(_moduleId);
 
             await _client.BroadcastRealtimeEventAsync(new BroadcastRealtimeEventRequest
             {
@@ -109,7 +110,7 @@ internal sealed class GrpcRealtimeBroadcaster : IRealtimeBroadcaster, IDisposabl
         try
         {
             var payloadJson = JsonSerializer.Serialize(message);
-            var metadata = new Metadata { { "module-id", _moduleId } };
+            var metadata = ModuleIdentityMetadata.Create(_moduleId);
 
             await _client.BroadcastRealtimeEventAsync(new BroadcastRealtimeEventRequest
             {

@@ -1,5 +1,6 @@
 using DotNetCloud.Core.Authorization;
 using DotNetCloud.Core.Events;
+using DotNetCloud.Core.Grpc;
 using DotNetCloud.Core.Grpc.Capabilities;
 using DotNetCloud.Modules.Calendar.Services;
 using Grpc.Core;
@@ -97,9 +98,8 @@ internal sealed class CalendarEventBroadcastHandler :
         {
             var json = System.Text.Json.JsonSerializer.Serialize(payload);
 
-            // Core.Server's AuthenticationInterceptor rejects capability calls without the
-            // module-id metadata header (Unauthenticated: "Missing module-id metadata header").
-            var metadata = new Metadata { { "module-id", _moduleId } };
+            // The core rejects capability calls that do not carry the supervisor-issued credential.
+            var metadata = ModuleIdentityMetadata.Create(_moduleId);
 
             await _coreClient.BroadcastRealtimeEventAsync(new BroadcastRealtimeEventRequest
             {

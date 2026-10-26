@@ -1,4 +1,6 @@
 using DotNetCloud.Core.Modules.Supervisor;
+using DotNetCloud.Core.Server.Supervisor;
+using Grpc.Net.Client;
 using Microsoft.Extensions.Logging;
 
 namespace DotNetCloud.Core.Server.Grpc.Clients;
@@ -11,18 +13,33 @@ namespace DotNetCloud.Core.Server.Grpc.Clients;
 public sealed class ModuleEndpointProvider
 {
     private readonly IProcessSupervisor _supervisor;
+    private readonly IModuleGrpcChannelProvider _channelProvider;
     private readonly ProcessSupervisorOptions _options;
     private readonly ILogger<ModuleEndpointProvider> _logger;
 
     public ModuleEndpointProvider(
         IProcessSupervisor supervisor,
+        IModuleGrpcChannelProvider channelProvider,
         Microsoft.Extensions.Options.IOptions<ProcessSupervisorOptions> options,
         ILogger<ModuleEndpointProvider> logger)
     {
         _supervisor = supervisor;
+        _channelProvider = channelProvider;
         _options = options.Value;
         _logger = logger;
     }
+
+    /// <summary>
+    /// Gets the authenticated gRPC channel for a module.
+    /// </summary>
+    /// <param name="moduleId">The module identifier.</param>
+    /// <returns>The shared, credential-bearing channel. Do not dispose it.</returns>
+    /// <remarks>
+    /// Module hosts reject unauthenticated data-plane calls, so every core→module client must use
+    /// this rather than building its own <see cref="GrpcChannel.ForAddress(string, GrpcChannelOptions)"/>.
+    /// </remarks>
+    public GrpcChannel GetChannel(string moduleId) =>
+        _channelProvider.GetOrCreateChannel(moduleId, GetEndpoint(moduleId));
 
     /// <summary>
     /// Gets the gRPC endpoint for a module. Uses the running module's endpoint

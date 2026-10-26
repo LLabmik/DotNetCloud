@@ -21,10 +21,13 @@ internal static class SystemdServiceHelper
     private const string ServiceGroup = "dotnetcloud";
 
     /// <summary>
-    /// Default TMDB API key for video metadata enrichment. Shipped by default
-    /// (see docs/admin/server/CONFIGURATION.md); set empty to disable.
+    /// Default TMDB API key for video metadata enrichment.
     /// </summary>
-    private const string TmdbApiKeyDefault = "a15fa8fabf06e1d13623369b28bba1c5";
+    /// <remarks>
+    /// Deliberately empty: third-party API keys must never be committed to the repository, and an
+    /// empty value simply disables enrichment until an operator supplies their own key.
+    /// </remarks>
+    private const string TmdbApiKeyDefault = "";
 
     /// <summary>
     /// Returns <c>true</c> when running on Linux and the systemd service file exists.
@@ -143,6 +146,7 @@ internal static class SystemdServiceHelper
             # Environment
             Environment=DOTNET_ENVIRONMENT=Production
             Environment=DOTNET_ROOT=/usr/lib/dotnet
+            # TMDB enrichment is opt-in: set Video__Enrichment__TmdbApiKey in {ConfigDir}/env.
             Environment=Video__Enrichment__TmdbApiKey={TmdbApiKeyDefault}
             EnvironmentFile=-{ConfigDir}/env
             Environment=DOTNETCLOUD_CONFIG_DIR={ConfigDir}

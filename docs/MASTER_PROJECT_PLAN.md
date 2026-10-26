@@ -1623,6 +1623,36 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 **Blocking Issues:** None
 **Notes:** All remediation tests pass in targeted runs, including explicit traversal/symlink guard coverage and socket mode verification.
 
+### Step: server-security-remediation-p0-2026-10-25 - Server Security Audit Remediation (P0)
+
+**Status:** in-progress 🔄
+**Duration:** ~1 day
+**Description:** Implemented workstreams 1–3 of `docs/SECURITY_AUDIT_REMEDIATION_PLAN.md` (11 findings: 9 high, 1 medium, 1 low) on branch `fix/security-p0`. The audit was source-only, so every fix is proven by a new negative test rather than by inspection.
+
+**Deliverables:**
+
+- ✓ Module identity bound to a supervisor-issued per-launch credential (`ModuleCredentialStore`, `AuthenticationInterceptor`); `caller-type` header ignored and `CallerType.System` unreachable from the module transport
+- ✓ `ModuleCapabilityGrants` enforced per capability RPC (`CapabilityGrantInterceptor`) with manifest-provisioned grants
+- ✓ Core→module gRPC channel authenticated (`ModulePeerAuthenticationInterceptor` on all 15 module hosts); core→module clients routed through `IModuleGrpcChannelProvider`
+- ✓ Core-signed end-user assertion (ECDSA P-256) replaces the self-asserted `caller-user-id`; minted at the module HTTP proxy, adopted by module hosts, verified by the core with audience + expiry checks
+- ✓ Client-facing `FilesService` gRPC auth split from module transport auth
+- ✓ `IAccountCredentialInvalidator` revokes OpenIddict tokens and rolls the security stamp on disable/delete/reset/password change
+- ✓ Form login enforces the active-account predicate before credential acceptance
+- ✓ Antiforgery tokens on login/logout/MFA/change-password forms via `RequireAntiforgeryToken`
+- ✓ Chunked upload requires `ReadWrite` on target and parent at initiation and completion
+- ✓ Admin shared-folder grants fail closed; `GetGroupsForUser` capability RPC added
+- ✓ Chunk upload size/quota bounded and recomputed from stored bytes
+- ✓ Email attachment storage keys validated and path-contained
+- ✓ HLS playlist/segment route requires an owned-video entitlement lookup
+- ✓ TMDB key removed from source and installer; CI third-party key scan added
+- ☐ Video controller regression test for the HLS entitlement
+- ☐ Operator rotation of the exposed TMDB key
+- ☐ Build/test matrix reported back into the handoff and the section archived
+
+**Dependencies:** `docs/SECURITY_AUDIT_REMEDIATION_PLAN.md`
+**Blocking Issues:** None
+**Notes:** `dotnet build DotNetCloud.CI.slnf -c Release` clean; full `dotnet test DotNetCloud.CI.slnf --settings .runsettings` green across 22 projects. Deviations from the plan: WS1b's per-service `request.UserId` comparison was replaced by the core-signed assertion model (approved); WS3b additionally required a new `GetGroupsForUser` capability RPC, without which failing closed would have hidden every group-granted folder. One intermittent `Core.Server.Tests` failure was observed once across full-solution runs and not reproduced. Not yet committed.
+
 ---
 
 ## Phase 2: Chat & Notifications & Android

@@ -181,7 +181,8 @@ builder.Services.AddSingleton<DotNetCloud.Core.Capabilities.IUserDirectory, Grpc
 builder.Services.AddSingleton<DotNetCloud.Core.Capabilities.IRealtimeBroadcaster, GrpcRealtimeBroadcaster>();
 
 // gRPC
-builder.Services.AddGrpc();
+builder.Services.AddGrpc(options =>
+    options.Interceptors.Add<DotNetCloud.Core.Grpc.ModulePeerAuthenticationInterceptor>());
 
 // REST API controllers
 builder.Services.AddControllers();
@@ -191,6 +192,9 @@ builder.Services.AddHealthChecks()
     .AddCheck<ChatHealthCheck>("chat_module");
 
 var app = builder.Build();
+
+// Adopt the core-signed end-user assertion before anything can call back into the core.
+app.UseModuleUserAssertion();
 
 // Show full exception details only in development.
 if (app.Environment.IsDevelopment())

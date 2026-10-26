@@ -1,4 +1,5 @@
 using DotNetCloud.Core.Events;
+using DotNetCloud.Core.Grpc;
 using DotNetCloud.Core.Grpc.Capabilities;
 using Google.Protobuf;
 using Grpc.Core;
@@ -48,7 +49,7 @@ internal sealed class CalendarReminderEventHandler : IEventHandler<CalendarRemin
         // module-id metadata header (Unauthenticated: "Missing module-id metadata header").
         try
         {
-            var metadata = new Metadata { { "module-id", _moduleId } };
+            var metadata = ModuleIdentityMetadata.Create(_moduleId);
 
             var notifyResponse = await _coreClient.SendNotificationAsync(new SendNotificationRequest
             {
@@ -87,7 +88,7 @@ internal sealed class CalendarReminderEventHandler : IEventHandler<CalendarRemin
             };
 
             var json = System.Text.Json.JsonSerializer.Serialize(realtimePayload);
-            var metadata = new Metadata { { "module-id", _moduleId } };
+            var metadata = ModuleIdentityMetadata.Create(_moduleId);
 
             var broadcastResponse = await _coreClient.BroadcastRealtimeEventAsync(new BroadcastRealtimeEventRequest
             {

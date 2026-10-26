@@ -71,7 +71,7 @@
 - **Effort:** 2–3 days. Requires a module credential at spawn plus registry validation and end-to-end tests; touches core, supervisor and all module hosts.
 - **Findings:** 2
 
-#### ☐ grpc/core-capabilities/self-asserted-module-id — high
+#### ✓ grpc/core-capabilities/self-asserted-module-id — high
 
 - **Title:** Core capability gRPC accepts any non-empty self-asserted module-id and trusts caller identity headers
 - **Location:** `src/Core/DotNetCloud.Core.Server/Grpc/Configuration/GrpcServerConfiguration.cs:18` → `src/Core/DotNetCloud.Core.Server/Grpc/Services/GrpcHealthServiceImpl.cs:466`
@@ -81,7 +81,7 @@
 - **Regression test:** gRPC integration test: a call with no module credential is rejected; a valid module credential limiter still cannot set `caller-user-id`/`caller-type` to another principal or to System.
 - **Done when:** the negative test above fails on current source and passes after the change, and the positive path still works.
 
-#### ☐ grpc/module-hosts/request-user-id-without-peer-auth — high
+#### ✓ grpc/module-hosts/request-user-id-without-peer-auth — high
 
 - **Title:** Module host data-plane gRPC services are anonymous and act on a request-supplied user id
 - **Location:** `src/Modules/Calendar/DotNetCloud.Modules.Calendar.Host/Program.cs:47` → `src/Core/DotNetCloud.Core.Server/Supervisor/GrpcChannelManager.cs:72`
@@ -96,7 +96,7 @@
 - **Effort:** 1–2 days. Security stamp, token revocation on state change, `IsActive` at the credential-acceptance point, antiforgery on session endpoints, audience/scope binding.
 - **Findings:** 6
 
-#### ☐ core-auth:account-state-transition-no-token-revocation — high
+#### ✓ core-auth:account-state-transition-no-token-revocation — high
 
 - **Title:** Disabling an account revokes nothing: the sliding cookie session, access tokens and refresh tokens all survive
 - **Location:** `src/Core/DotNetCloud.Core.Server/Controllers/UserManagementController.cs:188` → `src/Core/DotNetCloud.Core.Auth/Extensions/AuthServiceExtensions.cs:99`
@@ -106,7 +106,7 @@
 - **Regression test:** Integration test: disable a user, then reuse an access token and a refresh token issued before the change — both must fail; the cookie session must not renew.
 - **Done when:** the negative test above fails on current source and passes after the change, and the positive path still works.
 
-#### ☐ core-session:disabled-account-form-login — high
+#### ✓ core-session:disabled-account-form-login — high
 
 - **Title:** Form login (POST /auth/session/login) accepts a disabled account and issues a full session
 - **Location:** `src/UI/DotNetCloud.UI.Web/Components/Pages/Auth/Login.razor:14` → `src/Core/DotNetCloud.Core.Auth/Services/AuthService.cs:286`
@@ -126,7 +126,7 @@
 - **Regression test:** Authorization test: removing Administrator from a user invalidates the cached `dnc:perm=admin` claim on the next request (or within a documented, tested window).
 - **Done when:** the negative test above fails on current source and passes after the change, and the positive path still works.
 
-#### ☐ core-session:login-form-csrf — medium
+#### ✓ core-session:login-form-csrf — medium
 
 - **Title:** Login form POST has no antiforgery validation, enabling cross-site login CSRF
 - **Location:** `src/UI/DotNetCloud.UI.Web/Components/Pages/Auth/Login.razor:14` → `src/Core/DotNetCloud.Core.Server/Controllers/AuthSessionController.cs:256`
@@ -161,7 +161,7 @@
 - **Effort:** 1–2 days. One write-permission predicate, fail-closed grant resolution, quota recompute, one path-containment helper, one stream entitlement check, key rotation.
 - **Findings:** 7
 
-#### ☐ authz.video.hls-segment.no-video-entitlement — high
+#### ✓ authz.video.hls-segment.no-video-entitlement — high
 
 - **Title:** HLS playlist/segment route serves any video's transcoded stream to any authenticated session
 - **Location:** `src/Modules/Video/DotNetCloud.Modules.Video.Host/Controllers/VideoController.cs:1229` → `src/Modules/Video/DotNetCloud.Modules.Video.Host/Controllers/VideoController.cs:1320`
@@ -171,7 +171,7 @@
 - **Regression test:** Video test: user B requesting user A's HLS playlist and segment returns 404/403; a valid stream token for A still works.
 - **Done when:** the negative test above fails on current source and passes after the change, and the positive path still works.
 
-#### ☐ email.attachment.storage-key-path-traversal — high
+#### ✓ email.attachment.storage-key-path-traversal — high
 
 - **Title:** Client-supplied email attachment storage key is resolved as a filesystem path, letting any authenticated user read arbitrary server files
 - **Location:** `src/Modules/Email/DotNetCloud.Modules.Email.Host/Controllers/EmailController.cs:153` → `src/Modules/Email/DotNetCloud.Modules.Email.Host/Controllers/EmailController.cs:535`
@@ -181,7 +181,7 @@
 - **Regression test:** Email host test: attachment key `../../appsettings.json` and an absolute path both return 404/400 and never read outside the attachment root.
 - **Done when:** the negative test above fails on current source and passes after the change, and the positive path still works.
 
-#### ☐ files-admin-shared-folder-group-grant-fail-open — high
+#### ✓ files-admin-shared-folder-group-grant-fail-open — high
 
 - **Title:** Admin shared-folder group grants fail open in the Files module host, exposing every mounted folder to any authenticated user
 - **Location:** `src/Modules/Files/DotNetCloud.Modules.Files.Host/Controllers/FilesController.cs:89` → `src/Modules/Files/DotNetCloud.Modules.Files.Host/Controllers/FilesController.cs:450`
@@ -191,7 +191,7 @@
 - **Regression test:** Admin shared-folder test: an authenticated user with no matching grant does not see the mounted folder; a missing/empty group resolution denies by default.
 - **Done when:** the negative test above fails on current source and passes after the change, and the positive path still works.
 
-#### ☐ files-chunk-storage-quota-bypass — high
+#### ✓ files-chunk-storage-quota-bypass — high
 
 - **Title:** Chunk uploads store bytes far beyond the accounted quota because only the client-declared TotalSize is reserved, recorded and recalculated
 - **Location:** `src/Modules/Files/DotNetCloud.Modules.Files.Host/Controllers/FilesController.cs:319` → `src/Modules/Files/DotNetCloud.Modules.Files.Data/Services/QuotaService.cs:251`
@@ -201,7 +201,7 @@
 - **Regression test:** Quota test: completing chunks whose stored bytes exceed the user quota is rejected; usage is recomputed from stored bytes, not the declared TotalSize.
 - **Done when:** the negative test above fails on current source and passes after the change, and the positive path still works.
 
-#### ☐ files-chunked-upload-missing-target-write-authorization — high
+#### ✓ files-chunked-upload-missing-target-write-authorization — high
 
 - **Title:** Chunked upload accepts any target parent or file node and writes into another user's tree without a permission check
 - **Location:** `src/Modules/Files/DotNetCloud.Modules.Files.Host/Controllers/FilesController.cs:319` → `src/Modules/Files/DotNetCloud.Modules.Files.Data/Services/ChunkedUploadService.cs:349`
@@ -221,7 +221,7 @@
 - **Regression test:** Concurrency test: N parallel downloads against a MaxDownloads=1 share result in exactly one success (conditional update or concurrency token).
 - **Done when:** the negative test above fails on current source and passes after the change, and the positive path still works.
 
-#### ☐ secret-disclosure/tmdb-api-key-committed-installer — low
+#### ✓ secret-disclosure/tmdb-api-key-committed-installer — low
 
 - **Title:** TMDB API v3 key committed in source and written into every systemd unit as the default enrichment credential
 - **Location:** `tools/install.sh:712` → `src/Modules/Video/DotNetCloud.Modules.Video.Data/Services/VideoSettingsProvider.cs:48`

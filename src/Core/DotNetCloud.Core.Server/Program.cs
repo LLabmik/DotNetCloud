@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using DotNetCloud.Core.Auth.Extensions;
 using DotNetCloud.Core.Data.Context;
 using DotNetCloud.Core.Data.Services;
@@ -1249,6 +1250,7 @@ public class Program
         var supervisor = app.Services.GetRequiredService<IProcessSupervisor>();
         var logger = app.Services.GetRequiredService<ILoggerFactory>().CreateLogger("ModuleApiProxy");
         var forwarder = app.Services.GetRequiredService<IHttpForwarder>();
+        var assertionKeyRing = app.Services.GetRequiredService<Supervisor.ModuleAssertionKeyRing>();
 
         // Module API prefix → supervisor module ID
         var moduleMappings = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
@@ -1302,6 +1304,8 @@ public class Program
         {
             var pattern = $"/{prefix}/{{**catch-all}}";
             var capturedPrefix = prefix;
+            // One transformer per module: it mints the end-user assertion scoped to this module.
+            var transformer = new ModuleApiProxyTransformer(moduleId, assertionKeyRing);
 
             app.Map(pattern, async httpContext =>
             {
@@ -1328,8 +1332,7 @@ public class Program
                         Version = System.Net.HttpVersion.Version20,
                         VersionPolicy = System.Net.Http.HttpVersionPolicy.RequestVersionOrHigher,
                     },
-                    ModuleApiProxyTransformer.Instance);
-
+                    transformer);
                 if (error != ForwarderError.None && !httpContext.Response.HasStarted)
                 {
                     var sanitizedPath = httpContext.Request.Path.ToString()
@@ -1360,7 +1363,26 @@ public class Program
     /// </remarks>
     internal sealed class ModuleApiProxyTransformer : HttpTransformer
     {
-        public static readonly ModuleApiProxyTransformer Instance = new();
+        public static readonly ModuleApiProxyTransformer Instance = new(null, null);
+
+        private readonly string? _moduleId;
+        private readonly Supervisor.ModuleAssertionKeyRing? _assertionKeyRing;
+
+        /// <summary>
+        /// Initializes a new instance of the <see cref="ModuleApiProxyTransformer"/> class.
+        /// </summary>
+        /// <param name="moduleId">
+        /// The module the proxy target belongs to, used as the assertion audience. Null for the
+        /// shared instance, which mints no assertion.
+        /// </param>
+        /// <param name="assertionKeyRing">The core's assertion signer, or null to mint nothing.</param>
+        public ModuleApiProxyTransformer(
+            string? moduleId,
+            Supervisor.ModuleAssertionKeyRing? assertionKeyRing)
+        {
+            _moduleId = moduleId;
+            _assertionKeyRing = assertionKeyRing;
+        }
 
         public override async ValueTask TransformRequestAsync(
             HttpContext httpContext,
@@ -1391,6 +1413,23 @@ public class Program
             }
 
             proxyRequest.Headers.TryAddWithoutValidation("X-Forwarded-Proto", "https");
+
+            // Hand the module a core-signed statement of who this request is for. The module
+            // verifies it with the core's public key and forwards it on its capability calls, so
+            // the user identity never has to be inferred from a forwarded cookie or token.
+            if (_assertionKeyRing is not null && _moduleId is not null)
+            {
+                var userId = httpContext.User?.FindFirstValue(ClaimTypes.NameIdentifier)
+                    ?? httpContext.User?.FindFirstValue("sub");
+
+                if (Guid.TryParse(userId, out var parsedUserId) && parsedUserId != Guid.Empty)
+                {
+                    var assertion = _assertionKeyRing.Mint(parsedUserId, _moduleId);
+                    proxyRequest.Headers.TryAddWithoutValidation(
+                        DotNetCloud.Core.Grpc.ModuleIdentityMetadata.UserAssertionHeader,
+                        assertion);
+                }
+            }
         }
 
         /// <summary>

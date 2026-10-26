@@ -16,6 +16,7 @@ public sealed class UserManagementService : IUserManagementService
 {
     private readonly UserManager<ApplicationUser> _userManager;
     private readonly IEventBus _eventBus;
+    private readonly IAccountCredentialInvalidator _credentialInvalidator;
     private readonly ILogger<UserManagementService> _logger;
 
     /// <summary>
@@ -24,10 +25,12 @@ public sealed class UserManagementService : IUserManagementService
     public UserManagementService(
         UserManager<ApplicationUser> userManager,
         IEventBus eventBus,
+        IAccountCredentialInvalidator credentialInvalidator,
         ILogger<UserManagementService> logger)
     {
         _userManager = userManager;
         _eventBus = eventBus;
+        _credentialInvalidator = credentialInvalidator;
         _logger = logger;
     }
 
@@ -198,6 +201,9 @@ public sealed class UserManagementService : IUserManagementService
             return false;
         }
 
+        // Revoke first: once the row is gone the tokens would otherwise stay valid until expiry.
+        await _credentialInvalidator.InvalidateAsync(userId, "account deleted");
+
         var result = await _userManager.DeleteAsync(user);
         if (!result.Succeeded)
         {
@@ -244,6 +250,10 @@ public sealed class UserManagementService : IUserManagementService
             return false;
         }
 
+        // Disabling is the primary containment step after a credential compromise: every token
+        // and cookie session issued before this point must stop working now.
+        await _credentialInvalidator.InvalidateAsync(userId, "account disabled");
+
         _logger.LogInformation("User {UserId} disabled", userId);
         return true;
     }
@@ -289,6 +299,11 @@ public sealed class UserManagementService : IUserManagementService
         }
 
         _logger.LogInformation("Admin reset password for user {UserId}", userId);
+
+        // A password reset is a recovery action: anything the previous password could still do
+        // must stop.
+        await _credentialInvalidator.InvalidateAsync(userId, "admin password reset");
+
         return true;
     }
 

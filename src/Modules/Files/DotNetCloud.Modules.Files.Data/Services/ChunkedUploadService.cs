@@ -27,8 +27,10 @@ internal sealed class ChunkedUploadService : IChunkedUploadService
     private readonly ISyncChangeNotifier _syncNotifier;
     private readonly ILogger<ChunkedUploadService> _logger;
     private readonly long _maxFileSizeBytes;
+    private readonly int _maxChunkSizeBytes;
     private readonly FileSystemOptions _fileSystemOptions;
     private readonly IFileVersioningSettingsProvider _versioningSettings;
+    private readonly IPermissionService _permissions;
     private readonly IWholeFileStorageService? _wholeFileStorage;
     private readonly IMediaCaptureTimeService? _captureTimeService;
 
@@ -43,6 +45,7 @@ internal sealed class ChunkedUploadService : IChunkedUploadService
         IOptions<FileUploadOptions> uploadOptions,
         IOptions<FileSystemOptions> fileSystemOptions,
         IFileVersioningSettingsProvider versioningSettings,
+        IPermissionService permissionService,
         IWholeFileStorageService? wholeFileStorageService = null,
         IMediaCaptureTimeService? captureTimeService = null)
     {
@@ -54,8 +57,10 @@ internal sealed class ChunkedUploadService : IChunkedUploadService
         _syncNotifier = syncNotifier;
         _logger = logger;
         _maxFileSizeBytes = uploadOptions.Value.MaxFileSizeBytes;
+        _maxChunkSizeBytes = uploadOptions.Value.MaxChunkSizeBytes;
         _fileSystemOptions = fileSystemOptions.Value;
         _versioningSettings = versioningSettings;
+        _permissions = permissionService;
         _wholeFileStorage = wholeFileStorageService;
         _captureTimeService = captureTimeService;
     }
@@ -70,11 +75,32 @@ internal sealed class ChunkedUploadService : IChunkedUploadService
         await MountedWriteAccessGuard.EnsureWritableFolderAsync(_db, dto.ParentId, cancellationToken);
         await ReadOnlyContentGuard.EnsureWritableAsync(_db, dto.TargetFileNodeId, "replace", cancellationToken);
 
+        // Authorization: the guards above only cover mounted/read-only content. Without this the
+        // caller could name any folder or file node and write into another user's tree.
+        await EnsureWriteAccessAsync(dto.TargetFileNodeId, dto.ParentId, caller, cancellationToken);
+
         FileService.ValidateFilenameCompatibility(dto.FileName, _fileSystemOptions);
 
         if (dto.TotalSize > _maxFileSizeBytes)
             throw new Core.Errors.ValidationException("TotalSize",
                 $"File size {dto.TotalSize:N0} bytes exceeds the maximum allowed size of {_maxFileSizeBytes:N0} bytes.");
+
+        // The chunk manifest is the contract. Without this a client can declare TotalSize = 1,
+        // reserve one byte of quota, and then stream arbitrary data into the session.
+        if (dto.ChunkHashes.Count == 0)
+            throw new Core.Errors.ValidationException("ChunkHashes", "At least one chunk hash is required.");
+
+        if (dto.ChunkSizes is { Count: > 0 })
+        {
+            if (dto.ChunkSizes.Count != dto.ChunkHashes.Count)
+                throw new Core.Errors.ValidationException("ChunkSizes",
+                    $"ChunkSizes ({dto.ChunkSizes.Count}) must match ChunkHashes ({dto.ChunkHashes.Count}).");
+
+            var declaredTotal = dto.ChunkSizes.Sum(size => (long)size);
+            if (declaredTotal != dto.TotalSize)
+                throw new Core.Errors.ValidationException("TotalSize",
+                    $"Declared chunk sizes sum to {declaredTotal:N0} bytes but TotalSize is {dto.TotalSize:N0} bytes.");
+        }
 
         // Ensure every uploader has a quota row before checking available space.
         await _quotaService.GetOrCreateQuotaAsync(caller.UserId, caller, cancellationToken);
@@ -153,13 +179,50 @@ internal sealed class ChunkedUploadService : IChunkedUploadService
         };
     }
 
+    /// <summary>
+    /// Requires read-write permission on the upload target and its parent folder.
+    /// </summary>
+    /// <remarks>
+    /// A null (or empty) parent means the caller's own root, which only the caller owns, so no
+    /// check is needed there. Everything else is a node the caller may have received as a
+    /// read-only share, which must not be escalated to write by naming it in an upload request.
+    /// </remarks>
+    private async Task EnsureWriteAccessAsync(
+        Guid? targetFileNodeId,
+        Guid? parentId,
+        CallerContext caller,
+        CancellationToken cancellationToken)
+    {
+        if (targetFileNodeId.HasValue && targetFileNodeId.Value != Guid.Empty)
+        {
+            await _permissions.RequirePermissionAsync(
+                targetFileNodeId.Value, caller, SharePermission.ReadWrite, cancellationToken);
+        }
+
+        if (parentId.HasValue && parentId.Value != Guid.Empty)
+        {
+            await _permissions.RequirePermissionAsync(
+                parentId.Value, caller, SharePermission.ReadWrite, cancellationToken);
+        }
+    }
+
     /// <inheritdoc />
     public async Task UploadChunkAsync(Guid sessionId, string chunkHash, ReadOnlyMemory<byte> data, CallerContext caller, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(caller);
         ArgumentException.ThrowIfNullOrWhiteSpace(chunkHash);
 
+        // Per-chunk ceiling: protects the shared data volume from an unbounded stream.
+        if (data.Length > _maxChunkSizeBytes)
+            throw new Core.Errors.ValidationException("Chunk",
+                $"Chunk of {data.Length:N0} bytes exceeds the maximum chunk size of {_maxChunkSizeBytes:N0} bytes.");
+
         var session = await GetActiveSessionAsync(sessionId, caller, cancellationToken);
+
+        // No single chunk can be larger than the file it belongs to.
+        if (data.Length > session.TotalSize)
+            throw new Core.Errors.ValidationException("Chunk",
+                "Chunk is larger than the declared file size for this session.");
 
         var manifest = JsonSerializer.Deserialize<List<string>>(session.ChunkManifest)!;
         if (!manifest.Contains(chunkHash))
@@ -232,6 +295,10 @@ internal sealed class ChunkedUploadService : IChunkedUploadService
 
         await MountedWriteAccessGuard.EnsureWritableFolderAsync(_db, session.TargetParentId, cancellationToken);
 
+        // Re-check before mutating: the share may have been downgraded or revoked since the
+        // session was initiated, and completion is the point where bytes become visible.
+        await EnsureWriteAccessAsync(session.TargetFileNodeId, session.TargetParentId, caller, cancellationToken);
+
         var manifest = JsonSerializer.Deserialize<List<string>>(session.ChunkManifest)!;
 
         // Verify all chunks are available
@@ -250,6 +317,29 @@ internal sealed class ChunkedUploadService : IChunkedUploadService
             session.UpdatedAt = DateTime.UtcNow;
             await _db.SaveChangesAsync(cancellationToken);
             throw new Core.Errors.ValidationException("Chunks", $"Missing {missing.Count} chunk(s). Upload them before completing.");
+        }
+
+        // Stored bytes are the single source of truth. The client-declared TotalSize only reserved
+        // quota; the real size is what is actually on disk, so a session that declared 1 byte but
+        // stored 64 MiB must not be recorded as a 1-byte file.
+        var storedChunkSizes = await _db.FileChunks
+            .AsNoTracking()
+            .Where(c => manifest.Contains(c.ChunkHash))
+            .ToDictionaryAsync(c => c.ChunkHash, c => c.Size, cancellationToken);
+
+        long actualTotalSize = 0;
+        foreach (var hash in manifest)
+        {
+            if (storedChunkSizes.TryGetValue(hash, out var storedSize))
+            {
+                actualTotalSize += storedSize;
+            }
+        }
+
+        if (actualTotalSize != session.TotalSize)
+        {
+            throw new Core.Errors.ValidationException("TotalSize",
+                $"The uploaded chunks total {actualTotalSize:N0} bytes but the session declared {session.TotalSize:N0} bytes.");
         }
 
         // Create or update the file node
@@ -277,8 +367,8 @@ internal sealed class ChunkedUploadService : IChunkedUploadService
                 {
                     fileNode = await _db.FileNodes.FindAsync([session.TargetFileNodeId.Value], cancellationToken)
                         ?? throw new NotFoundException("FileNode", session.TargetFileNodeId.Value);
-                    quotaDelta = session.TotalSize - fileNode.Size; // size delta for file update
-                    fileNode.Size = session.TotalSize;
+                    quotaDelta = actualTotalSize - fileNode.Size; // size delta for file update
+                    fileNode.Size = actualTotalSize;
                     fileNode.ContentHash = contentHash;
                     fileNode.StoragePath = storagePath;
                     fileNode.CurrentVersion++;
@@ -321,8 +411,8 @@ internal sealed class ChunkedUploadService : IChunkedUploadService
                             throw new FileReadOnlyException("replace");
 
                         // Re-upload of same file → create new version of the existing node
-                        quotaDelta = session.TotalSize - existingNode.Size;
-                        existingNode.Size = session.TotalSize;
+                        quotaDelta = actualTotalSize - existingNode.Size;
+                        existingNode.Size = actualTotalSize;
                         existingNode.ContentHash = contentHash;
                         existingNode.StoragePath = storagePath;
                         existingNode.CurrentVersion++;
@@ -351,7 +441,7 @@ internal sealed class ChunkedUploadService : IChunkedUploadService
                             Name = session.FileName,
                             NodeType = FileNodeType.File,
                             MimeType = session.MimeType,
-                            Size = session.TotalSize,
+                            Size = actualTotalSize,
                             ParentId = session.TargetParentId,
                             OwnerId = caller.UserId,
                             ContentHash = contentHash,
@@ -373,7 +463,7 @@ internal sealed class ChunkedUploadService : IChunkedUploadService
                             : $"{parentPath}/{fileNode.Id}";
 
                         _db.FileNodes.Add(fileNode);
-                        quotaDelta = session.TotalSize; // full size for new file
+                        quotaDelta = actualTotalSize; // full size for new file
                     }
                 }
 
@@ -382,7 +472,7 @@ internal sealed class ChunkedUploadService : IChunkedUploadService
                 {
                     FileNodeId = fileNode.Id,
                     VersionNumber = fileNode.CurrentVersion,
-                    Size = session.TotalSize,
+                    Size = actualTotalSize,
                     ContentHash = contentHash,
                     StoragePath = storagePath,
                     MimeType = session.MimeType,

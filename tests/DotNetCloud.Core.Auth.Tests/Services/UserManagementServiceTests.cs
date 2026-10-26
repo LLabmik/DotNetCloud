@@ -16,6 +16,7 @@ public class UserManagementServiceTests
 {
     private Mock<UserManager<ApplicationUser>> _userManagerMock = null!;
     private Mock<ILogger<UserManagementService>> _loggerMock = null!;
+    private Mock<IAccountCredentialInvalidator> _credentialInvalidatorMock = null!;
     private UserManagementService _service = null!;
 
     private static readonly ApplicationUser TestUser = new()
@@ -46,10 +47,12 @@ public class UserManagementServiceTests
 
         _loggerMock = new Mock<ILogger<UserManagementService>>();
         var eventBusMock = new Mock<IEventBus>();
+        _credentialInvalidatorMock = new Mock<IAccountCredentialInvalidator>();
 
         _service = new UserManagementService(
             _userManagerMock.Object,
             eventBusMock.Object,
+            _credentialInvalidatorMock.Object,
             _loggerMock.Object);
     }
 
@@ -269,6 +272,10 @@ public class UserManagementServiceTests
 
         // Assert
         Assert.IsTrue(result);
+        _credentialInvalidatorMock.Verify(
+            i => i.InvalidateAsync(TestUser.Id, It.IsAny<string>(), It.IsAny<CancellationToken>()),
+            Times.Once,
+            "Deleting an account must revoke the tokens it still holds.");
     }
 
     [TestMethod]
@@ -315,6 +322,10 @@ public class UserManagementServiceTests
         // Assert
         Assert.IsTrue(result);
         Assert.IsFalse(user.IsActive);
+        _credentialInvalidatorMock.Verify(
+            i => i.InvalidateAsync(user.Id, It.IsAny<string>(), It.IsAny<CancellationToken>()),
+            Times.Once,
+            "Disabling is a containment action: every live token and session must stop working.");
     }
 
     [TestMethod]
@@ -403,6 +414,10 @@ public class UserManagementServiceTests
 
         // Assert
         Assert.IsTrue(result);
+        _credentialInvalidatorMock.Verify(
+            i => i.InvalidateAsync(TestUser.Id, It.IsAny<string>(), It.IsAny<CancellationToken>()),
+            Times.Once,
+            "A recovery reset must invalidate everything the previous password could still do.");
     }
 
     [TestMethod]

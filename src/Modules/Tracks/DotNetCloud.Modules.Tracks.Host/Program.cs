@@ -121,12 +121,16 @@ builder.Services.AddTracksServices(builder.Configuration);
 builder.Services.AddSingleton<DotNetCloud.Core.Capabilities.IUserDirectory, GrpcUserDirectoryService>();
 
 // gRPC
-builder.Services.AddGrpc();
+builder.Services.AddGrpc(options =>
+    options.Interceptors.Add<DotNetCloud.Core.Grpc.ModulePeerAuthenticationInterceptor>());
 builder.Services.AddControllers();
 builder.Services.AddHealthChecks()
     .AddCheck<TracksHealthCheck>("tracks_module");
 
 var app = builder.Build();
+
+// Adopt the core-signed end-user assertion before anything can call back into the core.
+app.UseModuleUserAssertion();
 
 // Show full exception details for debugging; remove in production.
 app.UseDeveloperExceptionPage();

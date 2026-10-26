@@ -3,6 +3,7 @@ extern alias FilesHost;
 using System.Security.Cryptography;
 using DotNetCloud.Integration.Tests.Infrastructure;
 using FilesHost::DotNetCloud.Modules.Files.Host.Protos;
+using Grpc.Core;
 
 namespace DotNetCloud.Integration.Tests.Api;
 
@@ -25,6 +26,24 @@ public class FilesGrpcIsolationIntegrationTests
     public static void ClassCleanup()
     {
         _factory.Dispose();
+    }
+
+    [TestMethod]
+    public async Task GetNode_WithoutModuleCredential_IsRejected()
+    {
+        // The data-plane service acts on the user id in the payload, so an anonymous caller
+        // could read any user's node by naming them. The host must reject the call outright.
+        var client = _factory.CreateFilesClientWithoutModuleCredential(Guid.CreateVersion7());
+        var request = new GetNodeRequest
+        {
+            NodeId = Guid.CreateVersion7().ToString(),
+            UserId = Guid.CreateVersion7().ToString(),
+        };
+
+        var ex = await Assert.ThrowsExactlyAsync<RpcException>(
+            () => client.GetNodeAsync(request).ResponseAsync);
+
+        Assert.AreEqual(StatusCode.Unauthenticated, ex.StatusCode);
     }
 
     [TestMethod]

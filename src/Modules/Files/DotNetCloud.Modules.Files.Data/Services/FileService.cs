@@ -1470,30 +1470,22 @@ internal sealed class FileService : IFileService
 
     private async Task<IReadOnlyList<AdminSharedFolderDefinition>> ListAccessibleAdminSharedFoldersAsync(CallerContext caller, CancellationToken cancellationToken)
     {
-        // When running in a process-isolated module (e.g., Files.Host), the
-        // IShareAccessMembershipResolver may resolve empty group memberships
-        // because ITeamDirectory and IGroupDirectory capabilities aren't
-        // registered via gRPC in the module's DI. Fall back to returning all
-        // enabled admin shared folders; the caller is already authenticated
-        // by the controller layer.
-        IReadOnlyCollection<Guid>? groupIds = null;
-
-        if (_shareAccessMembershipResolver is not null)
+        // Fail closed: a resolver that is missing or returns no memberships grants nothing.
+        // The previous fallback returned every enabled admin shared folder to any authenticated
+        // user, which disclosed server-local directories scoped to specific groups.
+        if (_shareAccessMembershipResolver is null)
         {
-            var memberships = await _shareAccessMembershipResolver.ResolveAsync(caller.UserId, cancellationToken);
-            groupIds = memberships.GroupIds;
+            _logger.LogWarning(
+                "No share-access membership resolver is registered; admin shared folders are not accessible.");
+            return [];
         }
 
-        if (groupIds is null || groupIds.Count == 0)
+        var memberships = await _shareAccessMembershipResolver.ResolveAsync(caller.UserId, cancellationToken);
+        var groupIds = memberships.GroupIds;
+
+        if (groupIds.Count == 0)
         {
-            var allFolders = await _db.AdminSharedFolders
-                .AsNoTracking()
-                .Where(definition => definition.IsEnabled)
-                .OrderBy(definition => definition.DisplayName)
-                .ToListAsync(cancellationToken);
-            _logger.LogWarning("VIRTUAL_DEBUG: Fallback returning {Count} admin shared folders (resolver={Resolver})",
-                allFolders.Count, _shareAccessMembershipResolver?.GetType().Name ?? "null");
-            return allFolders;
+            return [];
         }
 
         return await _db.AdminSharedFolders

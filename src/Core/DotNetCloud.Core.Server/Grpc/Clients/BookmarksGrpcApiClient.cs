@@ -30,6 +30,7 @@ public sealed class BookmarksGrpcApiClient : IBookmarksApiClient, IDisposable
 {
     private readonly BookmarksGrpcClientOptions _options;
     private readonly ModuleEndpointProvider _endpointProvider;
+    private readonly Supervisor.IModuleGrpcChannelProvider _channelManager;
     private readonly IHttpContextAccessor _httpContextAccessor;
     private readonly ILogger<BookmarksGrpcApiClient> _logger;
     private readonly Lazy<GrpcChannel> _channel;
@@ -40,11 +41,13 @@ public sealed class BookmarksGrpcApiClient : IBookmarksApiClient, IDisposable
     public BookmarksGrpcApiClient(
         IOptions<BookmarksGrpcClientOptions> options,
         ModuleEndpointProvider endpointProvider,
+        Supervisor.IModuleGrpcChannelProvider channelManager,
         IHttpContextAccessor httpContextAccessor,
         ILogger<BookmarksGrpcApiClient> logger)
     {
         _options = options.Value;
         _endpointProvider = endpointProvider;
+        _channelManager = channelManager;
         _httpContextAccessor = httpContextAccessor;
         _logger = logger;
         _channel = new Lazy<GrpcChannel>(CreateChannel);
@@ -62,15 +65,8 @@ public sealed class BookmarksGrpcApiClient : IBookmarksApiClient, IDisposable
     {
         var address = _endpointProvider.GetEndpoint("dotnetcloud.bookmarks");
         _logger.LogInformation("BookmarksGrpcApiClient connecting to {Address}", address);
-        return GrpcChannel.ForAddress(address, new GrpcChannelOptions
-        {
-            UnsafeUseInsecureChannelCallCredentials = true,
-            HttpHandler = new SocketsHttpHandler
-            {
-                EnableMultipleHttp2Connections = true,
-                ConnectTimeout = TimeSpan.FromSeconds(5)
-            }
-        });
+        // Managed channel: it attaches the supervisor-issued credential the module host requires.
+        return _channelManager.GetOrCreateChannel("dotnetcloud.bookmarks", address);
     }
 
     // ─── Bookmarks ──────────────────────────────────────────────────────────
@@ -439,15 +435,8 @@ public sealed class BookmarksGrpcApiClient : IBookmarksApiClient, IDisposable
     /// <inheritdoc />
     public void Dispose()
     {
-        if (!_disposed)
-        {
-            _disposed = true;
-            if (_channel.IsValueCreated)
-            {
-                try
-                { _channel.Value.Dispose(); }
-                catch { /* best effort */ }
-            }
-        }
+        // The channel belongs to GrpcChannelManager and is shared, so there is nothing to release.
+        if (_disposed) return;
+        _disposed = true;
     }
 }

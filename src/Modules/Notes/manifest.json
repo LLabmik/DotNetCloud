@@ -11,7 +11,8 @@
     "IAuditLogger",
     "ICrossModuleLinkResolver",
     "IContactDirectory",
-    "ICalendarDirectory"
+    "ICalendarDirectory",
+    "ITeamDirectory"
   ],
   "publishedEvents": [
     "NoteCreatedEvent",

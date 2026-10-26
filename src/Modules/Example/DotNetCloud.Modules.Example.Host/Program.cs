@@ -68,10 +68,14 @@ public static partial class Program
         builder.Services.AddAuditLogger();
 
         // gRPC + health checks
-        builder.Services.AddGrpc();
+        builder.Services.AddGrpc(options =>
+            options.Interceptors.Add<DotNetCloud.Core.Grpc.ModulePeerAuthenticationInterceptor>());
         builder.Services.AddHealthChecks().AddCheck<ExampleHealthCheck>("example_module");
 
         var app = builder.Build();
+
+        // Adopt the core-signed end-user assertion before anything can call back into the core.
+        app.UseModuleUserAssertion();
 
         // Self-migrate on startup (schemaProvider: "self").
         // A connection string is now mandatory, so this is unconditional.

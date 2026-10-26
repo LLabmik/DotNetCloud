@@ -38,6 +38,7 @@ public sealed class CalendarGrpcApiClient : ICalendarApiClient, IDisposable
 {
     private readonly CalendarGrpcClientOptions _options;
     private readonly ModuleEndpointProvider _endpointProvider;
+    private readonly Supervisor.IModuleGrpcChannelProvider _channelManager;
     private readonly IHttpContextAccessor _httpContextAccessor;
     private readonly ILogger<CalendarGrpcApiClient> _logger;
     private readonly Lazy<GrpcChannel> _channel;
@@ -50,11 +51,13 @@ public sealed class CalendarGrpcApiClient : ICalendarApiClient, IDisposable
     public CalendarGrpcApiClient(
         IOptions<CalendarGrpcClientOptions> options,
         ModuleEndpointProvider endpointProvider,
+        Supervisor.IModuleGrpcChannelProvider channelManager,
         IHttpContextAccessor httpContextAccessor,
         ILogger<CalendarGrpcApiClient> logger)
     {
         _options = options.Value;
         _endpointProvider = endpointProvider;
+        _channelManager = channelManager;
         _httpContextAccessor = httpContextAccessor;
         _logger = logger;
         _channel = new Lazy<GrpcChannel>(() => CreateChannel());
@@ -391,15 +394,8 @@ public sealed class CalendarGrpcApiClient : ICalendarApiClient, IDisposable
     {
         var address = _endpointProvider.GetEndpoint(moduleId);
         _logger.LogInformation("CalendarGrpcApiClient channel to {ModuleId} at {Address}", moduleId, address);
-        return GrpcChannel.ForAddress(address, new GrpcChannelOptions
-        {
-            UnsafeUseInsecureChannelCallCredentials = true,
-            HttpHandler = new SocketsHttpHandler
-            {
-                EnableMultipleHttp2Connections = true,
-                ConnectTimeout = TimeSpan.FromSeconds(5)
-            }
-        });
+        // Managed channel: it attaches the supervisor-issued credential the module host requires.
+        return _channelManager.GetOrCreateChannel(moduleId, address);
     }
 
     private CreateEventRequest ToCreateEventRequest(CreateCalendarEventDto dto) => new()
@@ -501,11 +497,6 @@ public sealed class CalendarGrpcApiClient : ICalendarApiClient, IDisposable
         if (_disposed)
             return;
         _disposed = true;
-        try
-        { if (_channel.IsValueCreated) _channel.Value.Dispose(); }
-        catch { /* ignore */ }
-        try
-        { if (_contactsChannel.IsValueCreated) _contactsChannel.Value.Dispose(); }
-        catch { /* ignore */ }
+        // Both channels belong to GrpcChannelManager and are shared; they must not be disposed here.
     }
 }

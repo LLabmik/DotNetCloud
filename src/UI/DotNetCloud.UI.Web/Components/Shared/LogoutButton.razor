@@ -5,6 +5,7 @@
    cookie can be cleared on the response — see AuthSessionController.LogoutAsync.
    The form is submitted via JS only after the user confirms. *@
 <form id="logout-form" method="post" action="/auth/session/logout" class="inline" data-enhance-nav="false">
+    <AntiforgeryToken />
     <button type="button" class="btn btn-sm btn-outline" @onclick="PromptLogoutAsync">Logout</button>
 </form>
 

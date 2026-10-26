@@ -22,8 +22,8 @@ internal sealed class SearchIndexEventBridgeHandler : IEventHandler<SearchIndexR
         ILogger<SearchIndexEventBridgeHandler> logger)
     {
         _coreClient = coreClient;
-        // The ProcessSupervisor sets this when it launches the module host. Core.Server's
-        // AuthenticationInterceptor rejects gRPC calls without a module-id header.
+        // The ProcessSupervisor sets this when it launches the module host, together with the
+        // per-launch secret that AuthenticationInterceptor requires on every capability call.
         _moduleId = Environment.GetEnvironmentVariable("DOTNETCLOUD_MODULE_ID") ?? "unknown";
         _logger = logger;
     }
@@ -33,7 +33,7 @@ internal sealed class SearchIndexEventBridgeHandler : IEventHandler<SearchIndexR
     {
         try
         {
-            var headers = new Metadata { { "module-id", _moduleId } };
+            var headers = ModuleIdentityMetadata.Create(_moduleId);
             var response = await _coreClient.SubmitSearchIndexAsync(
                 new SubmitSearchIndexRequest
                 {

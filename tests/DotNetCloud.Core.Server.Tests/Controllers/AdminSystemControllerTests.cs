@@ -269,6 +269,7 @@ public sealed class AdminSystemControllerTests
             userDirectory,
             tracker,
             supervisor.Object,
+            Mock.Of<DotNetCloud.Core.Server.Supervisor.IModuleGrpcChannelProvider>(),
             NullLogger<AdminSystemController>.Instance);
     }
 }

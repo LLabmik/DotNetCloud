@@ -4,6 +4,7 @@ using System.Security.Claims;
 using System.Text.Encodings.Web;
 using DotNetCloud.Core.Auth.Authorization;
 using DotNetCloud.Core.Data.Context;
+using DotNetCloud.Core.Grpc;
 using DotNetCloud.Modules.Files.Data;
 using FilesHost::DotNetCloud.Modules.Files.Host;
 using FilesHost::DotNetCloud.Modules.Files.Host.Protos;
@@ -29,6 +30,13 @@ namespace DotNetCloud.Integration.Tests.Infrastructure;
 /// </summary>
 internal sealed class FilesHostWebApplicationFactory : WebApplicationFactory<FilesHost::Program>
 {
+    /// <summary>
+    /// The credential the in-process host expects on every gRPC call. In production the process
+    /// supervisor mints this per launch; the test host has no supervisor, so it is fixed here and
+    /// presented by the test clients — there is deliberately no server-side bypass.
+    /// </summary>
+    public const string TestModuleSecret = "integration-test-module-secret";
+
     private readonly string _databaseName = $"FilesHostInt_{Guid.CreateVersion7():N}";
 
     public FilesHostWebApplicationFactory()
@@ -41,6 +49,12 @@ internal sealed class FilesHostWebApplicationFactory : WebApplicationFactory<Fil
         // The DbContexts are replaced with InMemory below, so this is never used.
         Environment.SetEnvironmentVariable("connectionString", "Host=localhost;Database=integration_test;Username=test;Password=test");
         Environment.SetEnvironmentVariable("databaseProvider", "PostgreSql");
+
+        // The module peer-authentication interceptor reads its credential from this variable and
+        // fails closed without it.
+        Environment.SetEnvironmentVariable(
+            ModuleIdentityMetadata.ModuleSecretEnvironmentVariable,
+            TestModuleSecret);
     }
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
@@ -150,6 +164,25 @@ internal sealed class FilesHostWebApplicationFactory : WebApplicationFactory<Fil
     }
 
     public FilesService.FilesServiceClient CreateFilesClient(Guid authenticatedUserId)
+    {
+        var client = CreateDefaultClient();
+        client.DefaultRequestHeaders.Add("x-test-user-id", authenticatedUserId.ToString());
+        client.DefaultRequestHeaders.Add(ModuleIdentityMetadata.ModuleSecretHeader, TestModuleSecret);
+
+        var channel = GrpcChannel.ForAddress(client.BaseAddress!, new GrpcChannelOptions
+        {
+            HttpClient = client,
+        });
+
+        return new FilesService.FilesServiceClient(channel);
+    }
+
+    /// <summary>
+    /// Creates a Files gRPC client that deliberately omits the supervisor-issued module
+    /// credential, for asserting that the host rejects anonymous data-plane calls.
+    /// </summary>
+    /// <param name="authenticatedUserId">The user the request claims to act for.</param>
+    public FilesService.FilesServiceClient CreateFilesClientWithoutModuleCredential(Guid authenticatedUserId)
     {
         var client = CreateDefaultClient();
         client.DefaultRequestHeaders.Add("x-test-user-id", authenticatedUserId.ToString());

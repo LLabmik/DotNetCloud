@@ -12,6 +12,7 @@
         </div>
 
         <form method="post" action="/auth/session/mfa-verify" data-enhance-nav="false">
+            <AntiforgeryToken />
             <div class="form-group">
                 <label for="code">Verification Code</label>
                 <input id="code" name="code" class="input input-code" type="text" inputmode="numeric" pattern="[0-9]*"

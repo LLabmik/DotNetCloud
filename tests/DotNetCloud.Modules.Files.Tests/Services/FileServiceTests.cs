@@ -367,6 +367,48 @@ public class FileServiceTests
     }
 
     [TestMethod]
+    public async Task ListChildrenAsync_DotNetCloudRoot_WithNoGroupMembership_HidesAdminSharedFolders()
+    {
+        // The grant predicate used to fail open: an empty group resolution returned every
+        // enabled admin shared folder, disclosing server-local directories to any signed-in user.
+        using var db = CreateContext();
+        var callerUserId = Guid.CreateVersion7();
+        var ownerId = Guid.CreateVersion7();
+        var groupId = Guid.CreateVersion7();
+        var tempPath = Path.Combine(Path.GetTempPath(), $"dnc-shared-{Guid.CreateVersion7():N}");
+        Directory.CreateDirectory(tempPath);
+
+        try
+        {
+            db.AdminSharedFolders.Add(new AdminSharedFolderDefinition
+            {
+                DisplayName = "Design Assets",
+                SourcePath = tempPath,
+                CreatedByUserId = ownerId,
+                Grants = [new AdminSharedFolderGrant { GroupId = groupId }],
+            });
+            await db.SaveChangesAsync();
+
+            var membershipResolverMock = new Mock<IShareAccessMembershipResolver>();
+            membershipResolverMock
+                .Setup(resolver => resolver.ResolveAsync(callerUserId, It.IsAny<CancellationToken>()))
+                .ReturnsAsync(new ShareAccessMembership { GroupIds = [] });
+
+            var service = CreateService(db, shareAccessMembershipResolver: membershipResolverMock.Object);
+            var root = (await service.ListRootAsync(UserCaller(callerUserId))).First(node => node.Name == "_DotNetCloud");
+            var children = await service.ListChildrenAsync(root.Id, UserCaller(callerUserId));
+
+            Assert.IsFalse(
+                children.Any(node => node.Name == "Design Assets"),
+                "A caller with no matching group grant must not see the mounted folder.");
+        }
+        finally
+        {
+            Directory.Delete(tempPath, recursive: true);
+        }
+    }
+
+    [TestMethod]
     public async Task ListChildrenAsync_AdminSharedFolderVirtualNode_PreservesNestedFilesystemHierarchy()
     {
         using var db = CreateContext();

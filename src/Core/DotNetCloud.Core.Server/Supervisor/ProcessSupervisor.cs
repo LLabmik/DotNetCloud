@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
+using DotNetCloud.Core.Capabilities;
 using DotNetCloud.Core.Data.Context;
 using DotNetCloud.Core.Data.Entities.Modules;
 using DotNetCloud.Core.Data.Services;
@@ -32,6 +33,8 @@ internal sealed class ProcessSupervisor : BackgroundService, IProcessSupervisor
     private readonly ResourceLimiter _resourceLimiter;
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly ModuleSchemaService _moduleSchemaService;
+    private readonly ModuleCredentialStore _credentials;
+    private readonly ModuleAssertionKeyRing _assertions;
     private readonly ConcurrentDictionary<string, ModuleProcessHandle> _modules = new();
     private readonly SemaphoreSlim _startStopLock = new(1, 1);
 
@@ -43,7 +46,9 @@ internal sealed class ProcessSupervisor : BackgroundService, IProcessSupervisor
         GrpcChannelManager channelManager,
         ResourceLimiter resourceLimiter,
         IServiceScopeFactory scopeFactory,
-        ModuleSchemaService moduleSchemaService)
+        ModuleSchemaService moduleSchemaService,
+        ModuleCredentialStore credentials,
+        ModuleAssertionKeyRing assertions)
     {
         _logger = logger;
         _options = options.Value;
@@ -53,6 +58,8 @@ internal sealed class ProcessSupervisor : BackgroundService, IProcessSupervisor
         _resourceLimiter = resourceLimiter;
         _scopeFactory = scopeFactory;
         _moduleSchemaService = moduleSchemaService;
+        _credentials = credentials;
+        _assertions = assertions;
     }
 
     // ---- IProcessSupervisor ----
@@ -260,9 +267,14 @@ internal sealed class ProcessSupervisor : BackgroundService, IProcessSupervisor
 
         handle.SetStatus(ModuleProcessStatus.Starting);
 
-        var process = SpawnModuleProcess(discovered, grpcEndpoint);
+        // Mint a fresh credential for this launch. The module echoes it on every capability call,
+        // so a process that did not come from this supervisor cannot impersonate the module.
+        var moduleSecret = _credentials.Issue(moduleId);
+
+        var process = SpawnModuleProcess(discovered, grpcEndpoint, moduleSecret);
         if (process is null)
         {
+            _credentials.Revoke(moduleId);
             handle.SetStatus(ModuleProcessStatus.Failed, "Failed to spawn process");
             _modules[moduleId] = handle;
             return;
@@ -339,6 +351,7 @@ internal sealed class ProcessSupervisor : BackgroundService, IProcessSupervisor
         }
 
         await _channelManager.RemoveChannelAsync(moduleId);
+        _credentials.Revoke(moduleId);
         handle.SetStatus(ModuleProcessStatus.Stopped);
 
         _logger.LogInformation("Module {ModuleId} stopped", moduleId);
@@ -346,7 +359,7 @@ internal sealed class ProcessSupervisor : BackgroundService, IProcessSupervisor
 
     // ---- Process Spawning ----
 
-    private Process? SpawnModuleProcess(DiscoveredModule discovered, string grpcEndpoint)
+    private Process? SpawnModuleProcess(DiscoveredModule discovered, string grpcEndpoint, string moduleSecret)
     {
         try
         {
@@ -398,6 +411,9 @@ internal sealed class ProcessSupervisor : BackgroundService, IProcessSupervisor
             }
 
             startInfo.Environment["DOTNETCLOUD_MODULE_ID"] = discovered.ModuleId;
+            startInfo.Environment["DOTNETCLOUD_MODULE_SECRET"] = moduleSecret;
+            // Public half only: a module can verify a user assertion but cannot mint one.
+            startInfo.Environment["DOTNETCLOUD_ASSERTION_PUBLIC_KEY"] = _assertions.PublicKeyBase64;
             startInfo.Environment["DOTNETCLOUD_GRPC_ENDPOINT"] = ForceHttpForInternalGrpc(grpcEndpoint);
             startInfo.Environment["DOTNETCLOUD_CORE_ENDPOINT"] = ForceHttpForInternalGrpc(BuildCoreEndpoint());
 
@@ -590,6 +606,7 @@ internal sealed class ProcessSupervisor : BackgroundService, IProcessSupervisor
         }
 
         await _channelManager.RemoveChannelAsync(moduleId);
+        _credentials.Revoke(moduleId);
         handle.IncrementRestartCount();
 
         if (handle.RestartPolicy == RestartPolicy.AlertOnly)
@@ -868,10 +885,79 @@ internal sealed class ProcessSupervisor : BackgroundService, IProcessSupervisor
                 await dbContext.SaveChangesAsync(cancellationToken);
                 _logger.LogInformation("Registered {Count} newly discovered modules in database", added);
             }
+
+            await EnsureManifestGrantsAsync(dbContext, discovered, cancellationToken);
         }
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "Failed to sync discovered modules to database. Admin UI may not show all modules.");
+        }
+    }
+
+    /// <summary>
+    /// Persists <c>ModuleCapabilityGrants</c> rows for the restricted and privileged capabilities
+    /// a module's manifest declares.
+    /// </summary>
+    /// <remarks>
+    /// The manifest is the module's install-time request, so accepting it here is the equivalent
+    /// of an operator installing the module. The resulting rows are ordinary grants: an
+    /// administrator can revoke any of them, and <c>CapabilityGrantInterceptor</c> refuses the
+    /// capability on the next call once the row is gone. Capabilities whose tier is public or
+    /// unknown are skipped because they are not governed by the grant table.
+    /// </remarks>
+    private async Task EnsureManifestGrantsAsync(
+        CoreDbContext dbContext,
+        IReadOnlyList<DiscoveredModule> discovered,
+        CancellationToken cancellationToken)
+    {
+        var existingGrants = await dbContext.ModuleCapabilityGrants
+            .Select(g => new { g.ModuleId, g.CapabilityName })
+            .ToListAsync(cancellationToken);
+
+        var existingGrantKeys = existingGrants
+            .Select(g => $"{g.ModuleId}\u0000{g.CapabilityName}")
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        var addedGrants = 0;
+
+        foreach (var module in discovered)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            var manifest = LoadManifest(module);
+
+            foreach (var capability in manifest.RequiredCapabilities)
+            {
+                var tier = CapabilityValidator.GetCapabilityTier(capability);
+                if (tier is not (CapabilityTier.Restricted or CapabilityTier.Privileged))
+                {
+                    continue;
+                }
+
+                var key = $"{module.ModuleId}\u0000{capability}";
+                if (!existingGrantKeys.Add(key))
+                {
+                    continue;
+                }
+
+                dbContext.ModuleCapabilityGrants.Add(new ModuleCapabilityGrant
+                {
+                    ModuleId = module.ModuleId,
+                    CapabilityName = capability,
+                    GrantedAt = DateTime.UtcNow,
+                });
+
+                addedGrants++;
+                _logger.LogInformation(
+                    "Provisioned manifest-declared {Tier} capability {Capability} for module {ModuleId}",
+                    tier, capability, module.ModuleId);
+            }
+        }
+
+        if (addedGrants > 0)
+        {
+            await dbContext.SaveChangesAsync(cancellationToken);
+            _logger.LogInformation("Provisioned {Count} manifest-declared capability grants", addedGrants);
         }
     }
 

@@ -26,6 +26,7 @@ public sealed class PhotosGrpcApiClient : IPhotosApiClient, IDisposable
 {
     private readonly PhotosGrpcClientOptions _options;
     private readonly ModuleEndpointProvider _endpointProvider;
+    private readonly Supervisor.IModuleGrpcChannelProvider _channelManager;
     private readonly ILogger<PhotosGrpcApiClient> _logger;
     private readonly Lazy<GrpcChannel> _channel;
     private bool _disposed;
@@ -34,10 +35,12 @@ public sealed class PhotosGrpcApiClient : IPhotosApiClient, IDisposable
     public PhotosGrpcApiClient(
         IOptions<PhotosGrpcClientOptions> options,
         ModuleEndpointProvider endpointProvider,
+        Supervisor.IModuleGrpcChannelProvider channelManager,
         ILogger<PhotosGrpcApiClient> logger)
     {
         _options = options.Value;
         _endpointProvider = endpointProvider;
+        _channelManager = channelManager;
         _logger = logger;
         _channel = new Lazy<GrpcChannel>(CreateChannel);
     }
@@ -46,29 +49,15 @@ public sealed class PhotosGrpcApiClient : IPhotosApiClient, IDisposable
     {
         var address = _endpointProvider.GetEndpoint("dotnetcloud.photos");
         _logger.LogInformation("PhotosGrpcApiClient connecting to {Address}", address);
-        return GrpcChannel.ForAddress(address, new GrpcChannelOptions
-        {
-            UnsafeUseInsecureChannelCallCredentials = true,
-            HttpHandler = new SocketsHttpHandler
-            {
-                EnableMultipleHttp2Connections = true,
-                ConnectTimeout = TimeSpan.FromSeconds(5)
-            }
-        });
+        // Managed channel: it attaches the supervisor-issued credential the module host requires.
+        return _channelManager.GetOrCreateChannel("dotnetcloud.photos", address);
     }
 
     /// <inheritdoc />
     public void Dispose()
     {
-        if (!_disposed)
-        {
-            _disposed = true;
-            if (_channel.IsValueCreated)
-            {
-                try
-                { _channel.Value.Dispose(); }
-                catch { /* best effort */ }
-            }
-        }
+        // The channel belongs to GrpcChannelManager and is shared, so there is nothing to release.
+        if (_disposed) return;
+        _disposed = true;
     }
 }

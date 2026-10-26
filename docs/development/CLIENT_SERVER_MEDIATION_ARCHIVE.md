@@ -1,3 +1,59 @@
+## Archived: Server agent (`mint22`) — security audit remediation, batch 1 (P0 workstreams 1–3) — implemented, not yet committed (2026-10-25)
+
+**Status:** implemented ✅ · **not committed** (awaiting operator approval) · one finding short of fully proven
+**Branch:** `fix/security-p0` (cut from `fix/security-audit` @ `ca494c43`) · **From:** `mint22` · **Target:** server only
+**Source plan:** `docs/SECURITY_AUDIT_REMEDIATION_PLAN.md` (workstreams 1–3, P0)
+
+### Verification
+
+- `dotnet build DotNetCloud.CI.slnf -c Release` — **0 errors, 0 warnings**.
+- `dotnet test DotNetCloud.CI.slnf --no-build -c Release --settings .runsettings` — **22 test projects, 0 failures**.
+- One intermittent `Core.Server.Tests` failure (1 of 888) observed during a single full-solution run and **not reproduced** across four subsequent runs. Recorded as un-reproduced, not as fixed.
+
+### Per-fingerprint result
+
+| Fingerprint | Result | Proof |
+| --- | --- | --- |
+| `grpc/core-capabilities/self-asserted-module-id` | **done** | `ModuleTransportAuthenticationTests.Authenticate_MissingModuleId_ThrowsUnauthenticated` (plus missing-secret, foreign-secret, revoked-secret and the valid path) |
+| `grpc/module-hosts/request-user-id-without-peer-auth` | **done** (design substituted, see deviations) | `FilesGrpcIsolationIntegrationTests.GetNode_WithoutModuleCredential_IsRejected` — real host pipeline, no credential → `Unauthenticated` |
+| `core-auth:account-state-transition-no-token-revocation` | **done** | `UserManagementServiceTests.WhenUserExistsThenDeleteUserReturnsTrue`, `WhenUserExistsThenDisableUserReturnsTrueAndSetsInactive`, `WhenUserExistsThenAdminResetPasswordReturnsTrue` (each asserts the invalidator is invoked exactly once) |
+| `core-session:disabled-account-form-login` | **done** | `AuthSessionControllerTests.LoginAsync_InactiveAccount_DoesNotReachCredentialCheck`, `LoginAsync_UnknownAccount_DoesNotReachCredentialCheck` |
+| `core-session:login-form-csrf` | **done** | `AuthSessionCsrfIntegrationTests.LoginWithoutAntiforgeryToken_ReturnsBadRequestAndSetsNoCookie`, `LogoutWithoutAntiforgeryToken_ReturnsBadRequest`, `Login_WithTokenFromRenderedForm_ReachesCredentialCheck` |
+| `files-chunked-upload-missing-target-write-authorization` | **done** | `ChunkedUploadServiceTests.InitiateUploadAsync_CallerWithoutWritePermission_ThrowsForbiddenAndCreatesNoSession` |
+| `files-admin-shared-folder-group-grant-fail-open` | **done** | `FileServiceTests.ListChildrenAsync_DotNetCloudRoot_WithNoGroupMembership_HidesAdminSharedFolders` |
+| `files-chunk-storage-quota-bypass` | **done** | `ChunkedUploadServiceTests.InitiateUploadAsync_DeclaredChunkSizesDoNotSumToTotalSize_ThrowsValidationException` (plus count-mismatch, oversized-chunk and chunk-larger-than-file cases) |
+| `email.attachment.storage-key-path-traversal` | **done** | `FileSystemAttachmentStorageTests.OpenReadAsync_KeyThatIsNotAContentHash_ReturnsNull` (plus the GetSize/Delete/GetCreationTime variants and a valid-key round trip) |
+| `authz.video.hls-segment.no-video-entitlement` | **code done, NOT proven** | No controller test exists in `Video.Tests`; the regression test is outstanding. Do **not** mark this closed until it exists. |
+| `secret-disclosure/tmdb-api-key-committed-installer` | **code done, operator action outstanding** | `scripts/check-third-party-keys.sh` runs in CI; the operator must still rotate the exposed key at the provider — it remains in git history. |
+
+### Deviations from the plan (all deliberate)
+
+1. **WS1b identity model.** The plan allowed "compare `request.UserId` with the authenticated principal" or "remove `user_id` from the contract". Neither was adopted verbatim. User identity now travels only as a **core-signed ECDSA P-256 assertion** (`caller-user-assertion`), minted at the module HTTP proxy, verified by the core against the calling module id and a ≤60 s expiry, with roles re-read from the identity store. `user_id` was **not** removed from the module protos: once the core→module channel is credential-authenticated only the core can name a user, so the reservation would have been churn without a security gain. This was an explicit operator decision (third-party modules are on the roadmap).
+2. **WS3b gained an unplanned RPC.** Failing closed alone would have hidden every group-granted admin shared folder, because `GrpcGroupDirectory.GetGroupsForUserAsync` was a stub and no capability existed to resolve group membership. A `GetGroupsForUser` RPC was added to `module_capabilities.proto`, implemented in `CoreCapabilitiesServiceImpl`, and wired into the Files host.
+3. **WS2c needed an app-local filter.** `[ValidateAntiForgeryToken]` resolves `ValidateAntiforgeryTokenAuthorizationFilter` from MVC view-features, which `AddControllers()` never registers — it produced a **409 `INVALID_OPERATION`** on every form post. Replaced with `RequireAntiforgeryToken` / `AntiforgeryValidationFilter`, which depends only on `IAntiforgery`.
+
+### Regressions this batch caused and fixed (found by review, not by tests)
+
+- **WS1a would have broken client uploads.** `FilesUploadStreamService` shares the core gRPC endpoint with the module services, so the new credential requirement applied to desktop/mobile clients that authenticate with a bearer token. `AuthenticationInterceptor` now splits by service: `/dotnetcloud.files.FilesService/` requires an authenticated principal; everything else requires a module credential.
+- **WS1b would have broken three core clients.** `FilesUploadStreamService`, `FilesGrpcApiClient` and `FilesModuleSearchClient` each built raw channels to the Files host. All three now go through `IModuleGrpcChannelProvider` (a new public abstraction over `GrpcChannelManager`) and no longer dispose a shared channel.
+- **`GrpcGroupDirectory` sent unauthenticated call options**, which WS1a would have rejected, silently breaking group validation on the Files host.
+
+### Pre-existing defect found (not fixed here)
+
+`Email.Host` calls the Files module's gRPC directly using `FilesGrpc:Address`, which is **configured nowhere** and defaults to `http://localhost:5004` — it cannot reach the supervisor-assigned port, so `AttachFromFilesModule` was already non-functional. It also violates the no-direct-module-calls rule. It needs the core-as-broker fix (P1/architecture), not a credential bypass.
+
+### Deploy implications
+
+- All module hosts must ship together with the core (`DOTNETCLOUD_MODULE_SECRET` / `DOTNETCLOUD_ASSERTION_PUBLIC_KEY` are issued at spawn). A core-only deploy against older module binaries will reject every capability call.
+- The antiforgery cookie is `SecurePolicy.Always`; any TLS terminator must forward `X-Forwarded-Proto` or every login form post fails validation.
+- New restricted/privileged capabilities must be declared in the module manifest, or calls are denied at `CapabilityGrantInterceptor`.
+
+### Not in this batch
+
+Workstreams 4–9 (per-resource predicate sweep, realtime hubs, search ACLs, SSRF fetchers, installer/release integrity, validate-then-fix leads), the client-side sync path escape, and the two background-work refactors (notify-class jobs into the core; email sync via an authenticated core→module invocation).
+
+---
+
 ## Archived: Client agent (`monolith`) — Android on-device re-verification of WOPI items 4 & 5 (2026-10-11)
 
 **Status:** completed ✅ — both client-side confirmations (items 4 and 5) verified on device; nothing outstanding client-side.

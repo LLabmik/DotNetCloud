@@ -38,6 +38,7 @@ public class AdminSystemController : ControllerBase
     private readonly IUserDirectory _userDirectory;
     private readonly IBackgroundServiceTracker _backgroundServiceTracker;
     private readonly IProcessSupervisor _supervisor;
+    private readonly Supervisor.IModuleGrpcChannelProvider _channelProvider;
     private readonly ILogger<AdminSystemController> _logger;
 
     /// <summary>
@@ -50,6 +51,7 @@ public class AdminSystemController : ControllerBase
         IUserDirectory userDirectory,
         IBackgroundServiceTracker backgroundServiceTracker,
         IProcessSupervisor supervisor,
+        Supervisor.IModuleGrpcChannelProvider channelProvider,
         ILogger<AdminSystemController> logger)
     {
         _sampler = sampler ?? throw new ArgumentNullException(nameof(sampler));
@@ -58,6 +60,7 @@ public class AdminSystemController : ControllerBase
         _userDirectory = userDirectory ?? throw new ArgumentNullException(nameof(userDirectory));
         _backgroundServiceTracker = backgroundServiceTracker ?? throw new ArgumentNullException(nameof(backgroundServiceTracker));
         _supervisor = supervisor ?? throw new ArgumentNullException(nameof(supervisor));
+        _channelProvider = channelProvider ?? throw new ArgumentNullException(nameof(channelProvider));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
@@ -276,7 +279,7 @@ public class AdminSystemController : ControllerBase
         try
         {
             using var timeout = new CancellationTokenSource(ModuleCallTimeout);
-            using var channel = CreateGrpcChannel(module.GrpcEndpoint!);
+            var channel = _channelProvider.GetOrCreateChannel(moduleId, module.GrpcEndpoint!);
             var client = new ModuleLifecycle.ModuleLifecycleClient(channel);
 
             var callOptions = new global::Grpc.Core.CallOptions(

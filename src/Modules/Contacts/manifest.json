@@ -9,7 +9,8 @@
     "IUserDirectory",
     "ICurrentUserContext",
     "IAuditLogger",
-    "ICrossModuleLinkResolver"
+    "ICrossModuleLinkResolver",
+    "ITeamDirectory"
   ],
   "publishedEvents": [
     "ContactCreatedEvent",
