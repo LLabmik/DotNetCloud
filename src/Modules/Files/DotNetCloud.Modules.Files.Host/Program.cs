@@ -60,6 +60,10 @@ builder.Services.AddTokenIntrospection();
 // Register the gRPC-backed audit logger (SOC 2 CC4) — routes to Core.Server.
 builder.Services.AddAuditLogger();
 
+// Platform events (share expiry warnings) are raised to Core.Server, which owns notification,
+// real-time and push delivery. The module does not deliver notifications itself.
+builder.Services.AddPlatformEventPublisher();
+
 // Real-time search indexing bridge — forwards SearchIndexRequestEvent to Core.Server.
 builder.Services.AddSearchIndexBridge();
 
@@ -170,6 +174,10 @@ builder.Services.AddSingleton<ITableNamingStrategy>(string.Equals(dbProvider, "P
 
 // Files module business logic services
 builder.Services.AddFilesServices(builder.Configuration);
+
+// Share-expiry warnings are raised as platform events for the core to deliver. This host owns the
+// shares, so it — and only it — runs the sweep.
+builder.Services.AddShareExpiryNotifications();
 
 // Team directory capability over gRPC (short-lived cache) — lets share/read services
 // resolve a caller's team membership from Core.Server without a round trip per access query.

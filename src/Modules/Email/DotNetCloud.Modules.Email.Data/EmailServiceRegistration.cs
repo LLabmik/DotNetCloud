@@ -26,9 +26,10 @@ public static class EmailServiceRegistration
         services.AddScoped<IEmailProvider, ImapSmtpEmailProvider>();
         services.AddScoped<IEmailProvider, GmailEmailProvider>();
         services.AddSingleton<EmailCredentialEncryptionService>();
-        services.AddSingleton<EmailSyncBackgroundService>();
-        services.AddSingleton<IEmailSyncService>(sp => sp.GetRequiredService<EmailSyncBackgroundService>());
-        services.AddHostedService(sp => sp.GetRequiredService<EmailSyncBackgroundService>());
+        // Syncs are core-driven: this service is not a hosted service and never schedules itself.
+        // The core lists due candidates and invokes a sync naming a user it has signed for.
+        services.AddSingleton<EmailSyncService>();
+        services.AddSingleton<IEmailSyncService>(sp => sp.GetRequiredService<EmailSyncService>());
 
         // Attachment storage
         services.Configure<AttachmentStorageOptions>(configuration.GetSection("Email:AttachmentStorage"));

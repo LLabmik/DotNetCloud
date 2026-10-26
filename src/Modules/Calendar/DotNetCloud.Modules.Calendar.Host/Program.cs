@@ -68,6 +68,10 @@ builder.Services.AddTokenIntrospection();
 // Register the gRPC-backed audit logger (SOC 2 CC4) — routes to Core.Server.
 builder.Services.AddAuditLogger();
 
+// Platform events (calendar reminders) are raised to Core.Server, which owns notification,
+// real-time and push delivery. The module does not deliver notifications itself.
+builder.Services.AddPlatformEventPublisher();
+
 // Real-time search indexing bridge — forwards SearchIndexRequestEvent to Core.Server.
 builder.Services.AddSearchIndexBridge();
 
@@ -198,7 +202,6 @@ if (!string.IsNullOrEmpty(coreEndpoint))
         var channel = GrpcChannel.ForAddress(coreEndpoint);
         return new CoreCapabilities.CoreCapabilitiesClient(channel);
     });
-    builder.Services.AddHostedService<CalendarReminderEventSubscriber>();
     builder.Services.AddHostedService<CalendarEventBroadcastSubscriber>();
 }
 

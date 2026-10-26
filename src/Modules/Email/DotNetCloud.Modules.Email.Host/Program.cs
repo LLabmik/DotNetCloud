@@ -129,6 +129,9 @@ builder.Services.AddSingleton<IEventBus, InProcessEventBus>();
 // Register all business-logic services
 builder.Services.AddEmailServices(builder.Configuration);
 
+// Lets a core-initiated operation resolve the user the core signed an assertion for (account sync).
+builder.Services.AddModuleUserAssertionAccessor();
+
 // gRPC
 builder.Services.AddGrpc(options =>
     options.Interceptors.Add<DotNetCloud.Core.Grpc.ModulePeerAuthenticationInterceptor>());

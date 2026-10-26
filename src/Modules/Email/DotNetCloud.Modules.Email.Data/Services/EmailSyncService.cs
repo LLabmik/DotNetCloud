@@ -1,29 +1,41 @@
+using DotNetCloud.Core.Services;
 using DotNetCloud.Modules.Email.Models;
 using DotNetCloud.Modules.Email.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-
-using DotNetCloud.Core.Services;
 
 namespace DotNetCloud.Modules.Email.Data.Services;
 
 /// <summary>
-/// Background service that periodically syncs enabled email accounts.
-/// Uses PeriodicTimer to poll every 5 minutes.
+/// Performs email account syncs when the core asks for them.
 /// </summary>
-public sealed class EmailSyncBackgroundService : BackgroundService, IEmailSyncService
+/// <remarks>
+/// <para>
+/// This used to be a <c>BackgroundService</c> that swept every enabled account on its own timer, so
+/// the module decided by itself which user each sync belonged to. Syncs are now driven by the core:
+/// it lists the due accounts here (<see cref="ListSyncCandidatesAsync"/>) and then invokes a sync
+/// naming both the account and the user it has signed an assertion for
+/// (<see cref="SyncAccountAsync"/>). The module never acts for a user nobody vouched for.
+/// </para>
+/// <para>
+/// IMAP/SMTP and Gmail logic stays where it is — this service only orchestrates providers and
+/// persistence, as before.
+/// </para>
+/// </remarks>
+public sealed class EmailSyncService : IEmailSyncService
 {
     private readonly IServiceScopeFactory _scopeFactory;
+    private readonly ILogger<EmailSyncService> _logger;
     private readonly IBackgroundServiceTracker? _tracker;
-    private readonly ILogger<EmailSyncBackgroundService> _logger;
     private readonly Dictionary<Guid, EmailSyncStatus> _statuses = new();
-    private readonly TimeSpan _syncInterval = TimeSpan.FromMinutes(5);
 
-    private const string ServiceName = "Email Account Sync";
-
-    public EmailSyncBackgroundService(IServiceScopeFactory scopeFactory, ILogger<EmailSyncBackgroundService> logger,
+    /// <summary>
+    /// Initializes a new instance of the <see cref="EmailSyncService"/> class.
+    /// </summary>
+    public EmailSyncService(
+        IServiceScopeFactory scopeFactory,
+        ILogger<EmailSyncService> logger,
         IBackgroundServiceTracker? tracker = null)
     {
         _scopeFactory = scopeFactory;
@@ -32,46 +44,56 @@ public sealed class EmailSyncBackgroundService : BackgroundService, IEmailSyncSe
     }
 
     /// <inheritdoc />
-    public async Task SyncAccountAsync(Guid accountId, CancellationToken ct = default)
+    public async Task<IReadOnlyList<EmailSyncCandidate>> ListSyncCandidatesAsync(
+        TimeSpan minAge, CancellationToken ct = default)
     {
         using var scope = _scopeFactory.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<EmailDbContext>();
-        var providers = scope.ServiceProvider.GetRequiredService<IEnumerable<IEmailProvider>>();
 
-        var account = await db.EmailAccounts
-            .FirstOrDefaultAsync(a => a.Id == accountId && !a.IsDeleted, ct);
+        var cutoff = DateTime.UtcNow - (minAge > TimeSpan.Zero ? minAge : TimeSpan.Zero);
 
-        if (account is null)
-        {
-            _logger.LogWarning("Sync requested for non-existent account");
-            return;
-        }
+        // "Last sync" is the account's UpdatedAt, which a successful sync always refreshes.
+        // Editing an account also bumps it, which only postpones that account's next sync.
+        var accounts = await db.EmailAccounts
+            .AsNoTracking()
+            .Where(a => a.IsEnabled && !a.IsDeleted && a.UpdatedAt <= cutoff)
+            .OrderBy(a => a.UpdatedAt)
+            .Select(a => new { a.Id, a.OwnerId, a.UpdatedAt })
+            .ToListAsync(ct);
 
-        await SyncAccountInternalAsync(account, db, providers, ct);
+        return accounts
+            .Select(a => new EmailSyncCandidate(a.Id, a.OwnerId, a.UpdatedAt))
+            .ToList();
     }
 
     /// <inheritdoc />
-    public async Task SyncAllAsync(CancellationToken ct = default)
+    public async Task<bool> SyncAccountAsync(Guid accountId, Guid userId, CancellationToken ct = default)
     {
+        if (userId == Guid.Empty)
+        {
+            _logger.LogWarning("Refusing to sync account {AccountId} for an empty user id", accountId);
+            return false;
+        }
+
         using var scope = _scopeFactory.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<EmailDbContext>();
         var providers = scope.ServiceProvider.GetRequiredService<IEnumerable<IEmailProvider>>();
 
-        var accounts = await db.EmailAccounts
-            .Where(a => a.IsEnabled && !a.IsDeleted)
-            .ToListAsync(ct);
+        // Ownership is checked here, not by the caller: an account id must never be enough on its
+        // own to make the module read somebody else's mailbox.
+        var account = await db.EmailAccounts
+            .FirstOrDefaultAsync(a => a.Id == accountId && a.OwnerId == userId && !a.IsDeleted, ct);
 
-        foreach (var account in accounts)
+        if (account is null)
         {
-            try
-            {
-                await SyncAccountInternalAsync(account, db, providers, ct);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Failed to sync account {AccountId}", account.Id);
-            }
+            _logger.LogWarning(
+                "Sync requested for account {AccountId} which does not belong to user {UserId}",
+                accountId, userId);
+            return false;
         }
+
+        await SyncAccountInternalAsync(account, db, providers, ct);
+        return true;
     }
 
     /// <inheritdoc />
@@ -81,42 +103,6 @@ public sealed class EmailSyncBackgroundService : BackgroundService, IEmailSyncSe
         {
             return Task.FromResult(_statuses.GetValueOrDefault(accountId));
         }
-    }
-
-    /// <inheritdoc />
-    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
-    {
-        _logger.LogInformation("Email sync background service starting");
-
-        using var timer = new PeriodicTimer(_syncInterval);
-
-        // Initial sync on startup
-        try
-        {
-            await _tracker.RunTrackedAsync(ServiceName, () => SyncAllAsync(stoppingToken));
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error during initial email sync");
-        }
-
-        while (await timer.WaitForNextTickAsync(stoppingToken))
-        {
-            try
-            {
-                await _tracker.RunTrackedAsync(ServiceName, () => SyncAllAsync(stoppingToken));
-            }
-            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
-            {
-                break;
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error during periodic email sync");
-            }
-        }
-
-        _logger.LogInformation("Email sync background service stopping");
     }
 
     private async Task SyncAccountInternalAsync(EmailAccount account, EmailDbContext db,

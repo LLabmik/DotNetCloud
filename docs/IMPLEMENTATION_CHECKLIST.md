@@ -8,6 +8,24 @@
 
 ---
 
+## Security follow-ups — HLS regression test + background-work refactors (2026-10-25, `fix/security-followups`)
+
+> Closes the last unproven P0 finding from batch 1 and implements the two background-work refactors that batch deferred. Deployed and verified on mint22 (15/15 targets, `/health/ready` 14/14).
+
+- ✓ **Video HLS entitlement regression test** — new `VideoControllerHlsAuthorizationTests` (7 cases) is the first controller harness in `Video.Tests`: foreign stream token, foreign session cookie and the catch-all segment fallback all return 404 _without touching the HLS job_; a token minted for a different video returns 403; owner token/cookie still serve. Mutation-checked against the unfixed controller (the three non-owner cases fail, returning `PhysicalFileResult`)
+- ✓ **Notify-class jobs moved into the core** — `PublishEvent` is no longer a logged no-op: `ModuleEventInbox` whitelists the module-publishable event types, derives the caller from the authenticated module (never from the payload), stamps `SourceModuleId` with the verified module id, caps the payload at 64 KiB and rejects user-scoped callers. New `IPlatformEventPublisher` (Core) + `PlatformEventPublisher` over the core capability RPC
+- ✓ **Calendar reminders** — `ReminderDispatchService` raises `ReminderTriggeredEvent` through the publisher; the fabricated `new CallerContext(Guid.Empty, [], CallerType.System)` is gone, along with `CalendarReminderTriggeredEvent`, `CalendarReminderEventHandler`, `CalendarReminderEventSubscriber` and the unconsumed `CalendarReminder` SignalR broadcast. The core's `NotificationProducer` now words the body from the remaining time ("Starts in 15 minutes" / "Starting now"), matching the Android client's local alarms
+- ✓ **Files share expiry** — `ShareExpiryNotificationService` raises `ShareExpiringEvent` through the publisher instead of the module-local bus with `CreateSystemContext()`; a share is only marked notified once the core accepts the event, so a failure retries instead of being dropped. The sweep is registered by the **Files host alone** (`AddShareExpiryNotifications`) — Photos/Music/Video reuse `AddFilesServices` and were silently mounting a second copy
+- ✓ **Email sync is core-driven** — the module's self-scheduling `EmailSyncBackgroundService` is replaced by `EmailSyncService` (no timer, owner predicate on every sync). New `ListSyncCandidates` RPC reports which accounts are due; `TriggerSync` now **requires** a core-signed user assertion, refuses a payload that names a different user, and syncs only the asserted user's account. Core-side `EmailSyncScheduler` lists candidates, confirms each owner against the identity store, mints a ≤60 s ECDSA assertion (`op = email.sync`) and invokes the module over `IModuleGrpcChannelProvider`. IMAP/SMTP/Gmail logic untouched
+- ✓ **Manual sync ownership (closes `email.sync.account-idor-missing-ownership-check`)** — `EmailController.SyncAccount` passes the authenticated caller and returns 404 for an account the caller does not own
+- ✓ **Contacts 503 (found live during verification)** — `ContactsGrpcApiClient` is registered scoped and disposed the manager-owned channel, so the first scope to end (a closed Blazor circuit — opening the Contacts page was enough) killed the contacts channel process-wide: every later call *and* the supervisor's health probe failed with `ObjectDisposedException: GrpcChannel` and the page returned 503 until restart. `Dispose()` is now a documented no-op; `ContactsGrpcApiClientTests` pins it (mutation-checked key: restoring the old body reproduces the production stack). Same bug class as the three Files clients fixed in batch 1
+- ✓ **Dead unauthenticated channel factories deleted** — `AdminController` and `AdminSystemController` each carried an unreferenced `CreateGrpcChannel(endpoint)`; both already use `IModuleGrpcChannelProvider`. Removed so the raw-channel path cannot be wired up later
+- ✓ Tests — 7 (Video HLS) + 9 (`ModuleEventInboxTests`) + 7 (`EmailSyncSchedulerTests`) + 5 (`EmailGrpcServiceSyncTests`) + 5 (`EmailSyncServiceTests`) new, plus the reminder wording and publish-failure cases and the rewritten Calendar/Files service tests
+- ✓ Live verification (mint22) — `ListSyncCandidates` reached the Email host over the authenticated channel (200); a seeded due reminder published via `PublishEvent`, appeared on the core event bus and produced a `Type=Reminder` notification; share-expiry cycles run in `dotnetcloud.files` only
+- ☐ **Reminder delivery method** — `ReminderTriggeredEvent` carries no `ReminderMethod`, so an "email only" reminder still raises an in-app notification (see "Notification Routing" below)
+
+---
+
 ## Code Standard — Blazor code & style separation (2026-10-24, `fix/blazor-code-standards`)
 
 > A `.razor` file holds markup and Razor directives only. C# lives in `Component.razor.cs`, component CSS in `Component.razor.css`. Static inline `style="…"` is forbidden.
@@ -30,7 +48,7 @@
 
 - ✓ **Root cause** — `MusicPage.DownloadAlbumAsync` built the download anchor with `Js.InvokeVoidAsync("eval", "var a=document.createElement('a')…")`. The hardened CSP (`script-src 'self' 'wasm-unsafe-eval' 'sha256-…'`, no `'unsafe-eval'`) rejects the string, so the anchor is never clicked.
 - ✓ **Fix** — new CSP-safe helper module `src/UI/DotNetCloud.UI.Web/wwwroot/js/dom-helpers.js` (`window.dotnetcloudDom.{triggerDownload, downloadData, click, scrollIntoView}`), loaded from `App.razor` (`?v=20261024-01`). Music download now calls `dotnetcloudDom.triggerDownload(url)`.
-- ✓ **Same defect fixed elsewhere** — Tracks Kanban *Export CSV*, Backlog *Export CSV*, CSV import *file picker* and command-palette *scroll selected* all used `eval` and were equally dead; each now calls a named helper.
+- ✓ **Same defect fixed elsewhere** — Tracks Kanban _Export CSV_, Backlog _Export CSV_, CSV import _file picker_ and command-palette _scroll selected_ all used `eval` and were equally dead; each now calls a named helper.
 - ✓ **Regression guard** — new `CspInlineScriptTests.ServiceSources_DoNotEvaluateStringsAsJavaScript` scans every `src/**/*.cs` and `src/**/*.razor` (skipping `bin`/`obj` and comments) and fails the build on any `InvokeVoidAsync("eval", …)`.
 - ✓ **Tests** — CSP **5**, Music **439**, Tracks **205** — all pass; `dotnet build DotNetCloud.sln` 0 errors.
 - ✓ **Deployed** — `sudo ./scripts/deploy.sh --force --verify`: 15/15 targets, all hashes verified, `/health/ready` 200; `dom-helpers.js` served (200), `dotnetcloudDom.triggerDownload` present in the deployed `DotNetCloud.Modules.Music.dll`, helper names in `DotNetCloud.Modules.Tracks.dll`.
@@ -40,7 +58,7 @@
 
 ## Recent Fix — Music track durations were 0 (junk between the ID3v2 tag and the MPEG frame stream) (2026-10-23, `fix/blazor-music`)
 
-> Following the playback fix, many tracks showed no duration and album headers read `0:00` (e.g. Duran Duran *Rio* → "9 tracks · 0:00"). A probe against the deployed `TagLibSharp` showed the parse **succeeds** but reports `duration=00:00:00 br=0` for files that `ffprobe` plays as 2:57/5:01.
+> Following the playback fix, many tracks showed no duration and album headers read `0:00` (e.g. Duran Duran _Rio_ → "9 tracks · 0:00"). A probe against the deployed `TagLibSharp` showed the parse **succeeds** but reports `duration=00:00:00 br=0` for files that `ffprobe` plays as 2:57/5:01.
 
 - ✓ **Root cause** — some encoders leave junk (padding, a stale tag) between the ID3v2 tag and the first MPEG frame, so TagLib parses the tags but cannot locate the frame chain and reports a zero duration/bitrate. No exception is thrown, so the existing corrupt-art fallback never ran and `music.canonical_tracks.DurationTicks` stayed 0.
 - ✓ **Fix** — `MusicMetadataService.TryReadMpegAudioInfo` walks the MPEG frame chain itself: locates a sync validated by **3 consecutive frame headers** (so random audio data cannot false-positive), counts frames, and derives duration/bitrate/sample-rate/channels. Values TagLib reported as zero are filled from that scan, both on the "parsed but zero" path and as a last resort when the tags are unreadable.
@@ -109,6 +127,7 @@
 > The Blazor Music module browses its library sources as directories. Multiple sources appear as directories at the root of the folder view; a single source opens directly. Indexed music files play in the global player, and every file can be opened in Files.
 
 **UI**
+
 - ✓ `Folders` item in the Music sidebar (`MaterialIcon folder`)
 - ✓ `Section.Folders` with breadcrumbs, Up and Refresh in `MusicPage`
 - ✓ Sources root lists every configured source (owned folder or `_DotNetCloud` shared mount); single source auto-opens
@@ -118,10 +137,12 @@
 - ✓ Scoped styles for the folder view in `MusicPage.razor.css`
 
 **Services**
+
 - ✓ `ITrackService.GetTracksByFileNodeIdsAsync` — bulk FileNode → `TrackDto` lookup with a single star query
 - ✓ Star-aware `TrackService.MapToDto` overload (existing behaviour unchanged)
 
 **Tests**
+
 - ✓ `MusicFolderViewTests` — ordering, case-insensitive sort, track resolution, folder/track separation, metadata copy
 - ✓ `TrackServiceTests` — bulk lookup: empty input, keying, unknown IDs, owner filtering, stars, duplicates
 - ☐ Deploy + browser verification on mint22 (awaiting approval)
@@ -133,6 +154,7 @@
 > Every new account is seeded from an administrator-managed template at `${DOTNETCLOUD_DATA_DIR}/default-user-content` (`docs/DEFAULT_USER_CONTENT_PLAN.md`). Existing accounts converge on every start-up and daily. Automatic passes are add-only; removals and edits require an explicitly confirmed run. Starter content is read-only, quota-free, and **keeps no version history**.
 
 **Core**
+
 - ✓ `UserCreatedEvent` + best-effort publication from `AuthService.RegisterAsync`
 - ✓ `UserContentProvisioningDispatcher` (bounded channel, 2 drain workers, 3 transport retries)
 - ✓ `StartupUserContentSweepService` (retries until the module answers, 1 000-user batches, daily pass)
@@ -140,6 +162,7 @@
 - ✓ `ErrorCodes.FILE_READ_ONLY` + `FileReadOnlyException`
 
 **Files module — data & storage**
+
 - ✓ `UserContentProvisioning` / `UserDefaultContentItem` entities + both provider migrations
 - ✓ `FileNode.IsReadOnly`, `FileQuota.ExemptBytes`, `QuotaDto.ExemptBytes`, `FileNodeDto.IsDefaultContent`
 - ✓ `DefaultUserContentOptions` + `DefaultUserContentSettingsProvider` (admin overlay)
@@ -156,6 +179,7 @@
 - ✓ `UserDeletedEventSubscriber` cleans up both new tables
 
 **UI**
+
 - ✓ `/admin/files/default-content` inspector (status, validation, browser, preview, confirmation gates, queue)
 - ✓ `/admin/files` header link + default-content enable toggle (kill switch)
 - ✓ Files browser lock + "Default" badge; context menu keeps delete/copy/share/download and drops rename/move
@@ -163,6 +187,7 @@
 - ✓ Quota bar shows "N MB default content (free)"
 
 **CLI & deployment**
+
 - ✓ `dotnetcloud files default-content status|validate|reconcile|seed-defaults|sync-seed|export|import`
 - ✓ `DefaultUserContentArchive` (zip-slip, symlink, bomb, caps, illegal names; merge/replace with dated backup)
 - ✓ `CliConfig` `JsonExtensionData` so setup/cert renewal no longer drop `Files:DefaultUserContent:RootPath`
@@ -173,6 +198,7 @@
 - ✓ CLI resolves the template root from the configured data directory (sets `DOTNETCLOUD_DATA_DIR`) instead of the current directory
 
 **Verification**
+
 - ✓ Files.Tests **987 pass / 0 fail** (19 new default-content tests); CLI.Tests **181 pass**; Core.Auth **180 pass**; Core.Server **803 pass / 2 skip**
 - ✓ Both migrations generated (PostgreSQL + SQL Server) and `DotNetCloud.CI.slnf` builds clean
 - ✓ **Live e2e on mint22** (4 deploys, 15/15 targets each, hashes verified, `/health/ready` 200): migration applied (`core.UserContentProvisioning`, `core.UserDefaultContentItems`, `FileNodes.IsReadOnly`, `FileQuotas.ExemptBytes`); existing users converged (adoption, no duplicate folders); new registration provisioned **immediately** (5 folders + file, 6 items); nested template file landed under `Templates/E2E/` for every user; one shared blob for 3 users; exactly **one version** per default file before and after a publish update; quota `UsedBytes=0 / ExemptBytes=67`; user trash → `RemovedByUser` and not recreated; restore → `Present`; template edit stayed pending until `--publish-updates`; removal stayed pending until `--confirm-deletions` (then file + emptied folder both deleted); ZIP export/validated import round-trip; backup includes the template including empty folders; upgrade left the template tree hash **unchanged**
@@ -243,7 +269,7 @@
 
 > Tapping an image that was **not** the first one in a folder opened the viewer on the **first** image, every time. The tap itself was fine — the browser had the right node — so the fault was in the viewer's carousel: `ImageViewerViewModel` resolved the correct index and set `CurrentPosition`, and the Android `CarouselView` then discarded it.
 
-- ✓ **Root cause (MAUI `CarouselView` on Android)** — populating `CarouselItems` (`Clear()` plus an `Add()` per file) makes the platform view rebuild its adapter, and that rebuild resets `Position` to 0 / `CurrentItem` to `null`, queues a scroll back to position 0 and leaves `CurrentItem` on the **first** item. The binding-driven `Position` write that followed was dropped as well, because the rebuild also leaves MAUI's internal `_noNeedForScroll` flag set (`UpdateFromPosition` returns early — no scroll *and* no `CurrentItem` update). When the carousel then became visible, its layout pass re-derived the position from `CurrentItem` — still the first image — and wrote that `0` back through the two-way `Position` binding, so the view model followed it: position text `1 / N`, first image loaded, first image's EXIF.
+- ✓ **Root cause (MAUI `CarouselView` on Android)** — populating `CarouselItems` (`Clear()` plus an `Add()` per file) makes the platform view rebuild its adapter, and that rebuild resets `Position` to 0 / `CurrentItem` to `null`, queues a scroll back to position 0 and leaves `CurrentItem` on the **first** item. The binding-driven `Position` write that followed was dropped as well, because the rebuild also leaves MAUI's internal `_noNeedForScroll` flag set (`UpdateFromPosition` returns early — no scroll _and_ no `CurrentItem` update). When the carousel then became visible, its layout pass re-derived the position from `CurrentItem` — still the first image — and wrote that `0` back through the two-way `Position` binding, so the view model followed it: position text `1 / N`, first image loaded, first image's EXIF.
 - ✓ **`ImageViewerViewModel`** — new `StartIndexReady` event (`EventHandler<int>`), raised once the carousel has been populated with the resolved start index, in both the folder mode and the URL mode. No new view-model state: the index already existed, it just had to reach the control instead of relying on the `Position` binding.
 - ✓ **`ImageViewerPage.xaml.cs`** — subscribes to `StartIndexReady` and applies the index **once** (also from `CarouselView.SizeChanged`, for the case where the index arrives before the platform view exists): it sets `CurrentItem` to the tapped item so the carousel's own re-derivation agrees with it, then issues an explicit `ScrollTo(index, ScrollToPosition.Center, animate: false)`. That explicit scroll also cancels the carousel's queued scroll back to position 0 — MAUI is explicit that an explicit `ScrollTo` wins over that internal collection-change positioning.
 - ✓ **Verified on device (R5CWC356B2K / SM-S928U, 2026-10-12)** — `net10.0-android` Debug `-t:Install` (0 warnings / 0 errors) over the existing install, in `AutoUpload › 2026 › 02` (21 images + 1 video): tapping the **3rd** image opened `20260208_210959.jpg` at **`3 / 21`**, the **5th** opened `20260208_211022.jpg` at **`5 / 21`**, and a **17th** image (scrolled into view) opened `NUP_206697_03359.JPG.webp` at **`17 / 21`**, while the **1st** still opens at **`1 / 21`**. Swipes still page 3 → 4 → 5 → 4 with names and position text following, the ⓘ panel shows the tapped image's metadata (`750 × 1000`, `Phase One IQ3 100MP Trichromatic`, `Jan 23, 2025 · 6:04 AM`), and logcat carries no client exceptions.
@@ -273,7 +299,7 @@
 - ✓ **Tests** — `CollaboraEditabilityTests` (13: editable / not-editable / native exclusions / creatable order / MIME / normalization), `HttpWopiRestClientTests` (10: discovery incl. dedupe + unavailable + transport failure, token mint enveloped and raw, missing `editorUrl`, 403, DELETE 204/503), `HttpFileRestClientSharedWithMeTests` (6: **raw** array response, enveloped tolerance, read-only vs read-write permission, skipped rows, empty, 5xx) and `DocumentEditorViewModelTests` (8: failure/retry state and the no-document no-op) wired through the test project's explicit `<Compile Include>` list. `DotNetCloud.Client.Android.Tests` **551 pass / 0 fail / 1 skip**.
 - ✓ **Shared With Me entry (added during verification)** — §2 decision 5 was unreachable through the folder tree, because the server's `_DotNetCloud → Shared With Me` folder is built from `ListMountedAccessAsync` ("nodes … through **team or group** shares") and the process-isolated Files host doesn't register `ISharedWithMeModuleRegistry` at all — so a **direct user share** is invisible there on both clients (the Blazor tree is empty too; only its sidebar works, via a different endpoint). The app now has a pinned **Shared With Me** row (👥, "Shared with you") at the top of the user's root that lists `GET /api/v1/files/shared-with-me`; a "view only" chip shows the granted permission; shared folders stay browsable; and the shares tree hides New Document / New folder / Upload and disables swipe-to-delete because the nodes belong to the sharer. Navigation entries carry a `SharedWithMe` flag and breadcrumb jumps now match **by position** (the user root and the shares root both have a null folder id).
 - ✓ **Build** — `net10.0-android` **arm64 Debug: 0 warnings / 0 errors** with `TreatWarningsAsErrors`, signed APK produced.
-- ✓ **HTTP-error overlay (found live during on-device testing)** — MAUI's Android client only reports transport failures, so a Collabora proxy error painted Chromium's raw error page with no way back. New `EditorWebViewClient` (subclasses `MauiWebViewClient`, reports main-frame `onReceivedHttpError`) is installed **before** the editor URL is assigned — MAUI's own `MapWebViewClient` mapper runs at handler-connect time and replaces anything set earlier — and the page keeps the failure sticky, because Chromium reports the error document's load as *success* afterwards. The overlay names the status ("HTTP 502 … Collabora may be down", 401/403, 404, or a connection problem for transport failures) and the loading/error overlays are now opaque so the raw WebView is never visible behind them.
+- ✓ **HTTP-error overlay (found live during on-device testing)** — MAUI's Android client only reports transport failures, so a Collabora proxy error painted Chromium's raw error page with no way back. New `EditorWebViewClient` (subclasses `MauiWebViewClient`, reports main-frame `onReceivedHttpError`) is installed **before** the editor URL is assigned — MAUI's own `MapWebViewClient` mapper runs at handler-connect time and replaces anything set earlier — and the page keeps the failure sticky, because Chromium reports the error document's load as _success_ afterwards. The overlay names the status ("HTTP 502 … Collabora may be down", 401/403, 404, or a connection problem for transport failures) and the loading/error overlays are now opaque so the raw WebView is never visible behind them.
 - ✓ **Version numbers** — unchanged by design: the operator bumps client versions only when preparing a release, so this branch keeps **0.6.13**. Not an open item.
 - ✓ **On-device E2E (R5CWC356B2K / SM-S928U against `cloud.dotnetcloud.net`)** — installed over the previous debug build (app data preserved). A `.docx` opens in the in-app editor showing its saved content; **editing works once the pencil FAB is tapped** (mobile Collabora starts out of edit mode), and saving from the editor created **real `FileVersion` rows** — observable client-side via `CheckFileInfo.Version` (`{CurrentVersion}_{ticks}`): `18_…`/`Size 5529`/`SHA256 dd0d41be…` → `20_…`/`Size 5545`/`SHA256 54569eca…` after typing "Saved via Android app" and saving. A byte-identical `PutFile` then advanced the counter with an unchanged content hash, i.e. each save adds a version (the close-flush adds another); the doc was reopened afterwards and rendered the saved text. Driving the WebView (via its debug socket) to a URL that returns **404** produced the app's own overlay — "The document could not be found on the server." with **Retry** / **Open in browser** — and **Retry** re-minted the token and reloaded the editor. A **read-only share** (`ShareTest.docx`) shows the "view only" chip, opens with Collabora's own **Read-only** badge, and its minted token decodes to `{"CanWrite":false,…}`; closing the editor sends the `DELETE /api/v1/wopi/token/{id}` that releases the session slot. **New Document** (in `Temp`) offered the preferred work formats first then the remaining Collabora types, and two default-named creates produced `Untitled.docx` then `Untitled (1).docx`, each opening a blank page (`upload/initiate` → `upload/{id}/complete` → `wopi/token/{id}`); both test files were deleted afterwards. A non-office file (`.epub`) still uses download-and-open.
 - ✓ **Concurrency cap** — logic verified by the existing server tests (run here: `WopiSessionTrackerTests` **10/10 pass**, including `TryBeginSession_AtCapacity_ReturnsFalse`, `EndSession_ExistingSession_DecreasesCount` and `TryBeginSession_AfterEndSession_CanAddNewSession`); a denied session maps to **503** on CheckFileInfo (`WopiController`). Exercising it end-to-end needs 20 concurrent **server-wide** sessions (the cap counts all active `(file,user)` sessions, default `MaxConcurrentSessions=20`, and the same file+user only refreshes), so it remains a server-side load test; the `503` path is now also covered by a new controller test (`CheckFileInfo_AtConcurrencyCapacity_Returns503`). **Server decision (2026-10-11):** the cap stays **global** — a Collabora resource guard, not a per-document lock. The client half is done: our close sends the `DELETE` that frees the slot.
@@ -282,6 +308,7 @@
 - ✓ **Server gap — FIXED (server, 2026-10-11)** — the `_DotNetCloud → Shared With Me` **folder** now includes **direct user shares**, not just team/group mounted access: `FileService.ListSharedWithMeFileNodesAsync` unions both (de-duplicated by node id) and feeds the folder, the Files module folder and the child count, so the tree matches the sidebar. Deployed + live-data-confirmed (`ShareTest.docx`). On-device re-verification is the client agent's (see the handoff).
 - ✓ **Server follow-ups — DONE (2026-10-11)** — the five WOPI findings are resolved and deployed (15/15, `/health/ready` Healthy 14/14, v0.6.13): items 1–3 explained/documentised (malformed URL, read-race, global cap + 503 test), item 4 fixed (Shared-With-Me folder lists direct shares), item 5 fixed (a byte-identical `PutFile` no longer creates a `FileVersion` — only `UpdatedAt` refreshes). The live 20-session concurrency load test was **not** run (it would hold real slots for 8 h 30 m); the 503 path is unit-tested instead. Remaining: on-device verification by `monolith` (handoff).
 - ✓ **Client on-device re-verification of items 4 & 5 — DONE (`monolith`, R5CWC356B2K, 2026-10-11)** — **Item 4:** `_DotNetCloud → Shared With Me` now lists the direct user shares (`ShareTest.docx` 5.5 KB + `Test.docx`) and tapping `ShareTest.docx` opens the in-app Collabora editor with Collabora's own **Read-only** badge (minted token decodes to `CanWrite:false`; `CheckFileInfo` reports `UserCanWrite:false`, `SupportsUpdate:false`). Note for follow-up: `_DotNetCloud` sorts **last** in the app's root listing (the client sorts folders ordinally, where `_` follows uppercase letters), so it sits below the fold. **Item 5:** a byte-identical `PutFile` sent with the app's own session token left the counter at `23_…` while only the ticks advanced (`UpdatedAt` refreshed, size/hash untouched, HTTP 200), a real in-app edit still incremented the counter `22` → `23` with a new size (5546 → 5570) and manifest hash, and an unmodified open/close cycle changed nothing at all. Both handoff items are therefore closed from the client side.
+
 ## Recent Feature — Photo listings show the image creation time (2026-10-10, `fix/photo-listings-creation-time`)
 
 > Requested: "Photo listings (in both files and photos modules) should show image creation time." Chosen behaviour: show the **EXIF capture time when available, else the created timestamp**, as date **and** time.
@@ -3935,6 +3962,10 @@ This phase implements real-time chat, announcements, push notifications, and the
   - ✓ Respect user notification preferences (per-channel mute, DND)
   - ✓ Implement notification deduplication (don't notify if user is online)
 - ✓ Create notification queue for reliability (background processing)
+- ☐ Honour the per-reminder delivery method: `ReminderTriggeredEvent` carries no
+  `ReminderMethod`, so the core fans a due reminder out to every configured channel and an
+  "email only" reminder still raises an in-app notification. Needs the method on the event (or a
+  per-user reminder preference lookup) before the fan-out can skip channels.
 
 #### Push Notification Endpoints
 

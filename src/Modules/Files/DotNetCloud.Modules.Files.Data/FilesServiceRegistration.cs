@@ -149,7 +149,6 @@ public static class FilesServiceRegistration
 
         services.AddSingleton<ICoreCapabilitiesClient, CoreCapabilitiesClient>();
         services.AddSingleton<IGroupDirectory, GrpcGroupDirectory>();
-
         // User directory capability over gRPC — lets the WOPI CheckFileInfo response report the
         // editor's display name (Collabora shows UserFriendlyName for co-editors), instead of
         // falling back to the raw user GUID.
@@ -165,7 +164,8 @@ public static class FilesServiceRegistration
         services.AddHostedService<QuotaRecalculationService>();
         services.AddHostedService<VersionCleanupService>();
         services.AddHostedService<TempFileCleanupService>();
-        services.AddHostedService<ShareExpiryNotificationService>();
+        // ShareExpiryNotificationService is registered by the Files host alone — see
+        // AddShareExpiryNotifications below.
         services.AddHostedService<ExpiredShareCleanupService>();
         services.AddHostedService<WholeFileBlobSweepService>();
 
@@ -271,6 +271,24 @@ public static class FilesServiceRegistration
         // health checks, and admin reindex dispatchers are NOT registered here —
         // they run only in the module host process.
 
+        return services;
+    }
+
+    /// <summary>
+    /// Registers the share-expiry notification sweep, which raises a platform event for each share
+    /// that is about to expire.
+    /// </summary>
+    /// <remarks>
+    /// Deliberately not part of <see cref="AddFilesServices"/>: the media hosts (Photos, Music,
+    /// Video) reuse the Files services to browse the same library, so the sweep would otherwise run
+    /// in four processes and raise four deliveries for one expiring share. It belongs to the host
+    /// that owns the shares.
+    /// </remarks>
+    /// <param name="services">The service collection.</param>
+    /// <returns>The service collection for chaining.</returns>
+    public static IServiceCollection AddShareExpiryNotifications(this IServiceCollection services)
+    {
+        services.AddHostedService<ShareExpiryNotificationService>();
         return services;
     }
 }

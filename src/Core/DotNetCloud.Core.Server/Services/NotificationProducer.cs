@@ -133,13 +133,39 @@ internal sealed class NotificationProducer :
             SourceModuleId = e.SourceModuleId,
             Type = NotificationType.Reminder,
             Title = e.Title,
-            Message = e.DueAtUtc.HasValue ? $"Due at {e.DueAtUtc.Value:u}" : "Reminder",
+            Message = FormatReminderMessage(e.DueAtUtc),
             Priority = NotificationPriority.High,
             ActionUrl = BuildActionUrl(e.EntityType, e.EntityId),
             RelatedEntityType = MapEntityType(e.EntityType),
             RelatedEntityId = e.EntityId,
             CreatedAtUtc = e.CreatedAt
         }, ct);
+    }
+
+    /// <summary>
+    /// Builds the reminder body from the real time remaining at delivery.
+    /// </summary>
+    /// <remarks>
+    /// The wording is the one the calendar module used while it formatted and delivered reminders
+    /// itself, and it matches the Android client's local alarms
+    /// (<c>CalendarReminderText</c>): a late or catch-up dispatch reports how long is actually left
+    /// instead of restating the configured offset. Minutes are rounded rather than truncated so a
+    /// reminder fired on the scan boundary still reads "Starts in 15 minutes" and not "14".
+    /// </remarks>
+    /// <param name="dueAtUtc">When the reminded-about occurrence starts, if known.</param>
+    /// <returns>The notification body.</returns>
+    internal static string FormatReminderMessage(DateTime? dueAtUtc)
+    {
+        if (dueAtUtc is null)
+            return "Reminder";
+
+        var minutesFromNow = (int)Math.Round(
+            (dueAtUtc.Value - DateTime.UtcNow).TotalMinutes, MidpointRounding.AwayFromZero);
+
+        if (minutesFromNow <= 0)
+            return "Starting now";
+
+        return $"Starts in {minutesFromNow} minute{(minutesFromNow == 1 ? "" : "s")}";
     }
 
     /// <inheritdoc />

@@ -291,9 +291,62 @@ public class NotificationProducerTests
                     d.Type == NotificationType.Reminder &&
                     d.Priority == NotificationPriority.High &&
                     d.Title == "Team Meeting in 15 minutes" &&
+                    d.Message == "Starts in 15 minutes" &&
                     d.ActionUrl == $"/calendar?eventId={entityId}" &&
                     d.RelatedEntityType == CrossModuleLinkType.CalendarEvent &&
                     d.RelatedEntityId == entityId),
+                It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
+
+    [TestMethod]
+    public async Task ReminderTriggeredEvent_DueInOneMinute_UsesSingularMinute()
+    {
+        var userId = Guid.CreateVersion7();
+        var @event = new ReminderTriggeredEvent
+        {
+            EventId = Guid.CreateVersion7(),
+            CreatedAt = DateTime.UtcNow,
+            UserId = userId,
+            SourceModuleId = "dotnetcloud.calendar",
+            EntityType = "CalendarEvent",
+            EntityId = Guid.CreateVersion7(),
+            Title = "Team Meeting",
+            DueAtUtc = DateTime.UtcNow.AddMinutes(1)
+        };
+
+        await _producer.HandleAsync(@event);
+
+        _notificationService.Verify(
+            n => n.SendAsync(
+                userId,
+                It.Is<NotificationDto>(d => d.Message == "Starts in 1 minute"),
+                It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
+
+    [TestMethod]
+    public async Task ReminderTriggeredEvent_AlreadyStarted_ReportsStartingNow()
+    {
+        var userId = Guid.CreateVersion7();
+        var @event = new ReminderTriggeredEvent
+        {
+            EventId = Guid.CreateVersion7(),
+            CreatedAt = DateTime.UtcNow,
+            UserId = userId,
+            SourceModuleId = "dotnetcloud.calendar",
+            EntityType = "CalendarEvent",
+            EntityId = Guid.CreateVersion7(),
+            Title = "Team Meeting",
+            DueAtUtc = DateTime.UtcNow.AddMinutes(-2)
+        };
+
+        await _producer.HandleAsync(@event);
+
+        _notificationService.Verify(
+            n => n.SendAsync(
+                userId,
+                It.Is<NotificationDto>(d => d.Message == "Starting now"),
                 It.IsAny<CancellationToken>()),
             Times.Once);
     }

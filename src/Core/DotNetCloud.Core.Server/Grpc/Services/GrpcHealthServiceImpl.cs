@@ -26,15 +26,18 @@ internal sealed class CoreCapabilitiesServiceImpl : CoreCapabilities.CoreCapabil
     private readonly ILogger<CoreCapabilitiesServiceImpl> _logger;
     private readonly IServiceProvider _serviceProvider;
     private readonly SearchIndexingService _indexingService;
+    private readonly ModuleEventInbox _eventInbox;
 
     public CoreCapabilitiesServiceImpl(
         ILogger<CoreCapabilitiesServiceImpl> logger,
         IServiceProvider serviceProvider,
-        SearchIndexingService indexingService)
+        SearchIndexingService indexingService,
+        ModuleEventInbox eventInbox)
     {
         _logger = logger;
         _serviceProvider = serviceProvider;
         _indexingService = indexingService;
+        _eventInbox = eventInbox;
     }
 
     /// <summary>
@@ -213,20 +216,50 @@ internal sealed class CoreCapabilitiesServiceImpl : CoreCapabilities.CoreCapabil
             : (NotificationType.Info, NotificationPriority.Normal);
 
     /// <summary>
-    /// Publishes an event on the event bus (IEventBus capability).
+    /// Publishes a platform event on the core's event bus (IEventBus capability).
     /// </summary>
-    public override Task<PublishEventResponse> PublishEvent(PublishEventRequest request, ServerCallContext context)
+    /// <remarks>
+    /// This is the supported way for a process-isolated module to raise a platform event: the module
+    /// reports what happened and the core owns delivery (in-app notification, real-time push, email).
+    /// The publisher's identity is the authenticated module on the transport — there is no caller
+    /// field in the request, so a module can neither impersonate another module nor claim system
+    /// identity, and only event types registered in <see cref="ModuleEventInbox"/> are accepted.
+    /// </remarks>
+    public override async Task<PublishEventResponse> PublishEvent(
+        PublishEventRequest request,
+        ServerCallContext context)
     {
-        _logger.LogInformation("PublishEvent: {EventType} from module {ModuleId}",
-            request.EventType, GetModuleId(context));
+        var moduleId = GetModuleId(context);
 
-        // NOTE: IEventBus.PublishAsync<TEvent> is generic and requires knowing TEvent
-        // at compile time. Full implementation requires an event type registry that
-        // maps event type strings to CLR types. Until then, events from process-isolated
-        // modules are logged but not dispatched through the in-process event bus.
-        // Modules should use the BroadcastRealtimeEvent RPC for real-time notifications.
+        if (!context.UserState.TryGetValue("CallerContext", out var callerValue)
+            || callerValue is not CallerContext caller)
+        {
+            // CallerContextInterceptor always populates this for an authenticated module. Reaching
+            // here means the interceptor chain is misconfigured: refuse rather than guess an identity.
+            _logger.LogError(
+                "PublishEvent: no caller context on an authenticated call from module {ModuleId}", moduleId);
+            return new PublishEventResponse
+            {
+                Success = false,
+                Error = "The caller identity could not be established."
+            };
+        }
 
-        return Task.FromResult(new PublishEventResponse { Success = true });
+        var (success, error) = await _eventInbox.TryPublishAsync(
+            request.EventType,
+            request.PayloadJson,
+            caller,
+            moduleId,
+            context.CancellationToken);
+
+        if (success)
+        {
+            _logger.LogInformation(
+                "PublishEvent: {EventType} from module {ModuleId} published on the core event bus",
+                request.EventType, moduleId);
+        }
+
+        return new PublishEventResponse { Success = success, Error = error ?? string.Empty };
     }
 
     /// <summary>

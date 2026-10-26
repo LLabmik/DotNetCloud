@@ -99,6 +99,18 @@ public sealed record UserMentionedEvent : IEvent
 /// <summary>
 /// Raised when a reminder fires for a user.
 /// </summary>
+/// <remarks>
+/// The core owns delivery: the module raises this event and the notification pipeline produces the
+/// in-app notification plus the real-time and push deliveries, wording the body from the time
+/// actually remaining at <see cref="DueAtUtc"/>.
+/// <para>
+/// <b>Known gap:</b> the per-reminder delivery method (<c>ReminderMethod.Notification</c> vs
+/// <c>.Email</c>) is <b>not</b> carried here, so a reminder is fanned out to every configured
+/// channel — an "email only" reminder still raises an in-app notification. Honouring the method
+/// needs either a field on this event or a per-user reminder preference lookup in the fan-out.
+/// Tracked in <c>docs/IMPLEMENTATION_CHECKLIST.md</c> → "Notification Routing".
+/// </para>
+/// </remarks>
 public sealed record ReminderTriggeredEvent : IEvent
 {
     /// <inheritdoc />

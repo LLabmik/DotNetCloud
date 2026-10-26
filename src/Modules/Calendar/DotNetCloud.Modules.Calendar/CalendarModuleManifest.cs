@@ -37,7 +37,6 @@ public sealed class CalendarModuleManifest : IModuleManifest
         nameof(CalendarEventUpdatedEvent),
         nameof(CalendarEventDeletedEvent),
         nameof(CalendarEventRsvpEvent),
-        nameof(CalendarReminderTriggeredEvent),
         nameof(ReminderTriggeredEvent),
         nameof(ResourceSharedEvent)
     };

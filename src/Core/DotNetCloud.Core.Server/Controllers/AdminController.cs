@@ -824,22 +824,6 @@ public class AdminController : ControllerBase
         }
     }
 
-    private static GrpcChannel CreateGrpcChannel(string endpoint)
-    {
-        var handler = new SocketsHttpHandler
-        {
-            EnableMultipleHttp2Connections = true,
-            ConnectTimeout = TimeSpan.FromSeconds(5)
-        };
-
-        return GrpcChannel.ForAddress(endpoint, new GrpcChannelOptions
-        {
-            HttpHandler = handler,
-            MaxReceiveMessageSize = 16 * 1024 * 1024,
-            MaxSendMessageSize = 16 * 1024 * 1024,
-        });
-    }
-
     /// <summary>
     /// Describes a single module health entry for the admin health response.
     /// </summary>

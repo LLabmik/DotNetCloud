@@ -1,3 +1,4 @@
+using DotNetCloud.Core.Errors;
 using DotNetCloud.Core.Events;
 using DotNetCloud.Core.Services;
 using DotNetCloud.Modules.Files.Data;
@@ -48,10 +49,10 @@ public class ShareExpiryNotificationServiceTests
         setupDb.FileShares.Add(share);
         await setupDb.SaveChangesAsync();
 
-        var eventBusMock = new Mock<IEventBus>();
+        var publisherMock = new Mock<IPlatformEventPublisher>();
         var services = new ServiceCollection();
         services.AddDbContext<FilesDbContext>(opt => opt.UseInMemoryDatabase(dbName));
-        services.AddSingleton<IEventBus>(eventBusMock.Object);
+        services.AddSingleton<IPlatformEventPublisher>(publisherMock.Object);
         var serviceProvider = services.BuildServiceProvider();
 
         var service = new ShareExpiryNotificationService(
@@ -61,12 +62,11 @@ public class ShareExpiryNotificationServiceTests
 
         await service.CheckExpiringSharesAsync(CancellationToken.None);
 
-        eventBusMock.Verify(e => e.PublishAsync(
+        publisherMock.Verify(e => e.PublishAsync(
             It.Is<ShareExpiringEvent>(evt =>
                 evt.ShareId == share.Id &&
                 evt.FileNodeId == node.Id &&
                 evt.CreatedByUserId == node.OwnerId),
-            It.IsAny<Core.Authorization.CallerContext>(),
             It.IsAny<CancellationToken>()), Times.Once);
 
         // Verify ExpiryNotificationSentAt was set
@@ -101,10 +101,10 @@ public class ShareExpiryNotificationServiceTests
         setupDb.FileShares.Add(share);
         await setupDb.SaveChangesAsync();
 
-        var eventBusMock = new Mock<IEventBus>();
+        var publisherMock = new Mock<IPlatformEventPublisher>();
         var services = new ServiceCollection();
         services.AddDbContext<FilesDbContext>(opt => opt.UseInMemoryDatabase(dbName));
-        services.AddSingleton<IEventBus>(eventBusMock.Object);
+        services.AddSingleton<IPlatformEventPublisher>(publisherMock.Object);
         var serviceProvider = services.BuildServiceProvider();
 
         var service = new ShareExpiryNotificationService(
@@ -114,9 +114,8 @@ public class ShareExpiryNotificationServiceTests
 
         await service.CheckExpiringSharesAsync(CancellationToken.None);
 
-        eventBusMock.Verify(e => e.PublishAsync(
+        publisherMock.Verify(e => e.PublishAsync(
             It.IsAny<ShareExpiringEvent>(),
-            It.IsAny<Core.Authorization.CallerContext>(),
             It.IsAny<CancellationToken>()), Times.Never);
     }
 
@@ -145,10 +144,10 @@ public class ShareExpiryNotificationServiceTests
         setupDb.FileShares.Add(share);
         await setupDb.SaveChangesAsync();
 
-        var eventBusMock = new Mock<IEventBus>();
+        var publisherMock = new Mock<IPlatformEventPublisher>();
         var services = new ServiceCollection();
         services.AddDbContext<FilesDbContext>(opt => opt.UseInMemoryDatabase(dbName));
-        services.AddSingleton<IEventBus>(eventBusMock.Object);
+        services.AddSingleton<IPlatformEventPublisher>(publisherMock.Object);
         var serviceProvider = services.BuildServiceProvider();
 
         var service = new ShareExpiryNotificationService(
@@ -158,9 +157,8 @@ public class ShareExpiryNotificationServiceTests
 
         await service.CheckExpiringSharesAsync(CancellationToken.None);
 
-        eventBusMock.Verify(e => e.PublishAsync(
+        publisherMock.Verify(e => e.PublishAsync(
             It.IsAny<ShareExpiringEvent>(),
-            It.IsAny<Core.Authorization.CallerContext>(),
             It.IsAny<CancellationToken>()), Times.Never);
     }
 
@@ -189,10 +187,10 @@ public class ShareExpiryNotificationServiceTests
         setupDb.FileShares.Add(share);
         await setupDb.SaveChangesAsync();
 
-        var eventBusMock = new Mock<IEventBus>();
+        var publisherMock = new Mock<IPlatformEventPublisher>();
         var services = new ServiceCollection();
         services.AddDbContext<FilesDbContext>(opt => opt.UseInMemoryDatabase(dbName));
-        services.AddSingleton<IEventBus>(eventBusMock.Object);
+        services.AddSingleton<IPlatformEventPublisher>(publisherMock.Object);
         var serviceProvider = services.BuildServiceProvider();
 
         var service = new ShareExpiryNotificationService(
@@ -202,9 +200,56 @@ public class ShareExpiryNotificationServiceTests
 
         await service.CheckExpiringSharesAsync(CancellationToken.None);
 
-        eventBusMock.Verify(e => e.PublishAsync(
+        publisherMock.Verify(e => e.PublishAsync(
             It.IsAny<ShareExpiringEvent>(),
-            It.IsAny<Core.Authorization.CallerContext>(),
             It.IsAny<CancellationToken>()), Times.Never);
+    }
+    [TestMethod]
+    public async Task CheckExpiringSharesAsync_PublishFails_LeavesShareUnnotifiedForRetry()
+    {
+        var dbName = Guid.CreateVersion7().ToString();
+        using var setupDb = CreateContext(dbName);
+
+        var node = new FileNode
+        {
+            Name = "retry.txt",
+            NodeType = FileNodeType.File,
+            OwnerId = Guid.CreateVersion7()
+        };
+        setupDb.FileNodes.Add(node);
+
+        var share = new FileShare
+        {
+            FileNodeId = node.Id,
+            ShareType = ShareType.PublicLink,
+            LinkToken = "retry_token",
+            CreatedByUserId = node.OwnerId,
+            ExpiresAt = DateTime.UtcNow.AddHours(12)
+        };
+        setupDb.FileShares.Add(share);
+        await setupDb.SaveChangesAsync();
+
+        var publisherMock = new Mock<IPlatformEventPublisher>();
+        publisherMock
+            .Setup(e => e.PublishAsync(It.IsAny<ShareExpiringEvent>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new PlatformEventPublishException("ShareExpiringEvent", "core unavailable"));
+
+        var services = new ServiceCollection();
+        services.AddDbContext<FilesDbContext>(opt => opt.UseInMemoryDatabase(dbName));
+        services.AddSingleton<IPlatformEventPublisher>(publisherMock.Object);
+        var serviceProvider = services.BuildServiceProvider();
+
+        var service = new ShareExpiryNotificationService(
+            serviceProvider.GetRequiredService<IServiceScopeFactory>(),
+            NullLogger<ShareExpiryNotificationService>.Instance,
+            new BackgroundServiceTracker());
+
+        await service.CheckExpiringSharesAsync(CancellationToken.None);
+
+        // Nothing was delivered, so the marker must stay unset — otherwise the share would never
+        // be retried and the user would silently get no warning.
+        using var verifyDb = CreateContext(dbName);
+        var updated = await verifyDb.FileShares.FindAsync(share.Id);
+        Assert.IsNull(updated!.ExpiryNotificationSentAt);
     }
 }

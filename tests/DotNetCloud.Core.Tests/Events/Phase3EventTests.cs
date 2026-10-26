@@ -129,23 +129,6 @@ public class Phase3EventTests
         Assert.AreEqual("Accepted", e.Status);
     }
 
-    [TestMethod]
-    public void CalendarReminderTriggeredEvent_ImplementsIEvent()
-    {
-        var e = new CalendarReminderTriggeredEvent
-        {
-            EventId = Guid.CreateVersion7(),
-            CreatedAt = DateTime.UtcNow,
-            CalendarEventId = Guid.CreateVersion7(),
-            UserId = Guid.CreateVersion7(),
-            EventTitle = "Team Sync",
-            EventStartUtc = DateTime.UtcNow.AddMinutes(15)
-        };
-
-        Assert.IsInstanceOfType(e, typeof(IEvent));
-        Assert.AreEqual("Team Sync", e.EventTitle);
-    }
-
     // ── Notes ──
 
     [TestMethod]
@@ -210,7 +193,6 @@ public class Phase3EventTests
         Assert.IsTrue(typeof(CalendarEventUpdatedEvent).IsSealed);
         Assert.IsTrue(typeof(CalendarEventDeletedEvent).IsSealed);
         Assert.IsTrue(typeof(CalendarEventRsvpEvent).IsSealed);
-        Assert.IsTrue(typeof(CalendarReminderTriggeredEvent).IsSealed);
         Assert.IsTrue(typeof(NoteCreatedEvent).IsSealed);
         Assert.IsTrue(typeof(NoteUpdatedEvent).IsSealed);
         Assert.IsTrue(typeof(NoteDeletedEvent).IsSealed);

@@ -1,3 +1,69 @@
+## Archived: Server agent (`mint22`) — security audit remediation, batch 2: HLS regression test + background-work refactors — deployed, not committed (2026-10-25)
+
+**Status:** implemented ✅ · tested ✅ · deployed + live-verified ✅ · **not committed** (awaiting operator approval)
+**Branch:** `fix/security-followups` (cut from `fix/security-p0` @ `9319c808`) · **From:** `mint22` · **Target:** server only · **Client impact:** none
+
+### Why this batch
+
+Batch 1 left three things undone: one P0 finding whose fix had no test (`authz.video.hls-segment.no-video-entitlement`), and the two background-work refactors it explicitly deferred — notify-class jobs that fabricated `CallerType.System` inside a module, and email sync where the module acted for a user on its own timer. Both refactors share one root cause: a module deciding, on its own initiative, whose identity an operation runs as.
+
+### 1 — Video HLS regression test (P0 finding now proven)
+
+`tests/DotNetCloud.Modules.Video.Tests/VideoControllerHlsAuthorizationTests.cs` — the first controller harness in `Video.Tests` (a minimal 12-dependency constructor helper; only the services the route reaches are supplied).
+
+| Case | Expected |
+| --- | --- |
+| Foreign user's valid stream token for the owner's video | 404, HLS job never consulted |
+| Foreign user's session cookie | 404, HLS job never consulted |
+| Same, via the catch-all `{*filename}` fallback route | 404, HLS job never consulted |
+| Token minted for a different video | 403 |
+| Unknown video | 404 |
+| Owner's stream token / owner's cookie | playlist / segment served, job marked live |
+
+Each denial case also seeds a **live HLS job with real files on disk**, so a regressed implementation returns `PhysicalFileResult` (a data leak) rather than accidentally passing. Mutation-checked: removing the `GetVideoForStreamingAsync` gate makes exactly those three cases fail. The `Times.Never` on `GetActiveHlsJob` pins the ordering that was the actual defect.
+
+### 2 — Notify-class jobs moved into the core
+
+- **`PublishEvent` is real.** `ModuleEventInbox` (Core.Server) is a whitelist: only `ReminderTriggeredEvent` and `ShareExpiringEvent` are module-publishable today. The caller is taken from the authenticated module transport (`context.UserState["CallerContext"]`), never from the payload; `ReminderTriggeredEvent.SourceModuleId` is stamped with the verified module id; payloads are capped at 64 KiB; a user-scoped caller is rejected; a missing caller context fails closed. `PublishEventRequest.caller` was **removed** (field 1 reserved) so there is nothing left to fabricate.
+- **Module side:** `IPlatformEventPublisher` (Core SDK) + `PlatformEventPublisher` (Core.Grpc, registered with `AddPlatformEventPublisher()` in the Calendar and Files hosts). Deliberately **no caller parameter** — identity comes from the transport. Failures throw `PlatformEventPublishException` instead of being swallowed, because "published nothing" must not be recorded as "notified".
+- **Calendar:** `ReminderDispatchService` raises `ReminderTriggeredEvent` only. Deleted: the `new CallerContext(Guid.Empty, [], CallerType.System)` fabrication, `CalendarReminderTriggeredEvent` (record + manifest entries in both `CalendarModuleManifest` and `manifest.json`), `CalendarReminderEventHandler`, `CalendarReminderEventSubscriber`, and the `CalendarReminder` SignalR broadcast nothing subscribed to. Delivery is now the core's: in-app record, `notification.created` realtime (which the Blazor circuit *does* listen for), push/email channels.
+- **Reminder wording preserved** as requested: `NotificationProducer.FormatReminderMessage` reproduces the calendar module's "Starts in N minutes" / "Starting now", rounded rather than truncated so a scan-boundary delivery reads "15 minutes" and not "14".
+- **Files share expiry:** raises `ShareExpiringEvent` through the publisher; `ExpiryNotificationSentAt` is set **only** for shares the core accepted, so a failure retries next cycle. `CallerContext.CreateSystemContext()` removed.
+- **Regression found by the first deploy:** Photos/Music/Video call `AddFilesServices`, so all four hosts were mounting `ShareExpiryNotificationService`. Harmless while the publish was inert; with real delivery it meant up to four deliveries per expiring share plus a DI failure per cycle (`No service for type 'IPlatformEventPublisher'`). Fixed by registering the sweep in the Files host alone via `AddShareExpiryNotifications()`; confirmed live — 0 DI errors, cycles in `dotnetcloud.files` only.
+
+### 3 — Email sync via a core-verified core→module invocation
+
+- **Module (`Email.Data`):** `EmailSyncBackgroundService` (self-scheduling, swept every enabled account) replaced by `EmailSyncService` — **not** a hosted service, **no timer**. `SyncAccountAsync(accountId, userId)` resolves the account with `a.OwnerId == userId && !a.IsDeleted` and returns `false` otherwise. `ListSyncCandidatesAsync(minAge)` reports due accounts (last sync approximated by `UpdatedAt`, which a successful sync always refreshes).
+- **Proto:** added `ListSyncCandidates`; `TriggerSync` now documented as core-invoked-for-a-named-user.
+- **`EmailGrpcService`:** `TriggerSync` refuses a call with no core-signed assertion (`PermissionDenied`), refuses a payload whose `user_id` differs from the asserted user, and syncs only the asserted user. `ListSyncCandidates` maps the module's view.
+- **`IModuleUserAssertionAccessor` (Core.Grpc):** lets a module resolve "the user the core is acting for" by **re-verifying** the ambient assertion against the published public key (imported once per process), instead of trusting a payload. Registered with `AddModuleUserAssertionAccessor()`.
+- **Core (`EmailSyncScheduler`):** every 5 min (45 s startup delay) → list candidates → for each, `ICallerIdentityResolver` must confirm the user exists and is active (an unknown/disabled user is never vouched for) → mint `Mint(userId, "dotnetcloud.email", op: "email.sync")` → `TriggerSync` with the assertion header over `ModuleEndpointProvider.GetChannel(...)` (never a raw channel, never disposed). Per-account failure isolation; RPC failures logged at Debug so a module that is not up yet is not an error.
+- **Manual REST sync** now passes the authenticated caller and 404s for an account the caller does not own — closing `email.sync.account-idor-missing-ownership-check`.
+- IMAP/SMTP/Gmail logic was **not** moved; the core only decides who a sync runs as and when it starts.
+
+### Verification
+
+- `dotnet build DotNetCloud.CI.slnf -c Release` — 0 errors (2 pre-existing `DbInitializerTests` CS8602 warnings).
+- `dotnet test DotNetCloud.CI.slnf --no-build -c Release --settings .runsettings` — **22/22 assemblies green**, 0 failures, 2 pre-existing skips. 33 new tests: 7 video HLS, 9 `ModuleEventInboxTests`, 7 `EmailSyncSchedulerTests`, 5 `EmailGrpcServiceSyncTests`, 5 `EmailSyncServiceTests`, plus reminder-wording/publish-failure cases and the rewritten Calendar/Files background suites.
+- Deploy 1: 15/15 targets, `/health/ready` 14/14 — surfaced the duplicate-sweep regression. Deploy 2 (after the fix): 15/15, **14/14 healthy**, 0 DI errors, share-expiry cycles in `dotnetcloud.files` only.
+- Deploy 3 (after the contacts fix below): 15/15, **14/14 healthy**, `GET /api/v1/contacts` → 401 (reachable) instead of 503, 0 disposed-channel errors.
+- Live end-to-end: `ListSyncCandidates` answered `200` over the authenticated core→module channel (1.8 s). A seeded due reminder produced `PublishEvent: ReminderTriggeredEvent … published on the core event bus` → `Reminder dispatched …` → a `public."Notifications"` row `Reminder | High | dotnetcloud.calendar | "Starts in 10 minutes" | /calendar?eventId=…` with `ReminderLogs.Success = true`; all seeded rows deleted afterwards.
+- Deploy note: `sudo ./scripts/deploy.sh --force --verify` must be run bare — a captured/truncated run was terminated mid-publish and left four hosts on the previous build (recovered by re-running).
+
+### Found live during verification and fixed in this batch
+
+- **Contacts 503.** `ContactsGrpcApiClient` is registered **scoped** yet disposed the channel it got from `IModuleGrpcChannelProvider` — a channel the manager owns and shares. The first scope to end killed it process-wide; opening the Contacts page (`ContactsPage.OnInitializedAsync` → circuit closed) was enough. From then on every call *and* the supervisor's health probe failed with `Cannot access a disposed object. Object name: 'Grpc.Net.Client.GrpcChannel'`, so `/health/ready` reported contacts unhealthy and the page returned 503 until a restart. `Dispose()` is now a documented no-op; `ContactsGrpcApiClientTests` (2 cases) forces the lazy channel, disposes, then probes it and requires `RpcException(Unavailable)` — restoring the old body reproduces the exact production stack. Third instance of this bug class (batch 1 fixed three Files clients).
+- **Dead unauthenticated channel factories.** `AdminController` / `AdminSystemController` each carried an unreferenced private `CreateGrpcChannel(endpoint)` building a raw `GrpcChannel.ForAddress`. Both controllers already route through `IModuleGrpcChannelProvider`; the helpers were leftovers. Deleted rather than left as a trap. (Correction to an earlier claim: the admin System page was **not** broken.)
+
+### Known gap recorded, not fixed
+`ReminderTriggeredEvent` carries no `ReminderMethod`, so an "email only" reminder still raises an in-app notification (the core fans out to every configured channel). Tracked as ☐ under "Notification Routing" in `docs/IMPLEMENTATION_CHECKLIST.md` and in the `ReminderTriggeredEvent` doc comment. This was already true before the refactor — not a regression.
+
+### Operator actions still open
+
+- Rotate the exposed TMDB key at the provider (carried over from batch 1).
+
+---
+
 ## Archived: Server agent (`mint22`) — security audit remediation, batch 1 (P0 workstreams 1–3) — implemented, not yet committed (2026-10-25)
 
 **Status:** implemented ✅ · **not committed** (awaiting operator approval) · one finding short of fully proven

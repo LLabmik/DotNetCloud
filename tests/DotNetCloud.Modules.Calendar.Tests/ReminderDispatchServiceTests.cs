@@ -1,5 +1,5 @@
-using DotNetCloud.Core.Authorization;
 using DotNetCloud.Core.DTOs;
+using DotNetCloud.Core.Errors;
 using DotNetCloud.Core.Events;
 using DotNetCloud.Modules.Calendar.Data;
 using DotNetCloud.Modules.Calendar.Data.Services;
@@ -19,7 +19,7 @@ namespace DotNetCloud.Modules.Calendar.Tests;
 public class ReminderDispatchServiceTests
 {
     private CalendarDbContext _db = null!;
-    private Mock<IEventBus> _eventBusMock = null!;
+    private Mock<IPlatformEventPublisher> _publisherMock = null!;
     private ReminderDispatchService _service = null!;
     private IServiceScopeFactory _scopeFactory = null!;
     private Guid _userId;
@@ -32,20 +32,15 @@ public class ReminderDispatchServiceTests
             .Options;
 
         _db = new CalendarDbContext(options);
-        _eventBusMock = new Mock<IEventBus>();
+        _publisherMock = new Mock<IPlatformEventPublisher>();
         _userId = Guid.CreateVersion7();
 
-        // Build a real service provider for the scoped factory
-        var services = new ServiceCollection();
-        services.AddDbContext<CalendarDbContext>(o => o.UseInMemoryDatabase(_db.Database.GetConnectionString() ?? Guid.CreateVersion7().ToString()));
-        services.AddSingleton<IEventBus>(_eventBusMock.Object);
-        services.AddSingleton<IRecurrenceEngine>(new RecurrenceEngine(NullLogger<RecurrenceEngine>.Instance));
-
-        // We need a shared DB, so let's use the same in-memory name
+        // The scan cycle resolves its dependencies from a scope, so the collection is the only
+        // place the publisher and recurrence engine need to be registered.
         var dbName = Guid.CreateVersion7().ToString();
         var serviceCollection = new ServiceCollection();
         serviceCollection.AddDbContext<CalendarDbContext>(o => o.UseInMemoryDatabase(dbName));
-        serviceCollection.AddSingleton<IEventBus>(_eventBusMock.Object);
+        serviceCollection.AddSingleton<IPlatformEventPublisher>(_publisherMock.Object);
         serviceCollection.AddSingleton<IRecurrenceEngine>(new RecurrenceEngine(NullLogger<RecurrenceEngine>.Instance));
         var sp = serviceCollection.BuildServiceProvider();
         _scopeFactory = sp.GetRequiredService<IServiceScopeFactory>();
@@ -107,22 +102,14 @@ public class ReminderDispatchServiceTests
 
         await _service.ScanAndDispatchAsync(CancellationToken.None);
 
-        // Should have published both CalendarReminderTriggeredEvent and ReminderTriggeredEvent
-        _eventBusMock.Verify(
-            eb => eb.PublishAsync(
-                It.Is<CalendarReminderTriggeredEvent>(e =>
-                    e.CalendarEventId == evt.Id && e.UserId == _userId),
-                It.IsAny<CallerContext>(),
-                It.IsAny<CancellationToken>()),
-            Times.Once);
-
-        _eventBusMock.Verify(
-            eb => eb.PublishAsync(
+        // One platform event per due reminder — the core turns it into the notification.
+        _publisherMock.Verify(
+            pub => pub.PublishAsync(
                 It.Is<ReminderTriggeredEvent>(e =>
                     e.EntityId == evt.Id &&
                     e.EntityType == "CalendarEvent" &&
-                    e.SourceModuleId == "dotnetcloud.calendar"),
-                It.IsAny<CallerContext>(),
+                    e.UserId == _userId &&
+                    e.SourceModuleId == ReminderDispatchService.ModuleId),
                 It.IsAny<CancellationToken>()),
             Times.Once);
     }
@@ -149,6 +136,33 @@ public class ReminderDispatchServiceTests
     }
 
     [TestMethod]
+    public async Task ScanAndDispatch_PublishFails_RecordsFailureAndDoesNotMarkDelivered()
+    {
+        var cal = CreateCalendar();
+        var evt = CreateEvent(cal, "Core Down", DateTime.UtcNow.AddMinutes(5), TimeSpan.FromHours(1));
+        var reminder = new EventReminder { MinutesBefore = 15, Method = ReminderMethod.Notification };
+        evt.Reminders.Add(reminder);
+        await _db.SaveChangesAsync();
+
+        _publisherMock
+            .Setup(pub => pub.PublishAsync(
+                It.IsAny<ReminderTriggeredEvent>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new PlatformEventPublishException("ReminderTriggeredEvent", "core unavailable"));
+
+        await _service.ScanAndDispatchAsync(CancellationToken.None);
+
+        using var scope = _scopeFactory.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<CalendarDbContext>();
+        var logs = await db.ReminderLogs.ToListAsync();
+
+        // The reminder was not delivered, so the log must say so — and because only successful rows
+        // suppress a re-fire, the next scan retries it.
+        Assert.AreEqual(1, logs.Count);
+        Assert.IsFalse(logs[0].Success);
+        Assert.IsTrue(logs[0].ErrorMessage!.Contains("core unavailable"));
+    }
+
+    [TestMethod]
     public async Task ScanAndDispatch_AlreadyFiredReminder_DoesNotDuplicate()
     {
         var cal = CreateCalendar();
@@ -159,15 +173,14 @@ public class ReminderDispatchServiceTests
 
         // Fire once
         await _service.ScanAndDispatchAsync(CancellationToken.None);
-        _eventBusMock.Invocations.Clear();
+        _publisherMock.Invocations.Clear();
 
         // Fire again — should NOT publish again
         await _service.ScanAndDispatchAsync(CancellationToken.None);
 
-        _eventBusMock.Verify(
-            eb => eb.PublishAsync(
-                It.IsAny<CalendarReminderTriggeredEvent>(),
-                It.IsAny<CallerContext>(),
+        _publisherMock.Verify(
+            pub => pub.PublishAsync(
+                It.IsAny<ReminderTriggeredEvent>(),
                 It.IsAny<CancellationToken>()),
             Times.Never);
     }
@@ -183,10 +196,9 @@ public class ReminderDispatchServiceTests
 
         await _service.ScanAndDispatchAsync(CancellationToken.None);
 
-        _eventBusMock.Verify(
-            eb => eb.PublishAsync(
-                It.IsAny<CalendarReminderTriggeredEvent>(),
-                It.IsAny<CallerContext>(),
+        _publisherMock.Verify(
+            pub => pub.PublishAsync(
+                It.IsAny<ReminderTriggeredEvent>(),
                 It.IsAny<CancellationToken>()),
             Times.Never);
     }
@@ -203,10 +215,9 @@ public class ReminderDispatchServiceTests
 
         await _service.ScanAndDispatchAsync(CancellationToken.None);
 
-        _eventBusMock.Verify(
-            eb => eb.PublishAsync(
-                It.IsAny<CalendarReminderTriggeredEvent>(),
-                It.IsAny<CallerContext>(),
+        _publisherMock.Verify(
+            pub => pub.PublishAsync(
+                It.IsAny<ReminderTriggeredEvent>(),
                 It.IsAny<CancellationToken>()),
             Times.Never);
     }
@@ -222,10 +233,9 @@ public class ReminderDispatchServiceTests
 
         await _service.ScanAndDispatchAsync(CancellationToken.None);
 
-        _eventBusMock.Verify(
-            eb => eb.PublishAsync(
-                It.IsAny<CalendarReminderTriggeredEvent>(),
-                It.IsAny<CallerContext>(),
+        _publisherMock.Verify(
+            pub => pub.PublishAsync(
+                It.IsAny<ReminderTriggeredEvent>(),
                 It.IsAny<CancellationToken>()),
             Times.Exactly(2));
     }
@@ -245,10 +255,9 @@ public class ReminderDispatchServiceTests
         await _service.ScanAndDispatchAsync(CancellationToken.None);
 
         // Should fire for the upcoming occurrence
-        _eventBusMock.Verify(
-            eb => eb.PublishAsync(
-                It.Is<CalendarReminderTriggeredEvent>(e => e.CalendarEventId == evt.Id),
-                It.IsAny<CallerContext>(),
+        _publisherMock.Verify(
+            pub => pub.PublishAsync(
+                It.Is<ReminderTriggeredEvent>(e => e.EntityId == evt.Id),
                 It.IsAny<CancellationToken>()),
             Times.AtLeastOnce);
     }
@@ -262,10 +271,9 @@ public class ReminderDispatchServiceTests
 
         await _service.ScanAndDispatchAsync(CancellationToken.None);
 
-        _eventBusMock.Verify(
-            eb => eb.PublishAsync(
-                It.IsAny<CalendarReminderTriggeredEvent>(),
-                It.IsAny<CallerContext>(),
+        _publisherMock.Verify(
+            pub => pub.PublishAsync(
+                It.IsAny<ReminderTriggeredEvent>(),
                 It.IsAny<CancellationToken>()),
             Times.Never);
     }
@@ -325,10 +333,9 @@ public class ReminderDispatchServiceTests
 
         await _service.ScanAndDispatchAsync(CancellationToken.None);
 
-        _eventBusMock.Verify(
-            eb => eb.PublishAsync(
-                It.Is<CalendarReminderTriggeredEvent>(e => e.CalendarEventId == evt.Id),
-                It.IsAny<CallerContext>(),
+        _publisherMock.Verify(
+            pub => pub.PublishAsync(
+                It.Is<ReminderTriggeredEvent>(e => e.EntityId == evt.Id),
                 It.IsAny<CancellationToken>()),
             Times.Once);
     }
@@ -344,10 +351,9 @@ public class ReminderDispatchServiceTests
 
         await _service.ScanAndDispatchAsync(CancellationToken.None);
 
-        _eventBusMock.Verify(
-            eb => eb.PublishAsync(
-                It.IsAny<CalendarReminderTriggeredEvent>(),
-                It.IsAny<CallerContext>(),
+        _publisherMock.Verify(
+            pub => pub.PublishAsync(
+                It.IsAny<ReminderTriggeredEvent>(),
                 It.IsAny<CancellationToken>()),
             Times.Never);
     }
