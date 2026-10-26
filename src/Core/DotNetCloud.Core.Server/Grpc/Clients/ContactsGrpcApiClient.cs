@@ -36,6 +36,7 @@ public sealed class ContactsGrpcApiClient : IContactsApiClient, IDisposable
 {
     private readonly ContactsGrpcClientOptions _options;
     private readonly ModuleEndpointProvider _endpointProvider;
+    private readonly Supervisor.IModuleGrpcChannelProvider _channelManager;
     private readonly IHttpContextAccessor _httpContextAccessor;
     private readonly ILogger<ContactsGrpcApiClient> _logger;
     private readonly Lazy<GrpcChannel> _channel;
@@ -46,11 +47,13 @@ public sealed class ContactsGrpcApiClient : IContactsApiClient, IDisposable
     public ContactsGrpcApiClient(
         IOptions<ContactsGrpcClientOptions> options,
         ModuleEndpointProvider endpointProvider,
+        Supervisor.IModuleGrpcChannelProvider channelManager,
         IHttpContextAccessor httpContextAccessor,
         ILogger<ContactsGrpcApiClient> logger)
     {
         _options = options.Value;
         _endpointProvider = endpointProvider;
+        _channelManager = channelManager;
         _httpContextAccessor = httpContextAccessor;
         _logger = logger;
         _channel = new Lazy<GrpcChannel>(CreateChannel);
@@ -279,15 +282,8 @@ public sealed class ContactsGrpcApiClient : IContactsApiClient, IDisposable
     {
         var address = _endpointProvider.GetEndpoint("dotnetcloud.contacts");
         _logger.LogInformation("ContactsGrpcApiClient connecting to {Address}", address);
-        return GrpcChannel.ForAddress(address, new GrpcChannelOptions
-        {
-            UnsafeUseInsecureChannelCallCredentials = true,
-            HttpHandler = new SocketsHttpHandler
-            {
-                EnableMultipleHttp2Connections = true,
-                ConnectTimeout = TimeSpan.FromSeconds(5)
-            }
-        });
+        // Managed channel: it attaches the supervisor-issued credential the module host requires.
+        return _channelManager.GetOrCreateChannel("dotnetcloud.contacts", address);
     }
 
     private CreateContactRequest ToCreateRequest(CreateContactDto dto) => new()

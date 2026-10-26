@@ -34,6 +34,7 @@ public sealed class ChatGrpcApiClient : IChatApiClient, IDisposable
 {
     private readonly ChatGrpcClientOptions _options;
     private readonly ModuleEndpointProvider _endpointProvider;
+    private readonly Supervisor.IModuleGrpcChannelProvider _channelManager;
     private readonly ILogger<ChatGrpcApiClient> _logger;
     private readonly Lazy<GrpcChannel> _channel;
     private readonly Lazy<ChatService.ChatServiceClient> _client;
@@ -43,10 +44,12 @@ public sealed class ChatGrpcApiClient : IChatApiClient, IDisposable
     public ChatGrpcApiClient(
         IOptions<ChatGrpcClientOptions> options,
         ModuleEndpointProvider endpointProvider,
+        Supervisor.IModuleGrpcChannelProvider channelManager,
         ILogger<ChatGrpcApiClient> logger)
     {
         _options = options.Value;
         _endpointProvider = endpointProvider;
+        _channelManager = channelManager;
         _logger = logger;
         _channel = new Lazy<GrpcChannel>(CreateChannel);
         _client = new Lazy<ChatService.ChatServiceClient>(() => new ChatService.ChatServiceClient(_channel.Value));
@@ -56,15 +59,8 @@ public sealed class ChatGrpcApiClient : IChatApiClient, IDisposable
     {
         var address = _endpointProvider.GetEndpoint("dotnetcloud.chat");
         _logger.LogInformation("ChatGrpcApiClient connecting to {Address}", address);
-        return GrpcChannel.ForAddress(address, new GrpcChannelOptions
-        {
-            UnsafeUseInsecureChannelCallCredentials = true,
-            HttpHandler = new SocketsHttpHandler
-            {
-                EnableMultipleHttp2Connections = true,
-                ConnectTimeout = TimeSpan.FromSeconds(5)
-            }
-        });
+        // Managed channel: it attaches the supervisor-issued credential the module host requires.
+        return _channelManager.GetOrCreateChannel("dotnetcloud.chat", address);
     }
 
     private ChatService.ChatServiceClient Client => _client.Value;
@@ -573,15 +569,8 @@ public sealed class ChatGrpcApiClient : IChatApiClient, IDisposable
     /// <inheritdoc />
     public void Dispose()
     {
-        if (!_disposed)
-        {
-            _disposed = true;
-            if (_channel.IsValueCreated)
-            {
-                try
-                { _channel.Value.Dispose(); }
-                catch { /* best effort */ }
-            }
-        }
+        // The channel belongs to GrpcChannelManager and is shared, so there is nothing to release.
+        if (_disposed) return;
+        _disposed = true;
     }
 }

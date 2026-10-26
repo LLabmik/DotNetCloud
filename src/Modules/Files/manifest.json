@@ -9,7 +9,9 @@
         "IUserDirectory",
         "ICurrentUserContext",
         "IAuditLogger",
-        "ISearchProvider"
+        "ISearchProvider",
+        "ITeamDirectory",
+        "IAdminSharedFolderCleanup"
     ],
     "publishedEvents": [
         "FileUploadedEvent",

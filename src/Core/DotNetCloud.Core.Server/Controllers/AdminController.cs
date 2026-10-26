@@ -32,6 +32,7 @@ public class AdminController : ControllerBase
     private readonly IBackgroundServiceTracker _backgroundServiceTracker;
     private readonly IBackupService _backupService;
     private readonly IProcessSupervisor _supervisor;
+    private readonly Supervisor.IModuleGrpcChannelProvider _channelProvider;
     private readonly IAuditLogger _auditLogger;
     private readonly IHostApplicationLifetime _hostLifetime;
     private readonly ILogger<AdminController> _logger;
@@ -48,6 +49,7 @@ public class AdminController : ControllerBase
         IProcessSupervisor supervisor,
         IAuditLogger auditLogger,
         IHostApplicationLifetime hostLifetime,
+        Supervisor.IModuleGrpcChannelProvider channelProvider,
         ILogger<AdminController> logger)
     {
         _settingsService = settingsService ?? throw new ArgumentNullException(nameof(settingsService));
@@ -56,6 +58,7 @@ public class AdminController : ControllerBase
         _backgroundServiceTracker = backgroundServiceTracker ?? throw new ArgumentNullException(nameof(backgroundServiceTracker));
         _backupService = backupService ?? throw new ArgumentNullException(nameof(backupService));
         _supervisor = supervisor ?? throw new ArgumentNullException(nameof(supervisor));
+        _channelProvider = channelProvider ?? throw new ArgumentNullException(nameof(channelProvider));
         _auditLogger = auditLogger ?? throw new ArgumentNullException(nameof(auditLogger));
         _hostLifetime = hostLifetime ?? throw new ArgumentNullException(nameof(hostLifetime));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
@@ -772,7 +775,9 @@ public class AdminController : ControllerBase
 
         try
         {
-            using var channel = CreateGrpcChannel(endpoint);
+            // The module host rejects unauthenticated data-plane calls; the provider's channel
+            // carries the supervisor-issued credential.
+            var channel = _channelProvider.GetOrCreateChannel(moduleId, endpoint);
             var client = new ModuleLifecycle.ModuleLifecycleClient(channel);
             var callOptions = new global::Grpc.Core.CallOptions(
                 deadline: DateTime.UtcNow.AddSeconds(5));

@@ -296,6 +296,7 @@ public static class AuthServiceExtensions
         services.AddScoped<IMfaService, MfaService>();
         services.AddScoped<IDeviceService, DeviceService>();
         services.AddScoped<IUserManagementService, UserManagementService>();
+        services.AddScoped<IAccountCredentialInvalidator, AccountCredentialInvalidator>();
         services.AddScoped<IAdminSettingsService, AdminSettingsService>();
         services.AddScoped<IUserSettingsService, UserSettingsService>();
 

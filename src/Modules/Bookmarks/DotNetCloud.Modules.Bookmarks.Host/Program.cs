@@ -123,12 +123,16 @@ builder.Services.AddSingleton<IEventBus, InProcessEventBus>();
 builder.Services.AddBookmarksServices(builder.Configuration);
 
 // gRPC
-builder.Services.AddGrpc();
+builder.Services.AddGrpc(options =>
+    options.Interceptors.Add<DotNetCloud.Core.Grpc.ModulePeerAuthenticationInterceptor>());
 builder.Services.AddControllers();
 builder.Services.AddHealthChecks()
     .AddCheck<BookmarksHealthCheck>("bookmarks_module");
 
 var app = builder.Build();
+
+// Adopt the core-signed end-user assertion before anything can call back into the core.
+app.UseModuleUserAssertion();
 
 // Initialize the database schema (creates tables if they don't exist).
 // Retries with exponential backoff so a database that is briefly unavailable at

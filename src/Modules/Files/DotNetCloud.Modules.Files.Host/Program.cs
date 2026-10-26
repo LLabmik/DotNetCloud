@@ -297,7 +297,8 @@ builder.Services.AddRateLimiter(limiterOptions =>
 });
 
 // gRPC
-builder.Services.AddGrpc();
+builder.Services.AddGrpc(options =>
+    options.Interceptors.Add<DotNetCloud.Core.Grpc.ModulePeerAuthenticationInterceptor>());
 
 // REST API controllers
 builder.Services.AddControllers(options =>
@@ -322,6 +323,9 @@ builder.Services.AddOpenApi("v1", options =>
 });
 
 var app = builder.Build();
+
+// Adopt the core-signed end-user assertion before anything can call back into the core.
+app.UseModuleUserAssertion();
 
 // Show full exception details for debugging; remove in production.
 app.UseDeveloperExceptionPage();

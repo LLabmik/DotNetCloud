@@ -1,4 +1,5 @@
 using DotNetCloud.Core.Capabilities;
+using DotNetCloud.Core.Grpc;
 using DotNetCloud.Core.Search.Extraction;
 using DotNetCloud.Core.Search.Extraction.Extractors;
 using DotNetCloud.Core.Search.Extraction.Host.Services;
@@ -34,13 +35,17 @@ builder.Services.AddSingleton<IContentExtractor, OdfContentExtractor>();
 builder.Services.AddSingleton<IContentExtractor, XlsContentExtractor>();
 
 // gRPC
-builder.Services.AddGrpc();
+builder.Services.AddGrpc(options =>
+    options.Interceptors.Add<DotNetCloud.Core.Grpc.ModulePeerAuthenticationInterceptor>());
 
 // Health checks
 builder.Services.AddHealthChecks()
     .AddCheck<ExtractionHealthCheck>("extraction_worker");
 
 var app = builder.Build();
+
+// Adopt the core-signed end-user assertion before anything can call back into the core.
+app.UseModuleUserAssertion();
 
 // Map gRPC services
 app.MapGrpcService<ExtractionGrpcService>();

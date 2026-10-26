@@ -36,6 +36,9 @@ service CoreCapabilities {
   // Gets basic group information by ID (IGroupDirectory capability).
   rpc GetGroup (GetGroupRequest) returns (GetGroupResponse);
 
+  // Lists the groups a given user is a member of (IGroupDirectory capability).
+  rpc GetGroupsForUser (GetGroupsForUserRequest) returns (GetGroupsForUserResponse);
+
   // Gets basic team information by ID (ITeamDirectory capability).
   rpc GetTeam (GetTeamRequest) returns (GetTeamResponse);
 
@@ -217,6 +220,15 @@ message GroupInfoMessage {
   bool is_all_users_group = 5;
   int32 member_count = 6;
   string created_at = 7;
+}
+
+message GetGroupsForUserRequest {
+  CallerContextMessage caller = 1;
+  string user_id = 2;
+}
+
+message GetGroupsForUserResponse {
+  repeated GroupInfoMessage groups = 1;
 }
 
 // --- ITeamDirectory ---

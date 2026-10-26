@@ -3308,6 +3308,36 @@ This phase implements the core Files module, which is the primary public-facing 
 - ✓ Reject remote path resolution when resolved path escapes the configured sync root (prevents `../` traversal)
 - ✓ Add/extend security regression tests for all four findings (SyncTray, SyncService, SyncEngine)
 
+#### Security Audit Remediation — P0 batch (2026-10-25)
+
+Plan: `docs/SECURITY_AUDIT_REMEDIATION_PLAN.md` (workstreams 1–3, 11 findings). Branch `fix/security-p0`.
+
+**Workstream 1 — module transport identity**
+
+- ✓ Per-module secret minted by `ProcessSupervisor` and validated by `AuthenticationInterceptor` (module id bound to a credential, not a header)
+- ✓ `CallerContext` derived from the verified module identity; `caller-type` header ignored; `CallerType.System` unreachable from the module transport
+- ✓ `ModuleCapabilityGrants` enforced per capability RPC via `CapabilityGrantInterceptor`; grants provisioned from module manifests
+- ✓ Core→module gRPC channel authenticated with the same credential (`ModulePeerAuthenticationInterceptor` on all 15 hosts)
+- ✓ Core-signed end-user assertion (ECDSA P-256) minted at the module HTTP proxy, adopted by module hosts, verified by the core (`caller-user-id` no longer read)
+- ✓ Client-facing `FilesService` gRPC path split from module transport auth (bearer principal instead of module credential)
+
+**Workstream 2 — credential state, revocation and scope**
+
+- ✓ `IAccountCredentialInvalidator` revokes all OpenIddict tokens by subject and rolls the security stamp on disable/delete/password reset/password change
+- ✓ Form login enforces the active-account predicate before any credential is accepted, with the generic invalid-credentials response
+- ✓ Antiforgery tokens rendered in login/logout/MFA/change-password forms and validated by `RequireAntiforgeryToken`
+
+**Workstream 3 — Files write path, quotas and committed secret**
+
+- ✓ Chunked upload requires `ReadWrite` permission on the target file and parent folder, at initiation and completion
+- ✓ Admin shared-folder group grants fail closed; `GetGroupsForUser` capability RPC added so grants resolve in the module host
+- ✓ Chunk uploads bounded by `MaxChunkSizeBytes`; declared chunk manifest validated; completion recomputes size from stored bytes
+- ✓ Email attachment storage keys validated (`^[0-9a-f]{64}$` + path containment) in every read/delete/size helper and at send time
+- ✓ HLS playlist/segment route requires an owned-video entitlement lookup in both token and cookie branches
+- ✓ TMDB API key removed from installer and CLI defaults, defaulted to empty; CI third-party key scan added
+- ☐ Video controller regression test for the HLS entitlement check
+- ☐ Operator action: rotate the exposed TMDB key at the provider
+
 ---
 
 ## Phase 2: Chat & Notifications

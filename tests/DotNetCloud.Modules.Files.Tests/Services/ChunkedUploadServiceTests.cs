@@ -32,7 +32,8 @@ public class ChunkedUploadServiceTests
         FilesDbContext db,
         IFileStorageEngine? storageEngine = null,
         IQuotaService? quotaService = null,
-        VersionRetentionOptions? retention = null)
+        VersionRetentionOptions? retention = null,
+        IPermissionService? permissionService = null)
     {
         var storageMock = storageEngine ?? Mock.Of<IFileStorageEngine>();
         var quotaMock = quotaService ?? CreateMockQuotaService(true);
@@ -41,7 +42,8 @@ public class ChunkedUploadServiceTests
             Mock.Of<IEventBus>(), new DeviceContext(), Mock.Of<ISyncChangeNotifier>(), NullLoggerFactory.Instance.CreateLogger<ChunkedUploadService>(),
             Microsoft.Extensions.Options.Options.Create(new FileUploadOptions()),
             Microsoft.Extensions.Options.Options.Create(new FileSystemOptions()),
-            TestFileVersioningSettings.From(retention ?? new VersionRetentionOptions { MaxVersionCount = 0 }));
+            TestFileVersioningSettings.From(retention ?? new VersionRetentionOptions { MaxVersionCount = 0 }),
+            permissionService ?? Mock.Of<IPermissionService>());
     }
 
     private static IQuotaService CreateMockQuotaService(bool hasSufficientQuota)
@@ -100,6 +102,38 @@ public class ChunkedUploadServiceTests
     }
 
     [TestMethod]
+    public async Task InitiateUploadAsync_CallerWithoutWritePermission_ThrowsForbiddenAndCreatesNoSession()
+    {
+        // A read-only sharee must not be able to escalate to write by naming the folder in an
+        // upload request. The permission service rejects them before anything is persisted.
+        using var db = CreateContext();
+        var folderId = Guid.CreateVersion7();
+
+        var permissions = new Mock<IPermissionService>();
+        permissions
+            .Setup(p => p.RequirePermissionAsync(
+                folderId,
+                It.IsAny<CallerContext>(),
+                SharePermission.ReadWrite,
+                It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new Core.Errors.ForbiddenException("Read-only share."));
+
+        var service = CreateService(db, permissionService: permissions.Object);
+
+        await Assert.ThrowsExactlyAsync<Core.Errors.ForbiddenException>(
+            () => service.InitiateUploadAsync(new InitiateUploadDto
+            {
+                FileName = "intruder.txt",
+                TotalSize = 10,
+                ParentId = folderId,
+                ChunkHashes = ["hash1"],
+            }, UserCaller(Guid.CreateVersion7())));
+
+        Assert.AreEqual(0, await db.UploadSessions.CountAsync(),
+            "No upload session may be created for a caller without write permission.");
+    }
+
+    [TestMethod]
     public async Task InitiateUploadAsync_InsufficientQuota_ThrowsValidationException()
     {
         using var db = CreateContext();
@@ -151,6 +185,7 @@ public class ChunkedUploadServiceTests
         var session = new ChunkedUploadSession
         {
             FileName = "test.txt",
+            TotalSize = data.Length,
             TotalChunks = 1,
             ChunkManifest = JsonSerializer.Serialize(new[] { hash }),
             UserId = userId,
@@ -167,6 +202,99 @@ public class ChunkedUploadServiceTests
         var chunk = await db.FileChunks.FirstOrDefaultAsync(c => c.ChunkHash == hash);
         Assert.IsNotNull(chunk);
         storageMock.Verify(s => s.WriteChunkAsync(It.IsAny<string>(), It.IsAny<ReadOnlyMemory<byte>>(), It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [TestMethod]
+    public async Task InitiateUploadAsync_DeclaredChunkSizesDoNotSumToTotalSize_ThrowsValidationException()
+    {
+        // TotalSize = 1 with four 16 MiB chunks used to be accepted and reserved one byte of
+        // quota while 64 MiB landed on the shared data volume.
+        using var db = CreateContext();
+        var service = CreateService(db);
+        var chunkSize = 16 * 1024 * 1024;
+
+        await Assert.ThrowsExactlyAsync<Core.Errors.ValidationException>(
+            () => service.InitiateUploadAsync(new InitiateUploadDto
+            {
+                FileName = "liar.bin",
+                TotalSize = 1,
+                ChunkHashes = ["h1", "h2", "h3", "h4"],
+                ChunkSizes = [chunkSize, chunkSize, chunkSize, chunkSize],
+            }, UserCaller(Guid.CreateVersion7())));
+    }
+
+    [TestMethod]
+    public async Task InitiateUploadAsync_ChunkSizesCountMismatch_ThrowsValidationException()
+    {
+        using var db = CreateContext();
+        var service = CreateService(db);
+
+        await Assert.ThrowsExactlyAsync<Core.Errors.ValidationException>(
+            () => service.InitiateUploadAsync(new InitiateUploadDto
+            {
+                FileName = "mismatch.bin",
+                TotalSize = 10,
+                ChunkHashes = ["h1", "h2"],
+                ChunkSizes = [10],
+            }, UserCaller(Guid.CreateVersion7())));
+    }
+
+    [TestMethod]
+    public async Task UploadChunkAsync_ChunkLargerThanMaxChunkSize_ThrowsValidationException()
+    {
+        using var db = CreateContext();
+        var userId = Guid.CreateVersion7();
+        var data = new byte[(16 * 1024 * 1024) + 1];
+        var hash = ContentHasher.ComputeHash(data);
+
+        var session = new ChunkedUploadSession
+        {
+            FileName = "oversized.bin",
+            TotalSize = 512L * 1024 * 1024,
+            TotalChunks = 1,
+            ChunkManifest = JsonSerializer.Serialize(new[] { hash }),
+            UserId = userId,
+            Status = UploadSessionStatus.InProgress,
+        };
+        db.UploadSessions.Add(session);
+        await db.SaveChangesAsync();
+
+        var storageMock = new Mock<IFileStorageEngine>();
+        var service = CreateService(db, storageMock.Object);
+
+        await Assert.ThrowsExactlyAsync<Core.Errors.ValidationException>(
+            () => service.UploadChunkAsync(session.Id, hash, data, UserCaller(userId)));
+
+        storageMock.Verify(
+            s => s.WriteChunkAsync(It.IsAny<string>(), It.IsAny<ReadOnlyMemory<byte>>(), It.IsAny<CancellationToken>()),
+            Times.Never,
+            "An oversized chunk must be rejected before anything is written to disk.");
+    }
+
+    [TestMethod]
+    public async Task UploadChunkAsync_ChunkLargerThanDeclaredFile_ThrowsValidationException()
+    {
+        using var db = CreateContext();
+        var userId = Guid.CreateVersion7();
+        var data = Encoding.UTF8.GetBytes("far more than one byte");
+        var hash = ContentHasher.ComputeHash(data);
+
+        var session = new ChunkedUploadSession
+        {
+            FileName = "one-byte.bin",
+            TotalSize = 1,
+            TotalChunks = 1,
+            ChunkManifest = JsonSerializer.Serialize(new[] { hash }),
+            UserId = userId,
+            Status = UploadSessionStatus.InProgress,
+        };
+        db.UploadSessions.Add(session);
+        await db.SaveChangesAsync();
+
+        var service = CreateService(db);
+
+        await Assert.ThrowsExactlyAsync<Core.Errors.ValidationException>(
+            () => service.UploadChunkAsync(session.Id, hash, data, UserCaller(userId)));
     }
 
     [TestMethod]

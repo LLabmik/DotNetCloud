@@ -40,6 +40,18 @@ public sealed class AuthSessionControllerTests
         _loggerMock = new Mock<ILogger<AuthSessionController>>();
         _auditLoggerMock = new Mock<IAuditLogger>();
 
+        // The form login checks the account state before accepting credentials, so the default
+        // lookup resolves an active account. Individual tests override this.
+        _userManagerMock
+            .Setup(m => m.FindByNameAsync(It.IsAny<string>()))
+            .ReturnsAsync(new ApplicationUser
+            {
+                Id = Guid.CreateVersion7(),
+                UserName = "kaminskidale",
+                DisplayName = "Kaminski Dale",
+                IsActive = true,
+            });
+
         _controller = new AuthSessionController(
             _signInManagerMock.Object,
             _userManagerMock.Object,
@@ -251,8 +263,51 @@ public sealed class AuthSessionControllerTests
     }
 
     [TestMethod]
-    public async Task LoginAsync_MissingCredentials_RedirectsWithoutAudit()
+    public async Task LoginAsync_InactiveAccount_DoesNotReachCredentialCheck()
     {
+        _userManagerMock
+            .Setup(m => m.FindByNameAsync("kaminskidale"))
+            .ReturnsAsync(new ApplicationUser
+            {
+                Id = Guid.CreateVersion7(),
+                UserName = "kaminskidale",
+                DisplayName = "Kaminski Dale",
+                IsActive = false,
+            });
+
+        var result = await _controller.LoginAsync("kaminskidale", "pw", "/");
+
+        var redirect = AssertRedirectToLogin(result);
+        Assert.IsTrue(redirect.Contains("Invalid username or password"),
+            "A disabled account must look exactly like a wrong password.");
+
+        _signInManagerMock.Verify(
+            m => m.PasswordSignInAsync(
+                It.IsAny<string>(), It.IsAny<string>(), It.IsAny<bool>(), It.IsAny<bool>()),
+            Times.Never,
+            "The credential check must never run for a disabled account.");
+    }
+
+    [TestMethod]
+    public async Task LoginAsync_UnknownAccount_DoesNotReachCredentialCheck()
+    {
+        _userManagerMock
+            .Setup(m => m.FindByNameAsync("kaminskidale"))
+            .ReturnsAsync((ApplicationUser?)null);
+
+        var result = await _controller.LoginAsync("kaminskidale", "pw", "/");
+
+        var redirect = AssertRedirectToLogin(result);
+        Assert.IsTrue(redirect.Contains("Invalid username or password"));
+
+        _signInManagerMock.Verify(
+            m => m.PasswordSignInAsync(
+                It.IsAny<string>(), It.IsAny<string>(), It.IsAny<bool>(), It.IsAny<bool>()),
+            Times.Never);
+    }
+
+    [TestMethod]
+    public async Task LoginAsync_MissingCredentials_RedirectsWithoutAudit()    {
         var result = await _controller.LoginAsync("", "pw", "/");
 
         var redirect = AssertRedirectToLogin(result);

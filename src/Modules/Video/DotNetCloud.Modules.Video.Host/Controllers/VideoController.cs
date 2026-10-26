@@ -1226,7 +1226,7 @@ public class VideoController : VideoControllerBase
     /// Authentication: accepts either a stream token (query param) or the session cookie.</summary>
     [AllowAnonymous]
     [HttpGet("{videoId:guid}/stream/{*filename}")]
-    public IActionResult GetHlsSegment(
+    public async Task<IActionResult> GetHlsSegment(
         Guid videoId,
         string filename,
         [FromQuery] string? token)
@@ -1274,6 +1274,18 @@ public class VideoController : VideoControllerBase
         if (!isTs && !isM4s && !isMp4 && !isM3u8)
         {
             return BadRequest(ErrorEnvelope("invalid_segment", "Only .ts, .m4s, .mp4, and .m3u8 files are supported."));
+        }
+
+        // Entitlement: resolving the caller is not enough — the video must belong to them.
+        // Both branches go through the same owner-scoped lookup, and a non-entitled caller gets
+        // the same 404 as a missing stream so the route cannot be used to probe for videos.
+        var entitledVideo = await _streamingService.GetVideoForStreamingAsync(
+            videoId, userId, HttpContext.RequestAborted);
+        if (entitledVideo is null)
+        {
+            _logger.LogWarning(
+                "HLS segment requested for video {VideoId} by non-entitled user {UserId}", videoId, userId);
+            return NotFound(ErrorEnvelope("no_active_stream", "No active HLS stream for this video."));
         }
 
         // Find the active HLS job for this video
@@ -1467,7 +1479,7 @@ public class VideoController : VideoControllerBase
     /// paths resolve against the playlist URL's directory, which is the video path.</summary>
     [AllowAnonymous]
     [HttpGet("{videoId:guid}/{*filename}")]
-    public IActionResult GetHlsSegmentFallback(
+    public async Task<IActionResult> GetHlsSegmentFallback(
         Guid videoId,
         string filename,
         [FromQuery] string? token)
@@ -1481,7 +1493,7 @@ public class VideoController : VideoControllerBase
             return NotFound();
         }
 
-        return GetHlsSegment(videoId, filename, token);
+        return await GetHlsSegment(videoId, filename, token);
     }
 
     private static string SanitizeForLog(string? value)

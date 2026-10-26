@@ -207,7 +207,8 @@ builder.Services.Configure<DotNetCloud.Modules.Calendar.Host.Configuration.Conta
     builder.Configuration.GetSection(DotNetCloud.Modules.Calendar.Host.Configuration.ContactsGrpcClientOptions.SectionName));
 builder.Services.AddSingleton<DotNetCloud.Modules.Calendar.Host.Services.ContactsGrpcClient>();
 
-builder.Services.AddGrpc();
+builder.Services.AddGrpc(options =>
+    options.Interceptors.Add<DotNetCloud.Core.Grpc.ModulePeerAuthenticationInterceptor>());
 
 // REST API controllers
 builder.Services.AddControllers();
@@ -217,6 +218,9 @@ builder.Services.AddHealthChecks()
     .AddCheck<CalendarHealthCheck>("calendar_module");
 
 var app = builder.Build();
+
+// Adopt the core-signed end-user assertion before anything can call back into the core.
+app.UseModuleUserAssertion();
 
 // Ensure database schema exists.
 using (var scope = app.Services.CreateScope())

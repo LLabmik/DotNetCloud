@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using DotNetCloud.Core.Grpc;
 using DotNetCloud.Core.Grpc.TokenIntrospection;
 using Grpc.Core;
 using Grpc.Net.Client;
@@ -71,10 +72,7 @@ internal sealed class TokenIntrospectionClient : ITokenIntrospectionClient, IDis
 
         try
         {
-            var headers = new Metadata
-            {
-                { "module-id", moduleId }
-            };
+            var headers = ModuleIdentityMetadata.Create(moduleId);
 
             var response = await _client.IntrospectTokenAsync(
                 request,

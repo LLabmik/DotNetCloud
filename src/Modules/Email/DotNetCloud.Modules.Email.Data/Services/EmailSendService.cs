@@ -142,6 +142,16 @@ public sealed class EmailSendService : IEmailSendService
         {
             foreach (var attRef in request.Attachments)
             {
+                // The storage key comes from the client. Persisting a non-hash value would put an
+                // attacker-chosen path into EmailAttachment and hand it to the read helpers later,
+                // so reject it here — before the provider is invoked and before any row exists.
+                if (string.IsNullOrEmpty(attRef.StorageKey) || !IsValidStorageKey(attRef.StorageKey))
+                {
+                    throw new DotNetCloud.Core.Errors.ValidationException(
+                        "Attachments",
+                        "An attachment referenced an invalid storage key.");
+                }
+
                 var size = attRef.Size;
                 if (size <= 0)
                 {
@@ -177,5 +187,29 @@ public sealed class EmailSendService : IEmailSendService
             Subject = request.Subject,
             To = request.To.Select(t => t.Email).ToList()
         }, caller, ct);
+    }
+
+    /// <summary>
+    /// Determines whether <paramref name="storageKey"/> is a content hash produced by the
+    /// attachment store (64 lowercase hex characters).
+    /// </summary>
+    /// <param name="storageKey">The client-supplied key.</param>
+    /// <returns><see langword="true"/> only for a well-formed content hash.</returns>
+    internal static bool IsValidStorageKey(string storageKey)
+    {
+        if (storageKey.Length != 64)
+        {
+            return false;
+        }
+
+        foreach (var character in storageKey)
+        {
+            if (character is not ((>= '0' and <= '9') or (>= 'a' and <= 'f')))
+            {
+                return false;
+            }
+        }
+
+        return true;
     }
 }

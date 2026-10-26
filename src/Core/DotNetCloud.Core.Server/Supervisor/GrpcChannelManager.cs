@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using DotNetCloud.Core.Grpc;
 using Grpc.Core;
 using Grpc.Net.Client;
 using Microsoft.Extensions.Logging;
@@ -9,16 +10,18 @@ namespace DotNetCloud.Core.Server.Supervisor;
 /// Manages gRPC channels for communication with module processes.
 /// Provides connection pooling, automatic reconnection, and timeout handling.
 /// </summary>
-internal sealed class GrpcChannelManager : IDisposable
+internal sealed class GrpcChannelManager : IModuleGrpcChannelProvider, IDisposable
 {
     private readonly ILogger<GrpcChannelManager> _logger;
+    private readonly ModuleCredentialStore _credentials;
     private readonly ConcurrentDictionary<string, GrpcChannel> _channels = new();
     private readonly TimeSpan _defaultTimeout = TimeSpan.FromSeconds(30);
     private bool _disposed;
 
-    public GrpcChannelManager(ILogger<GrpcChannelManager> logger)
+    public GrpcChannelManager(ILogger<GrpcChannelManager> logger, ModuleCredentialStore credentials)
     {
         _logger = logger;
+        _credentials = credentials;
     }
 
     /// <summary>
@@ -34,7 +37,7 @@ internal sealed class GrpcChannelManager : IDisposable
 
         return _channels.GetOrAdd(moduleId, _ =>
         {
-            var channel = CreateChannel(endpoint);
+            var channel = CreateChannel(moduleId, endpoint);
             _logger.LogDebug("Created gRPC channel for module {ModuleId} to {Endpoint}", moduleId, endpoint);
             return channel;
         });
@@ -66,11 +69,24 @@ internal sealed class GrpcChannelManager : IDisposable
         return new CallOptions(deadline: deadline, cancellationToken: cancellationToken);
     }
 
-    private GrpcChannel CreateChannel(string endpoint)
+    private GrpcChannel CreateChannel(string moduleId, string endpoint)
     {
-        // All internal gRPC is cleartext HTTP/2 over TCP — never use TLS.
+        // All internal gRPC is cleartext HTTP/2 over TCP — never use TLS. The module host still
+        // authenticates us: it presents this same supervisor-issued secret on every call and
+        // rejects anything that does not match, so a stray local process cannot pose as the core.
+        var callCredentials = CallCredentials.FromInterceptor((_, metadata) =>
+        {
+            if (_credentials.TryGetSecret(moduleId, out var secret))
+            {
+                metadata.Add(ModuleIdentityMetadata.ModuleSecretHeader, secret);
+            }
+
+            return Task.CompletedTask;
+        });
+
         return GrpcChannel.ForAddress(endpoint, new GrpcChannelOptions
         {
+            Credentials = ChannelCredentials.Create(ChannelCredentials.Insecure, callCredentials),
             UnsafeUseInsecureChannelCallCredentials = true,
             MaxReceiveMessageSize = 16 * 1024 * 1024,
             MaxSendMessageSize = 16 * 1024 * 1024,

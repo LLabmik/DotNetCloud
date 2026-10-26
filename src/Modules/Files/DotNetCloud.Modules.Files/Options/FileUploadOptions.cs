@@ -15,6 +15,16 @@ public sealed class FileUploadOptions
     public long MaxFileSizeBytes { get; set; } = 21_474_836_480L;
 
     /// <summary>
+    /// Maximum size of a single uploaded chunk, in bytes.
+    /// Default: 16 MiB (16,777,216 bytes) — matches the chunk size clients use.
+    /// </summary>
+    /// <remarks>
+    /// Without a per-chunk ceiling a client could open a session for a one-byte file and stream
+    /// unbounded data into it, filling the shared data volume that every user and module relies on.
+    /// </remarks>
+    public int MaxChunkSizeBytes { get; set; } = 16 * 1024 * 1024;
+
+    /// <summary>
     /// Maximum size of a generated multi-item ZIP download, in bytes.
     /// Default: 4 GiB (4,294,967,296 bytes). Downloads exceeding this fail with a 413.
     /// </summary>

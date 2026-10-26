@@ -1,4 +1,5 @@
 using DotNetCloud.Core.Events;
+using DotNetCloud.Core.Grpc;
 using DotNetCloud.Core.Grpc.Capabilities;
 using DotNetCloud.Modules.Files.Services;
 using Grpc.Core;
@@ -17,6 +18,7 @@ internal sealed class CoreCapabilitiesClient : ICoreCapabilitiesClient, IDisposa
     private readonly ILogger<CoreCapabilitiesClient> _logger;
     private readonly Lazy<GrpcChannel> _channel;
     private readonly Lazy<CoreCapabilities.CoreCapabilitiesClient> _client;
+    private readonly string _moduleId;
     private bool _disposed;
 
     /// <summary>
@@ -25,6 +27,7 @@ internal sealed class CoreCapabilitiesClient : ICoreCapabilitiesClient, IDisposa
     public CoreCapabilitiesClient(ILogger<CoreCapabilitiesClient> logger)
     {
         _logger = logger;
+        _moduleId = Environment.GetEnvironmentVariable("DOTNETCLOUD_MODULE_ID") ?? "dotnetcloud.files";
         _channel = new Lazy<GrpcChannel>(CreateChannel);
         _client = new Lazy<CoreCapabilities.CoreCapabilitiesClient>(
             () => new CoreCapabilities.CoreCapabilitiesClient(_channel.Value));
@@ -69,6 +72,7 @@ internal sealed class CoreCapabilitiesClient : ICoreCapabilitiesClient, IDisposa
                 }));
 
             var callOptions = new CallOptions(
+                headers: ModuleIdentityMetadata.Create(_moduleId),
                 deadline: DateTime.UtcNow.AddSeconds(30),
                 cancellationToken: cancellationToken);
 

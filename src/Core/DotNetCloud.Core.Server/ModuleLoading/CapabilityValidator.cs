@@ -78,7 +78,8 @@ internal sealed class CapabilityValidator
     private static readonly HashSet<string> PrivilegedCapabilities =
     [
         nameof(IUserManager),
-        nameof(IBackupProvider)
+        nameof(IBackupProvider),
+        nameof(IAdminSharedFolderCleanup)
     ];
 
     private static readonly HashSet<string> ForbiddenCapabilities =

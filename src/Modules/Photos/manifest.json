@@ -8,7 +8,8 @@
         "INotificationService",
         "IUserDirectory",
         "ICurrentUserContext",
-        "IAuditLogger"
+        "IAuditLogger",
+        "ITeamDirectory"
     ],
     "publishedEvents": [
         "PhotoUploadedEvent"

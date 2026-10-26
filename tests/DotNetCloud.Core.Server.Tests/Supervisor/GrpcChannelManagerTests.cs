@@ -10,7 +10,9 @@ public class GrpcChannelManagerTests
 
     public GrpcChannelManagerTests()
     {
-        _manager = new GrpcChannelManager(NullLogger<GrpcChannelManager>.Instance);
+        _manager = new GrpcChannelManager(
+            NullLogger<GrpcChannelManager>.Instance,
+            new ModuleCredentialStore());
     }
 
     [TestCleanup]

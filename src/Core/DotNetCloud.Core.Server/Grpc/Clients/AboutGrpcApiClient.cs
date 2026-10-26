@@ -30,6 +30,7 @@ public sealed class AboutGrpcApiClient : IAboutApiClient, IDisposable
 {
     private readonly AboutGrpcClientOptions _options;
     private readonly ModuleEndpointProvider _endpointProvider;
+    private readonly Supervisor.IModuleGrpcChannelProvider _channelManager;
     private readonly ILogger<AboutGrpcApiClient> _logger;
     private readonly Lazy<GrpcChannel> _channel;
     private readonly Lazy<AboutService.AboutServiceClient> _client;
@@ -39,10 +40,12 @@ public sealed class AboutGrpcApiClient : IAboutApiClient, IDisposable
     public AboutGrpcApiClient(
         IOptions<AboutGrpcClientOptions> options,
         ModuleEndpointProvider endpointProvider,
+        Supervisor.IModuleGrpcChannelProvider channelManager,
         ILogger<AboutGrpcApiClient> logger)
     {
         _options = options.Value;
         _endpointProvider = endpointProvider;
+        _channelManager = channelManager;
         _logger = logger;
         _channel = new Lazy<GrpcChannel>(CreateChannel);
         _client = new Lazy<AboutService.AboutServiceClient>(
@@ -89,29 +92,15 @@ public sealed class AboutGrpcApiClient : IAboutApiClient, IDisposable
     {
         var address = _endpointProvider.GetEndpoint("dotnetcloud.about");
         _logger.LogInformation("AboutGrpcApiClient connecting to {Address}", address);
-        return GrpcChannel.ForAddress(address, new GrpcChannelOptions
-        {
-            UnsafeUseInsecureChannelCallCredentials = true,
-            HttpHandler = new SocketsHttpHandler
-            {
-                EnableMultipleHttp2Connections = true,
-                ConnectTimeout = TimeSpan.FromSeconds(5)
-            }
-        });
+        // Managed channel: it attaches the supervisor-issued credential the module host requires.
+        return _channelManager.GetOrCreateChannel("dotnetcloud.about", address);
     }
 
     /// <inheritdoc />
     public void Dispose()
     {
-        if (!_disposed)
-        {
-            _disposed = true;
-            if (_channel.IsValueCreated)
-            {
-                try
-                { _channel.Value.Dispose(); }
-                catch { /* best effort */ }
-            }
-        }
+        // The channel belongs to GrpcChannelManager and is shared, so there is nothing to release.
+        if (_disposed) return;
+        _disposed = true;
     }
 }

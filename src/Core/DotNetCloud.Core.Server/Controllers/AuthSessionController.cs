@@ -2,6 +2,7 @@ using DotNetCloud.Core.Authorization;
 using DotNetCloud.Core.Capabilities;
 using DotNetCloud.Core.Constants;
 using DotNetCloud.Core.Data.Entities.Identity;
+using DotNetCloud.Core.Server.Filters;
 using DotNetCloud.Core.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
@@ -47,6 +48,7 @@ public sealed class AuthSessionController : ControllerBase
     /// </summary>
     [HttpPost("login")]
     [AllowAnonymous]
+    [RequireAntiforgeryToken]
     public async Task<IActionResult> LoginAsync(
         [FromForm] string username,
         [FromForm] string password,
@@ -60,6 +62,16 @@ public sealed class AuthSessionController : ControllerBase
 
         try
         {
+            // Enforce the account-state predicate before any credential is accepted. The failure
+            // is deliberately identical to a wrong password so the form cannot be used to
+            // enumerate accounts or confirm that a given account was disabled.
+            var account = await _userManager.FindByNameAsync(username);
+            if (account is null || !account.IsActive)
+            {
+                _logger.LogWarning("Form login rejected: unknown or inactive account");
+                return RedirectToLogin("Invalid username or password.", returnUrl, username);
+            }
+
             var result = await _signInManager.PasswordSignInAsync(
                 username,
                 password,
@@ -153,6 +165,7 @@ public sealed class AuthSessionController : ControllerBase
     /// </summary>
     [HttpPost("change-password")]
     [Authorize]
+    [RequireAntiforgeryToken]
     public async Task<IActionResult> ChangePasswordPostAsync(
         [FromForm] string currentPassword,
         [FromForm] string newPassword,
@@ -211,6 +224,7 @@ public sealed class AuthSessionController : ControllerBase
     /// </summary>
     [HttpPost("mfa-verify")]
     [AllowAnonymous]
+    [RequireAntiforgeryToken]
     public async Task<IActionResult> MfaVerifyAsync(
         [FromForm] string code,
         [FromForm] string? returnUrl = null)
@@ -253,6 +267,7 @@ public sealed class AuthSessionController : ControllerBase
     /// Must be a real HTTP POST (not Blazor SignalR) so the cookie can be cleared on the response.
     /// </summary>
     [HttpPost("logout")]
+    [RequireAntiforgeryToken]
     public async Task<IActionResult> LogoutAsync([FromForm] string? returnUrl = null)
     {
         try

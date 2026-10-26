@@ -29,6 +29,9 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Scan for committed third-party API keys
+        run: ./scripts/check-third-party-keys.sh .
+
       - name: Setup .NET 10
         uses: actions/setup-dotnet@v4
         with:

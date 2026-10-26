@@ -14,13 +14,16 @@ namespace DotNetCloud.Core.Server.Grpc.Services;
 public sealed class FilesUploadStreamService : FilesService.FilesServiceBase
 {
     private readonly ModuleEndpointProvider _endpointProvider;
+    private readonly Supervisor.IModuleGrpcChannelProvider _channelManager;
     private readonly ILogger<FilesUploadStreamService> _logger;
 
     public FilesUploadStreamService(
         ModuleEndpointProvider endpointProvider,
+        Supervisor.IModuleGrpcChannelProvider channelManager,
         ILogger<FilesUploadStreamService> logger)
     {
         _endpointProvider = endpointProvider;
+        _channelManager = channelManager;
         _logger = logger;
     }
 
@@ -36,17 +39,9 @@ public sealed class FilesUploadStreamService : FilesService.FilesServiceBase
         try
         {
             var address = _endpointProvider.GetEndpoint("dotnetcloud.files");
-            channel = GrpcChannel.ForAddress(
-                address,
-                new GrpcChannelOptions
-                {
-                    UnsafeUseInsecureChannelCallCredentials = true,
-                    HttpHandler = new SocketsHttpHandler
-                    {
-                        EnableMultipleHttp2Connections = true,
-                        ConnectTimeout = TimeSpan.FromSeconds(5)
-                    }
-                });
+            // The managed channel attaches the supervisor-issued credential the Files host now
+            // requires. It is owned by the manager, so it must not be disposed here.
+            channel = _channelManager.GetOrCreateChannel("dotnetcloud.files", address);
             client = new FilesService.FilesServiceClient(channel);
 
             // Forward the Bearer token from the incoming gRPC context to the downstream
@@ -192,10 +187,6 @@ public sealed class FilesUploadStreamService : FilesService.FilesServiceBase
                 Success = false,
                 ErrorMessage = $"Upload failed: {ex.Message}"
             };
-        }
-        finally
-        {
-            channel?.Dispose();
         }
     }
 

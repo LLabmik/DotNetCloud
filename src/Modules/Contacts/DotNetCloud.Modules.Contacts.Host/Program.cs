@@ -132,7 +132,8 @@ builder.Services.AddContactsServices(builder.Configuration);
 // resolve a caller's team membership from Core.Server without a round trip per access query.
 builder.Services.AddGrpcTeamDirectory();
 
-builder.Services.AddGrpc();
+builder.Services.AddGrpc(options =>
+    options.Interceptors.Add<DotNetCloud.Core.Grpc.ModulePeerAuthenticationInterceptor>());
 
 // REST API controllers
 builder.Services.AddControllers();
@@ -142,6 +143,9 @@ builder.Services.AddHealthChecks()
     .AddCheck<ContactsHealthCheck>("contacts_module");
 
 var app = builder.Build();
+
+// Adopt the core-signed end-user assertion before anything can call back into the core.
+app.UseModuleUserAssertion();
 
 // Show full exception details for debugging; remove in production.
 app.UseDeveloperExceptionPage();

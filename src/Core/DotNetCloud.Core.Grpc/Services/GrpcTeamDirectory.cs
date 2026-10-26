@@ -249,13 +249,12 @@ public sealed class GrpcTeamDirectory : ITeamDirectory, IDisposable
 
     private Metadata GetMetadata()
     {
-        var metadata = new Metadata();
-        if (!string.IsNullOrWhiteSpace(_moduleId))
+        if (string.IsNullOrWhiteSpace(_moduleId))
         {
-            metadata.Add("module-id", _moduleId);
+            return new Metadata();
         }
 
-        return metadata;
+        return ModuleIdentityMetadata.Create(_moduleId);
     }
 
     private static TeamInfo MapTeam(TeamInfoMessage message)

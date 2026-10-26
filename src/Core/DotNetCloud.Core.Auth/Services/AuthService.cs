@@ -26,6 +26,7 @@ public sealed class AuthService : IAuthService
     private readonly UserManager<ApplicationUser> _userManager;
     private readonly SignInManager<ApplicationUser> _signInManager;
     private readonly IOpenIddictTokenManager _tokenManager;
+    private readonly IAccountCredentialInvalidator _credentialInvalidator;
     private readonly IAdminSettingsService _adminSettingsService;
     private readonly ITransactionalEmailSender _emailSender;
     private readonly SmtpOptions _smtpOptions;
@@ -43,6 +44,7 @@ public sealed class AuthService : IAuthService
         ITransactionalEmailSender emailSender,
         IOptions<SmtpOptions> smtpOptions,
         IServiceProvider serviceProvider,
+        IAccountCredentialInvalidator credentialInvalidator,
         ILogger<AuthService> logger)
     {
         _userManager = userManager;
@@ -52,6 +54,7 @@ public sealed class AuthService : IAuthService
         _emailSender = emailSender;
         _smtpOptions = smtpOptions.Value;
         _serviceProvider = serviceProvider;
+        _credentialInvalidator = credentialInvalidator;
         _logger = logger;
     }
 
@@ -495,6 +498,9 @@ public sealed class AuthService : IAuthService
         var result = await _userManager.ResetPasswordAsync(user, request.Token, request.NewPassword);
         if (result.Succeeded)
         {
+            // The old password can no longer be used to recover the account, so nothing issued
+            // under it may keep working.
+            await _credentialInvalidator.InvalidateAsync(user.Id, "password reset");
             _logger.LogInformation("Password reset for user {UserId}", user.Id);
         }
         else
@@ -521,6 +527,8 @@ public sealed class AuthService : IAuthService
         var result = await _userManager.ChangePasswordAsync(user, request.CurrentPassword, request.NewPassword);
         if (result.Succeeded)
         {
+            // Sessions opened with the previous password must not survive the change.
+            await _credentialInvalidator.InvalidateAsync(userId, "password changed");
             _logger.LogInformation("Password changed for user {UserId}", userId);
         }
         else

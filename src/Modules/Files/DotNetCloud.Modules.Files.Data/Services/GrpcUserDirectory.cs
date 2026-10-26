@@ -1,4 +1,5 @@
 using DotNetCloud.Core.Capabilities;
+using DotNetCloud.Core.Grpc;
 using DotNetCloud.Core.Grpc.Capabilities;
 using Grpc.Core;
 using Grpc.Net.Client;
@@ -204,7 +205,7 @@ internal sealed class GrpcUserDirectory : IUserDirectory, IDisposable
         }
     }
 
-    private Metadata ModuleIdMetadata() => new() { { "module-id", _moduleId } };
+    private Metadata ModuleIdMetadata() => ModuleIdentityMetadata.Create(_moduleId);
 
     /// <summary>
     /// Logs an RPC failure with a message that identifies whether the core is unreachable or

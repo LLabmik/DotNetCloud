@@ -12,6 +12,7 @@
         </div>
 
         <form method="post" action="/auth/session/login" data-enhance-nav="false">
+            <AntiforgeryToken />
             <div class="form-group">
                 <label for="username">Username</label>
                 <input id="username" name="username" class="input" type="text" autocomplete="username" required

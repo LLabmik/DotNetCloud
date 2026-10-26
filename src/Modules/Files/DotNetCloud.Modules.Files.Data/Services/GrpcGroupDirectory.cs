@@ -1,4 +1,5 @@
 using DotNetCloud.Core.Capabilities;
+using DotNetCloud.Core.Grpc;
 using DotNetCloud.Core.Grpc.Capabilities;
 using Grpc.Core;
 using Grpc.Net.Client;
@@ -15,6 +16,7 @@ internal sealed class GrpcGroupDirectory : IGroupDirectory, IDisposable
     private readonly ILogger<GrpcGroupDirectory> _logger;
     private readonly Lazy<GrpcChannel> _channel;
     private readonly Lazy<CoreCapabilities.CoreCapabilitiesClient> _client;
+    private readonly string _moduleId;
     private bool _disposed;
 
     /// <summary>
@@ -23,6 +25,7 @@ internal sealed class GrpcGroupDirectory : IGroupDirectory, IDisposable
     public GrpcGroupDirectory(ILogger<GrpcGroupDirectory> logger)
     {
         _logger = logger;
+        _moduleId = Environment.GetEnvironmentVariable("DOTNETCLOUD_MODULE_ID") ?? "dotnetcloud.files";
         _channel = new Lazy<GrpcChannel>(CreateChannel);
         _client = new Lazy<CoreCapabilities.CoreCapabilitiesClient>(
             () => new CoreCapabilities.CoreCapabilitiesClient(_channel.Value));
@@ -47,7 +50,9 @@ internal sealed class GrpcGroupDirectory : IGroupDirectory, IDisposable
                 GroupId = groupId.ToString(),
             };
 
-            var callOptions = new CallOptions(cancellationToken: cancellationToken);
+            var callOptions = new CallOptions(
+                headers: ModuleIdentityMetadata.Create(_moduleId),
+                cancellationToken: cancellationToken);
             var response = await _client.Value.GetGroupAsync(request, callOptions);
 
             _logger.LogInformation("GetGroup gRPC response for {GroupId}: Found={Found}, Group={GroupName}",
@@ -107,10 +112,53 @@ internal sealed class GrpcGroupDirectory : IGroupDirectory, IDisposable
     }
 
     /// <inheritdoc />
-    public Task<IReadOnlyList<GroupInfo>> GetGroupsForUserAsync(Guid userId, CancellationToken cancellationToken = default)
+    public async Task<IReadOnlyList<GroupInfo>> GetGroupsForUserAsync(Guid userId, CancellationToken cancellationToken = default)
     {
-        _logger.LogDebug("GetGroupsForUserAsync is not supported via gRPC yet");
-        return Task.FromResult<IReadOnlyList<GroupInfo>>(Array.Empty<GroupInfo>());
+        if (!IsAvailable)
+        {
+            _logger.LogWarning(
+                "GetGroupsForUser short-circuited: DOTNETCLOUD_CORE_ENDPOINT is not set, so the module " +
+                "cannot reach Core.Server. Group-based access must be denied.");
+            return [];
+        }
+
+        try
+        {
+            var request = new GetGroupsForUserRequest { UserId = userId.ToString() };
+            var callOptions = new CallOptions(
+                headers: ModuleIdentityMetadata.Create(_moduleId),
+                cancellationToken: cancellationToken);
+
+            var response = await _client.Value.GetGroupsForUserAsync(request, callOptions);
+
+            return response.Groups.Select(group =>
+            {
+                Guid.TryParse(group.Id, out var id);
+                Guid.TryParse(group.OrganizationId, out var organizationId);
+                DateTime.TryParse(group.CreatedAt, out var createdAt);
+
+                return new GroupInfo
+                {
+                    Id = id,
+                    OrganizationId = organizationId,
+                    Name = group.Name,
+                    Description = string.IsNullOrEmpty(group.Description) ? null : group.Description,
+                    IsAllUsersGroup = group.IsAllUsersGroup,
+                    MemberCount = group.MemberCount,
+                    CreatedAt = createdAt,
+                };
+            }).ToArray();
+        }
+        catch (RpcException ex)
+        {
+            _logger.LogWarning(ex, "GetGroupsForUserAsync failed for {UserId}", userId);
+            return [];
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Unexpected error calling GetGroupsForUser for {UserId}", userId);
+            return [];
+        }
     }
 
     /// <inheritdoc />

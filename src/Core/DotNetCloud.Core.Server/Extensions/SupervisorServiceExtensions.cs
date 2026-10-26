@@ -45,11 +45,21 @@ internal static class SupervisorServiceExtensions
 
         // Register supervisor infrastructure
         services.AddSingleton<GrpcChannelManager>();
+        services.AddSingleton<IModuleGrpcChannelProvider>(sp => sp.GetRequiredService<GrpcChannelManager>());
         services.AddSingleton<ResourceLimiter>();
 
+        // Per-module credentials minted by the supervisor at launch and required on every
+        // capability call (binds module-id to a secret only the core hands out).
+        services.AddSingleton<ModuleCredentialStore>();
+
+        // Signing key for end-user assertions. Modules get only the public half.
+        services.AddSingleton<ModuleAssertionKeyRing>();
+
         // Register gRPC interceptors
+        services.AddSingleton<ICallerIdentityResolver, CallerIdentityResolver>();
         services.AddSingleton<AuthenticationInterceptor>();
         services.AddSingleton<CallerContextInterceptor>();
+        services.AddSingleton<CapabilityGrantInterceptor>();
         services.AddSingleton<TracingInterceptor>();
         services.AddSingleton<ErrorHandlingInterceptor>();
         services.AddSingleton<LoggingInterceptor>();
@@ -77,6 +87,7 @@ internal static class SupervisorServiceExtensions
             options.Interceptors.Add<LoggingInterceptor>();
             options.Interceptors.Add<AuthenticationInterceptor>();
             options.Interceptors.Add<CallerContextInterceptor>();
+            options.Interceptors.Add<CapabilityGrantInterceptor>();
             options.Interceptors.Add<TracingInterceptor>();
             options.Interceptors.Add<ErrorHandlingInterceptor>();
         });

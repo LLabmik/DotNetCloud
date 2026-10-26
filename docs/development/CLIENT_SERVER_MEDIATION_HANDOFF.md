@@ -1,6 +1,6 @@
 # Client/Server Mediation Handoff
 
-Last updated: 2026-10-11 (**✅ COMPLETE — the client agent (`monolith`) finished the final on-device verification of the five WOPI findings on `R5CWC356B2K` against `cloud.dotnetcloud.net` (v0.6.13): item 4 ✅ — `_DotNetCloud → Shared With Me` now lists the direct shares (`ShareTest.docx`, `Test.docx`) and opens `ShareTest.docx` view-only (Collabora's Read-only badge, token `CanWrite:false`); item 5 ✅ — a byte-identical `PutFile` left the counter at `23_…` with only the ticks advancing, while a real edit still went `22` → `23`. No open items on either side.** Server (2026-10-11, `cloud.kimball.home`): the WOPI host's leftover `Console.Error` debug spam removed; `Size` vs `contents` explained as a read-race across a concurrent save; the global `(file,user)` session cap documented + 503-tested; the `_DotNetCloud → Shared With Me` folder now lists **direct user shares**; and a byte-identical `PutFile` no longer creates a `FileVersion` — all live-verified on `cloud.dotnetcloud.net` (deploy 15/15). Earlier: 2026-09-28 (**Android chat composer enforces the admin-configured message length — ✅ COMPLETE on both sides (2026-09-28).** The server exposes `GET /api/v1/chat/limits` (deployed on mint22 dev; re-probed from `monolith`: the real route answers `401` vs a bogus route's `404`), and the Android composer half was implemented and **on-device verified** on R5CWC356B2K by `monolith` — typing or pasting past `maxMessageLength` is impossible (60 characters typed into a limit of 50 stopped at exactly 50 with the counter reading `50 / 50`), a message at exactly the limit sends, the `used / max` counter renders above the composer bar, and a 404 falls back to the built-in `10000 / 10 / 10` (`GetChatLimitsAsync HTTP 404 … using built-in defaults`). Android tests 466 pass / 1 skip; arm64 Debug build 0 warnings. **No open items** — recorded in `CLIENT_SERVER_MEDIATION_ARCHIVE.md`. Earlier (2026-09-27): **✅ Calendar reminder dispatch** — the server half is deployed and verified on `cloud.kimball.home` (long-lead scan window proven live on a 6.7-day-out event) and a pre-existing defect was fixed in the same pass (the Calendar host never sent the `module-id` gRPC header, so **no calendar reminder had ever reached the bell**); the **Android reminder duplicate-alert fix** passed its on-device E2E on R5CWC356B2K (one alert per reminder at its trigger time, the real time remaining in the body, no repeats after a resync / boot / SignalR reconnect, and deleting an event cancels its armed alarm). Earlier (2026-09-19): **Android chat alerts** — the app's own conditional poll of `GET /api/v1/chat/alerts` is the whole transport (no companion app, no third-party push service, no Google, no foreground service), deployed and verified end-to-end including the phone-side `304` and the core-proxy `If-None-Match` fix; plus the Notes folder picker and SyncTray `0.6.7`. Full records: `CLIENT_SERVER_MEDIATION_ARCHIVE.md`.
+Last updated: 2026-10-25 (**✅ BATCH 1 IMPLEMENTED — security audit remediation, P0 workstreams 1–3, on branch `fix/security-p0`, not yet committed. Still open: the video HLS controller regression test (code landed, unproven) and the operator's rotation of the exposed TMDB key. Full per-fingerprint result, deviations and deploy implications are in `CLIENT_SERVER_MEDIATION_ARCHIVE.md`.** Earlier: 2026-10-11 (**✅ COMPLETE — the client agent (`monolith`) finished the final on-device verification of the five WOPI findings on `R5CWC356B2K` against `cloud.dotnetcloud.net` (v0.6.13): item 4 ✅ — `_DotNetCloud → Shared With Me` now lists the direct shares (`ShareTest.docx`, `Test.docx`) and opens `ShareTest.docx` view-only (Collabora's Read-only badge, token `CanWrite:false`); item 5 ✅ — a byte-identical `PutFile` left the counter at `23_…` with only the ticks advancing, while a real edit still went `22` → `23`. No open items on either side.** Server (2026-10-11, `cloud.kimball.home`): the WOPI host's leftover `Console.Error` debug spam removed; `Size` vs `contents` explained as a read-race across a concurrent save; the global `(file,user)` session cap documented + 503-tested; the `_DotNetCloud → Shared With Me` folder now lists **direct user shares**; and a byte-identical `PutFile` no longer creates a `FileVersion` — all live-verified on `cloud.dotnetcloud.net` (deploy 15/15). Earlier: 2026-09-28 (**Android chat composer enforces the admin-configured message length — ✅ COMPLETE on both sides (2026-09-28).** The server exposes `GET /api/v1/chat/limits` (deployed on mint22 dev; re-probed from `monolith`: the real route answers `401` vs a bogus route's `404`), and the Android composer half was implemented and **on-device verified** on R5CWC356B2K by `monolith` — typing or pasting past `maxMessageLength` is impossible (60 characters typed into a limit of 50 stopped at exactly 50 with the counter reading `50 / 50`), a message at exactly the limit sends, the `used / max` counter renders above the composer bar, and a 404 falls back to the built-in `10000 / 10 / 10` (`GetChatLimitsAsync HTTP 404 … using built-in defaults`). Android tests 466 pass / 1 skip; arm64 Debug build 0 warnings. **No open items** — recorded in `CLIENT_SERVER_MEDIATION_ARCHIVE.md`. Earlier (2026-09-27): **✅ Calendar reminder dispatch** — the server half is deployed and verified on `cloud.kimball.home` (long-lead scan window proven live on a 6.7-day-out event) and a pre-existing defect was fixed in the same pass (the Calendar host never sent the `module-id` gRPC header, so **no calendar reminder had ever reached the bell**); the **Android reminder duplicate-alert fix** passed its on-device E2E on R5CWC356B2K (one alert per reminder at its trigger time, the real time remaining in the body, no repeats after a resync / boot / SignalR reconnect, and deleting an event cancels its armed alarm). Earlier (2026-09-19): **Android chat alerts** — the app's own conditional poll of `GET /api/v1/chat/alerts` is the whole transport (no companion app, no third-party push service, no Google, no foreground service), deployed and verified end-to-end including the phone-side `304` and the core-proxy `If-None-Match` fix; plus the Notes folder picker and SyncTray `0.6.7`. Full records: `CLIENT_SERVER_MEDIATION_ARCHIVE.md`.
 
 Purpose: shared handoff between client-side and server-side agents, mediated by user.
 
@@ -8,6 +8,7 @@ Archived context:
 
 - Historical completed updates are in `CLIENT_SERVER_MEDIATION_ARCHIVE.md`.
 - Additional history remains available in git.
+- **Archived (server agent — `mint22`, 2026-10-25):** security audit remediation batch 1 (P0 workstreams 1–3, 11 findings) — **implemented on `fix/security-p0`, not yet committed**, one finding (video HLS) short of being proven. Full per-fingerprint result, deviations and deploy implications: `CLIENT_SERVER_MEDIATION_ARCHIVE.md` → *Server agent (`mint22`) — security audit remediation, batch 1 … (2026-10-25)*.
 
 ## Process Rules
 
@@ -31,7 +32,111 @@ Archived context:
 - **Archived (server agent — `cloud.kimball.home`):** `fix/android-improvements` — Presence 4-state, deployed + live-verified on cloud 2026-09-09 (plan `docs/PRESENCE_DOTS_4STATE_PLAN.md`; archived below)
 - **Still pending (mint22, dev):** `feature/module-widgets` — Module Home Widgets (plan `docs/MODULE_WIDGETS_PLAN.md`); kept below as a deferred handoff
 
-## Active Handoff — Client agents (`Windows11-TestDNC`, `mint-dnc-client`, `monolith`): surface `FILE_READ_ONLY` for default content (2026-10-22)
+## ✅ Completed Handoff — Server agent (`mint22`): security audit remediation, batch 1 — P0 workstreams 1–3 (2026-10-25) — ARCHIVED
+
+**Status:** implemented on `fix/security-p0`, **not committed** (awaiting operator approval). The result block — per-fingerprint done/proven, deviations, regressions found and fixed, deploy implications — lives in `CLIENT_SERVER_MEDIATION_ARCHIVE.md` under *Server agent (`mint22`) — security audit remediation, batch 1 … (2026-10-25)*.
+
+**Still open from this batch:** the video HLS controller regression test (code landed, unproven) and the operator rotation of the exposed TMDB key. The brief below is kept as historical context only — do not execute it again.
+
+**Audience:** server agent on `mint22` only. This batch is entirely server-side; the client agents have no work in it (the one client-side high, `client-sync/tree-name-path-escape-outside-sync-root`, is Workstream 6 and is deliberately deferred).
+**Relay branch:** `fix/security-audit` — must contain `docs/SECURITY_AUDIT_REMEDIATION_PLAN.md`. Cut the implementation branch `fix/security-p0` from it. If the plan document is not on the branch, **stop and report** — do not reconstruct it from memory.
+**Plan:** `docs/SECURITY_AUDIT_REMEDIATION_PLAN.md` — workstreams 1, 2 and 3 (P0, 11 findings).
+**Full evidence:** the audit ran outside the repository. `findings.json` / `FINDINGS-DETAIL.md` in `C:\Users\benk\security-audit-skill\DotNetCloud\run-1\` (on `Windows11-TestDNC`) hold the trace, evidence, conditions and observed result for every item. If that path is unreachable from `mint22`, ask the moderator to paste the records you need; the plan document carries the fix and regression test for each item.
+
+### Context
+
+A six-phase, source-only audit (Cloudflare `security-audit` skill; 40 agent invocations; 23 coverage units; 294 files) produced **35 confirmed findings**, 9 needs-validation leads and 1 rejected claim. Nothing was executed during the audit: every `confirmed` record is a deterministic source observation, so **the regression test for each fix is its first real proof**.
+
+This batch is the structural core. Until "which module is calling, and as whom" is trustworthy, the per-resource fixes in P1 are worth less. The batch closes **11 findings — 9 high, 1 medium, 1 low** — across three workstreams. Do them in order: workstream 3 depends on the caller identity established in workstream 1.
+
+### Work requested (in this order)
+
+#### Workstream 1 — module transport identity (2 high)
+
+**1a. `grpc/core-capabilities/self-asserted-module-id`** — `src/Core/DotNetCloud.Core.Server/Grpc/Interceptors/AuthenticationInterceptor.cs`, `…/CallerContextInterceptor.cs`, `…/Supervisor/ProcessSupervisor.cs`, `…/ModuleLoading/CapabilityValidator.cs`, `…/Grpc/Services/GrpcHealthServiceImpl.cs`.
+
+- The listener is cleartext loopback HTTP/2 (`GrpcServerConfiguration.cs:18`) and the only check is that `module-id` is non-empty; `caller-user-id` / `caller-type` / `caller-roles` are trusted, and an absent user id becomes `CallerType.System` (`CallerContextInterceptor.cs:51-75`).
+- Mint a per-module secret (or mTLS client certificate) in `ProcessSupervisor` at launch, pass it only to that module, and validate it in `AuthenticationInterceptor` against the installed-module record. Bind the module id to the credential, not to a header.
+- Derive `CallerContext` from the verified module identity plus a server-verified end-user context. Remove the `CallerType.System` default and introduce an explicit supervisor-only identity.
+- Enforce `ModuleCapabilityGrants` on every capability RPC by calling `CapabilityValidator.ValidateAsync` and throwing `CapabilityNotGrantedException` (already mapped to `PermissionDenied` by `ErrorHandlingInterceptor`). It currently has **no call site**.
+- Move admin-only RPCs such as `CleanupAdminSharedFolder` off the general module surface or require a distinct privileged grant.
+
+**1b. `grpc/module-hosts/request-user-id-without-peer-auth`** — every `src/Modules/*/…Host/Program.cs`, `src/Core/DotNetCloud.Core.Server/Supervisor/GrpcChannelManager.cs`, plus the module services listed in the finding.
+
+- Module-host data-plane gRPC services are anonymous and act on the request's `user_id`; only `FilesGrpcService.ValidateAuthenticatedCaller` binds the caller.
+- Authenticate the core→module channel (supervisor-issued per-call credential, or mTLS) and add a module-side gRPC interceptor that rejects unauthenticated calls. Then require every service to compare `request.UserId` with the authenticated principal exactly as `FilesGrpcService` does — or remove `user_id` from the contract and derive the acting user from the verified context.
+- Stop using `CallerContext.CreateSystemContext()` for user-scoped reads/writes (Email `GetAccount`, `GetRecentThreads`, `SendEmail` are the confirmed examples).
+
+**Acceptance for workstream 1:** a call with no module credential is rejected; a valid module credential cannot assert another principal via headers; a request whose authenticated subject differs from `request.UserId` returns NotFound/PermissionDenied for every module service (model the test on `FilesGrpcServiceSecurityTests`); a module without a Restricted/Privileged grant is denied when it calls that capability.
+
+#### Workstream 2 — credential state, revocation and scope (3 findings)
+
+**2a. `core-auth:account-state-transition-no-token-revocation`** (high) — `src/Core/DotNetCloud.Core.Server/Controllers/UserManagementController.cs:188`, `src/Core/DotNetCloud.Core.Auth/Services/AuthService.cs:327-386,495,521`, `src/Core/DotNetCloud.Core.Auth/Extensions/AuthServiceExtensions.cs:213`.
+
+- Add one account-state invalidation step and call it from `DisableUserAsync`, `DeleteUserAsync`, `AdminResetPasswordAsync`, `ResetPasswordAsync` and `ChangePasswordAsync`: enumerate `IOpenIddictTokenManager.FindBySubjectAsync(userId)` and `TryRevokeAsync` each entry, and call `UserManager.UpdateSecurityStampAsync` so existing cookie tickets fail.
+- Enable OpenIddict token-entry validation (or add an `IsActive` check to the claims transformation) so a token that escapes revocation fails on the next request.
+
+**2b. `core-session:disabled-account-form-login`** (high) — `src/Core/DotNetCloud.Core.Server/Controllers/AuthSessionController.cs:49-160`, `src/UI/DotNetCloud.UI.Web/Components/Pages/Auth/Login.razor:14`.
+
+- `SignInManager.PasswordSignInAsync` has no `IsActive` check. Enforce the predicate at the single credential-acceptance point (look up the user before sign-in and return the same generic invalid-credentials result), preferably in a shared helper or a custom `SignInManager` / `IUserValidator` so every login path inherits it.
+
+**2c. `core-session:login-form-csrf`** (medium) — `Program.cs:520-523,552,1036`, `AuthSessionController.cs:256`.
+
+- `AddAntiforgery`/`UseAntiforgery` exist but no endpoint carries antiforgery metadata. Apply `AutoValidateAntiforgeryTokenAttribute` as a global MVC filter (or decorate every cookie-authenticated form action), render the token in the login and logout forms, and add an explicit same-origin `Origin`/`Referer` check where a token is impossible.
+
+**Acceptance for workstream 2:** obtain a cookie, an access token and a refresh token; disable the account; assert 401/redirect on all three. A form login for an inactive user sets no cookie. A login POST without a token from a foreign origin returns 400 with no `Set-Cookie`; the happy path still signs in.
+
+#### Workstream 3 — Files write path, quotas and committed secret (6 findings)
+
+**3a. `files-chunked-upload-missing-target-write-authorization`** (high) — `ChunkedUploadService.cs`, `FilesController.cs:317-380`.
+
+- Inject `IPermissionService`; call `RequirePermissionAsync(dto.ParentId, caller, SharePermission.ReadWrite)` when `ParentId` is set (caller's root when null) and `RequirePermissionAsync(dto.TargetFileNodeId.Value, caller, ReadWrite)` when `TargetFileNodeId` is set; repeat the parent check in `CompleteUploadAsync` before mutating. Keep the mounted/read-only guards.
+
+**3b. `files-admin-shared-folder-group-grant-fail-open`** (high) — `FileService.ListAccessibleAdminSharedFoldersAsync`, `DownloadService` (both lookups), `GrpcGroupDirectory.GetGroupsForUserAsync`.
+
+- Delete the fail-open branches: a null/empty membership result means **no** accessible folders, and the grant predicate (`definition.Grants.Any(g => groupIds.Contains(g.GroupId))`) must always apply. Implement `GetGroupsForUserAsync` against the core capability group listing so grants work in the module host.
+
+**3c. `files-chunk-storage-quota-bypass`** (high) — `ChunkedUploadService.cs`, `FilesController.cs:317-380`, `QuotaService.cs:251`.
+
+- Make stored bytes the single source of truth: add `FileUploadOptions.MaxChunkSizeBytes`; reject a chunk above it; reject a chunk that would exceed the session total plus the user's remaining quota; require `ChunkHashes.Count` and `ChunkSizes.Count` to match and sum to `TotalSize` at initiation; set `FileNode.Size` and the quota delta from the sum of referenced chunk sizes at completion, never from `session.TotalSize`.
+
+**3d. `email.attachment.storage-key-path-traversal`** (high) — `src/Modules/Email/DotNetCloud.Modules.Email.Host/Controllers/EmailController.cs:153-535`, `Email.Data` storage helpers, `EmailSendService`.
+
+- Validate the key with `^[0-9a-f]{64}$` **and** `Path.GetFullPath` containment under the storage root plus a separator, inside the shared `GetStoragePath`/`TryGetStoragePath` so `OpenReadAsync`, `GetSizeAsync`, `DeleteAsync` and `GetCreationTime` are all covered. Reject non-conforming keys in `EmailSendService` before the provider is invoked.
+
+**3e. `authz.video.hls-segment.no-video-entitlement`** (high) — `VideoController.cs:1229-1320`.
+
+- Require the stream-token path by default and issue tokens only after `GetVideoForStreamingAsync(videoId, userId)` succeeds; in the cookie branch perform the same entitlement lookup; key/validate the HLS job by `(videoId, userId)`.
+
+**3f. `secret-disclosure/tmdb-api-key-committed-installer`** (low) — `tools/install.sh:712`, `VideoSettingsProvider.cs:48`.
+
+- Remove the literal from the script and from both unit templates; default the setting to empty (empty disables enrichment); add third-party-key detection to CI secret scanning. **The operator must rotate the exposed key at TMDB** — do not attempt the provider-side rotation yourself.
+
+**Acceptance for workstream 3:** a read-only sharee cannot initiate or complete an upload into the shared folder and no same-named file is overwritten; an ungrouped caller sees zero admin shared folders; a session declaring `TotalSize = 1` with four 16 MiB chunks is rejected (or the recorded size/quota reflect the real 64 MiB); an email send with `storageKey: '../../../../../etc/passwd'` is rejected with 400 and `OpenReadAsync` returns null for any non-hex key; an authenticated non-owner of a video gets 403/404 on the HLS playlist and segment; CI fails if a provider key literal is present.
+
+### Verification expected (report back in this section)
+
+- `dotnet build DotNetCloud.CI.slnf -c Release` — **0 warnings** (warnings are errors in this repo).
+- `dotnet test DotNetCloud.CI.slnf --no-build -c Release --settings .runsettings` plus the new negative tests in `DotNetCloud.Core.Server.Tests`, `DotNetCloud.Modules.Files.Tests`, `DotNetCloud.Modules.Email.Tests`, `DotNetCloud.Modules.Video.Tests` and `DotNetCloud.Integration.Tests` (`--filter TestCategory=Integration`).
+- For each of the 11 fingerprints, report **done / blocked**, the test name that proves it, and any place where the fix had to differ from the plan.
+- Do **not** mark an item done on code inspection alone — the audit was source-only, so the negative test passing is the first real proof.
+- If the operator asks for a dev deploy, use the normal `sudo ./scripts/deploy.sh --force --verify` flow and record the target count and `/health/ready` result here.
+
+### Do NOT (this pass)
+
+- Do not implement Workstream 4–9 (per-resource predicate sweep, realtime hubs, search ACLs, SSRF fetchers, installer/release integrity, validate-then-fix leads).
+- Do not touch client code; the sync-client path escape is a separate, later client handoff.
+- Do not change the module gRPC *message* contracts beyond what the identity fix requires; if you remove `user_id`, keep the proto field reserved rather than renumbered.
+- Do not add a compatibility bypass ("trusted header") to keep an old host working. All hosts ship together.
+- Do not weaken or delete the new negative tests to get a green build.
+- Do not commit to `main`, force-push, or open a PR — the moderator creates PRs.
+- Do not rotate third-party credentials or contact provider APIs.
+
+### On completion — archive step (MANDATORY, server agent)
+
+Move this section to `CLIENT_SERVER_MEDIATION_ARCHIVE.md` with the result block (per-fingerprint done/blocked, test names, build/test counts, any deviation), leave a one-line entry in the archived list at the top of this file, and post the completion relay.
+
+## Deferred Handoff — Client agents (`Windows11-TestDNC`, `mint-dnc-client`, `monolith`): surface `FILE_READ_ONLY` for default content (2026-10-22) — still open, not part of the current batch
 
 **Server branch:** `feature/default-user-content` — commit `d1b60f75`, deployed and live-verified on mint22.
 **Plan:** `docs/DEFAULT_USER_CONTENT_PLAN.md` (implemented).

@@ -25,22 +25,24 @@ public sealed class FilesGrpcClientOptions
 /// <summary>
 /// gRPC implementation of <see cref="IFilesApiClient"/>.
 /// </summary>
-public sealed class FilesGrpcApiClient : IFilesApiClient, IDisposable
+public sealed class FilesGrpcApiClient : IFilesApiClient
 {
     private readonly FilesGrpcClientOptions _options;
     private readonly ModuleEndpointProvider _endpointProvider;
+    private readonly Supervisor.IModuleGrpcChannelProvider _channelManager;
     private readonly ILogger<FilesGrpcApiClient> _logger;
     private readonly Lazy<GrpcChannel> _channel;
-    private bool _disposed;
 
     /// <summary>Initializes a new instance of the <see cref="FilesGrpcApiClient"/> class.</summary>
     public FilesGrpcApiClient(
         IOptions<FilesGrpcClientOptions> options,
         ModuleEndpointProvider endpointProvider,
+        Supervisor.IModuleGrpcChannelProvider channelManager,
         ILogger<FilesGrpcApiClient> logger)
     {
         _options = options.Value;
         _endpointProvider = endpointProvider;
+        _channelManager = channelManager;
         _logger = logger;
         _channel = new Lazy<GrpcChannel>(CreateChannel);
     }
@@ -49,15 +51,9 @@ public sealed class FilesGrpcApiClient : IFilesApiClient, IDisposable
     {
         var address = _endpointProvider.GetEndpoint("dotnetcloud.files");
         _logger.LogInformation("FilesGrpcApiClient connecting to {Address}", address);
-        return GrpcChannel.ForAddress(address, new GrpcChannelOptions
-        {
-            UnsafeUseInsecureChannelCallCredentials = true,
-            HttpHandler = new SocketsHttpHandler
-            {
-                EnableMultipleHttp2Connections = true,
-                ConnectTimeout = TimeSpan.FromSeconds(5)
-            }
-        });
+
+        // Managed channel: it attaches the supervisor-issued credential the Files host requires.
+        return _channelManager.GetOrCreateChannel("dotnetcloud.files", address);
     }
 
     private static readonly JsonSerializerOptions JsonOptions = new()
@@ -225,18 +221,6 @@ public sealed class FilesGrpcApiClient : IFilesApiClient, IDisposable
         return new EnqueueProvisioningResult(queued, skipped);
     }
 
-    /// <inheritdoc />
-    public void Dispose()
-    {
-        if (!_disposed)
-        {
-            _disposed = true;
-            if (_channel.IsValueCreated)
-            {
-                try
-                { _channel.Value.Dispose(); }
-                catch { /* best effort */ }
-            }
-        }
-    }
+    // This client owns no unmanaged resources: the channel it uses belongs to GrpcChannelManager
+    // and is shared with every other core→Files caller, so there is deliberately nothing to dispose.
 }

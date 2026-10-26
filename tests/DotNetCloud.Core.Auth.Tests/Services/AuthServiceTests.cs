@@ -71,6 +71,7 @@ public class AuthServiceTests
             _emailSenderMock.Object,
             _smtpOptions,
             _serviceProviderMock.Object,
+            new Mock<IAccountCredentialInvalidator>().Object,
             _loggerMock.Object);
     }
 

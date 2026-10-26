@@ -66,6 +66,7 @@ public class ChunkedUploadServiceWholeFileTests
             Microsoft.Extensions.Options.Options.Create(new FileUploadOptions()),
             Microsoft.Extensions.Options.Options.Create(new FileSystemOptions()),
             TestFileVersioningSettings.From(new VersionRetentionOptions { MaxVersionCount = 0 }),
+            Mock.Of<IPermissionService>(),
             wholeFile);
     }
 

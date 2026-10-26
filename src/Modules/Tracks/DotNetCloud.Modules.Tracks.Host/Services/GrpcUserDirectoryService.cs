@@ -1,4 +1,5 @@
 using DotNetCloud.Core.Capabilities;
+using DotNetCloud.Core.Grpc;
 using DotNetCloud.Core.Grpc.Capabilities;
 using Grpc.Core;
 using Grpc.Net.Client;
@@ -65,7 +66,7 @@ internal sealed class GrpcUserDirectoryService : IUserDirectory, IDisposable
 
         try
         {
-            var metadata = new Metadata { { "module-id", _moduleId } };
+            var metadata = ModuleIdentityMetadata.Create(_moduleId);
 
             // Search for the exact username — SearchUsers does a case-insensitive
             // substring match, so we filter for exact matches client-side.
@@ -102,7 +103,7 @@ internal sealed class GrpcUserDirectoryService : IUserDirectory, IDisposable
         {
             try
             {
-                var metadata = new Metadata { { "module-id", _moduleId } };
+                var metadata = ModuleIdentityMetadata.Create(_moduleId);
                 var response = await _client.GetUserAsync(new GetUserRequest
                 {
                     UserId = userId.ToString(),
@@ -134,7 +135,7 @@ internal sealed class GrpcUserDirectoryService : IUserDirectory, IDisposable
         {
             try
             {
-                var metadata = new Metadata { { "module-id", _moduleId } };
+                var metadata = ModuleIdentityMetadata.Create(_moduleId);
                 var response = await _client.GetUserAsync(new GetUserRequest
                 {
                     UserId = userId.ToString(),
@@ -163,7 +164,7 @@ internal sealed class GrpcUserDirectoryService : IUserDirectory, IDisposable
 
         try
         {
-            var metadata = new Metadata { { "module-id", _moduleId } };
+            var metadata = ModuleIdentityMetadata.Create(_moduleId);
             var response = await _client.SearchUsersAsync(new SearchUsersRequest
             {
                 Query = searchTerm,

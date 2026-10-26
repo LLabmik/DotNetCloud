@@ -423,6 +423,50 @@ internal sealed class CoreCapabilitiesServiceImpl : CoreCapabilities.CoreCapabil
     }
 
     /// <summary>
+    /// Lists the groups a user belongs to (IGroupDirectory capability). Module hosts use this to
+    /// resolve admin shared-folder group grants; without it a host cannot tell whether a caller
+    /// is entitled to a folder, and must deny by default.
+    /// </summary>
+    public override async Task<GetGroupsForUserResponse> GetGroupsForUser(
+        GetGroupsForUserRequest request, ServerCallContext context)
+    {
+        if (!Guid.TryParse(request.UserId, out var userId))
+        {
+            _logger.LogWarning("GetGroupsForUser called with invalid UserId '{RawId}'", LogSanitizer.Sanitize(request.UserId));
+            return new GetGroupsForUserResponse();
+        }
+
+        _logger.LogDebug("GetGroupsForUser called for {UserId} by module {ModuleId}",
+            userId, GetModuleId(context));
+
+        try
+        {
+            using var scope = _serviceProvider.CreateScope();
+            var groupDirectory = scope.ServiceProvider.GetRequiredService<IGroupDirectory>();
+            var groups = await groupDirectory.GetGroupsForUserAsync(userId, context.CancellationToken);
+
+            var response = new GetGroupsForUserResponse();
+            response.Groups.AddRange(groups.Select(g => new GroupInfoMessage
+            {
+                Id = g.Id.ToString(),
+                OrganizationId = g.OrganizationId.ToString(),
+                Name = g.Name,
+                Description = g.Description ?? string.Empty,
+                IsAllUsersGroup = g.IsAllUsersGroup,
+                MemberCount = g.MemberCount,
+                CreatedAt = g.CreatedAt.ToString("O"),
+            }));
+
+            return response;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "GetGroupsForUser failed for {UserId}", userId);
+            return new GetGroupsForUserResponse();
+        }
+    }
+
+    /// <summary>
     /// Triggers cleanup of orphaned media sources and entities after an
     /// admin shared folder is deleted. Called by the Files module host.
     /// </summary>
@@ -600,11 +644,12 @@ internal sealed class CoreCapabilitiesServiceImpl : CoreCapabilities.CoreCapabil
 
         try
         {
-            // Prefer the authenticated caller injected by CallerContextInterceptor;
-            // fall back to mapping the request's caller context message.
+            // The caller context injected by CallerContextInterceptor from the verified module
+            // identity is authoritative. The request message is only a fallback, and it can never
+            // yield a system identity: the module transport cannot speak for System.
             var caller = context.UserState.TryGetValue("CallerContext", out var cc) && cc is CallerContext ctx
                 ? ctx
-                : MapCallerContext(request.Caller);
+                : MapCallerContext(request.Caller, moduleId);
 
             if (!Guid.TryParse(request.EntityId, out var entityId))
             {
@@ -638,26 +683,20 @@ internal sealed class CoreCapabilitiesServiceImpl : CoreCapabilities.CoreCapabil
     }
 
     /// <summary>
-    /// Maps a <see cref="CallerContextMessage"/> to a <see cref="CallerContext"/>,
-    /// defaulting to a system context when the message is missing or unparseable.
+    /// Maps a <see cref="CallerContextMessage"/> to a <see cref="CallerContext"/> for a caller
+    /// that has already been authenticated as <paramref name="moduleId"/>.
     /// </summary>
-    private static CallerContext MapCallerContext(CallerContextMessage? message)
+    /// <remarks>
+    /// <see cref="CallerType.System"/> is intentionally unreachable here: system identities are
+    /// created in-process by the core, never asserted over the module transport.
+    /// </remarks>
+    private static CallerContext MapCallerContext(CallerContextMessage? message, string moduleId)
     {
-        if (message is null)
-            return CallerContext.CreateSystemContext();
+        var userId = message is not null && Guid.TryParse(message.UserId, out var uid) ? uid : Guid.Empty;
 
-        var callerType = Enum.TryParse<CallerType>(message.CallerType, ignoreCase: true, out var ct)
-            ? ct
-            : CallerType.System;
-
-        var userId = Guid.TryParse(message.UserId, out var uid) ? uid : Guid.Empty;
-
-        // CallerContext validation forbids Guid.Empty for User/Module types; fall
-        // back to System so a malformed message cannot throw.
-        if (userId == Guid.Empty && callerType != CallerType.System)
-            return CallerContext.CreateSystemContext();
-
-        return new CallerContext(userId, message.Roles.ToArray(), callerType);
+        return userId == Guid.Empty
+            ? new CallerContext(ModuleCallerIdentity.ToUserId(moduleId), [], CallerType.Module)
+            : new CallerContext(userId, message!.Roles.ToArray(), CallerType.User);
     }
 
     /// <summary>

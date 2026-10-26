@@ -10,7 +10,8 @@
     "ICurrentUserContext",
     "IAuditLogger",
     "ICrossModuleLinkResolver",
-    "IContactDirectory"
+    "IContactDirectory",
+    "ITeamDirectory"
   ],
   "publishedEvents": [
     "CalendarEventCreatedEvent",
