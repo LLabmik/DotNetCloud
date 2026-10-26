@@ -44,7 +44,7 @@ public class CalendarModuleTests
         Assert.IsTrue(module.Manifest.PublishedEvents.Contains("CalendarEventUpdatedEvent"));
         Assert.IsTrue(module.Manifest.PublishedEvents.Contains("CalendarEventDeletedEvent"));
         Assert.IsTrue(module.Manifest.PublishedEvents.Contains("CalendarEventRsvpEvent"));
-        Assert.IsTrue(module.Manifest.PublishedEvents.Contains("CalendarReminderTriggeredEvent"));
+        Assert.IsTrue(module.Manifest.PublishedEvents.Contains("ReminderTriggeredEvent"));
     }
 
     [TestMethod]

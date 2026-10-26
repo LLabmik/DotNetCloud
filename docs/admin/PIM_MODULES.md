@@ -283,11 +283,11 @@ PIM modules publish and subscribe to events for cross-module coordination:
 
 ### Published Events
 
-| Module   | Events                                                                                                                                                                                             |
-| -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Contacts | `ContactCreatedEvent`, `ContactUpdatedEvent`, `ContactDeletedEvent`, `ResourceSharedEvent`                                                                                                         |
-| Calendar | `CalendarEventCreatedEvent`, `CalendarEventUpdatedEvent`, `CalendarEventDeletedEvent`, `CalendarEventRsvpEvent`, `CalendarReminderTriggeredEvent`, `ReminderTriggeredEvent`, `ResourceSharedEvent` |
-| Notes    | `NoteCreatedEvent`, `NoteUpdatedEvent`, `NoteDeletedEvent`, `ResourceSharedEvent`, `UserMentionedEvent`                                                                                            |
+| Module   | Events                                                                                                                                                           |
+| -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Contacts | `ContactCreatedEvent`, `ContactUpdatedEvent`, `ContactDeletedEvent`, `ResourceSharedEvent`                                                                       |
+| Calendar | `CalendarEventCreatedEvent`, `CalendarEventUpdatedEvent`, `CalendarEventDeletedEvent`, `CalendarEventRsvpEvent`, `ReminderTriggeredEvent`, `ResourceSharedEvent` |
+| Notes    | `NoteCreatedEvent`, `NoteUpdatedEvent`, `NoteDeletedEvent`, `ResourceSharedEvent`, `UserMentionedEvent`                                                          |
 
 ### Subscribed Events
 
@@ -343,10 +343,13 @@ The `ReminderDispatchService` is a background service that continuously scans fo
 2. For **single events**, it checks `event.StartUtc - reminder.MinutesBefore` against the current time
 3. For **recurring events**, it expands occurrences using the `RecurrenceEngine` and checks each occurrence's reminders individually
 4. Before dispatching, it checks the `ReminderLogs` table to prevent duplicate delivery
-5. On successful dispatch, two events are published via the event bus:
-   - `CalendarReminderTriggeredEvent` (Calendar-internal)
-   - `ReminderTriggeredEvent` (cross-module, consumed by notification infrastructure)
-6. Each dispatch is logged in the `ReminderLogs` table with success/failure status
+5. On successful dispatch, a single `ReminderTriggeredEvent` is raised to the core over the
+   `PublishEvent` capability. The core owns delivery: an in-app notification (`Type = Reminder`,
+   priority High), a real-time `notification.created` push to connected clients, and the
+   push/email channels. The module no longer delivers notifications itself, and the event used to
+   be published to a module-local bus where nothing consumed it.
+6. Each dispatch is logged in the `ReminderLogs` table with success/failure status. A reminder the
+   core did not accept is recorded as failed and retried on the next scan.
 
 **Duplicate Prevention:**
 

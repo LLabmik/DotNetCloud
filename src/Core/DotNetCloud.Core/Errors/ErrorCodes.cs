@@ -576,6 +576,10 @@ public static class ErrorCodes
     /// <summary>Error code for invalid email rule definition.</summary>
     public const string EmailRuleInvalid = "EMAIL_RULE_INVALID";
 
+    // Platform events
+    /// <summary>Error code for a module failing to hand a platform event to the core.</summary>
+    public const string PlatformEventPublishFailed = "PLATFORM_EVENT_PUBLISH_FAILED";
+
     // General
     /// <summary>Error code for unknown error.</summary>
     public const string UnknownError = "UNKNOWN_ERROR";

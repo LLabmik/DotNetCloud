@@ -95,12 +95,12 @@ Soft-deletes the calendar and all its events. Only the owner can delete.
 GET /api/v1/calendars/{calendarId}/events?from={date}&to={date}&skip={n}&take={n}
 ```
 
-| Parameter | Type | Default | Description |
-|---|---|---|---|
-| `from` | DateTime | — | Start of date range filter (UTC) |
-| `to` | DateTime | — | End of date range filter (UTC) |
-| `skip` | int | 0 | Pagination offset |
-| `take` | int | 200 | Page size |
+| Parameter | Type     | Default | Description                      |
+| --------- | -------- | ------- | -------------------------------- |
+| `from`    | DateTime | —       | Start of date range filter (UTC) |
+| `to`      | DateTime | —       | End of date range filter (UTC)   |
+| `skip`    | int      | 0       | Pagination offset                |
+| `take`    | int      | 200     | Page size                        |
 
 **Response:** Paginated array of `CalendarEventDto`
 
@@ -216,13 +216,13 @@ POST /api/v1/calendars/events/{eventId}/rsvp
 GET /api/v1/calendars/events/search?q={query}&from={date}&to={date}&skip={n}&take={n}
 ```
 
-| Parameter | Type | Default | Description |
-|---|---|---|---|
-| `q` | string | — | Search query (title, description, location) |
-| `from` | DateTime | — | Start of date range |
-| `to` | DateTime | — | End of date range |
-| `skip` | int | 0 | Pagination offset |
-| `take` | int | 200 | Page size |
+| Parameter | Type     | Default | Description                                 |
+| --------- | -------- | ------- | ------------------------------------------- |
+| `q`       | string   | —       | Search query (title, description, location) |
+| `from`    | DateTime | —       | Start of date range                         |
+| `to`      | DateTime | —       | End of date range                           |
+| `skip`    | int      | 0       | Pagination offset                           |
+| `take`    | int      | 200     | Page size                                   |
 
 **Response:** Paginated array of `CalendarEventDto`
 
@@ -377,9 +377,7 @@ POST /api/v1/calendars/events/import
       "respondedAt": "2026-03-02T08:00:00Z"
     }
   ],
-  "reminders": [
-    { "method": "Notification", "minutesBefore": 15 }
-  ]
+  "reminders": [{ "method": "Notification", "minutesBefore": 15 }]
 }
 ```
 
@@ -391,23 +389,24 @@ POST /api/v1/calendars/events/import
 
 The recurrence engine implements RFC 5545 RRULE parsing. Supported components:
 
-| Component | Values | Example |
-|---|---|---|
-| `FREQ` | `DAILY`, `WEEKLY`, `MONTHLY`, `YEARLY` | `FREQ=WEEKLY` |
-| `INTERVAL` | Positive integer | `INTERVAL=2` (every 2 weeks) |
-| `COUNT` | Max occurrences | `COUNT=10` |
-| `UNTIL` | End date (UTC) | `UNTIL=20260630T000000Z` |
-| `BYDAY` | Day list, optional ordinal | `BYDAY=MO,WE,FR` or `BYDAY=2MO` (2nd Monday) or `BYDAY=-1FR` (last Friday) |
-| `BYMONTHDAY` | Day(s) of month | `BYMONTHDAY=15` |
-| `BYMONTH` | Month(s) | `BYMONTH=1,6` |
-| `BYSETPOS` | Position within set | `BYSETPOS=-1` (last occurrence) |
-| `WKST` | Week start day | `WKST=MO` |
+| Component    | Values                                 | Example                                                                    |
+| ------------ | -------------------------------------- | -------------------------------------------------------------------------- |
+| `FREQ`       | `DAILY`, `WEEKLY`, `MONTHLY`, `YEARLY` | `FREQ=WEEKLY`                                                              |
+| `INTERVAL`   | Positive integer                       | `INTERVAL=2` (every 2 weeks)                                               |
+| `COUNT`      | Max occurrences                        | `COUNT=10`                                                                 |
+| `UNTIL`      | End date (UTC)                         | `UNTIL=20260630T000000Z`                                                   |
+| `BYDAY`      | Day list, optional ordinal             | `BYDAY=MO,WE,FR` or `BYDAY=2MO` (2nd Monday) or `BYDAY=-1FR` (last Friday) |
+| `BYMONTHDAY` | Day(s) of month                        | `BYMONTHDAY=15`                                                            |
+| `BYMONTH`    | Month(s)                               | `BYMONTH=1,6`                                                              |
+| `BYSETPOS`   | Position within set                    | `BYSETPOS=-1` (last occurrence)                                            |
+| `WKST`       | Week start day                         | `WKST=MO`                                                                  |
 
 ### Occurrence Expansion
 
 Occurrence expansion is capped at **1,000 instances** per recurring event. If a rule would produce more occurrences within the requested window, only the first 1,000 are returned.
 
 Each expanded occurrence is a virtual `CalendarEventDto` with:
+
 - `id` — same as the master event (use `originalStartUtc` to distinguish occurrences)
 - `recurringEventId` — set to the master event's ID
 - `originalStartUtc` — the computed start time of this occurrence
@@ -427,10 +426,10 @@ Editing a single occurrence of a recurring event creates a **recurrence exceptio
 
 ### Reminder Dispatch
 
-Reminders are dispatched automatically by a background service that scans every 30 seconds. When a reminder's trigger time (`event.startUtc - reminder.minutesBefore`) falls within the current look-ahead window (24 hours):
+Reminders are dispatched automatically by a background service that scans every 30 seconds. When a reminder's trigger time (`event.startUtc - reminder.minutesBefore`) falls within the current look-ahead window (24 hours, extended to the largest configured offset):
 
-1. A `CalendarReminderTriggeredEvent` is published on the event bus
-2. A cross-module `ReminderTriggeredEvent` is published (consumed by the notification service)
+1. A `ReminderTriggeredEvent` is raised to the core over the authenticated module transport
+2. The core's notification pipeline stores an in-app notification (`Type = Reminder`, priority High) and fans it out to the real-time and push/email channels, wording the body as "Starts in N minutes" (or "Starting now" for a late dispatch)
 
 **Recurring events:** Reminders fire independently for each expanded occurrence. A reminder on a weekly meeting fires every week.
 
@@ -442,49 +441,49 @@ Reminders are dispatched automatically by a background service that scans every 
 
 ### Event Status
 
-| Value | Description |
-|---|---|
+| Value       | Description             |
+| ----------- | ----------------------- |
 | `Tentative` | Provisionally scheduled |
-| `Confirmed` | Definitely happening |
-| `Cancelled` | Event cancelled |
+| `Confirmed` | Definitely happening    |
+| `Cancelled` | Event cancelled         |
 
 ### Attendee Role
 
-| Value | Description |
-|---|---|
-| `Required` | Essential participant |
-| `Optional` | Invited but not critical |
-| `Informational` | FYI only |
+| Value           | Description              |
+| --------------- | ------------------------ |
+| `Required`      | Essential participant    |
+| `Optional`      | Invited but not critical |
+| `Informational` | FYI only                 |
 
 ### Attendee Status
 
-| Value | Description |
-|---|---|
-| `NeedsAction` | No response yet |
-| `Accepted` | Confirmed attendance |
-| `Declined` | Won't attend |
-| `Tentative` | May attend |
+| Value         | Description          |
+| ------------- | -------------------- |
+| `NeedsAction` | No response yet      |
+| `Accepted`    | Confirmed attendance |
+| `Declined`    | Won't attend         |
+| `Tentative`   | May attend           |
 
 ### Reminder Method
 
-| Value | Description |
-|---|---|
+| Value          | Description         |
+| -------------- | ------------------- |
 | `Notification` | In-app notification |
-| `Email` | Email reminder |
+| `Email`        | Email reminder      |
 
 ---
 
 ## Error Codes
 
-| Code | HTTP | Description |
-|---|---|---|
-| `CALENDAR_NOT_FOUND` | 404 | Calendar does not exist or is not accessible |
-| `CALENDAR_EVENT_NOT_FOUND` | 404 | Event does not exist or is not accessible |
-| `CALENDAR_ALREADY_EXISTS` | 409 | Duplicate calendar |
-| `CALENDAR_EVENT_CONFLICT` | 409 | Event version conflict (concurrent edit) |
-| `CALENDAR_INVALID_RECURRENCE` | 400 | Invalid RRULE format (unsupported FREQ, malformed components) |
-| `ATTENDEE_NOT_FOUND` | 404 | Referenced attendee not found |
-| `CALENDAR_SHARE_NOT_FOUND` | 404 | Share does not exist |
+| Code                          | HTTP | Description                                                   |
+| ----------------------------- | ---- | ------------------------------------------------------------- |
+| `CALENDAR_NOT_FOUND`          | 404  | Calendar does not exist or is not accessible                  |
+| `CALENDAR_EVENT_NOT_FOUND`    | 404  | Event does not exist or is not accessible                     |
+| `CALENDAR_ALREADY_EXISTS`     | 409  | Duplicate calendar                                            |
+| `CALENDAR_EVENT_CONFLICT`     | 409  | Event version conflict (concurrent edit)                      |
+| `CALENDAR_INVALID_RECURRENCE` | 400  | Invalid RRULE format (unsupported FREQ, malformed components) |
+| `ATTENDEE_NOT_FOUND`          | 404  | Referenced attendee not found                                 |
+| `CALENDAR_SHARE_NOT_FOUND`    | 404  | Share does not exist                                          |
 
 ---
 
@@ -540,6 +539,7 @@ PUT /caldav/{userId}/calendars/{calendarId}/{eventId}.ics
 **Request Body:** iCalendar (RFC 5545) text
 
 **Headers:**
+
 - `If-Match: "etag"` — update existing (412 on mismatch)
 - Omit `If-Match` — create new
 

@@ -452,6 +452,9 @@ public class Program
         builder.Services.AddSingleton<IModuleSearchDocumentClient, MusicModuleSearchClient>();
         builder.Services.AddSingleton<IModuleSearchDocumentClient, VideoModuleSearchClient>();
         builder.Services.AddSingleton<IEventBus, InProcessEventBus>();
+        // Inbox for platform events raised by module hosts over PublishEvent. The core owns
+        // delivery; the inbox only whitelists which event types a module may raise.
+        builder.Services.AddSingleton<ModuleEventInbox>();
         // LegacyFilesMigrationService moved to Files.Host (runs in that process)
         builder.Services.AddScoped<DotNetCloud.Core.Capabilities.ICrossModuleLinkResolver, CrossModuleLinkResolver>();
         builder.Services.AddSingleton<DotNetCloud.Core.Services.IBackgroundServiceTracker, DotNetCloud.Core.Services.BackgroundServiceTracker>();
@@ -841,6 +844,10 @@ public class Program
 
         // Deliver scheduled admin broadcasts shortly after their send time (30s poll).
         builder.Services.AddHostedService<AdminBroadcastSchedulerHostedService>();
+
+        // Drives email account syncs: the core names the user (core-signed assertion) and the
+        // Email module performs the sync. The module no longer schedules itself.
+        builder.Services.AddHostedService<EmailSyncScheduler>();
 
         // Register admin shared folder cleanup handler
         builder.Services.AddSingleton<AdminSharedFolderCleanupService>();

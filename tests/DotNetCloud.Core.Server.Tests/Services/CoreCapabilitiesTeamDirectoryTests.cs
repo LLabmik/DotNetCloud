@@ -28,7 +28,10 @@ public class CoreCapabilitiesTeamDirectoryTests
         return new CoreCapabilitiesServiceImpl(
             NullLogger<CoreCapabilitiesServiceImpl>.Instance,
             provider,
-            indexingService);
+            indexingService,
+            new ModuleEventInbox(
+                Mock.Of<DotNetCloud.Core.Events.IEventBus>(),
+                NullLogger<ModuleEventInbox>.Instance));
     }
 
     private static GetTeamsForUserRequest CreateTeamsRequest(Guid? userId = null) => new()

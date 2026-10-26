@@ -1,5 +1,5 @@
 using System.Diagnostics;
-using DotNetCloud.Core.Authorization;
+using DotNetCloud.Core.Errors;
 using DotNetCloud.Core.Events;
 using DotNetCloud.Core.Services;
 using DotNetCloud.Modules.Files.Models;
@@ -7,6 +7,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using FileShare = DotNetCloud.Modules.Files.Models.FileShare;
 
 namespace DotNetCloud.Modules.Files.Data.Services.Background;
 
@@ -78,14 +79,21 @@ internal sealed class ShareExpiryNotificationService : BackgroundService
     }
 
     /// <summary>
-    /// Finds shares expiring within the notification window that haven't been notified yet,
-    /// publishes events, and marks them as notified.
+    /// Finds shares expiring within the notification window that haven't been notified yet, raises a
+    /// platform event for each, and marks the published ones as notified.
     /// </summary>
+    /// <remarks>
+    /// The module owns the decision (which share is about to expire) and the bookkeeping
+    /// (<c>ExpiryNotificationSentAt</c>). Delivery belongs to the core: the event goes out over the
+    /// authenticated module transport and the core's notification pipeline decides the channels. A
+    /// share is only marked as notified once the core has accepted its event, so a failure is retried
+    /// on the next cycle instead of being silently dropped.
+    /// </remarks>
     internal async Task CheckExpiringSharesAsync(CancellationToken cancellationToken)
     {
         using var scope = _scopeFactory.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<FilesDbContext>();
-        var eventBus = scope.ServiceProvider.GetRequiredService<IEventBus>();
+        var publisher = scope.ServiceProvider.GetRequiredService<IPlatformEventPublisher>();
 
         var now = DateTime.UtcNow;
         var windowEnd = now + NotificationWindow;
@@ -104,24 +112,42 @@ internal sealed class ShareExpiryNotificationService : BackgroundService
         _logger.LogInformation("Found {Count} shares expiring within {Window}h",
             expiringShares.Count, NotificationWindow.TotalHours);
 
+        var published = new List<FileShare>();
+
         foreach (var share in expiringShares)
         {
-            await eventBus.PublishAsync(new ShareExpiringEvent
+            try
             {
-                EventId = Guid.CreateVersion7(),
-                CreatedAt = now,
-                FileNodeId = share.FileNodeId,
-                FileName = share.FileNode?.Name ?? "Unknown",
-                ShareId = share.Id,
-                CreatedByUserId = share.CreatedByUserId,
-                ExpiresAt = share.ExpiresAt!.Value
-            }, CallerContext.CreateSystemContext(), cancellationToken);
+                await publisher.PublishAsync(new ShareExpiringEvent
+                {
+                    EventId = Guid.CreateVersion7(),
+                    CreatedAt = now,
+                    FileNodeId = share.FileNodeId,
+                    FileName = share.FileNode?.Name ?? "Unknown",
+                    ShareId = share.Id,
+                    CreatedByUserId = share.CreatedByUserId,
+                    ExpiresAt = share.ExpiresAt!.Value
+                }, cancellationToken);
 
-            share.ExpiryNotificationSentAt = now;
+                published.Add(share);
+            }
+            catch (PlatformEventPublishException ex)
+            {
+                // Leave ExpiryNotificationSentAt unset so the next cycle retries this share.
+                _logger.LogWarning(ex,
+                    "Share expiry notification was not published for share {ShareId}; will retry",
+                    share.Id);
+            }
         }
+
+        if (published.Count == 0)
+            return;
+
+        foreach (var share in published)
+            share.ExpiryNotificationSentAt = now;
 
         await db.SaveChangesAsync(cancellationToken);
 
-        _logger.LogInformation("Sent {Count} share expiry notifications", expiringShares.Count);
+        _logger.LogInformation("Published {Count} share expiry notifications", published.Count);
     }
 }

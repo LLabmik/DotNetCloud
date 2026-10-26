@@ -146,8 +146,16 @@ message SendNotificationResponse {
 
 // --- IEventBus ---
 
+// Hands a platform event to the core, which owns notification/realtime/push delivery for it.
+// There is no caller field by design: the publisher's identity comes from the authenticated module
+// transport, so a module cannot claim to be another module or the platform itself.
 message PublishEventRequest {
-  CallerContextMessage caller = 1;
+  // Field 1 was a caller the module filled in itself; it is reserved so it cannot come back
+  // and be trusted by mistake.
+  reserved 1;
+
+  // Platform event type name (see PlatformEventContract.TypeName). Must be a type the core
+  // registers as module-publishable; anything else is rejected.
   string event_type = 2;
   // Event payload serialized as JSON.
   string payload_json = 3;
@@ -155,6 +163,8 @@ message PublishEventRequest {
 
 message PublishEventResponse {
   bool success = 1;
+  // Set when success is false: why the core refused the event.
+  string error = 2;
 }
 
 // --- IModuleSettings ---

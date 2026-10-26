@@ -30,6 +30,9 @@ service EmailService {
 
   // Sync
   rpc TriggerSync (TriggerSyncRequest) returns (TriggerSyncResponse);
+  // Reports the accounts the core should ask this module to sync now. The module owns which
+  // accounts exist and what "due" means; the core owns who the sync runs as.
+  rpc ListSyncCandidates (ListSyncCandidatesRequest) returns (ListSyncCandidatesResponse);
 
   // Rules
   rpc ListRules (ListRulesRequest) returns (ListRulesResponse);
@@ -241,14 +244,36 @@ message SendEmailResponse {
 
 // --- Sync ---
 
+// Syncs one account on behalf of the user named by the core's signed user assertion.
+// The module does not run its own sync timer: a sync is only performed for a user the core has
+// named, and the requested account must belong to that user.
 message TriggerSyncRequest {
   string account_id = 1;
+  // Must match the user named by the core-signed assertion on the call; a mismatch is rejected.
   string user_id = 2;
 }
 
 message TriggerSyncResponse {
   bool success = 1;
   string error_message = 2;
+}
+
+message ListSyncCandidatesRequest {
+  // Only accounts whose last sync is at least this old are reported (0 = every enabled account).
+  int32 min_age_seconds = 1;
+}
+
+message ListSyncCandidatesResponse {
+  bool success = 1;
+  repeated SyncCandidate candidates = 2;
+  string error_message = 3;
+}
+
+message SyncCandidate {
+  string account_id = 1;
+  string user_id = 2;
+  // UTC timestamp of the last successful sync, or empty when the account has never synced.
+  string last_synced_at = 3;
 }
 
 // --- Rule Messages ---

@@ -41,7 +41,6 @@ public sealed class ContactsGrpcApiClient : IContactsApiClient, IDisposable
     private readonly ILogger<ContactsGrpcApiClient> _logger;
     private readonly Lazy<GrpcChannel> _channel;
     private readonly Lazy<ContactsService.ContactsServiceClient> _client;
-    private bool _disposed;
 
     /// <summary>Initializes a new instance of the <see cref="ContactsGrpcApiClient"/> class.</summary>
     public ContactsGrpcApiClient(
@@ -369,14 +368,15 @@ public sealed class ContactsGrpcApiClient : IContactsApiClient, IDisposable
     /// <inheritdoc />
     public void Dispose()
     {
-        if (_disposed)
-            return;
-        _disposed = true;
-        if (_channel.IsValueCreated)
-        {
-            try
-            { _channel.Value.Dispose(); }
-            catch { /* ignore */ }
-        }
+        // Nothing to dispose: the channel is owned by GrpcChannelManager, which shares it across
+        // every caller and swaps it when the module restarts.
+        //
+        // Disposing it here — as this class used to — tore down the contacts channel for the rest of
+        // the process. This client is registered scoped, so the first scope to end (a closed Blazor
+        // circuit, a finished request) destroyed it, and from then on every later call *and* the
+        // supervisor's health probe failed with "Cannot access a disposed object. GrpcChannel" until
+        // the module was restarted — surfacing as a permanent 503 on the Contacts page.
+        //
+        // FilesGrpcApiClient had the identical bug and no longer disposes its channel either.
     }
 }

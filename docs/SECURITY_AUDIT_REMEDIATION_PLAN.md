@@ -9,60 +9,60 @@
 
 ## Order of work
 
-| Phase | Meaning | Workstreams | Findings |
-| --- | --- | --- | --- |
-| P0 | Structural and cheap-high. Fix now; blocks the rest. | 1, 2, 3 | 11 |
-| P1 | Boundary sweeps. Next two weeks. | 2, 3, 4, 5, 6, 7, 8 | 24 |
-| P2 | Validate-then-fix and hardening. After P0/P1. | 9 | 9 |
+| Phase | Meaning                                              | Workstreams         | Findings |
+| ----- | ---------------------------------------------------- | ------------------- | -------- |
+| P0    | Structural and cheap-high. Fix now; blocks the rest. | 1, 2, 3             | 11       |
+| P1    | Boundary sweeps. Next two weeks.                     | 2, 3, 4, 5, 6, 7, 8 | 24       |
+| P2    | Validate-then-fix and hardening. After P0/P1.        | 9                   | 9        |
 
 ## Finding register
 
-| Phase | Severity | Fingerprint | Owner | Regression test |
-| --- | --- | --- | --- | --- |
-| P0 | high | `authz.video.hls-segment.no-video-entitlement` | mint22 | Video test: user B requesting user A's HLS playlist and segment returns 404/403; a valid stream token for A still works. |
-| P0 | high | `core-auth:account-state-transition-no-token-revocation` | mint22 | Integration test: disable a user, then reuse an access token and a refresh token issued before the change — both must fail; the cookie session must not renew. |
-| P0 | high | `core-session:disabled-account-form-login` | mint22 | `AuthSessionController` test: POST the login form for an inactive user returns the failure view and sets no auth cookie. |
-| P0 | high | `email.attachment.storage-key-path-traversal` | mint22 | Email host test: attachment key `../../appsettings.json` and an absolute path both return 404/400 and never read outside the attachment root. |
-| P0 | high | `files-admin-shared-folder-group-grant-fail-open` | mint22 | Admin shared-folder test: an authenticated user with no matching grant does not see the mounted folder; a missing/empty group resolution denies by default. |
-| P0 | high | `files-chunk-storage-quota-bypass` | mint22 | Quota test: completing chunks whose stored bytes exceed the user quota is rejected; usage is recomputed from stored bytes, not the declared TotalSize. |
-| P0 | high | `files-chunked-upload-missing-target-write-authorization` | mint22 | `ChunkedUploadService` test: user B completing an upload into user A's folder returns PermissionDenied and leaves A's node unchanged. |
-| P0 | high | `grpc/core-capabilities/self-asserted-module-id` | mint22 | gRPC integration test: a call with no module credential is rejected; a valid module credential limiter still cannot set `caller-user-id`/`caller-type` to anothe... |
-| P0 | high | `grpc/module-hosts/request-user-id-without-peer-auth` | mint22 | Per-host gRPC test in the style of `FilesGrpcServiceSecurityTests`: a request whose JWT subject differs from `request.UserId` returns NotFound/PermissionDenied ... |
-| P0 | medium | `core-session:login-form-csrf` | mint22 | A login/logout POST without a valid antiforgery token (or with a foreign Origin) is rejected; the happy path still signs in. |
-| P0 | low | `secret-disclosure/tmdb-api-key-committed-installer` | mint22 | Rotate the key at the provider, remove it from `tools/install.sh`, and assert in CI that no provider key literal is present in the tree. |
-| P1 | high | `access-control/core-hub/channel-group-membership-never-revoked` | mint22 | SignalR test: after leaving/being removed from a channel, no further channel events are delivered to that connection. |
-| P1 | high | `access-control/core-hub/join-group-channel-membership-noop` | mint22 | SignalR test: joining another user's channel group does not deliver that channel's messages; the membership check returns false for a non-member. |
-| P1 | high | `client-sync/tree-name-path-escape-outside-sync-root` | monolith | `Client.Core` test: server-supplied names `..\\..\\evil.txt`, `C:evil.txt`, `CON`, trailing-dot and long paths all resolve inside the sync root or are rejected. |
-| P1 | high | `tracks-rest-workitem-object-idor-missing-product-membership` | mint22 | Tracks test: a non-member of a product gets 404/403 for work-item read, update, delete and attachment read. |
-| P1 | high | `tracks/agile-services-missing-product-membership-predicate` | mint22 | Tracks test: non-member cannot read analytics/burndown, sprint contents, poker sessions, time entries or review sessions, and cannot delete/complete them. |
-| P1 | medium | `access-control/chat-hub/delete-message-no-owner-check` | mint22 | Hub test: deleting another user's message without the same role rules as REST is rejected. |
-| P1 | medium | `access-control/chat-hub/send-message-no-channel-membership` | mint22 | Hub test: sending to a channel the caller has not joined (or is blocked from) is rejected, matching the REST path. |
-| P1 | medium | `ai-completion-queue-unbounded-fifo` | mint22 | Queue test: a per-user in-flight cap and a global depth cap reject rather than enqueue beyond the bound, with a clear error. |
-| P1 | medium | `authz.video.screenshot.no-video-entitlement` | mint22 | Video test: the screenshot route resolves the caller and returns 404 for a video the caller does not own. |
-| P1 | medium | `bookmarks-preview-endpoints-missing-owner-check` | mint22 | Bookmarks test: preview read/refresh for another user's bookmark returns 404 and does not rewrite its metadata. |
-| P1 | medium | `chat-uploads-anonymous-read:no-channel-membership-binding:no-expiry-and-no-revocation` | mint22 | Chat test: an unauthenticated read of an upload URL whose channel the caller cannot see returns 404; a signed, expiring URL works only for its channel. |
-| P1 | medium | `core-auth/claims-transformation/admin-perm-claim-cache-not-invalidated-on-role-removal` | mint22 | Authorization test: removing Administrator from a user invalidates the cached `dnc:perm=admin` claim on the next request (or within a documented, tested window)... |
-| P1 | medium | `files/public-share/max-downloads-toctou@ShareService.cs:279+328` | mint22 | Concurrency test: N parallel downloads against a MaxDownloads=1 share result in exactly one success (conditional update or concurrency token). |
-| P1 | medium | `oauth-revocation/module-introspection-accepts-revoked-access-token` | mint22 | Module test: after revoking an access token in the core, the module rejects it within the documented cache window (or immediately with token-entry validation). |
-| P1 | medium | `oauth-scope/module-introspection-ignores-scope-and-audience` | mint22 | Module authorization test: a token minted with only `files:read` cannot call a write endpoint; an audience-restricted token is rejected by the wrong module. |
-| P1 | medium | `photos-thumbnail-endpoint-missing-owner-or-share-check` | mint22 | Photos test: thumbnail of another user's photo and of a soft-deleted photo both return 404; a shared photo still returns the thumbnail. |
-| P1 | medium | `search-index/calendar-creator-owner-acl-drift` | mint22 | Search test: after revoking a calendar share, a search by the former sharee no longer returns the event; a full reindex does not re-add it. |
-| P1 | medium | `ssrf.safe-url-fetcher.dns-rebind-toctou` | mint22 | Fetcher test with a resolver returning a public address first and a private address on connect: the connection is pinned to the validated address and the second... |
-| P1 | medium | `ssrf.tracks.webhook.user-url-not-validated` | mint22 | Webhook test: a URL resolving to 127.0.0.1/link-local/metadata is rejected at subscription and at delivery; a redirect to a private address is also rejected. |
-| P1 | medium | `supply-chain/appimagetool-mutable-continuous-download-unsigned` | mint22 | Release script test: the tool download is pinned to an immutable version and verified against a recorded digest; a mismatch fails the job. |
-| P1 | medium | `video-screenshot-subtitle-metadata-missing-user-video-ownership` | mint22 | Video test: screenshot, subtitle and metadata of another user's video return 404. |
-| P1 | low | `email.sync.account-idor-missing-ownership-check` | mint22 | Email test: manual sync on another user's account id returns 404 and performs no provider call. |
-| P1 | low | `injection/email-ui/body-html-markupstring-unsanitized` | mint22 | Component test: an inbound email body containing `<script>`, `onerror` and a `javascript:` link renders no executable markup and no script-bearing attribute. |
-| P1 | low | `photos-slideshow-album-photo-ids-missing-owner-check` | mint22 | Photos test: slideshow for an album the caller cannot read returns 404 and no photo ids. |
-| P2 | - | `authz.subsonic.no-credential-validation` | mint22 | Owner-observed then test: an unauthenticated Subsonic call returns the protocol auth error and never reaches an owner-filtered query with Guid.Empty. |
-| P2 | - | `cli/root-backup-artifacts-default-umask-secret-exposure` | mint22 | Backup test: the archive and manifest are created with 0600 and the directory with 0700 regardless of umask. |
-| P2 | - | `cli/root-cli-trusts-service-writable-config-json` | mint22 | CLI test: a config path outside the root-owned directory (or a symlink) is refused before any privileged write. |
-| P2 | - | `client-token-store/predictable-machine-key-no-file-acl` | monolith | Token-store test: the key file is DPAPI/Keychain-protected and owner-only; a second OS user cannot decrypt the refresh token. |
-| P2 | - | `crypto/oidc-key-custody-windows-programdata-acl` | mint22 | Installer test: the OIDC key directory and config are readable only by the service identity and administrators. |
-| P2 | - | `crypto/oidc-key-rotation-ordering-legacy-filename` | mint22 | Rotation test: with mixed legacy and dated filenames, the newest key is selected by parsed date, not culture-sensitive string order. |
-| P2 | - | `files-upload-content-length-allocation` | mint22 | Owner-observed then test: an over-limit Content-Length is rejected before the action allocates, or the buffer is capped at a configured chunk size. |
-| P2 | - | `files-zip-entry-name-traversal-on-download` | mint22 | Download test: a folder named `..` produces archive entries whose names contain no parent segment. |
-| P2 | - | `supply-chain/installer-verify-then-extract-tmp-predictable` | mint22 | Installer test: extraction uses a root-owned private directory created exclusively; a pre-created path is rejected. |
+| Phase | Severity | Fingerprint                                                                              | Owner    | Regression test                                                                                                                                                     |
+| ----- | -------- | ---------------------------------------------------------------------------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| P0    | high     | `authz.video.hls-segment.no-video-entitlement`                                           | mint22   | Video test: user B requesting user A's HLS playlist and segment returns 404/403; a valid stream token for A still works.                                            |
+| P0    | high     | `core-auth:account-state-transition-no-token-revocation`                                 | mint22   | Integration test: disable a user, then reuse an access token and a refresh token issued before the change — both must fail; the cookie session must not renew.      |
+| P0    | high     | `core-session:disabled-account-form-login`                                               | mint22   | `AuthSessionController` test: POST the login form for an inactive user returns the failure view and sets no auth cookie.                                            |
+| P0    | high     | `email.attachment.storage-key-path-traversal`                                            | mint22   | Email host test: attachment key `../../appsettings.json` and an absolute path both return 404/400 and never read outside the attachment root.                       |
+| P0    | high     | `files-admin-shared-folder-group-grant-fail-open`                                        | mint22   | Admin shared-folder test: an authenticated user with no matching grant does not see the mounted folder; a missing/empty group resolution denies by default.         |
+| P0    | high     | `files-chunk-storage-quota-bypass`                                                       | mint22   | Quota test: completing chunks whose stored bytes exceed the user quota is rejected; usage is recomputed from stored bytes, not the declared TotalSize.              |
+| P0    | high     | `files-chunked-upload-missing-target-write-authorization`                                | mint22   | `ChunkedUploadService` test: user B completing an upload into user A's folder returns PermissionDenied and leaves A's node unchanged.                               |
+| P0    | high     | `grpc/core-capabilities/self-asserted-module-id`                                         | mint22   | gRPC integration test: a call with no module credential is rejected; a valid module credential limiter still cannot set `caller-user-id`/`caller-type` to anothe... |
+| P0    | high     | `grpc/module-hosts/request-user-id-without-peer-auth`                                    | mint22   | Per-host gRPC test in the style of `FilesGrpcServiceSecurityTests`: a request whose JWT subject differs from `request.UserId` returns NotFound/PermissionDenied ... |
+| P0    | medium   | `core-session:login-form-csrf`                                                           | mint22   | A login/logout POST without a valid antiforgery token (or with a foreign Origin) is rejected; the happy path still signs in.                                        |
+| P0    | low      | `secret-disclosure/tmdb-api-key-committed-installer`                                     | mint22   | Rotate the key at the provider, remove it from `tools/install.sh`, and assert in CI that no provider key literal is present in the tree.                            |
+| P1    | high     | `access-control/core-hub/channel-group-membership-never-revoked`                         | mint22   | SignalR test: after leaving/being removed from a channel, no further channel events are delivered to that connection.                                               |
+| P1    | high     | `access-control/core-hub/join-group-channel-membership-noop`                             | mint22   | SignalR test: joining another user's channel group does not deliver that channel's messages; the membership check returns false for a non-member.                   |
+| P1    | high     | `client-sync/tree-name-path-escape-outside-sync-root`                                    | monolith | `Client.Core` test: server-supplied names `..\\..\\evil.txt`, `C:evil.txt`, `CON`, trailing-dot and long paths all resolve inside the sync root or are rejected.    |
+| P1    | high     | `tracks-rest-workitem-object-idor-missing-product-membership`                            | mint22   | Tracks test: a non-member of a product gets 404/403 for work-item read, update, delete and attachment read.                                                         |
+| P1    | high     | `tracks/agile-services-missing-product-membership-predicate`                             | mint22   | Tracks test: non-member cannot read analytics/burndown, sprint contents, poker sessions, time entries or review sessions, and cannot delete/complete them.          |
+| P1    | medium   | `access-control/chat-hub/delete-message-no-owner-check`                                  | mint22   | Hub test: deleting another user's message without the same role rules as REST is rejected.                                                                          |
+| P1    | medium   | `access-control/chat-hub/send-message-no-channel-membership`                             | mint22   | Hub test: sending to a channel the caller has not joined (or is blocked from) is rejected, matching the REST path.                                                  |
+| P1    | medium   | `ai-completion-queue-unbounded-fifo`                                                     | mint22   | Queue test: a per-user in-flight cap and a global depth cap reject rather than enqueue beyond the bound, with a clear error.                                        |
+| P1    | medium   | `authz.video.screenshot.no-video-entitlement`                                            | mint22   | Video test: the screenshot route resolves the caller and returns 404 for a video the caller does not own.                                                           |
+| P1    | medium   | `bookmarks-preview-endpoints-missing-owner-check`                                        | mint22   | Bookmarks test: preview read/refresh for another user's bookmark returns 404 and does not rewrite its metadata.                                                     |
+| P1    | medium   | `chat-uploads-anonymous-read:no-channel-membership-binding:no-expiry-and-no-revocation`  | mint22   | Chat test: an unauthenticated read of an upload URL whose channel the caller cannot see returns 404; a signed, expiring URL works only for its channel.             |
+| P1    | medium   | `core-auth/claims-transformation/admin-perm-claim-cache-not-invalidated-on-role-removal` | mint22   | Authorization test: removing Administrator from a user invalidates the cached `dnc:perm=admin` claim on the next request (or within a documented, tested window)... |
+| P1    | medium   | `files/public-share/max-downloads-toctou@ShareService.cs:279+328`                        | mint22   | Concurrency test: N parallel downloads against a MaxDownloads=1 share result in exactly one success (conditional update or concurrency token).                      |
+| P1    | medium   | `oauth-revocation/module-introspection-accepts-revoked-access-token`                     | mint22   | Module test: after revoking an access token in the core, the module rejects it within the documented cache window (or immediately with token-entry validation).     |
+| P1    | medium   | `oauth-scope/module-introspection-ignores-scope-and-audience`                            | mint22   | Module authorization test: a token minted with only `files:read` cannot call a write endpoint; an audience-restricted token is rejected by the wrong module.        |
+| P1    | medium   | `photos-thumbnail-endpoint-missing-owner-or-share-check`                                 | mint22   | Photos test: thumbnail of another user's photo and of a soft-deleted photo both return 404; a shared photo still returns the thumbnail.                             |
+| P1    | medium   | `search-index/calendar-creator-owner-acl-drift`                                          | mint22   | Search test: after revoking a calendar share, a search by the former sharee no longer returns the event; a full reindex does not re-add it.                         |
+| P1    | medium   | `ssrf.safe-url-fetcher.dns-rebind-toctou`                                                | mint22   | Fetcher test with a resolver returning a public address first and a private address on connect: the connection is pinned to the validated address and the second... |
+| P1    | medium   | `ssrf.tracks.webhook.user-url-not-validated`                                             | mint22   | Webhook test: a URL resolving to 127.0.0.1/link-local/metadata is rejected at subscription and at delivery; a redirect to a private address is also rejected.       |
+| P1    | medium   | `supply-chain/appimagetool-mutable-continuous-download-unsigned`                         | mint22   | Release script test: the tool download is pinned to an immutable version and verified against a recorded digest; a mismatch fails the job.                          |
+| P1    | medium   | `video-screenshot-subtitle-metadata-missing-user-video-ownership`                        | mint22   | Video test: screenshot, subtitle and metadata of another user's video return 404.                                                                                   |
+| P1    | low      | `email.sync.account-idor-missing-ownership-check`                                        | mint22   | Email test: manual sync on another user's account id returns 404 and performs no provider call.                                                                     |
+| P1    | low      | `injection/email-ui/body-html-markupstring-unsanitized`                                  | mint22   | Component test: an inbound email body containing `<script>`, `onerror` and a `javascript:` link renders no executable markup and no script-bearing attribute.       |
+| P1    | low      | `photos-slideshow-album-photo-ids-missing-owner-check`                                   | mint22   | Photos test: slideshow for an album the caller cannot read returns 404 and no photo ids.                                                                            |
+| P2    | -        | `authz.subsonic.no-credential-validation`                                                | mint22   | Owner-observed then test: an unauthenticated Subsonic call returns the protocol auth error and never reaches an owner-filtered query with Guid.Empty.               |
+| P2    | -        | `cli/root-backup-artifacts-default-umask-secret-exposure`                                | mint22   | Backup test: the archive and manifest are created with 0600 and the directory with 0700 regardless of umask.                                                        |
+| P2    | -        | `cli/root-cli-trusts-service-writable-config-json`                                       | mint22   | CLI test: a config path outside the root-owned directory (or a symlink) is refused before any privileged write.                                                     |
+| P2    | -        | `client-token-store/predictable-machine-key-no-file-acl`                                 | monolith | Token-store test: the key file is DPAPI/Keychain-protected and owner-only; a second OS user cannot decrypt the refresh token.                                       |
+| P2    | -        | `crypto/oidc-key-custody-windows-programdata-acl`                                        | mint22   | Installer test: the OIDC key directory and config are readable only by the service identity and administrators.                                                     |
+| P2    | -        | `crypto/oidc-key-rotation-ordering-legacy-filename`                                      | mint22   | Rotation test: with mixed legacy and dated filenames, the newest key is selected by parsed date, not culture-sensitive string order.                                |
+| P2    | -        | `files-upload-content-length-allocation`                                                 | mint22   | Owner-observed then test: an over-limit Content-Length is rejected before the action allocates, or the buffer is capped at a configured chunk size.                 |
+| P2    | -        | `files-zip-entry-name-traversal-on-download`                                             | mint22   | Download test: a folder named `..` produces archive entries whose names contain no parent segment.                                                                  |
+| P2    | -        | `supply-chain/installer-verify-then-extract-tmp-predictable`                             | mint22   | Installer test: extraction uses a root-owned private directory created exclusively; a pre-created path is rejected.                                                 |
 
 ## Workstreams
 
@@ -170,6 +170,7 @@
 - **Why:** Full disclosure of another user's private video content - playlist and all segments - with no share relationship, and the reader can hold the transcode job open.
 - **Regression test:** Video test: user B requesting user A's HLS playlist and segment returns 404/403; a valid stream token for A still works.
 - **Done when:** the negative test above fails on current source and passes after the change, and the positive path still works.
+- **Regression test delivered 2026-10-25 (`fix/security-followups`):** `VideoControllerHlsAuthorizationTests` (7 cases) is the first controller test in `Video.Tests`. It covers a foreign stream token, a foreign session cookie, the catch-all segment fallback, a token minted for a different video (403), an unknown video, and the two positive paths (owner token/cookie served). Mutation-checked: removing the `GetVideoForStreamingAsync` gate makes exactly the three non-owner cases fail with `PhysicalFileResult` — i.e. they fail on the unfixed source and pass after the change. The `Times.Never` assertion on `GetActiveHlsJob` also pins the ordering: the entitlement lookup happens before the job is touched.
 
 #### ✓ email.attachment.storage-key-path-traversal — high
 
@@ -306,7 +307,7 @@
 - **Regression test:** Video test: screenshot, subtitle and metadata of another user's video return 404.
 - **Done when:** the negative test above fails on current source and passes after the change, and the positive path still works.
 
-#### ☐ email.sync.account-idor-missing-ownership-check — low
+#### ✓ email.sync.account-idor-missing-ownership-check — low
 
 - **Title:** Manual email sync endpoint acts on any account id without checking that the caller owns it
 - **Location:** `src/Modules/Email/DotNetCloud.Modules.Email.Host/Controllers/EmailController.cs:185` → `src/Modules/Email/DotNetCloud.Modules.Email.Data/Services/EmailSyncBackgroundService.cs:122`
@@ -315,6 +316,7 @@
 - **Why:** No data is disclosed to the attacker; the effect is unauthorized state change and resource use on the victim's mailbox (external provider connections, quota consumption, mailbox/message upserts, and unbounded concurrent syncs) that the victim's own schedule already performs.
 - **Regression test:** Email test: manual sync on another user's account id returns 404 and performs no provider call.
 - **Done when:** the negative test above fails on current source and passes after the change, and the positive path still works.
+- **Resolved 2026-10-25 (`fix/security-followups`):** `IEmailSyncService.SyncAccountAsync(accountId, userId)` now resolves the account with an owner predicate and returns `false` (404 at the controller) when it does not belong to the caller; `EmailController.SyncAccount` passes `GetAuthenticatedCaller().UserId` instead of calling with a bare account id. `EmailSyncServiceTests.SyncAccountAsync_AccountBelongsToAnotherUser_ReturnsFalseAndDoesNotSync` pins that no provider call is attempted. The same predicate also covers the background path, because the sync service is now the single entry point for both the REST trigger and the core-driven sync.
 
 #### ☐ photos-slideshow-album-photo-ids-missing-owner-check — low
 

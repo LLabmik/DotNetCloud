@@ -18,14 +18,10 @@
     "CalendarEventUpdatedEvent",
     "CalendarEventDeletedEvent",
     "CalendarEventRsvpEvent",
-    "CalendarReminderTriggeredEvent",
     "ReminderTriggeredEvent",
     "ResourceSharedEvent"
   ],
-  "subscribedEvents": [
-    "ContactCreatedEvent",
-    "ContactDeletedEvent"
-  ],
+  "subscribedEvents": ["ContactCreatedEvent", "ContactDeletedEvent"],
   "minCoreVersion": "1.0.0",
   "schemaProvider": "core"
 }

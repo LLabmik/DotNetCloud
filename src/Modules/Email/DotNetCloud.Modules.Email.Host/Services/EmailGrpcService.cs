@@ -1,4 +1,5 @@
 using DotNetCloud.Core.Authorization;
+using DotNetCloud.Core.Grpc;
 using DotNetCloud.Modules.Email.Data;
 using DotNetCloud.Modules.Email.Host.Protos;
 using DotNetCloud.Modules.Email.Models;
@@ -18,7 +19,9 @@ public sealed class EmailGrpcService : EmailService.EmailServiceBase
     private readonly IEmailAccountService _accountService;
     private readonly IEmailSendService _sendService;
     private readonly IEmailRuleService _ruleService;
+    private readonly IEmailSyncService _syncService;
     private readonly IAttachmentStorage _attachmentStorage;
+    private readonly IModuleUserAssertionAccessor _userAssertionAccessor;
     private readonly EmailDbContext _db;
     private readonly ILogger<EmailGrpcService> _logger;
     private readonly Lazy<FilesService.FilesServiceClient> _filesClient;
@@ -30,7 +33,9 @@ public sealed class EmailGrpcService : EmailService.EmailServiceBase
         IEmailAccountService accountService,
         IEmailSendService sendService,
         IEmailRuleService ruleService,
+        IEmailSyncService syncService,
         IAttachmentStorage attachmentStorage,
+        IModuleUserAssertionAccessor userAssertionAccessor,
         EmailDbContext db,
         IConfiguration configuration,
         ILogger<EmailGrpcService> logger)
@@ -38,7 +43,9 @@ public sealed class EmailGrpcService : EmailService.EmailServiceBase
         _accountService = accountService;
         _sendService = sendService;
         _ruleService = ruleService;
+        _syncService = syncService;
         _attachmentStorage = attachmentStorage;
+        _userAssertionAccessor = userAssertionAccessor;
         _db = db;
         _logger = logger;
 
@@ -406,14 +413,104 @@ public sealed class EmailGrpcService : EmailService.EmailServiceBase
 
     // ─── Sync ───────────────────────────────────────────────────────────────
 
-    public override Task<TriggerSyncResponse> TriggerSync(
+    /// <summary>
+    /// Syncs one account for the user the core signed an assertion for.
+    /// </summary>
+    /// <remarks>
+    /// The sync runs as an end user, so the module must not take that user from the request payload:
+    /// any local caller can write one. The user comes from the core's assertion, and
+    /// <c>request.UserId</c> only has to agree with it. Without an assertion the call is refused —
+    /// the module has no timer of its own any more, so there is no other path to a sync.
+    /// </remarks>
+    public override async Task<TriggerSyncResponse> TriggerSync(
         TriggerSyncRequest request, ServerCallContext context)
     {
-        // Sync trigger: the EmailSyncBackgroundService runs as a hosted service.
-        // A gRPC call can request an immediate sync, but the background service
-        // manages its own scheduling. For now, acknowledge the request.
-        _logger.LogInformation("TriggerSync requested for account {AccountId}", request.AccountId);
-        return Task.FromResult(new TriggerSyncResponse { Success = true });
+        var assertedUserId = _userAssertionAccessor.GetCurrentUserId();
+
+        if (assertedUserId is null)
+        {
+            _logger.LogWarning(
+                "TriggerSync rejected: no core-signed user assertion on the call for account {AccountId}",
+                request.AccountId);
+
+            throw new RpcException(new Status(
+                StatusCode.PermissionDenied,
+                "A sync must be invoked by the core for a named user."));
+        }
+
+        if (!Guid.TryParse(request.AccountId, out var accountId)
+            || !Guid.TryParse(request.UserId, out var requestedUserId))
+        {
+            return new TriggerSyncResponse
+            {
+                Success = false,
+                ErrorMessage = "Invalid account or user id."
+            };
+        }
+
+        if (requestedUserId != assertedUserId.Value)
+        {
+            _logger.LogWarning(
+                "TriggerSync rejected: payload names user {RequestedUserId} but the core asserted {AssertedUserId}",
+                requestedUserId, assertedUserId.Value);
+
+            throw new RpcException(new Status(
+                StatusCode.PermissionDenied,
+                "The requested user does not match the core-signed assertion."));
+        }
+
+        var synced = await _syncService.SyncAccountAsync(
+            accountId, assertedUserId.Value, context.CancellationToken);
+
+        return synced
+            ? new TriggerSyncResponse { Success = true }
+            : new TriggerSyncResponse
+            {
+                Success = false,
+                ErrorMessage = "Account not found for the asserted user."
+            };
+    }
+
+    /// <summary>
+    /// Lists the accounts the core should ask this module to sync now.
+    /// </summary>
+    /// <remarks>
+    /// Listing is module-level metadata — account ids and their owners, no message content — and it
+    /// carries no identity of its own. The core turns each candidate into a sync call that names the
+    /// user, so the module still only ever syncs for a user the core vouched for.
+    /// </remarks>
+    public override async Task<ListSyncCandidatesResponse> ListSyncCandidates(
+        ListSyncCandidatesRequest request, ServerCallContext context)
+    {
+        try
+        {
+            var minAge = TimeSpan.FromSeconds(Math.Max(0, request.MinAgeSeconds));
+            var candidates = await _syncService.ListSyncCandidatesAsync(
+                minAge, context.CancellationToken);
+
+            var response = new ListSyncCandidatesResponse { Success = true };
+
+            foreach (var candidate in candidates)
+            {
+                response.Candidates.Add(new SyncCandidate
+                {
+                    AccountId = candidate.AccountId.ToString(),
+                    UserId = candidate.UserId.ToString(),
+                    LastSyncedAt = candidate.LastSyncedAt?.ToString("O") ?? string.Empty
+                });
+            }
+
+            return response;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "ListSyncCandidates failed");
+            return new ListSyncCandidatesResponse
+            {
+                Success = false,
+                ErrorMessage = ex.Message
+            };
+        }
     }
 
     // ─── Rules ──────────────────────────────────────────────────────────────

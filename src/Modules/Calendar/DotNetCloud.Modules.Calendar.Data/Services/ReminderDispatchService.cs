@@ -1,5 +1,3 @@
-using DotNetCloud.Core.Authorization;
-using DotNetCloud.Core.DTOs;
 using DotNetCloud.Core.Events;
 using DotNetCloud.Core.Services;
 using DotNetCloud.Modules.Calendar.Models;
@@ -12,12 +10,20 @@ using Microsoft.Extensions.Logging;
 namespace DotNetCloud.Modules.Calendar.Data.Services;
 
 /// <summary>
-/// Background service that periodically scans for due calendar reminders
-/// and dispatches them via the event bus. Handles both single-occurrence
-/// and recurring events, using <see cref="ReminderLog"/> to prevent duplicates.
+/// Background service that periodically scans for due calendar reminders and raises a platform
+/// reminder event for each one. Handles both single-occurrence and recurring events, using
+/// <see cref="ReminderLog"/> to prevent duplicates.
 /// </summary>
+/// <remarks>
+/// The service decides <i>when</i> a reminder is due; it does not deliver anything. The core's
+/// notification pipeline turns the raised event into the in-app notification plus the real-time and
+/// push/email deliveries.
+/// </remarks>
 public sealed class ReminderDispatchService : BackgroundService
 {
+    /// <summary>The id this module reports on the platform event it raises.</summary>
+    internal const string ModuleId = "dotnetcloud.calendar";
+
     /// <summary>How often the service checks for due reminders.</summary>
     internal static readonly TimeSpan ScanInterval = TimeSpan.FromSeconds(30);
 
@@ -90,17 +96,17 @@ public sealed class ReminderDispatchService : BackgroundService
     {
         using var scope = _scopeFactory.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<CalendarDbContext>();
-        var eventBus = scope.ServiceProvider.GetRequiredService<IEventBus>();
+        var publisher = scope.ServiceProvider.GetRequiredService<IPlatformEventPublisher>();
         var recurrenceEngine = scope.ServiceProvider.GetRequiredService<IRecurrenceEngine>();
 
         var now = DateTime.UtcNow;
         var lookAhead = now.Add(await ResolveLookAheadWindowAsync(db, cancellationToken));
 
         // 1. Process non-recurring events with upcoming reminders.
-        await DispatchSingleEventRemindersAsync(db, eventBus, now, lookAhead, cancellationToken);
+        await DispatchSingleEventRemindersAsync(db, publisher, now, lookAhead, cancellationToken);
 
         // 2. Process recurring events with upcoming reminders.
-        await DispatchRecurringEventRemindersAsync(db, eventBus, recurrenceEngine, now, lookAhead, cancellationToken);
+        await DispatchRecurringEventRemindersAsync(db, publisher, recurrenceEngine, now, lookAhead, cancellationToken);
     }
 
     /// <summary>
@@ -131,7 +137,7 @@ public sealed class ReminderDispatchService : BackgroundService
 
     private async Task DispatchSingleEventRemindersAsync(
         CalendarDbContext db,
-        IEventBus eventBus,
+        IPlatformEventPublisher publisher,
         DateTime now,
         DateTime lookAhead,
         CancellationToken cancellationToken)
@@ -175,14 +181,14 @@ public sealed class ReminderDispatchService : BackgroundService
                     continue;
                 }
 
-                await DispatchReminderAsync(db, eventBus, evt, reminder, evt.StartUtc, cancellationToken);
+                await DispatchReminderAsync(db, publisher, evt, reminder, evt.StartUtc, cancellationToken);
             }
         }
     }
 
     private async Task DispatchRecurringEventRemindersAsync(
         CalendarDbContext db,
-        IEventBus eventBus,
+        IPlatformEventPublisher publisher,
         IRecurrenceEngine recurrenceEngine,
         DateTime now,
         DateTime lookAhead,
@@ -246,7 +252,7 @@ public sealed class ReminderDispatchService : BackgroundService
                             continue;
                         }
 
-                        await DispatchReminderAsync(db, eventBus, master, reminder, occ.StartUtc, cancellationToken);
+                        await DispatchReminderAsync(db, publisher, master, reminder, occ.StartUtc, cancellationToken);
                     }
                 }
             }
@@ -261,46 +267,32 @@ public sealed class ReminderDispatchService : BackgroundService
 
     private async Task DispatchReminderAsync(
         CalendarDbContext db,
-        IEventBus eventBus,
+        IPlatformEventPublisher publisher,
         CalendarEvent evt,
         EventReminder reminder,
         DateTime occurrenceStart,
         CancellationToken cancellationToken)
     {
         var ownerId = evt.Calendar?.OwnerId ?? evt.CreatedByUserId;
-        var systemCaller = new CallerContext(Guid.Empty, [], CallerType.System);
 
         try
         {
-            // Publish the calendar-specific reminder event. This is the one that notifies the user:
-            // CalendarReminderEventHandler (in this process) turns it into an in-app notification via
-            // the SendNotification capability, plus a real-time broadcast.
-            await eventBus.PublishAsync(new CalendarReminderTriggeredEvent
-            {
-                EventId = Guid.CreateVersion7(),
-                CreatedAt = DateTime.UtcNow,
-                CalendarEventId = evt.Id,
-                UserId = ownerId,
-                EventTitle = evt.Title,
-                EventStartUtc = occurrenceStart
-            }, systemCaller, cancellationToken);
-
-            // Publish the cross-module reminder event for the platform's generic reminder pipeline.
-            // NOTE: module hosts run their own in-process event bus and the PublishEvent capability is a
-            // no-op, so nothing consumes this yet — Core.Server's NotificationProducer is the intended
-            // handler once module-to-core event forwarding exists. Do not rely on it to notify users:
-            // the calendar notification is raised by CalendarReminderEventHandler above.
-            await eventBus.PublishAsync(new ReminderTriggeredEvent
+            // Raise the platform reminder event and stop there. Delivery — the in-app notification,
+            // the real-time bell update and the push/email channels — belongs to the core's
+            // notification pipeline. This module used to deliver it itself, which meant inventing a
+            // System caller inside a module process (and broadcasting a SignalR event nothing
+            // consumed). The module now only reports that the reminder came due.
+            await publisher.PublishAsync(new ReminderTriggeredEvent
             {
                 EventId = Guid.CreateVersion7(),
                 CreatedAt = DateTime.UtcNow,
                 UserId = ownerId,
-                SourceModuleId = "dotnetcloud.calendar",
+                SourceModuleId = ModuleId,
                 EntityType = "CalendarEvent",
                 EntityId = evt.Id,
                 Title = evt.Title,
                 DueAtUtc = occurrenceStart
-            }, systemCaller, cancellationToken);
+            }, cancellationToken);
 
             // Log successful dispatch
             db.ReminderLogs.Add(new ReminderLog

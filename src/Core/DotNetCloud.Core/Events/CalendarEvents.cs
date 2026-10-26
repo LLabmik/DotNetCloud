@@ -132,35 +132,3 @@ public sealed record CalendarEventRsvpEvent : IEvent
     /// </summary>
     public required string Status { get; init; }
 }
-
-/// <summary>
-/// Raised when a calendar event reminder is triggered.
-/// </summary>
-public sealed record CalendarReminderTriggeredEvent : IEvent
-{
-    /// <inheritdoc />
-    public required Guid EventId { get; init; }
-
-    /// <inheritdoc />
-    public required DateTime CreatedAt { get; init; }
-
-    /// <summary>
-    /// The ID of the calendar event the reminder is for.
-    /// </summary>
-    public required Guid CalendarEventId { get; init; }
-
-    /// <summary>
-    /// The ID of the user to notify.
-    /// </summary>
-    public required Guid UserId { get; init; }
-
-    /// <summary>
-    /// The title of the calendar event for display.
-    /// </summary>
-    public required string EventTitle { get; init; }
-
-    /// <summary>
-    /// The event start time for display.
-    /// </summary>
-    public required DateTime EventStartUtc { get; init; }
-}

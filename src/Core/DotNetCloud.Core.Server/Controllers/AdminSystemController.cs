@@ -317,22 +317,6 @@ public class AdminSystemController : ControllerBase
         }
     }
 
-    private static GrpcChannel CreateGrpcChannel(string endpoint)
-    {
-        var handler = new SocketsHttpHandler
-        {
-            EnableMultipleHttp2Connections = true,
-            ConnectTimeout = TimeSpan.FromSeconds(2)
-        };
-
-        return GrpcChannel.ForAddress(endpoint, new GrpcChannelOptions
-        {
-            HttpHandler = handler,
-            MaxReceiveMessageSize = 1024 * 1024,
-            MaxSendMessageSize = 1024 * 1024,
-        });
-    }
-
     private sealed record TaskEntry(string Module, string ModuleName, BackgroundServiceStatus Status);
 
     private sealed record ModuleTaskResult(string ModuleId, bool Available, List<TaskEntry> Tasks);

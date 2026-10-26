@@ -186,7 +186,16 @@ public class EmailController : EmailControllerBase
     {
         try
         {
-            await _syncService.SyncAccountAsync(id);
+            // The account id alone must not be enough: the sync runs as the authenticated user, and
+            // the account has to belong to them.
+            var caller = GetAuthenticatedCaller();
+
+            if (!await _syncService.SyncAccountAsync(id, caller.UserId))
+            {
+                return NotFound(ErrorEnvelope(
+                    ErrorCodes.EmailAccountNotFound, "Email account not found."));
+            }
+
             return Ok(Envelope(new { syncing = true }));
         }
         catch (ValidationException ex)
