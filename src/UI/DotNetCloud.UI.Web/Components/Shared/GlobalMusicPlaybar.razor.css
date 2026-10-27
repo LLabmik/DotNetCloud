@@ -1,4 +1,10 @@
-.gmp-art {
+/* The album-art wrapper is sized by the .gmp-art rule in wwwroot/css/app.css (52px).
+   Only the artwork inside it must fill the wrapper. Sizing .gmp-art itself here would
+   win over that global rule (the isolation attribute adds specificity), which made the
+   artwork ~330px and pushed the transport controls below the viewport. */
+.gmp-art img,
+.gmp-art svg {
+    display: block;
     width: 100%;
     height: 100%;
 }

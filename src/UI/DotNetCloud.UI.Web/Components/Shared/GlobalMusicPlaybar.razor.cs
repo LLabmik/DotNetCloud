@@ -88,6 +88,11 @@ public partial class GlobalMusicPlaybar : ComponentBase, IAsyncDisposable
         _ => "Off",
     };
 
+    /// <summary>Material icon name reflecting the current mute / volume level.</summary>
+    private string VolumeIcon => Playback.Muted
+        ? "volume_off"
+        : Playback.Volume > 50 ? "volume_up" : "volume_down";
+
     protected override void OnInitialized()
     {
         _musicModuleEnabled = ModuleRegistry.NavItems.Any(n =>

@@ -6558,6 +6558,9 @@ textarea.form-control {
   transition: color var(--transition, 200ms ease);
   padding: 4px;
   flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .gmp-star:hover {
@@ -6595,6 +6598,9 @@ textarea.form-control {
   padding: 4px;
   transition: color var(--transition, 200ms ease);
   line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .gmp-btn:hover {

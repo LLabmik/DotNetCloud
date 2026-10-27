@@ -93,22 +93,28 @@
                     </a>
                 }
             </div>
-            <button class="gmp-star" @onclick="ToggleStarAsync">
-                @(Playback.NowPlaying.IsStarred ? "★" : "☆")
+            <button class="gmp-star" @onclick="ToggleStarAsync"
+                    title="@(Playback.NowPlaying.IsStarred ? "Remove from favourites" : "Add to favourites")">
+                <MaterialIcon Icon="@(Playback.NowPlaying.IsStarred ? "star" : "star_border")" Size="MaterialIconSize.Sm" />
             </button>
         </div>
 
         <div class="gmp-controls">
             <div class="gmp-buttons">
                 <button class="gmp-btn" @onclick="ToggleShuffleAsync" title="Shuffle">
-                    <span class="@(Playback.Shuffle ? "active-control" : "")">⇄</span>
+                    <MaterialIcon Icon="shuffle" Size="MaterialIconSize.Sm"
+                                  CssClass="@(Playback.Shuffle ? "active-control" : "")" />
                 </button>
-                <button class="gmp-btn" @onclick="PlayPreviousAsync" title="Previous">⏮</button>
+                <button class="gmp-btn" @onclick="PlayPreviousAsync" title="Previous">
+                    <MaterialIcon Icon="skip_previous" Size="MaterialIconSize.Sm" />
+                </button>
                 <button class="gmp-btn gmp-play-pause" @onclick="TogglePlayPauseAsync"
                         title="@(Playback.IsPlaying ? "Pause" : "Play")">
-                    @(Playback.IsPlaying ? "⏸" : "▶")
+                    <MaterialIcon Icon="@(Playback.IsPlaying ? "pause" : "play_arrow")" Size="MaterialIconSize.Md" />
                 </button>
-                <button class="gmp-btn" @onclick="PlayNextAsync" title="Next">⏭</button>
+                <button class="gmp-btn" @onclick="PlayNextAsync" title="Next">
+                    <MaterialIcon Icon="skip_next" Size="MaterialIconSize.Sm" />
+                </button>
                 <button class="gmp-btn" @onclick="CycleRepeatAsync" title="Repeat: @RepeatLabel">
                     <MaterialIcon Icon="@(Playback.Repeat == RepeatMode.One ? "repeat_one" : "repeat")"
                                   Size="MaterialIconSize.Sm" CssClass="@RepeatModeCssClass" />
@@ -126,29 +132,23 @@
 
             <div class="gmp-extras">
                 <button class="gmp-btn" @onclick="Playback.ToggleQueue" title="Queue">
-                    <span class="@(Playback.ShowQueue ? "active-control" : "")">☰</span>
+                    <MaterialIcon Icon="queue_music" Size="MaterialIconSize.Sm"
+                                  CssClass="@(Playback.ShowQueue ? "active-control" : "")" />
                 </button>
                 <button class="gmp-btn" @onclick="ToggleEqualizerAsync" title="Equalizer">
-                    <span class="@(Playback.ShowEqualizer ? "active-control" : "")">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16" fill="none"
-                             stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
-                            <line x1="3" y1="14" x2="3" y2="5" />
-                            <line x1="8" y1="14" x2="8" y2="3" />
-                            <line x1="13" y1="14" x2="13" y2="7" />
-                            <circle cx="3" cy="5" r="1.5" fill="currentColor" stroke="none" />
-                            <circle cx="8" cy="3" r="1.5" fill="currentColor" stroke="none" />
-                            <circle cx="13" cy="7" r="1.5" fill="currentColor" stroke="none" />
-                        </svg>
-                    </span>
+                    <MaterialIcon Icon="graphic_eq" Size="MaterialIconSize.Sm"
+                                  CssClass="@(Playback.ShowEqualizer ? "active-control" : "")" />
                 </button>
                 <div class="gmp-volume">
                     <button class="gmp-btn" @onclick="ToggleMuteAsync" title="Volume">
-                        @(Playback.Muted ? "🔇" : Playback.Volume > 50 ? "🔊" : "🔉")
+                        <MaterialIcon Icon="@VolumeIcon" Size="MaterialIconSize.Sm" />
                     </button>
                     <input type="range" min="0" max="100" value="@Playback.Volume" @oninput="OnVolumeChangedAsync"
                            class="gmp-volume-slider" />
                 </div>
-                <button class="gmp-btn gmp-close-btn" @onclick="StopAsync" title="Stop">✕</button>
+                <button class="gmp-btn gmp-close-btn" @onclick="StopAsync" title="Stop">
+                    <MaterialIcon Icon="close" Size="MaterialIconSize.Sm" />
+                </button>
             </div>
         </div>
 
