@@ -12,6 +12,27 @@
 
 ---
 
+> **Recent fix (2026-10-26, branch `fix/quick-blazor-fixes`):** **Files rename + multi-ZIP download now use modals, and the
+> now-playing tab title only applies inside the Music module while a track is actually playing.**
+> Files: `FileBrowser` rendered rename as an inline `.create-folder-dialog` bar at the top of the page (easy to miss, and it
+> stayed put while the user scrolled); it is now a proper `dialog-overlay` / `dialog` modal with a labelled input, Close/Cancel
+> and a primary **Rename** button, keeping `data-enter-submit` on the dialog (so Enter still submits) and `data-autofocus-first`
+> on the dialog (so the input is focused). Multi-item ZIP downloads (`DownloadSelectedAsZipAsync`, reached from the context menu
+> and the bulk toolbar) previously gave **no feedback** while the server built the archive, so the page looked frozen and users
+> re-clicked Download; a new blocking "Preparing download" modal now shows a spinner with `FilesDownloadProgress.BuildStatus`
+> ("Preparing 5 items for download…"), follows the delete-progress pattern (forced first render via `StateHasChanged()` +
+> `await Task.Delay(1)`, and a 700 ms minimum-visible hold) and closes into the existing "Download too large" modal on failure.
+> Music tab title: `GlobalMusicPlaybar.UpdateTabTitleAsync` used to apply the `♪ Song — Artist` override whenever a track was
+> loaded, even after navigating to another module or after the queue ended (`PlayNext` leaves `NowPlaying` set with
+> `IsPlaying = false`), and the `MutationObserver` re-applied it over every Blazor `<PageTitle>` change. It now requires
+> `Playback.IsPlaying`, `NowPlaying is not null` **and** `MusicRoutes.IsMusicUrl(Navigation.Uri)`; the playbar subscribes to
+> `Navigation.LocationChanged` so leaving/entering the module re-evaluates immediately, `clearNowPlayingTitle` only restores the
+> remembered title when the override is still the one on screen (never stomping a title Blazor already wrote), and the pause
+> glyph was dropped since the title is only shown while playing. New `MusicRoutes` (`/apps/music` plus nested paths, query
+> ignored, `/apps/musicology` is not a match) and `FilesDownloadProgress` helpers with tests. Files.Tests **1005 pass** (6 new),
+> Music.Tests **450 pass** (11 new), `DotNetCloud.UI.Web` + Files module build clean. ☐ Deploy + browser verification on mint22
+> (awaiting approval).
+
 > **Recent fix (2026-10-24, branch `fix/music-downloads`):** **Blazor Music album download did nothing — `eval`-based JS interop blocked by the CSP.**
 > `MusicPage.DownloadAlbumAsync` created the download anchor with `Js.InvokeVoidAsync("eval", …)`; the hardened
 > CSP has no `'unsafe-eval'`, so the browser threw `EvalError: Evaluating a string as JavaScript violates the following
@@ -3104,6 +3125,8 @@ Also colour-coded the Android repeat control by mode (2026-10-23, `feature/music
 **Notes:** Sub-Phase C (Music Module) fully complete including Blazor UI. Starring/favorites with optimistic UI updates, album art, playback controls, play bar with album navigation.
 
 **Enhancement (2026-10-13):** the browser tab title now shows the now-playing track — `♪ {Song} — {Band}` while playing (`⏸` when paused) — kept applied across Blazor `<PageTitle>` navigation via a `MutationObserver` in `music-player.js` (`setNowPlayingTitle` / `clearNowPlayingTitle`) driven by `GlobalMusicPlaybar`. The override is captured/restored around the page's own title and cleared when playback stops or the playbar is disposed (logout).
+
+**Fix (2026-10-26):** the now-playing title is now scoped to the Music module and to actual playback. `GlobalMusicPlaybar.UpdateTabTitleAsync` requires `Playback.IsPlaying`, a non-null `NowPlaying` **and** `MusicRoutes.IsMusicUrl(Navigation.Uri)` (`/apps/music` or a nested path; `/apps/musicology` does not match), and the playbar follows `Navigation.LocationChanged`, so navigating to any other module immediately restores that page's own title. A finished queue (`PlayNext` leaves `NowPlaying` loaded with `IsPlaying = false`) also restores the page title, and `clearNowPlayingTitle` now only rewinds to the remembered page title when the override is still on screen — it never overwrites a title Blazor already wrote. The `⏸` paused variant was dropped (the title only shows while playing). Covered by `MusicRoutesTests` (11).
 
 **Enhancement (2026-10-23):** the playbar's repeat control is colour-coded by mode — Off = red, One = yellow, All = green. The emoji glyph was replaced with the `MaterialIcon` component (`repeat` / `repeat_one`, paths added to `MaterialSvgIcons`) so the SVG honours `currentColor`, and both the icon and the Off/One/All label use a mode class (`gmp-repeat-mode-off/one/all`) styled in `app.css`.
 

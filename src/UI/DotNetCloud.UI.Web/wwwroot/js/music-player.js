@@ -330,9 +330,15 @@ window.dotnetcloudMusicPlayer = window.dotnetcloudMusicPlayer || (function () {
 
     /** Removes the now-playing override and restores the page's own tab title. */
     function clearNowPlayingTitle() {
+        var previous = nowPlayingTitle;
         nowPlayingTitle = null;
         stopTitleObserver();
-        if (pageTitle !== null && normalizeTitle(document.title) !== normalizeTitle(pageTitle)) {
+        // Only restore the remembered title when the override is still the one on screen. If
+        // Blazor already wrote a different page title (e.g. the user navigated to another module
+        // before this clear ran), leave that title alone instead of stomping on it.
+        if (pageTitle !== null
+            && previous !== null
+            && normalizeTitle(document.title) === normalizeTitle(previous)) {
             applyingTitle = true;
             document.title = pageTitle;
             queueMicrotask(function () { applyingTitle = false; });
