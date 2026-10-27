@@ -130,6 +130,10 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
     private bool _showBulkShareDialog;
     private List<Guid> _bulkShareTargetIds = [];
 
+    // ZIP download preparation modal
+    private bool _isPreparingDownload;
+    private string _downloadPrepareStatus = string.Empty;
+
     // ZIP download error modal
     private bool _showZipErrorModal;
     private string _zipErrorMessage = string.Empty;
@@ -208,7 +212,7 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
     private bool _contextMenuNodeIsReadOnly;
     private bool _contextMenuNodeIsDefaultContent;
 
-    // Inline rename dialog
+    // Rename dialog
     private bool _showRenameDialog;
     private FileNodeViewModel? _renameNode;
     private string _renameNewName = string.Empty;
@@ -1111,7 +1115,7 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
             await OpenNodeAsync(node);
     }
 
-    /// <summary>Context menu: Show inline rename dialog.</summary>
+    /// <summary>Context menu: Show the rename modal for the target item.</summary>
     protected void HandleContextRename(Guid nodeId)
     {
         _showContextMenu = false;
@@ -1384,9 +1388,9 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
         StateHasChanged();
     }
 
-    // ── Inline rename ────────────────────────────────────────────────────────
+    // ── Rename dialog ────────────────────────────────────────────────────────
 
-    /// <summary>Confirms the inline rename operation.</summary>
+    /// <summary>Confirms the rename operation and closes the rename modal.</summary>
     protected async Task ConfirmRename()
     {
         if (_renameNode is null || string.IsNullOrWhiteSpace(_renameNewName))
@@ -1623,7 +1627,7 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
     /// <summary>Downloads the given node IDs as a single ZIP archive.</summary>
     private async Task DownloadSelectedAsZipAsync(IReadOnlyList<Guid> nodeIds)
     {
-        if (nodeIds.Count == 0)
+        if (nodeIds.Count == 0 || _isPreparingDownload)
             return;
 
         var effectiveUserId = UserId;
@@ -1633,15 +1637,54 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
         var baseUrl = string.IsNullOrWhiteSpace(ApiBaseUrl) ? string.Empty : ApiBaseUrl.TrimEnd('/');
         var url = $"{baseUrl}/api/v1/files/download-zip?userId={Uri.EscapeDataString(effectiveUserId.ToString())}";
 
-        var result = await Js.InvokeAsync<ZipDownloadResult>(
-            "dotnetcloudFiles.downloadZip", url, nodeIds.ToList());
+        // Show the preparation modal while the server builds the archive. Building a ZIP can take
+        // seconds for large selections and the fetch gives no other feedback, so without this the
+        // browser looks frozen and users tend to click Download again.
+        _isPreparingDownload = true;
+        _downloadPrepareStatus = FilesDownloadProgress.BuildStatus(nodeIds.Count);
+        StateHasChanged();
 
-        if (result is not null && !result.Ok)
+        var prepareProgress = Stopwatch.StartNew();
+        string? errorMessage = null;
+
+        // Hand the renderer a real async gap before the work starts — a fast ZIP would otherwise
+        // only ever dispatch the final render (modal closed) and the modal would never be seen.
+        await Task.Delay(1);
+
+        try
         {
-            _zipErrorMessage = string.IsNullOrWhiteSpace(result.Message)
-                ? "The selected items could not be downloaded as a ZIP file."
-                : result.Message;
-            _showZipErrorModal = true;
+            var result = await Js.InvokeAsync<ZipDownloadResult>(
+                "dotnetcloudFiles.downloadZip", url, nodeIds.ToList());
+
+            if (result is not null && !result.Ok)
+            {
+                errorMessage = string.IsNullOrWhiteSpace(result.Message)
+                    ? "The selected items could not be downloaded as a ZIP file."
+                    : result.Message;
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "ZIP download of {Count} item(s) failed", nodeIds.Count);
+            errorMessage = "The selected items could not be downloaded as a ZIP file.";
+        }
+        finally
+        {
+            // Keep the modal on screen for a minimum time so it is actually seen, matching the
+            // delete-progress dialog behaviour.
+            var holdMs = FilesDownloadProgress.GetHoldTimeMs((int)prepareProgress.ElapsedMilliseconds);
+            if (holdMs > 0)
+                await Task.Delay(holdMs);
+
+            _isPreparingDownload = false;
+            _downloadPrepareStatus = string.Empty;
+
+            if (errorMessage is not null)
+            {
+                _zipErrorMessage = errorMessage;
+                _showZipErrorModal = true;
+            }
+
             StateHasChanged();
         }
     }

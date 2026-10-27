@@ -5948,6 +5948,23 @@ textarea.form-control {
   flex: 0 0 auto;
 }
 
+/* Generic spinner row inside a modal dialog (e.g. ZIP download preparation) */
+.dialog-progress {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 32px;
+  font-size: 14px;
+  color: var(--color-text-secondary);
+}
+
+.dialog-progress .spinner {
+  width: 22px;
+  height: 22px;
+  border-width: 2px;
+  flex: 0 0 auto;
+}
+
 /* Tag dialog (modal) extras */
 .tag-dialog-existing {
   margin-top: 16px;

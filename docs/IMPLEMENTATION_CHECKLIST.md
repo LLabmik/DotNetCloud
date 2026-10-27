@@ -5020,6 +5020,7 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 - ✓ Step 5.13 — Subsonic API Compatibility
 - ✓ Step 5.14 — Music API, gRPC & Blazor UI
   - ✓ **Enhancement (2026-10-13):** now-playing track shown in the browser tab title (`♪ Song — Band`, `⏸` when paused). The override survives Blazor page navigation (`MutationObserver` in `music-player.js`) and is cleared when playback stops or on logout (`GlobalMusicPlaybar`).
+  - ✓ **Fix (2026-10-26):** the now-playing tab title is scoped to the Music module and to actual playback — `GlobalMusicPlaybar.UpdateTabTitleAsync` requires `Playback.IsPlaying` + `NowPlaying` + `MusicRoutes.IsMusicUrl(Navigation.Uri)` and follows `Navigation.LocationChanged`, so navigating to another module (or the queue finishing) restores that page's own title; `clearNowPlayingTitle` no longer stomps a title Blazor already wrote; the `⏸` paused variant is gone. Tests: `MusicRoutesTests` (11).
   - ✓ **Enhancement (2026-10-23):** `GlobalMusicPlaybar` repeat control is colour-coded by mode — Off = red, One = yellow, All = green — via `MaterialIcon` (`repeat` / `repeat_one`, added to `MaterialSvgIcons`) and the `gmp-repeat-mode-off/one/all` classes in `app.css`; icon and label share the mode colour
 
 ### Per-Device Music EQ Default — feature/local-eq-selection
@@ -7902,6 +7903,26 @@ spinner plus progress text while they work.
   which does not run this build — hence the old button order in the screenshot. Always confirm which
   environment is being tested (dev `https://mint22:5443/` vs production `https://cloud.dotnetcloud.net/`)
   before debugging a UI report.
+
+## Files Module — Rename & ZIP Download Modals (2026-10-26)
+
+**Branch:** `fix/quick-blazor-fixes`
+
+The rename field rendered as an inline `.create-folder-dialog` bar at the top of the file browser (easy to miss and it
+scrolled with the page), and a multi-item ZIP download gave no feedback at all while the server built the archive.
+
+- ✓ `FileBrowser.razor` — rename is now a `dialog-overlay` / `dialog` modal (header with title + close, labelled
+  `form-control` input, Cancel / **Rename** footer); `data-enter-submit` sits on the dialog so Enter submits, the primary
+  button is first in the footer (the shared handler clicks the first matching button), and `data-autofocus-first` focuses
+  the input
+- ✓ `FileBrowser.razor` — new blocking "Preparing download" modal (`dialog-progress` spinner row) while a ZIP is built
+- ✓ `FileBrowser.DownloadSelectedAsZipAsync` — sets `_isPreparingDownload` + status text, forces a first render
+  (`StateHasChanged()` + `await Task.Delay(1)`), always closes the modal in `finally`, and routes failures to the existing
+  "Download too large" modal (now also catches JS-interop exceptions instead of leaving the UI stuck)
+- ✓ `UI/FilesDownloadProgress.cs` — `BuildStatus(count)` ("Preparing download…" / "Preparing 5 items for download…") and
+  `GetHoldTimeMs(elapsedMs)` with a 700 ms minimum-visible hold, mirroring `FilesDeleteProgress`
+- ✓ `app.css` — new `.dialog-progress` spinner row rules (sized for a dialog)
+- ✓ `FilesDownloadProgressTests` — 6 unit tests; `DotNetCloud.Modules.Files.Tests` 1005/1005 pass
 
 ## Files Module — Quota Refresh After Upload / Empty Trash (2026-09-17)
 

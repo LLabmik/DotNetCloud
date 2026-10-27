@@ -42,6 +42,7 @@ public partial class GlobalMusicPlaybar : ComponentBase, IAsyncDisposable
 {
     private bool _musicModuleEnabled;
     private bool _jsInitialized;
+    private bool _disposed;
 
     /// <summary>Album whose cover failed to load; the fallback SVG is rendered instead.</summary>
     private Guid? _albumArtFailedForAlbumId;
@@ -100,6 +101,18 @@ public partial class GlobalMusicPlaybar : ComponentBase, IAsyncDisposable
         Playback.OnChange += OnPlaybackStateChanged;
         Playback.OnTrackChanged += OnTrackChanged;
         ModuleRegistry.OnChange += OnModuleRegistryChanged;
+
+        // The playbar outlives page navigation, so follow it to keep the tab title in sync:
+        // the song belongs in the title only while the user is on the Music module.
+        Navigation.LocationChanged += OnLocationChanged;
+    }
+
+    private void OnLocationChanged(object? sender, LocationChangedEventArgs e)
+    {
+        if (_disposed)
+            return;
+
+        _ = InvokeAsync(UpdateTabTitleAsync);
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -517,14 +530,22 @@ public partial class GlobalMusicPlaybar : ComponentBase, IAsyncDisposable
     // ── Browser tab title (now-playing) ──
 
     /// <summary>
-    /// Reflects the now-playing track (artist + song) in the browser tab title, keeping the
-    /// override applied across Blazor page navigation. Clears the override when nothing is loaded.
+    /// Reflects the now-playing track (artist + song) in the browser tab title, but only while the
+    /// user is on the Music module and audio is actually playing. Navigating elsewhere — or the
+    /// queue finishing — restores the page's own title instead of leaving the last song stuck there.
     /// </summary>
     private async Task UpdateTabTitleAsync()
     {
         try
         {
-            var track = _musicModuleEnabled ? Playback.NowPlaying : null;
+            // Show the song only in the Music module, and only while it is really playing.
+            var track = _musicModuleEnabled
+                && Playback.IsPlaying
+                && Playback.NowPlaying is not null
+                && MusicRoutes.IsMusicUrl(Navigation.Uri)
+                    ? Playback.NowPlaying
+                    : null;
+
             if (track is null)
             {
                 await Js.InvokeVoidAsync("dotnetcloudMusicPlayer.clearNowPlayingTitle");
@@ -541,12 +562,11 @@ public partial class GlobalMusicPlaybar : ComponentBase, IAsyncDisposable
         }
     }
 
-    private string BuildNowPlayingLabel(TrackDto track)
+    private static string BuildNowPlayingLabel(TrackDto track)
     {
         var title = string.IsNullOrWhiteSpace(track.Title) ? "Unknown Track" : track.Title.Trim();
         var artist = string.IsNullOrWhiteSpace(track.ArtistName) ? null : track.ArtistName.Trim();
-        var stateGlyph = Playback.IsPlaying ? "♪" : "⏸";
-        return artist is null ? $"{stateGlyph} {title}" : $"{stateGlyph} {title} — {artist}";
+        return artist is null ? $"♪ {title}" : $"♪ {title} — {artist}";
     }
 
     // ── Helpers ──
@@ -823,9 +843,11 @@ public partial class GlobalMusicPlaybar : ComponentBase, IAsyncDisposable
 
     public async ValueTask DisposeAsync()
     {
+        _disposed = true;
         Playback.OnChange -= OnPlaybackStateChanged;
         Playback.OnTrackChanged -= OnTrackChanged;
         ModuleRegistry.OnChange -= OnModuleRegistryChanged;
+        Navigation.LocationChanged -= OnLocationChanged;
         _saveCts?.Cancel();
         _saveCts?.Dispose();
 
