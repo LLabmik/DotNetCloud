@@ -923,65 +923,81 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
 
     protected async Task CreateDocumentAsync()
     {
-        var caller = await GetCallerContextAsync();
-        var extension = NormalizeExtension(_selectedDocumentExtension);
-        var requestedName = string.IsNullOrWhiteSpace(_newDocumentName) ? "Untitled" : _newDocumentName.Trim();
-        var fileName = EnsureUniqueFileName(BuildFileName(requestedName, extension));
-
-        var session = await UploadService.InitiateUploadAsync(new InitiateUploadDto
+        try
         {
-            FileName = fileName,
-            ParentId = _currentFolderId,
-            TotalSize = 0,
-            MimeType = GetMimeType(extension),
-            ChunkHashes = []
-        }, caller);
+            var caller = await GetCallerContextAsync();
+            var extension = NormalizeExtension(_selectedDocumentExtension);
+            var requestedName = string.IsNullOrWhiteSpace(_newDocumentName) ? "Untitled" : _newDocumentName.Trim();
+            var fileName = EnsureUniqueFileName(BuildFileName(requestedName, extension));
 
-        var created = await UploadService.CompleteUploadAsync(session.SessionId, caller);
+            var session = await UploadService.InitiateUploadAsync(new InitiateUploadDto
+            {
+                FileName = fileName,
+                ParentId = _currentFolderId,
+                TotalSize = 0,
+                MimeType = GetMimeType(extension),
+                ChunkHashes = []
+            }, caller);
 
-        _showCreateDocument = false;
-        await LoadCurrentFolderAsync();
+            var created = await UploadService.CompleteUploadAsync(session.SessionId, caller);
 
-        var viewModel = ToViewModel(created);
-        if (CanOpenInDocumentEditor(created.Name))
-        {
-            ShowDocumentEditor(viewModel);
+            _showCreateDocument = false;
+            await LoadCurrentFolderAsync();
+
+            var viewModel = ToViewModel(created);
+            if (CanOpenInDocumentEditor(created.Name))
+            {
+                ShowDocumentEditor(viewModel);
+            }
+            else if (CanOpenInNativePreview(viewModel))
+            {
+                ShowPreview(viewModel);
+            }
         }
-        else if (CanOpenInNativePreview(viewModel))
+        catch (Exception ex)
         {
-            ShowPreview(viewModel);
+            // Keep the dialog open and the circuit alive; surfaced in the server log.
+            Logger.LogError(ex, "Failed to create document '{DocumentName}'", _newDocumentName);
         }
     }
 
     protected async Task CreateFreeformFileAsync()
     {
-        var raw = string.IsNullOrWhiteSpace(_freeformFileName) ? "Untitled.txt" : _freeformFileName.Trim();
-        var extension = NormalizeExtension(Path.GetExtension(raw));
-        var fileName = EnsureUniqueFileName(raw);
-
-        var caller = await GetCallerContextAsync();
-        var session = await UploadService.InitiateUploadAsync(new InitiateUploadDto
+        try
         {
-            FileName = fileName,
-            ParentId = _currentFolderId,
-            TotalSize = 0,
-            MimeType = GetMimeType(extension),
-            ChunkHashes = []
-        }, caller);
+            var raw = string.IsNullOrWhiteSpace(_freeformFileName) ? "Untitled.txt" : _freeformFileName.Trim();
+            var extension = NormalizeExtension(Path.GetExtension(raw));
+            var fileName = EnsureUniqueFileName(raw);
 
-        var created = await UploadService.CompleteUploadAsync(session.SessionId, caller);
+            var caller = await GetCallerContextAsync();
+            var session = await UploadService.InitiateUploadAsync(new InitiateUploadDto
+            {
+                FileName = fileName,
+                ParentId = _currentFolderId,
+                TotalSize = 0,
+                MimeType = GetMimeType(extension),
+                ChunkHashes = []
+            }, caller);
 
-        _showCreateDocument = false;
-        await LoadCurrentFolderAsync();
+            var created = await UploadService.CompleteUploadAsync(session.SessionId, caller);
 
-        var viewModel = ToViewModel(created);
-        if (CanOpenInDocumentEditor(created.Name))
-        {
-            ShowDocumentEditor(viewModel);
+            _showCreateDocument = false;
+            await LoadCurrentFolderAsync();
+
+            var viewModel = ToViewModel(created);
+            if (CanOpenInDocumentEditor(created.Name))
+            {
+                ShowDocumentEditor(viewModel);
+            }
+            else if (CanOpenInNativePreview(viewModel))
+            {
+                ShowPreview(viewModel);
+            }
         }
-        else if (CanOpenInNativePreview(viewModel))
+        catch (Exception ex)
         {
-            ShowPreview(viewModel);
+            // Keep the dialog open and the circuit alive; surfaced in the server log.
+            Logger.LogError(ex, "Failed to create file '{FileName}'", _freeformFileName);
         }
     }
 

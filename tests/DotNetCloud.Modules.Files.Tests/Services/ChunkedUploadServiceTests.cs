@@ -149,6 +149,48 @@ public class ChunkedUploadServiceTests
     }
 
     [TestMethod]
+    public async Task InitiateUploadAsync_ZeroByteFileWithEmptyManifest_CreatesSession()
+    {
+        // The "create new document" action initiates a 0-byte session with no chunks and completes
+        // it immediately. The manifest guard must not reject that flow.
+        using var db = CreateContext();
+
+        var service = CreateService(db);
+        var result = await service.InitiateUploadAsync(new InitiateUploadDto
+        {
+            FileName = "Untitled.docx",
+            TotalSize = 0,
+            ChunkHashes = []
+        }, UserCaller(Guid.CreateVersion7()));
+
+        Assert.AreNotEqual(Guid.Empty, result.SessionId);
+        Assert.AreEqual(0, result.TotalChunks);
+        Assert.AreEqual(0, result.MissingChunks.Count);
+        Assert.AreEqual(UploadSessionStatus.InProgress, result.Status);
+    }
+
+    [TestMethod]
+    public async Task InitiateUploadAsync_NonZeroSizeWithEmptyManifest_ThrowsValidationException()
+    {
+        // A declared size with no manifest is the attack the guard exists for: it would reserve
+        // quota without pinning the bytes that may be streamed into the session.
+        using var db = CreateContext();
+
+        var service = CreateService(db);
+
+        await Assert.ThrowsExactlyAsync<Core.Errors.ValidationException>(
+            () => service.InitiateUploadAsync(new InitiateUploadDto
+            {
+                FileName = "sneaky.bin",
+                TotalSize = 1,
+                ChunkHashes = []
+            }, UserCaller(Guid.CreateVersion7())));
+
+        Assert.AreEqual(0, await db.UploadSessions.CountAsync(),
+            "No upload session may be created when a non-empty file declares no chunks.");
+    }
+
+    [TestMethod]
     public async Task InitiateUploadAsync_MountedAdminSharedFolderParent_ThrowsInvalidOperationException()
     {
         using var db = CreateContext();

@@ -87,7 +87,10 @@ internal sealed class ChunkedUploadService : IChunkedUploadService
 
         // The chunk manifest is the contract. Without this a client can declare TotalSize = 1,
         // reserve one byte of quota, and then stream arbitrary data into the session.
-        if (dto.ChunkHashes.Count == 0)
+        // A zero-byte file is the one legitimate exception: there is nothing to stream, so an empty
+        // manifest is exactly right. The "new document" / blank-file flows initiate with TotalSize 0
+        // and no chunk hashes, then complete immediately to create the empty node.
+        if (dto.ChunkHashes.Count == 0 && dto.TotalSize > 0)
             throw new Core.Errors.ValidationException("ChunkHashes", "At least one chunk hash is required.");
 
         if (dto.ChunkSizes is { Count: > 0 })
