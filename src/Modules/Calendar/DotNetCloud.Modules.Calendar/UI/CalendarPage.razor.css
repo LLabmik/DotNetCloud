@@ -1,6 +1,6 @@
 .calendar-page-layout {
   display: flex;
-  height: calc(100vh - var(--topbar-height, 56px));
+  height: calc(100vh - var(--topbar-height, 56px) - var(--global-player-height, 0px));
   min-height: 0;
   background: var(--color-bg);
 }

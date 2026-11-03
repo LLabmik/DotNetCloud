@@ -566,7 +566,7 @@ public partial class GlobalMusicPlaybar : ComponentBase, IAsyncDisposable
     {
         var title = string.IsNullOrWhiteSpace(track.Title) ? "Unknown Track" : track.Title.Trim();
         var artist = string.IsNullOrWhiteSpace(track.ArtistName) ? null : track.ArtistName.Trim();
-        return artist is null ? $"♪ {title}" : $"♪ {title} — {artist}";
+        return artist is null ? title : $"{title} — {artist}";
     }
 
     // ── Helpers ──

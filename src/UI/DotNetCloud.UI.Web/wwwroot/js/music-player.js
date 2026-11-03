@@ -315,7 +315,7 @@ window.dotnetcloudMusicPlayer = window.dotnetcloudMusicPlayer || (function () {
     /**
      * Force a now-playing label into the browser tab title, keeping it applied even as
      * Blazor updates the page title during navigation.
-     * @param {string} label - e.g. "♪ Song Title — Artist".
+     * @param {string} label - e.g. "Song Title — Artist".
      */
     function setNowPlayingTitle(label) {
         if (!label) { clearNowPlayingTitle(); return; }

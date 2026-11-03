@@ -29,6 +29,10 @@
   --sidebar-width: 240px;
   --sidebar-collapsed-width: 96px;
   --topbar-height: 56px;
+  /* Height reserved for the global music playbar. 0 unless the playbar is showing
+     (.has-global-player); full-height module layouts subtract it so their bottom edge
+     (chat composer, calendar grid, etc.) stays above the bar. */
+  --global-player-height: 0px;
   --transition: 200ms ease;
 }
 
@@ -1617,7 +1621,7 @@ textarea.input {
 /* --- Files Page Layout (Sidebar + Main) --- */
 .files-page-layout {
   display: flex;
-  height: calc(100vh - var(--topbar-height, 56px));
+  height: calc(100vh - var(--topbar-height, 56px) - var(--global-player-height, 0px));
   min-height: 0;
   background: var(--color-bg);
 }
@@ -3717,7 +3721,7 @@ textarea.form-control {
 
 .calendar-page-layout {
   display: flex;
-  height: calc(100vh - var(--topbar-height, 56px));
+  height: calc(100vh - var(--topbar-height, 56px) - var(--global-player-height, 0px));
   min-height: 0;
   background: var(--color-bg);
 }
@@ -4271,7 +4275,7 @@ textarea.form-control {
 
 .notes-page-layout {
   display: flex;
-  height: calc(100vh - var(--topbar-height, 56px));
+  height: calc(100vh - var(--topbar-height, 56px) - var(--global-player-height, 0px));
   min-height: 0;
   background: var(--color-bg);
 }
@@ -4593,7 +4597,7 @@ textarea.form-control {
 
 .contacts-page-layout {
   display: flex;
-  height: calc(100vh - var(--topbar-height, 56px));
+  height: calc(100vh - var(--topbar-height, 56px) - var(--global-player-height, 0px));
   min-height: 0;
   background: var(--color-bg);
 }
@@ -6449,9 +6453,13 @@ textarea.form-control {
   z-index: 100;
 }
 
-/* ── When global playbar is active, add bottom padding to page ── */
+/* ── When global playbar is active, reserve space below the page content ── */
+.has-global-player {
+  --global-player-height: 80px;
+}
+
 .has-global-player .page-content {
-  padding-bottom: 80px;
+  padding-bottom: var(--global-player-height, 0px);
 }
 
 /* ── Track info (left) ── */
@@ -7217,6 +7225,10 @@ textarea.form-control {
     grid-template-columns: 1fr auto;
     height: 64px;
     gap: 8px;
+  }
+
+  .has-global-player {
+    --global-player-height: 64px;
   }
 
   .gmp-extras {

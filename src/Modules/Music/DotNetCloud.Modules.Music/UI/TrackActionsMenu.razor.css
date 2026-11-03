@@ -1,0 +1,95 @@
+.track-actions {
+  position: relative;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.track-actions-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  color: var(--color-muted, #94a3b8);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+  line-height: 1;
+  transition: color var(--transition, 200ms ease), background var(--transition, 200ms ease);
+}
+
+.track-actions-toggle:hover,
+.track-actions-toggle.open {
+  color: var(--color-primary, #3b82f6);
+  background: rgba(59, 130, 246, 0.12);
+}
+
+.track-actions-menu {
+  position: absolute;
+  right: 0;
+  top: 100%;
+  z-index: 200;
+  display: flex;
+  flex-direction: column;
+  min-width: 220px;
+  max-width: 300px;
+  padding: 6px;
+  background: var(--color-surface, #ffffff);
+  border: 1px solid var(--color-border, #e2e8f0);
+  border-radius: var(--radius, 8px);
+  box-shadow: var(--shadow-lg, 0 8px 24px rgba(0, 0, 0, 0.12));
+}
+
+.track-actions-heading {
+  padding: 4px 10px 6px;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-muted, #94a3b8);
+}
+
+.track-actions-empty {
+  padding: 2px 10px 8px;
+  font-size: 0.8125rem;
+  color: var(--color-muted, #94a3b8);
+}
+
+.track-actions-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 10px;
+  background: none;
+  border: none;
+  border-radius: 6px;
+  text-align: left;
+  font-size: 0.8125rem;
+  color: var(--color-text, #1e293b);
+  cursor: pointer;
+  transition: background var(--transition, 200ms ease);
+}
+
+.track-actions-item:hover {
+  background: var(--color-bg, #f5f7fa);
+}
+
+.track-actions-item-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.track-actions-item-meta {
+  flex-shrink: 0;
+  font-size: 0.75rem;
+  color: var(--color-muted, #94a3b8);
+}
+
+.track-actions-separator {
+  height: 1px;
+  margin: 4px 6px;
+  background: var(--color-border, #e2e8f0);
+}

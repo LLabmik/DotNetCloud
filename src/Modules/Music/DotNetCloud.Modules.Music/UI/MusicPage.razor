@@ -309,19 +309,13 @@
                                                 <span class="track-title">@track.Title</span>
                                             </div>
                                             <span class="track-duration">@FormatDuration(track.Duration)</span>
-                                            <div class="track-menu">
-                                                <button class="btn-icon" @onclick="() => ShowTrackMenu(track)">⋯</button>
-                                                @if (_trackMenuId == track.Id)
-                                                {
-                                                    <div class="track-dropdown">
-                                                        <button @onclick="() => AddToQueue(track)">Add to Queue</button>
-                                                        @foreach (var pl in _playlists)
-                                                        {
-                                                            <button @onclick="() => AddToPlaylistAsync(pl.Id, track.Id)">Add to @pl.Name</button>
-                                                        }
-                                                    </div>
-                                                }
-                                            </div>
+                                            <TrackActionsMenu Track="track"
+                                                              Playlists="_myPlaylists"
+                                                              IsOpen="_trackMenuId == track.Id"
+                                                              OnToggle="() => ShowTrackMenu(track)"
+                                                              OnAddToPlaylist="pl => AddToPlaylistAsync(pl, track)"
+                                                              OnNewPlaylist="() => BeginCreatePlaylistForTrack(track)"
+                                                              OnAddToQueue="() => AddToQueue(track)" />
                                         </div>
                                     }
                                 </div>
@@ -382,19 +376,13 @@
                                             <span class="track-artist"><a class="artist-link-inline" @onclick="() => NavigateToArtistAsync(track.ArtistId)" @onclick:stopPropagation="true">@track.ArtistName</a> — <a class="album-link" @onclick="() => NavigateToAlbumAsync(track.AlbumId)" @onclick:stopPropagation="true">@track.AlbumTitle</a></span>
                                         </div>
                                         <span class="track-duration">@FormatDuration(track.Duration)</span>
-                                        <div class="track-menu">
-                                            <button class="btn-icon" @onclick="() => ShowTrackMenu(track)">⋯</button>
-                                            @if (_trackMenuId == track.Id)
-                                            {
-                                                <div class="track-dropdown">
-                                                    <button @onclick="() => AddToQueue(track)">Add to Queue</button>
-                                                    @foreach (var pl in _playlists)
-                                                    {
-                                                        <button @onclick="() => AddToPlaylistAsync(pl.Id, track.Id)">Add to @pl.Name</button>
-                                                    }
-                                                </div>
-                                            }
-                                        </div>
+                                        <TrackActionsMenu Track="track"
+                                                          Playlists="_myPlaylists"
+                                                          IsOpen="_trackMenuId == track.Id"
+                                                          OnToggle="() => ShowTrackMenu(track)"
+                                                          OnAddToPlaylist="pl => AddToPlaylistAsync(pl, track)"
+                                                          OnNewPlaylist="() => BeginCreatePlaylistForTrack(track)"
+                                                          OnAddToQueue="() => AddToQueue(track)" />
                                     </div>
                                 }
                             </div>
@@ -711,19 +699,13 @@
                                 <button class="track-action" @onclick="() => ToggleStarTrackAsync(track)" title="Star">
                                     @(track.IsStarred ? "★" : "☆")
                                 </button>
-                                <div class="track-menu">
-                                    <button class="btn-icon" @onclick="() => ShowTrackMenu(track)">⋯</button>
-                                    @if (_trackMenuId == track.Id)
-                                    {
-                                        <div class="track-dropdown">
-                                            <button @onclick="() => AddToQueue(track)">Add to Queue</button>
-                                            @foreach (var pl in _playlists)
-                                            {
-                                                <button @onclick="() => AddToPlaylistAsync(pl.Id, track.Id)">Add to @pl.Name</button>
-                                            }
-                                        </div>
-                                    }
-                                </div>
+                                <TrackActionsMenu Track="track"
+                                                  Playlists="_myPlaylists"
+                                                  IsOpen="_trackMenuId == track.Id"
+                                                  OnToggle="() => ShowTrackMenu(track)"
+                                                  OnAddToPlaylist="pl => AddToPlaylistAsync(pl, track)"
+                                                  OnNewPlaylist="() => BeginCreatePlaylistForTrack(track)"
+                                                  OnAddToQueue="() => AddToQueue(track)" />
                             </div>
                         }
                     </div>
@@ -756,19 +738,13 @@
                                     <span class="track-artist">@track.ArtistName — @track.AlbumTitle</span>
                                 </div>
                                 <span class="track-duration">@FormatDuration(track.Duration)</span>
-                                <div class="track-menu">
-                                    <button class="btn-icon" @onclick="() => ShowTrackMenu(track)">⋯</button>
-                                    @if (_trackMenuId == track.Id)
-                                    {
-                                        <div class="track-dropdown">
-                                            <button @onclick="() => AddToQueue(track)">Add to Queue</button>
-                                            @foreach (var pl in _playlists)
-                                            {
-                                                <button @onclick="() => AddToPlaylistAsync(pl.Id, track.Id)">Add to @pl.Name</button>
-                                            }
-                                        </div>
-                                    }
-                                </div>
+                                <TrackActionsMenu Track="track"
+                                                  Playlists="_myPlaylists"
+                                                  IsOpen="_trackMenuId == track.Id"
+                                                  OnToggle="() => ShowTrackMenu(track)"
+                                                  OnAddToPlaylist="pl => AddToPlaylistAsync(pl, track)"
+                                                  OnNewPlaylist="() => BeginCreatePlaylistForTrack(track)"
+                                                  OnAddToQueue="() => AddToQueue(track)" />
                             </div>
                         }
                     </div>
@@ -997,6 +973,13 @@
                                 <button class="btn-icon-action danger" @onclick="() => DeletePlaylistAsync(_selectedPlaylist.Id)" title="Delete">🗑</button>
                             </div>
                         </div>
+                        @if (_playlistTracks.Count == 0)
+                        {
+                            <div class="playlist-empty-hint">
+                                <MaterialIcon Icon="playlist_add" Size="MaterialIconSize.Lg" />
+                                <p>This playlist is empty. Use the <strong>add to playlist</strong> button on the right of any song row to add it here.</p>
+                            </div>
+                        }
                         <div class="track-list">
                             @foreach (var (track, index) in _playlistTracks.Select((t, i) => (t, i)))
                             {
@@ -1009,19 +992,13 @@
                                     </div>
                                     <span class="track-duration">@FormatDuration(track.Duration)</span>
                                     <button class="track-action danger" @onclick="() => RemoveFromPlaylistAsync(_selectedPlaylist.Id, track.Id)" title="Remove">✕</button>
-                                    <div class="track-menu">
-                                        <button class="btn-icon" @onclick="() => ShowTrackMenu(track)">⋯</button>
-                                        @if (_trackMenuId == track.Id)
-                                        {
-                                            <div class="track-dropdown">
-                                                <button @onclick="() => AddToQueue(track)">Add to Queue</button>
-                                                @foreach (var pl in _playlists)
-                                                {
-                                                    <button @onclick="() => AddToPlaylistAsync(pl.Id, track.Id)">Add to @pl.Name</button>
-                                                }
-                                            </div>
-                                        }
-                                    </div>
+                                    <TrackActionsMenu Track="track"
+                                                      Playlists="_myPlaylists"
+                                                      IsOpen="_trackMenuId == track.Id"
+                                                      OnToggle="() => ShowTrackMenu(track)"
+                                                      OnAddToPlaylist="pl => AddToPlaylistAsync(pl, track)"
+                                                      OnNewPlaylist="() => BeginCreatePlaylistForTrack(track)"
+                                                      OnAddToQueue="() => AddToQueue(track)" />
                                 </div>
                             }
                         </div>
@@ -1084,19 +1061,13 @@
                                 </div>
                                 <span class="track-duration">@FormatDuration(track.Duration)</span>
                                 <button class="track-action" @onclick="() => ToggleStarTrackAsync(track)" title="Unstar">★</button>
-                                <div class="track-menu">
-                                    <button class="btn-icon" @onclick="() => ShowTrackMenu(track)">⋯</button>
-                                    @if (_trackMenuId == track.Id)
-                                    {
-                                        <div class="track-dropdown">
-                                            <button @onclick="() => AddToQueue(track)">Add to Queue</button>
-                                            @foreach (var pl in _playlists)
-                                            {
-                                                <button @onclick="() => AddToPlaylistAsync(pl.Id, track.Id)">Add to @pl.Name</button>
-                                            }
-                                        </div>
-                                    }
-                                </div>
+                                <TrackActionsMenu Track="track"
+                                                  Playlists="_myPlaylists"
+                                                  IsOpen="_trackMenuId == track.Id"
+                                                  OnToggle="() => ShowTrackMenu(track)"
+                                                  OnAddToPlaylist="pl => AddToPlaylistAsync(pl, track)"
+                                                  OnNewPlaylist="() => BeginCreatePlaylistForTrack(track)"
+                                                  OnAddToQueue="() => AddToQueue(track)" />
                             </div>
                         }
                     </div>
@@ -1125,19 +1096,13 @@
                                 <span class="track-artist">@track.ArtistName — @track.AlbumTitle</span>
                             </div>
                             <span class="track-duration">@FormatDuration(track.Duration)</span>
-                            <div class="track-menu">
-                                <button class="btn-icon" @onclick="() => ShowTrackMenu(track)">⋯</button>
-                                @if (_trackMenuId == track.Id)
-                                {
-                                    <div class="track-dropdown">
-                                        <button @onclick="() => AddToQueue(track)">Add to Queue</button>
-                                        @foreach (var pl in _playlists)
-                                        {
-                                            <button @onclick="() => AddToPlaylistAsync(pl.Id, track.Id)">Add to @pl.Name</button>
-                                        }
-                                    </div>
-                                }
-                            </div>
+                            <TrackActionsMenu Track="track"
+                                              Playlists="_myPlaylists"
+                                              IsOpen="_trackMenuId == track.Id"
+                                              OnToggle="() => ShowTrackMenu(track)"
+                                              OnAddToPlaylist="pl => AddToPlaylistAsync(pl, track)"
+                                              OnNewPlaylist="() => BeginCreatePlaylistForTrack(track)"
+                                              OnAddToQueue="() => AddToQueue(track)" />
                         </div>
                     }
                 </div>
@@ -1594,6 +1559,15 @@
         <div class="enrichment-toast">
             <span>@_enrichmentToast</span>
             <button class="toast-dismiss" @onclick="DismissEnrichmentToast">✕</button>
+        </div>
+    }
+
+    @* ─── Add-to-playlist confirmation ─── *@
+    @if (_trackActionToast is not null)
+    {
+        <div class="enrichment-toast" role="status">
+            <span>@_trackActionToast</span>
+            <button class="toast-dismiss" @onclick="DismissTrackActionToast" aria-label="Dismiss">✕</button>
         </div>
     }
 

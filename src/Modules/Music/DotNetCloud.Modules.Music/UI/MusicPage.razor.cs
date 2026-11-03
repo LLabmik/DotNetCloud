@@ -72,6 +72,12 @@ public partial class MusicPage : IAsyncDisposable
     private bool _showEditPlaylistDialog;
     private Guid? _trackMenuId;
 
+    // ── Add-to-playlist menu ──
+    /// <summary>Track waiting to be added to a playlist that is being created from the track menu.</summary>
+    private Guid? _pendingPlaylistAddTrackId;
+    private string? _trackActionToast;
+    private CancellationTokenSource? _trackActionToastCts;
+
     // ── Playlist form ──
     private string _playlistName = string.Empty;
     private string _playlistDescription = string.Empty;
@@ -854,6 +860,7 @@ public partial class MusicPage : IAsyncDisposable
     {
         _showCreatePlaylistDialog = false;
         _showEditPlaylistDialog = false;
+        _pendingPlaylistAddTrackId = null;
     }
 
     private async Task SavePlaylistAsync()
@@ -867,9 +874,25 @@ public partial class MusicPage : IAsyncDisposable
             }
             else
             {
-                await PlaylistService.CreatePlaylistAsync(new CreatePlaylistDto { Name = _playlistName, Description = _playlistDescription, IsPublic = _playlistPublic }, caller);
+                var created = await PlaylistService.CreatePlaylistAsync(new CreatePlaylistDto { Name = _playlistName, Description = _playlistDescription, IsPublic = _playlistPublic }, caller);
+
+                // Reached via "New playlist…" in a track menu — add the track the menu was opened for.
+                if (_pendingPlaylistAddTrackId is Guid pendingTrackId)
+                {
+                    _pendingPlaylistAddTrackId = null;
+                    try
+                    {
+                        await PlaylistService.AddTrackAsync(created.Id, pendingTrackId, caller);
+                        ShowTrackActionToast($"Added the track to “{created.Name}”");
+                    }
+                    catch (Exception ex)
+                    {
+                        Logger.LogError(ex, "Error adding track to newly created playlist {PlaylistId}", created.Id);
+                        ShowTrackActionToast($"Playlist “{created.Name}” created, but the track could not be added.");
+                    }
+                }
             }
-            _playlists = (await PlaylistService.ListPlaylistsAsync(caller)).ToList();
+            await RefreshPlaylistsAsync(caller);
             ClosePlaylistDialog();
         }
         catch (Exception ex)
@@ -894,18 +917,85 @@ public partial class MusicPage : IAsyncDisposable
         }
     }
 
-    private async Task AddToPlaylistAsync(Guid playlistId, Guid trackId)
+    private async Task AddToPlaylistAsync(PlaylistDto playlist, TrackDto track)
     {
+        _trackMenuId = null;
         try
         {
             var caller = await GetCallerAsync();
-            await PlaylistService.AddTrackAsync(playlistId, trackId, caller);
-            _trackMenuId = null;
+            await PlaylistService.AddTrackAsync(playlist.Id, track.Id, caller);
+            await RefreshPlaylistsAsync(caller);
+            if (_selectedPlaylistId == playlist.Id)
+            {
+                _playlistTracks = (await PlaylistService.GetPlaylistTracksAsync(playlist.Id, caller)).ToList();
+            }
+            ShowTrackActionToast($"Added “{track.Title}” to {playlist.Name}");
+        }
+        catch (DotNetCloud.Core.Errors.DotNetCloudException ex) when (ex.ErrorCode == DotNetCloud.Core.Errors.ErrorCodes.TrackAlreadyInPlaylist)
+        {
+            ShowTrackActionToast($"“{track.Title}” is already in {playlist.Name}");
         }
         catch (Exception ex)
         {
-            Logger.LogError(ex, "Error adding track to playlist");
+            Logger.LogError(ex, "Error adding track to playlist {PlaylistId}", playlist.Id);
+            ShowTrackActionToast("Could not add the track to the playlist.");
         }
+    }
+
+    /// <summary>Opens the create-playlist dialog from a track menu and remembers the track to add.</summary>
+    private void BeginCreatePlaylistForTrack(TrackDto track)
+    {
+        _trackMenuId = null;
+        _pendingPlaylistAddTrackId = track.Id;
+        BeginCreatePlaylist();
+    }
+
+    /// <summary>Reloads the playlist list (track counts change after an add) and keeps the open playlist in sync.</summary>
+    private async Task RefreshPlaylistsAsync(CallerContext caller)
+    {
+        _playlists = (await PlaylistService.ListPlaylistsAsync(caller)).ToList();
+        if (_selectedPlaylistId is Guid selectedId)
+        {
+            _selectedPlaylist = _playlists.FirstOrDefault(p => p.Id == selectedId) ?? _selectedPlaylist;
+        }
+    }
+
+    private void ShowTrackActionToast(string message)
+    {
+        _trackActionToast = message;
+        _trackActionToastCts?.Cancel();
+        _trackActionToastCts?.Dispose();
+        var cts = new CancellationTokenSource();
+        _trackActionToastCts = cts;
+        _ = AutoDismissTrackActionToastAsync(cts);
+    }
+
+    private async Task AutoDismissTrackActionToastAsync(CancellationTokenSource cts)
+    {
+        try
+        {
+            await Task.Delay(TimeSpan.FromSeconds(4), cts.Token);
+        }
+        catch (OperationCanceledException)
+        {
+            return;
+        }
+
+        if (cts.IsCancellationRequested)
+            return;
+
+        _trackActionToast = null;
+        try
+        {
+            await InvokeAsync(StateHasChanged);
+        }
+        catch (ObjectDisposedException) { }
+    }
+
+    private void DismissTrackActionToast()
+    {
+        _trackActionToastCts?.Cancel();
+        _trackActionToast = null;
     }
 
     private async Task RemoveFromPlaylistAsync(Guid playlistId, Guid trackId)
@@ -2600,6 +2690,10 @@ public partial class MusicPage : IAsyncDisposable
 
         _visualizerShortcutRef?.Dispose();
         _visualizerShortcutRef = null;
+
+        _trackActionToastCts?.Cancel();
+        _trackActionToastCts?.Dispose();
+        _trackActionToastCts = null;
     }
 
     // ────────────────────────────────────────────────────────

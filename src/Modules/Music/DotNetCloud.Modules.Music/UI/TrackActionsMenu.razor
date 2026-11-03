@@ -1,0 +1,56 @@
+@namespace DotNetCloud.Modules.Music.UI
+
+@*
+    Per-track "add to playlist" menu, shared by every track list on the Music page.
+    A bare "⋯" button was too easy to miss, so this renders a visible playlist_add icon
+    and a dropdown that explicitly lists the caller's own playlists, a "New playlist…"
+    option, and the queue action.
+*@
+
+<div class="track-actions">
+    <button type="button"
+            class="track-actions-toggle @(IsOpen ? "open" : "")"
+            title="Add “@Track.Title” to a playlist"
+            aria-label="Add @Track.Title to a playlist"
+            aria-haspopup="menu"
+            aria-expanded="@(IsOpen ? "true" : "false")"
+            @onclick="OnToggle">
+        <MaterialIcon Icon="playlist_add" Size="MaterialIconSize.Sm" />
+    </button>
+
+    @if (IsOpen)
+    {
+        <div class="track-actions-menu" role="menu" aria-label="Add to playlist">
+            <div class="track-actions-heading">Add to playlist</div>
+
+            @if (Playlists.Count == 0)
+            {
+                <div class="track-actions-empty">No playlists yet</div>
+            }
+
+            @foreach (var playlist in Playlists)
+            {
+                <button type="button" role="menuitem" class="track-actions-item"
+                        title="Add to @playlist.Name"
+                        @onclick="() => OnAddToPlaylist.InvokeAsync(playlist)">
+                    <span class="track-actions-item-name">@playlist.Name</span>
+                    <span class="track-actions-item-meta">@playlist.TrackCount</span>
+                </button>
+            }
+
+            <button type="button" role="menuitem" class="track-actions-item track-actions-new"
+                    title="Create a playlist and add this track"
+                    @onclick="OnNewPlaylist">
+                <MaterialIcon Icon="add" Size="MaterialIconSize.Sm" />
+                <span class="track-actions-item-name">New playlist…</span>
+            </button>
+
+            <div class="track-actions-separator" role="separator"></div>
+
+            <button type="button" role="menuitem" class="track-actions-item" @onclick="OnAddToQueue">
+                <MaterialIcon Icon="queue_music" Size="MaterialIconSize.Sm" />
+                <span class="track-actions-item-name">Add to queue</span>
+            </button>
+        </div>
+    }
+</div>
