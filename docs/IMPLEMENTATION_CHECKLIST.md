@@ -373,6 +373,15 @@
 - ✓ **Verified** — `deploy.sh --force --verify` 15/15 targets, hashes verified, `/health/ready` 200; browser: `/apps/files` root 6 items → _Documents_ 2 items → Home 6 → _Music_ 2 items, with the Select toggle still entering selection mode. Before the fix only a service restart cleared it.
 - ☐ **Follow-up (not done)** — `CollaboraProcessManager` / WOPI services still read `Current` synchronously; converting them to `await GetAsync()` would remove the bounded-blocking path entirely.
 
+## Recent Fix — Chat messages collapsed into one line and lost Markdown formatting (2026-11-02, `fix/chat-losing-markdown-formatting`)
+
+> Reported: a message typed with line breaks/paragraphs displayed as one long run-on block, and list/heading/quote/code-fence Markdown stopped rendering.
+
+- ✓ **Root cause** — `MessageList.RenderMarkdown` HTML-encoded the entire message **before** splitting it into lines. `HtmlEncoder.Default.Encode` turns `\n` into `&#xA;`, so the splitter never saw a line break: every message became a single line and all block-level Markdown (paragraphs, lists, headings, blockquotes, code fences) was lost. `.message-content` has no `white-space: pre-wrap`, so the encoded newline collapsed to a space.
+- ✓ **Fix** — normalise `\r\n`/`\r`, split on raw line breaks first, then HTML-encode each fragment at emit time via a new `EncodeForHtml` helper, so inline and block Markdown both parse while user content remains escaped (XSS-safe).
+- ✓ **Tests** — new `MessageListMarkdownTests` (13 cases: inline formatting, links, CR/LF line breaks, UL/OL lists, heading after text, blockquotes, code fences with escaping, horizontal rules, raw-HTML/XSS escaping, empty input). Chat.Tests **1501 pass / 0 fail**.
+- ✓ **Deployed + verified on mint22** — `deploy.sh --force --verify`: 15/15 targets, 204 s, all assembly hashes verified (incl. `dotnetcloud.chat.dll` containing `EncodeForHtml`), v0.6.16, service started; operator confirmed live that line breaks and bold/italic now render correctly.
+
 ## Recent Work — File versioning controls: `Enabled`, `MaxNumber`, `MaxDays` (2026-09-27, `feature/new-admin-settings`)
 
 > New admin page **Admin → File Settings** (`/admin/files`). Requested: "settings for controlling file version with Enabled, MaxNumber, and MaxDays".

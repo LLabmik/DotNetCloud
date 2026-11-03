@@ -264,8 +264,12 @@ public partial class MessageList : ComponentBase
             return new MarkupString(string.Empty);
         }
 
-        var encoded = HtmlEncoder.Default.Encode(content);
-        var lines = encoded.Replace("\r\n", "\n", StringComparison.Ordinal)
+        // Split on the raw line breaks BEFORE HTML-encoding. HtmlEncoder encodes '\n' as
+        // "&#xA;", so encoding first would collapse the whole message into a single line and
+        // destroy every block-level construct (lists, headings, quotes, code fences) that the
+        // user typed on separate lines.
+        var lines = content.Replace("\r\n", "\n", StringComparison.Ordinal)
+                           .Replace('\r', '\n')
                            .Split('\n');
         var result = new StringBuilder();
         var inCodeBlock = false;
@@ -278,12 +282,12 @@ public partial class MessageList : ComponentBase
             var line = lines[i];
             var trimmed = line.TrimStart();
 
-            // Code fence toggle (``` after HTML-encoding is still ```)
+            // Code fence toggle
             if (trimmed.StartsWith("```", StringComparison.Ordinal))
             {
                 if (inCodeBlock)
                 {
-                    result.Append("<pre><code>").Append(codeBlockContent).Append("</code></pre>");
+                    result.Append("<pre><code>").Append(EncodeForHtml(codeBlockContent.ToString())).Append("</code></pre>");
                     codeBlockContent.Clear();
                     inCodeBlock = false;
                 }
@@ -331,17 +335,17 @@ public partial class MessageList : ComponentBase
                 CloseList(result, ref inList, ref listTag);
                 var level = headingMatch.Groups[1].Value.Length;
                 result.Append("<h").Append(level).Append('>')
-                      .Append(ApplyInlineFormatting(headingMatch.Groups[2].Value))
+                      .Append(ApplyInlineFormatting(EncodeForHtml(headingMatch.Groups[2].Value)))
                       .Append("</h").Append(level).Append('>');
                 continue;
             }
 
-            // Blockquote (> becomes &gt; after HTML-encoding)
-            if (trimmed.StartsWith("&gt; ", StringComparison.Ordinal))
+            // Blockquote
+            if (trimmed.StartsWith("> ", StringComparison.Ordinal))
             {
                 CloseList(result, ref inList, ref listTag);
-                var quoteContent = trimmed[5..];
-                result.Append("<blockquote>").Append(ApplyInlineFormatting(quoteContent)).Append("</blockquote>");
+                var quoteContent = trimmed[2..];
+                result.Append("<blockquote>").Append(ApplyInlineFormatting(EncodeForHtml(quoteContent))).Append("</blockquote>");
                 continue;
             }
 
@@ -356,7 +360,7 @@ public partial class MessageList : ComponentBase
                     listTag = "ul";
                 }
                 var itemContent = trimmed[2..];
-                result.Append("<li>").Append(ApplyInlineFormatting(itemContent)).Append("</li>");
+                result.Append("<li>").Append(ApplyInlineFormatting(EncodeForHtml(itemContent))).Append("</li>");
                 continue;
             }
 
@@ -371,12 +375,12 @@ public partial class MessageList : ComponentBase
                     listTag = "ol";
                 }
                 var olMatch = OrderedListRegex.Match(trimmed);
-                result.Append("<li>").Append(ApplyInlineFormatting(olMatch.Groups[1].Value)).Append("</li>");
+                result.Append("<li>").Append(ApplyInlineFormatting(EncodeForHtml(olMatch.Groups[1].Value))).Append("</li>");
                 continue;
             }
 
             // Regular line
-            result.Append(ApplyInlineFormatting(line));
+            result.Append(ApplyInlineFormatting(EncodeForHtml(line)));
             if (i < lines.Length - 1)
             {
                 result.Append("<br />");
@@ -387,11 +391,14 @@ public partial class MessageList : ComponentBase
 
         if (inCodeBlock)
         {
-            result.Append("<pre><code>").Append(codeBlockContent).Append("</code></pre>");
+            result.Append("<pre><code>").Append(EncodeForHtml(codeBlockContent.ToString())).Append("</code></pre>");
         }
 
         return new MarkupString(result.ToString());
     }
+
+    /// <summary>HTML-encodes a text fragment so user content can never inject markup.</summary>
+    private static string EncodeForHtml(string text) => HtmlEncoder.Default.Encode(text);
 
     /// <summary>Applies inline Markdown formatting to an already-HTML-encoded string.</summary>
     private static string ApplyInlineFormatting(string html)
