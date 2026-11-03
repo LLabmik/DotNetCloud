@@ -707,41 +707,6 @@
   color: #ef4444;
 }
 
-.track-menu {
-  position: relative;
-}
-
-.track-dropdown {
-  position: absolute;
-  right: 0;
-  top: 100%;
-  background: var(--color-surface, #ffffff);
-  border: 1px solid var(--color-border, #e2e8f0);
-  border-radius: var(--radius, 8px);
-  box-shadow: var(--shadow-lg, 0 8px 24px rgba(0, 0, 0, 0.12));
-  min-width: 180px;
-  z-index: 100;
-  padding: 4px;
-  display: flex;
-  flex-direction: column;
-}
-
-.track-dropdown button {
-  padding: 8px 12px;
-  background: none;
-  border: none;
-  text-align: left;
-  font-size: 0.8125rem;
-  color: var(--color-text, #1e293b);
-  cursor: pointer;
-  border-radius: 6px;
-  transition: background var(--transition, 200ms ease);
-}
-
-.track-dropdown button:hover {
-  background: var(--color-bg, #f5f7fa);
-}
-
 /* ═══════════════════════════════════════════════════════════
    Artists Grid
    ═══════════════════════════════════════════════════════════ */
@@ -1225,6 +1190,22 @@
   align-items: center;
   gap: 8px;
   margin-top: 12px;
+}
+
+.playlist-empty-hint {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 8px 0 16px;
+  padding: 14px 18px;
+  border: 1px dashed var(--color-border, #e2e8f0);
+  border-radius: var(--radius, 8px);
+  color: var(--color-muted, #94a3b8);
+  font-size: 0.8125rem;
+}
+
+.playlist-empty-hint p {
+  margin: 0;
 }
 
 /* ═══════════════════════════════════════════════════════════
