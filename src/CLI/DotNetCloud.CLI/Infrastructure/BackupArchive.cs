@@ -23,6 +23,12 @@ internal sealed record BackupInfo
     /// <summary>Schema version of the backup layout. <c>2</c> adds system configuration + metadata.</summary>
     public int FormatVersion { get; init; } = BackupArchive.CurrentFormatVersion;
 
+    /// <summary>Backup mode: <c>zip</c> (single or split archive) or <c>mirror</c> (incremental snapshot).</summary>
+    public string Mode { get; init; } = "zip";
+
+    /// <summary>Split size in bytes for zip sets (0 = single archive).</summary>
+    public long SplitSizeBytes { get; init; }
+
     /// <summary>UTC creation timestamp (ISO-8601).</summary>
     public string CreatedUtc { get; init; } = string.Empty;
 
@@ -61,6 +67,15 @@ internal sealed record BackupInfo
 
     /// <summary>Number of empty data-directory folders archived explicitly.</summary>
     public int EmptyDirectoryCount { get; init; }
+
+    /// <summary>For mirror snapshots: the previous snapshot hardlinked from, if any.</summary>
+    public string? PreviousSnapshot { get; init; }
+
+    /// <summary>For mirror snapshots: files hardlinked from the previous snapshot.</summary>
+    public int HardLinkedFiles { get; init; }
+
+    /// <summary>For mirror snapshots: files copied from the source.</summary>
+    public int CopiedFiles { get; init; }
 
     /// <summary>Total number of archive entries.</summary>
     public int TotalEntryCount { get; init; }
@@ -108,6 +123,34 @@ internal static class BackupArchive
 
     /// <summary>Service account name used on system installs.</summary>
     internal const string DefaultServiceUser = "dotnetcloud";
+
+    /// <summary>
+    /// Returns whether the current user can read a file. System configuration files are owned by root
+    /// or by the <c>cool</c> group; a scheduled backup running as the service account must skip the
+    /// ones it cannot open instead of failing the whole backup.
+    /// </summary>
+    internal static bool CanRead(string path)
+    {
+        try
+        {
+            using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Platform default installation directory: <c>/opt/dotnetcloud</c> on Linux, the directory the
+    /// CLI was launched from on Windows (or <c>DOTNETCLOUD_INSTALL_DIR</c>).
+    /// </summary>
+    internal static string GetDefaultInstallDirectory()
+        => OperatingSystem.IsWindows()
+            ? (Environment.GetEnvironmentVariable("DOTNETCLOUD_INSTALL_DIR")
+               ?? AppContext.BaseDirectory.TrimEnd(Path.DirectorySeparatorChar))
+            : DefaultInstallDirectory;
 
     private static readonly JsonSerializerOptions InfoJsonOptions = new()
     {
@@ -206,12 +249,18 @@ internal static class BackupArchive
     /// <param name="coolwsdDirectory">Collabora configuration directory.</param>
     /// <param name="cliWrapperPath">CLI wrapper installed on <c>PATH</c>.</param>
     internal static IReadOnlyList<BackupPayloadEntry> GetSystemPayloadEntries(
-        string configDirectory = DefaultConfigDirectory,
-        string installDirectory = DefaultInstallDirectory,
-        string systemdDirectory = DefaultSystemdDirectory,
-        string coolwsdDirectory = DefaultCoolwsdDirectory,
-        string cliWrapperPath = DefaultCliWrapperPath)
+        string? configDirectory = null,
+        string? installDirectory = null,
+        string? systemdDirectory = null,
+        string? coolwsdDirectory = null,
+        string? cliWrapperPath = null)
     {
+        configDirectory ??= DefaultConfigDirectory;
+        installDirectory ??= GetDefaultInstallDirectory();
+        systemdDirectory ??= DefaultSystemdDirectory;
+        coolwsdDirectory ??= DefaultCoolwsdDirectory;
+        cliWrapperPath ??= DefaultCliWrapperPath;
+
         var entries = new List<BackupPayloadEntry>
         {
             // Configuration: DB connection string + Collabora/WOPI environment.
@@ -224,22 +273,25 @@ internal static class BackupArchive
             new(Path.Combine(configDirectory, "certs", "dotnetcloud-selfsigned.pem"), "config/certs/dotnetcloud-selfsigned.pem"),
             new(Path.Combine(configDirectory, "certs", "dotnetcloud-root-ca.crt"), "config/certs/dotnetcloud-root-ca.crt"),
 
-            // Service definition. This is not always identical to the installer template: operators add
-            // environment entries (for example Video__Enrichment__TmdbApiKey) that exist nowhere else.
-            new(Path.Combine(systemdDirectory, "dotnetcloud.service"), "system/systemd/dotnetcloud.service"),
-            new(cliWrapperPath, "system/bin/dotnetcloud"),
-
-            // Collabora CODE configuration modified by the installer (WOPI alias group, TLS verification).
-            new(Path.Combine(coolwsdDirectory, "coolwsd.xml"), "system/coolwsd/coolwsd.xml"),
-            new(Path.Combine(coolwsdDirectory, "cert.pem"), "system/coolwsd/cert.pem"),
-            new(Path.Combine(coolwsdDirectory, "ca-chain.cert.pem"), "system/coolwsd/ca-chain.cert.pem"),
-
             // Small, stateful-or-versioned files from the install directory. Binaries are deliberately
             // excluded: they are rebuilt by install.sh / scripts/deploy.sh.
             new(Path.Combine(installDirectory, "appsettings.json"), "opt/appsettings.json"),
             new(Path.Combine(installDirectory, "appsettings.Development.json"), "opt/appsettings.Development.json"),
             new(Path.Combine(installDirectory, "VERSION"), "opt/VERSION"),
         };
+
+        if (OperatingSystem.IsLinux())
+        {
+            // Service definition. This is not always identical to the installer template: operators add
+            // environment entries (for example Video__Enrichment__TmdbApiKey) that exist nowhere else.
+            entries.Add(new(Path.Combine(systemdDirectory, "dotnetcloud.service"), "system/systemd/dotnetcloud.service"));
+            entries.Add(new(cliWrapperPath, "system/bin/dotnetcloud"));
+
+            // Collabora CODE configuration modified by the installer (WOPI alias group, TLS verification).
+            entries.Add(new(Path.Combine(coolwsdDirectory, "coolwsd.xml"), "system/coolwsd/coolwsd.xml"));
+            entries.Add(new(Path.Combine(coolwsdDirectory, "cert.pem"), "system/coolwsd/cert.pem"));
+            entries.Add(new(Path.Combine(coolwsdDirectory, "ca-chain.cert.pem"), "system/coolwsd/ca-chain.cert.pem"));
+        }
 
         // Enumerate extra certificate files and systemd drop-ins rather than hard-coding names, so a
         // future rotation (signing/encryption keys, ACME certificates) is captured automatically.

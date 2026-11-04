@@ -540,6 +540,14 @@ public sealed class BackupService : DotNetCloud.Core.Services.IBackupService
         if (!string.IsNullOrWhiteSpace(dataDirectory))
             return Path.Combine(dataDirectory, "backups");
 
+        if (OperatingSystem.IsWindows())
+        {
+            // ProgramData is writable by the service account and survives a reinstall of the binary.
+            return Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),
+                "DotNetCloud", "backups");
+        }
+
         return Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
             ".config", "dotnetcloud", "backups");
@@ -549,7 +557,14 @@ public sealed class BackupService : DotNetCloud.Core.Services.IBackupService
     private static string ResolveConfiguredDataDirectory()
     {
         var configured = Environment.GetEnvironmentVariable("DOTNETCLOUD_DATA_DIR");
-        return string.IsNullOrWhiteSpace(configured) ? "/var/lib/dotnetcloud" : configured;
+        if (!string.IsNullOrWhiteSpace(configured))
+            return configured;
+
+        return OperatingSystem.IsWindows()
+            ? Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),
+                "DotNetCloud", "data")
+            : "/var/lib/dotnetcloud";
     }
 
     /// <summary>Account that owns the restored data directory.</summary>
@@ -596,22 +611,31 @@ public sealed class BackupService : DotNetCloud.Core.Services.IBackupService
         CollectSystemConfigurationFiles()
     {
         var configDirectory = ResolveConfigDirectory();
-        var installDirectory = Environment.GetEnvironmentVariable("DOTNETCLOUD_INSTALL_DIR") ?? "/opt/dotnetcloud";
+        var installDirectory = Environment.GetEnvironmentVariable("DOTNETCLOUD_INSTALL_DIR")
+            ?? (OperatingSystem.IsWindows()
+                ? AppContext.BaseDirectory.TrimEnd(Path.DirectorySeparatorChar)
+                : "/opt/dotnetcloud");
         var coolwsdDirectory = "/etc/coolwsd";
 
         var candidates = new List<(string Source, string EntryName)>
         {
             (Path.Combine(configDirectory, "config.json"), "config/config.json"),
             (Path.Combine(configDirectory, "env"), "config/env"),
-            (Path.Combine("/etc/systemd/system", "dotnetcloud.service"), "system/systemd/dotnetcloud.service"),
-            (Path.Combine("/usr/local/bin", "dotnetcloud"), "system/bin/dotnetcloud"),
-            (Path.Combine(coolwsdDirectory, "coolwsd.xml"), "system/coolwsd/coolwsd.xml"),
-            (Path.Combine(coolwsdDirectory, "cert.pem"), "system/coolwsd/cert.pem"),
-            (Path.Combine(coolwsdDirectory, "ca-chain.cert.pem"), "system/coolwsd/ca-chain.cert.pem"),
             (Path.Combine(installDirectory, "appsettings.json"), "opt/appsettings.json"),
             (Path.Combine(installDirectory, "appsettings.Development.json"), "opt/appsettings.Development.json"),
             (Path.Combine(installDirectory, "VERSION"), "opt/VERSION"),
         };
+
+        // systemd unit, CLI wrapper and Collabora config only exist on Linux. The unit matters most: it
+        // carries operator-added environment entries that exist nowhere else.
+        if (OperatingSystem.IsLinux())
+        {
+            candidates.Add((Path.Combine("/etc/systemd/system", "dotnetcloud.service"), "system/systemd/dotnetcloud.service"));
+            candidates.Add((Path.Combine("/usr/local/bin", "dotnetcloud"), "system/bin/dotnetcloud"));
+            candidates.Add((Path.Combine(coolwsdDirectory, "coolwsd.xml"), "system/coolwsd/coolwsd.xml"));
+            candidates.Add((Path.Combine(coolwsdDirectory, "cert.pem"), "system/coolwsd/cert.pem"));
+            candidates.Add((Path.Combine(coolwsdDirectory, "ca-chain.cert.pem"), "system/coolwsd/ca-chain.cert.pem"));
+        }
 
         var certsDirectory = Path.Combine(configDirectory, "certs");
         if (Directory.Exists(certsDirectory))

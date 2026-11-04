@@ -1622,6 +1622,19 @@ Core platform boots, authenticates a user, loads a module, serves the Blazor UI.
 - ✓ `dotnetcloud restore --skip-database|--skip-system|--skip-service|--data-dir|--yes|--no-health-wait` - Granular control
 - ✓ `dotnetcloud backup --schedule daily` - Schedule automatic backups
 - ✓ `--compression optimal|fastest|store` - Configurable Deflate level (`store` is much faster for media)
+- ✓ `--mode zip|mirror` - Single/split archive, or an incremental snapshot that hardlinks unchanged
+  content-addressed blobs and resumes an interrupted run
+- ✓ `--split-size {size}` - Numbered part set (`part001.zip`…) plus `.backupset.json` manifest, so a
+  20 TB+ library can exceed the ext4 16 TiB per-file limit
+- ✓ `restore` accepts a single archive, any part of a split set (manifest located automatically), or a
+  mirror snapshot root — with `--snapshot` (pick one) and `--verify-parts` (hash every part first)
+- ✓ Unreadable data/system files are skipped and recorded as warnings instead of aborting the backup
+- ✓ **Restoring onto a new host name:** `restore` re-issues the self-signed leaf for the new `hostname`
+  (same root CA, so client trust survives), updates `config.json`, and repoints Collabora's managed
+  alias group + `cert.pem`; warns instead when the CA has no key (new root) or Let's Encrypt is used
+- ✓ **Windows Server:** platform-aware system payload, `sc.exe` service control, `certutil` root CA,
+  `DOTNETCLOUD_POSTGRES_ADMIN_CONNECTION` for role/database management, NTFS hardlinks,
+  `%ProgramData%\DotNetCloud` defaults
 - ✓ **Large datasets:** Admin UI backup runs as a background job (`POST backup/start`, polled via `/backup/status`,
   cancellable via `/backup/cancel`) with phase/file/byte progress — no 100-second HTTP timeout
 - ✓ **Streaming restore:** entries are written straight from the archive to their destinations; `database.sql`
@@ -1661,6 +1674,10 @@ Core platform boots, authenticates a user, loads a module, serves the Blazor UI.
 - ✓ `BackupArchiveTests` — 16 tests (connection-string password, tool environment, system payload, Zip-Slip rejection, backup metadata round-trip)
 - ✓ `BackupCompressionTests` — 7 tests (store/fastest/optimal mapping, aliases, case-insensitivity, fallbacks)
 - ✓ `BackupJobRunnerTests` — 5 tests (completion metadata, single-job guard, cancel, failure reporting)
+- ✓ `BackupEngineTests` — 16 tests (part-size parsing, split sets + manifest + checksums, part
+  detection/verification, snapshot discovery/resume, hardlink decisions)
+- ✓ `RestoredHostIdentityTests` — 9 tests (leaf re-issue for a new host with the restored root CA,
+  new-root fallback, same-host no-op, managed Collabora alias block repointing)
 - ✓ `SystemdServiceHelperTests` — 15 tests (Type=forking, PIDFile, no ExecStop, hardening, systemd format validation)
 
 ---

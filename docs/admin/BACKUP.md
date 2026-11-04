@@ -117,6 +117,56 @@ Behaviour guarantees:
 - `--no-system` skips the system configuration (not recommended for disaster recovery).
 - `--no-manifest` skips the storage manifest (e.g. when the database is unreachable).
 - The backup directory and the in-progress archive are always excluded, so backups never nest.
+- Files the current user cannot read are skipped and recorded in `backup-info.json` under `warnings`
+  instead of aborting the whole backup.
+
+#### Split sets (larger than the filesystem allows)
+
+A single ZIP is a single file, so it can never exceed the filesystem's maximum file size — **ext4 caps
+a file at 16 TiB**, which a 20 TB library exceeds once the archive grows past that. Use `--split-size`
+to write a numbered part set instead:
+
+```bash
+sudo dotnetcloud backup --output /backups/dnc/weekly.zip --split-size 8TB --compression store
+#   → /backups/dnc/weekly.part001.zip
+#   → /backups/dnc/weekly.part002.zip
+#   → /backups/dnc/weekly.part003.zip        (any number of parts)
+#   → /backups/dnc/weekly.part00N.zip.sha256 (one sidecar per part)
+#   → /backups/dnc/weekly.backupset.json     (manifest: parts, sizes, hashes, entry counts)
+```
+
+- No archive entry is ever split across parts, so any single file must be smaller than the part size.
+- Choose a part size **below** the filesystem limit (8 TB on ext4, 60 TB on NTFS) and below the free
+  space of the target volume.
+- Keep the whole set together: `restore` opens the parts through the manifest and can verify every part
+  hash first.
+- Sizes accept `KB`/`MB`/`GB`/`TB` (binary multiples); a bare number means bytes.
+
+#### Incremental snapshots (mirror mode)
+
+For a 20 TB library a full archive every night is impractical: it re-writes 20 TB each time. `--mode
+mirror` writes a **snapshot directory** instead, and hardlinks every unchanged content-addressed blob
+from the previous snapshot, so only new blobs are actually written:
+
+```bash
+sudo dotnetcloud backup --mode mirror --output /backups/dnc/mirror
+#   → /backups/dnc/mirror/20261103-020000/
+#         database.sql
+#         config/**  system/**  opt/**
+#         data/**            (unchanged storage blobs hardlinked from the previous snapshot)
+#         backup-info.json   (Mode=mirror, PreviousSnapshot, HardLinkedFiles, CopiedFiles)
+```
+
+- Only blobs named `storage/files/xx/yy/<sha256>` and `storage/chunks/xx/yy/<sha256>` are hardlinked —
+  they are immutable and content-addressed. Keys, caches and mutable files are always copied.
+- The target must be on **one volume** (hardlinks cannot cross volumes) and usually **on the server**, so
+  a snapshot is not a substitute for an off-site copy.
+- `backup-info.json` is written last, so an interrupted run leaves `<timestamp>.partial`, which the next
+  run **resumes** instead of restarting.
+- Old snapshots share blocks, so deleting one only frees space for blobs no other snapshot references.
+  Keep a small number of them (`--mode mirror` output plus a weekly full ZIP for off-site copies).
+- Restoring takes the newest complete snapshot by default: `sudo dotnetcloud restore /backups/dnc/mirror`
+  (use `--snapshot 20261027-020000` to pick an older one).
 
 The manifest is generated automatically, before the archive is written, so every backup explains its own
 storage tree:
@@ -290,6 +340,47 @@ Options:
 | `--skip-service`     | Do not stop or start the systemd service                                                   |
 | `--data-dir <path>`  | Restore data somewhere other than the path recorded in `config.json`                       |
 | `--no-health-wait`   | Do not poll `/health/ready` after starting                                                 |
+| `--snapshot <name>`  | When the path is a mirror root, restore this snapshot instead of the newest one            |
+| `--verify-parts`     | Verify the SHA-256 of every part of a split set before restoring                           |
+
+The `file` argument accepts all three backup shapes:
+
+```bash
+sudo dotnetcloud restore /var/backups/dnc/dotnetcloud-2026-11-03.zip   # single archive
+sudo dotnetcloud restore /var/backups/dnc/weekly.part001.zip --verify-parts  # part set (manifest is found automatically)
+sudo dotnetcloud restore /var/backups/dnc/mirror                      # newest mirror snapshot
+```
+
+#### Restoring onto a different machine (new host name)
+
+A backup deliberately carries the **previous machine's identity**, because on identical hardware that is
+exactly right: the TLS certificate, `selfSignedTlsHost` in `config.json`, and Collabora's WOPI alias
+group all name the old host. Restoring onto replacement hardware with a different name would otherwise
+produce a certificate-name mismatch in every browser and a Collabora that rejects the new origin.
+
+`restore` detects this (it compares the restored identity with `hostname`) and, when the install uses
+**self-signed TLS**, automatically:
+
+1. Re-issues the server certificate for the new name — `CN=<new host>` with SANs `<new host>`, `localhost`,
+   `127.0.0.1`, `::1` — **signed by the restored root CA**, so every device that already trusts that root
+   keeps working with no client changes.
+2. Rewrites `certs/dotnetcloud-selfsigned.pfx`, `certs/dotnetcloud-selfsigned.pem` and
+   `certs/dotnetcloud-root-ca.crt` (ownership and `0640 root:dotnetcloud` re-applied).
+3. Updates `selfSignedTlsHost` in `config.json`.
+4. Repoints the `dotnetcloud-managed` block of `/etc/coolwsd/coolwsd.xml` at the new host, refreshes
+   Collabora's `cert.pem`/`ca-chain.cert.pem` and restarts `coolwsd`.
+
+It prints a warning naming both hosts so the change is never silent. Two exceptions:
+
+- **The restored root CA has no private key** (for example a hand-built PFX containing only the leaf):
+  a new root CA is generated and the restore says so — client devices must then install the new
+  `dotnetcloud-root-ca.crt` (available at `/root-ca.crt`).
+- **Let's Encrypt** (`useLetsEncrypt: true`): the certificate is bound to a DNS name, so it cannot be
+  re-issued locally. The restore warns; point DNS for that name at the new machine (or run
+  `dotnetcloud setup` for a new certificate).
+
+Nothing else is machine-specific: the data directory, storage blobs, database and module data are
+addressed by content and by `config.json`, not by host name.
 
 > **Restoring onto a machine where `setup` already created a database:** `setup` generates a new random
 > DB password. The restore updates the role password to the one in the archived `config.json`, so the
@@ -385,6 +476,25 @@ $action = New-ScheduledTaskAction -Execute "dotnetcloud.exe" -Argument "backup -
 $trigger = New-ScheduledTaskTrigger -Daily -At 2am
 Register-ScheduledTask -TaskName "DotNetCloudBackup" -Action $action -Trigger $trigger
 ```
+
+### Windows Server notes
+
+Backup and restore run on Windows Server with these differences:
+
+- **System payload** — there is no systemd unit, CLI wrapper or Collabora config; the archive carries
+  `config/**` (from `%APPDATA%\dotnetcloud` of the service account) and `opt/**` (from
+  `DOTNETCLOUD_INSTALL_DIR`, defaulting to the CLI's own directory). Linux-only entries are skipped.
+- **Database** — `pg_dump`/`psql` must be on `PATH`. Role and database creation needs superuser rights:
+  set `DOTNETCLOUD_POSTGRES_ADMIN_CONNECTION` to an administrative connection string, or create the role
+  and database beforehand. Without it the restore still applies the dump to an existing database.
+- **Service control** — `restore` uses `sc.exe stop|start` and `sc.exe config <name> start= auto`.
+  Override the service name with `DOTNETCLOUD_SERVICE_NAME` (default `dotnetcloud`).
+- **Root CA** — installed with `certutil -addstore -f Root` instead of `update-ca-certificates`.
+- **Hardlinks** — mirror snapshots use `CreateHardLinkW`, so the target must be an NTFS volume.
+- **Paths** — keep the backup path short; very long paths can exceed the legacy 260-character limit for
+  third-party tools.
+- **Defaults** — without `DOTNETCLOUD_DATA_DIR` the data directory is
+  `%ProgramData%\DotNetCloud\data` and backups default to `%ProgramData%\DotNetCloud\backups`.
 
 ---
 
