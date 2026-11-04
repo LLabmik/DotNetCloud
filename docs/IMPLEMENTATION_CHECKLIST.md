@@ -1628,6 +1628,7 @@ Core platform boots, authenticates a user, loads a module, serves the Blazor UI.
 - ✓ `BackupService` implementation in server with file + DB dump backup
 - ✓ Server backup resolves provider/connection from configuration and passes `PGPASSWORD` (dump no longer silently skipped)
 - ✓ Server backup resolves the data directory for Admin UI + scheduled runs, excludes the backup directory, archives empty template folders, and writes a `<archive>.sha256` sidecar
+- ✓ Installer grants the service account a read-only ACL on Collabora config/public certs so Admin backups include them (private keys stay unreadable)
 - ✓ Server archive includes system configuration (`config`, `certs`, `env`, systemd unit, CLI wrapper, `appsettings`) and `backup-info.json`
 - ✓ `POST /api/v1/core/admin/backup/run` - Trigger backup via API
 - ✓ `GET /api/v1/core/admin/backup/status` - Get backup status

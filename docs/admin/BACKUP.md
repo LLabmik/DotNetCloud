@@ -184,9 +184,12 @@ Two differences from the CLI backup, recorded in `backup-info.json` → `warning
 1. **No storage manifest.** The core server cannot query the process-isolated Files module's database, so
    `manifest/storage-manifest.tsv` is CLI-only. It is **not required** for a restore: `database.sql` contains
    every storage path and version/chunk mapping.
-2. **Collabora config is omitted when unreadable.** `/etc/coolwsd/*` is `root:cool 640` and the hardened
-   `dotnetcloud` service account cannot read it. Run the CLI backup as root to capture it; after an OS rebuild,
-   `install.sh` regenerates `coolwsd.xml` from the restored `config.json` anyway.
+2. **Collabora config needs a read ACL.** `/etc/coolwsd/coolwsd.xml` and the public certificate chain are
+   `root:cool 640`. The installer grants the service account read-only access with
+   `setfacl -m u:dotnetcloud:r` on exactly those three files — the `cool` group is deliberately **not** used,
+   because it also owns the TLS private key (`/etc/coolwsd/key.pem`). A `coolwsd` package upgrade replaces
+   `coolwsd.xml` and drops the ACL; re-run `install.sh` to re-apply it. If the ACL is missing, the archive
+   records an explicit warning and the CLI backup (run as root) still captures the files.
 
 > **Limitations:** the Admin page's *Encrypt Backups* and *Retention Count* settings are stored but not yet
 > enforced by the server-side backup. Use the CLI/cron plus external retention/encryption if you need those.

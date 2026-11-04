@@ -1406,6 +1406,40 @@ configure_coolwsd_ssl_verification() {
     fi
 }
 
+# --- Let the DotNetCloud service account read Collabora's config for backups ---
+# coolwsd.xml and the public certificates are root:cool 640. The hardened service account is NOT
+# added to the 'cool' group, because that group also owns the TLS private key
+# (/etc/coolwsd/key.pem) and the proof key. Instead grant a read-only ACL on exactly the files a
+# backup needs: the config and the public certificate chain.
+grant_coolwsd_backup_read_access() {
+    local files=(
+        "/etc/coolwsd/coolwsd.xml"
+        "/etc/coolwsd/cert.pem"
+        "/etc/coolwsd/ca-chain.cert.pem"
+    )
+    local existing=()
+    local file
+    for file in "${files[@]}"; do
+        [[ -f "$file" ]] && existing+=("$file")
+    done
+
+    if [[ ${#existing[@]} -eq 0 ]]; then
+        return 0
+    fi
+
+    if ! command -v setfacl >/dev/null 2>&1; then
+        warn "setfacl not found; Admin UI backups will not include Collabora configuration."
+        info "Install the 'acl' package (sudo apt-get install acl) and re-run the installer to enable it."
+        return 0
+    fi
+
+    if $SUDO setfacl -m "u:${SERVICE_USER}:r" "${existing[@]}" 2>/dev/null; then
+        ok "Granted ${SERVICE_USER} read access to Collabora config/certificates for backups."
+    else
+        warn "Could not grant ${SERVICE_USER} read access to Collabora configuration."
+    fi
+}
+
 maybe_install_collabora() {
     local CONFIG_FILE="${CONFIG_DIR}/config.json"
 
@@ -1453,6 +1487,9 @@ maybe_install_collabora() {
 
         # Write Collabora environment file for the systemd unit's EnvironmentFile reference.
         write_collabora_env_file "$CONFIG_FILE"
+
+        # A coolwsd package upgrade replaces coolwsd.xml, dropping any ACL, so (re)apply it every run.
+        grant_coolwsd_backup_read_access
 
         validate_collabora_runtime
     else
