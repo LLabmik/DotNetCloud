@@ -164,7 +164,34 @@ configuration first — a command run without `--config-dir` operates on the sys
 DOTNETCLOUD_CONFIG_DIR=/tmp/dnc-test dotnetcloud status   # confirm ports/paths match the test config
 ```
 
-### Method 2: Manual Backup
+### Method 2: Admin UI / Scheduled Backup (server-side)
+
+Admin → **Backup & Restore** → **Run Backup Now** (or the scheduled `BackupHostedService`) writes a
+restore-complete archive to the configured directory (default `/var/lib/dotnetcloud/backups`). It contains:
+
+- `database.sql` — `pg_dump` using the password from `config.json` (`PGPASSWORD`)
+- `data/**` — the data directory, **excluding** the backup directory and the archive itself
+- `config/config.json`, `config/env`, `config/certs/*` (PFX, PEM, root CA)
+- `system/systemd/dotnetcloud.service`, `system/bin/dotnetcloud`
+- `opt/appsettings.json`, `VERSION`
+- `backup-info.json` and `<archive>.sha256`
+
+The archive layout is identical to the CLI backup and is consumed by `dotnetcloud restore` unchanged
+(verified end-to-end, including a scratch-database restore of `database.sql`).
+
+Two differences from the CLI backup, recorded in `backup-info.json` → `warnings`:
+
+1. **No storage manifest.** The core server cannot query the process-isolated Files module's database, so
+   `manifest/storage-manifest.tsv` is CLI-only. It is **not required** for a restore: `database.sql` contains
+   every storage path and version/chunk mapping.
+2. **Collabora config is omitted when unreadable.** `/etc/coolwsd/*` is `root:cool 640` and the hardened
+   `dotnetcloud` service account cannot read it. Run the CLI backup as root to capture it; after an OS rebuild,
+   `install.sh` regenerates `coolwsd.xml` from the restored `config.json` anyway.
+
+> **Limitations:** the Admin page's *Encrypt Backups* and *Retention Count* settings are stored but not yet
+> enforced by the server-side backup. Use the CLI/cron plus external retention/encryption if you need those.
+
+### Method 3: Manual Backup
 
 #### Step 1: Database Backup
 

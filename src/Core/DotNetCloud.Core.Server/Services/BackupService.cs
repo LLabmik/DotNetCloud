@@ -185,8 +185,9 @@ public sealed class BackupService : DotNetCloud.Core.Services.IBackupService
         BackupOptions options,
         CancellationToken cancellationToken)
     {
-        var backupDir = options.BackupDirectory
-            ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".config", "dotnetcloud", "backups");
+        var backupDir = string.IsNullOrWhiteSpace(options.BackupDirectory)
+            ? ResolveDefaultBackupDirectory()
+            : options.BackupDirectory;
         Directory.CreateDirectory(backupDir);
 
         var timestamp = DateTime.UtcNow.ToString("yyyyMMdd-HHmmss");
@@ -213,6 +214,14 @@ public sealed class BackupService : DotNetCloud.Core.Services.IBackupService
         // configuration. Without this the dump silently never runs.
         var databaseProvider = options.DatabaseProvider ?? ResolveConfiguredDatabaseProvider();
         var connectionString = options.ConnectionString ?? ResolveConfiguredConnectionString();
+
+        // Neither the admin API nor the scheduled service passes a data directory. Resolve it here so
+        // an "everything needed for restore" backup actually contains the data.
+        var dataDirectory = string.IsNullOrWhiteSpace(options.DataDirectory)
+            ? ResolveConfiguredDataDirectory()
+            : options.DataDirectory;
+        var includeData = Directory.Exists(dataDirectory)
+            && (options.IncludeFileStorage || options.IncludeModuleData);
 
         try
         {
@@ -250,7 +259,9 @@ public sealed class BackupService : DotNetCloud.Core.Services.IBackupService
             // Step 2: Create zip archive
             var fileCount = 0;
             await using var zipStream = new FileStream(backupPath, FileMode.Create);
-            using var archive = new ZipArchive(zipStream, ZipArchiveMode.Create);
+            // leaveOpen: the archive is disposed explicitly before the checksum is computed; closing
+            // the stream there would make the subsequent flush fail.
+            using var archive = new ZipArchive(zipStream, ZipArchiveMode.Create, leaveOpen: true);
 
             // Add database dump if created
             if (createdDbDump && File.Exists(dbDumpPath))
@@ -271,32 +282,74 @@ public sealed class BackupService : DotNetCloud.Core.Services.IBackupService
             }
             fileCount++;
 
-            // Add data directory
-            if (!string.IsNullOrEmpty(options.DataDirectory) && Directory.Exists(options.DataDirectory))
+            // Add data directory. The backup directory and this archive are excluded: without that,
+            // every backup nests all of its predecessors and a partial copy of itself.
+            var dataFileCount = 0;
+            var emptyDirectoryCount = 0;
+            if (includeData)
             {
-                var dataFiles = Directory.GetFiles(options.DataDirectory, "*", SearchOption.AllDirectories);
-                foreach (var file in dataFiles)
+                var exclusions = new[]
+                {
+                    Path.GetFullPath(backupDir),
+                    Path.GetFullPath(backupPath),
+                };
+
+                var allDataFiles = Directory.GetFiles(dataDirectory, "*", SearchOption.AllDirectories);
+                foreach (var file in allDataFiles)
                 {
                     cancellationToken.ThrowIfCancellationRequested();
-                    var entryName = "data/" + Path.GetRelativePath(options.DataDirectory, file).Replace('\\', '/');
+                    if (IsExcludedFromArchive(file, exclusions))
+                        continue;
+
+                    var entryName = "data/" + Path.GetRelativePath(dataDirectory, file).Replace('\\', '/');
                     archive.CreateEntryFromFile(file, entryName);
                     fileCount++;
+                    dataFileCount++;
                 }
-                _logger.LogInformation("Data directory backed up ({Count} files).", dataFiles.Length);
+
+                // Empty directories are meaningful template content (the default-user-content folders
+                // are empty until an operator adds files) and ZIP stores none implicitly.
+                var emptyDirectories = Directory
+                    .GetDirectories(dataDirectory, "*", SearchOption.AllDirectories)
+                    .Where(dir => !IsExcludedFromArchive(dir, exclusions))
+                    .Where(dir => !Directory.EnumerateFileSystemEntries(dir).Any())
+                    .ToArray();
+
+                foreach (var directory in emptyDirectories)
+                {
+                    var entryName = "data/"
+                        + Path.GetRelativePath(dataDirectory, directory).Replace('\\', '/')
+                        + "/";
+                    archive.CreateEntry(entryName);
+                    fileCount++;
+                    emptyDirectoryCount++;
+                }
+
+                _logger.LogInformation(
+                    "Data directory backed up ({Files} files, {EmptyDirectories} empty directories).",
+                    dataFileCount, emptyDirectoryCount);
+            }
+            else
+            {
+                _logger.LogWarning(
+                    "Data directory backup skipped: {DataDirectory} is missing or both " +
+                    "IncludeFileStorage and IncludeModuleData are disabled.",
+                    dataDirectory);
             }
 
             // System configuration outside the data directory: config.json (DB connection string),
             // env (Collabora/WOPI), TLS certificates + root CA, the systemd unit and appsettings.
             // A restore cannot start the server without the certificate config.json points at.
-            var systemEntryCount = 0;
-            foreach (var (source, entryName) in EnumerateSystemConfigurationFiles())
+            var (systemFiles, systemWarnings) = CollectSystemConfigurationFiles();
+            var systemEntryNames = new List<string>();
+            foreach (var (source, entryName) in systemFiles)
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 try
                 {
                     archive.CreateEntryFromFile(source, entryName);
                     fileCount++;
-                    systemEntryCount++;
+                    systemEntryNames.Add(entryName);
                 }
                 catch (Exception ex)
                 {
@@ -304,9 +357,10 @@ public sealed class BackupService : DotNetCloud.Core.Services.IBackupService
                 }
             }
 
-            _logger.LogInformation("System configuration backed up ({Count} files).", systemEntryCount);
+            _logger.LogInformation("System configuration backed up ({Count} files).", systemEntryNames.Count);
 
-            // Machine-readable metadata (mirrors the CLI archive layout).
+            // Machine-readable metadata (mirrors the CLI archive layout so `dotnetcloud restore` can
+            // read either archive).
             var infoEntry = archive.CreateEntry("backup-info.json");
             await using (var writer = new StreamWriter(infoEntry.Open()))
             {
@@ -318,12 +372,28 @@ public sealed class BackupService : DotNetCloud.Core.Services.IBackupService
                     databaseProvider,
                     databaseDumpIncluded = createdDbDump,
                     storageManifestIncluded = false,
-                    dataDirectory = options.DataDirectory,
+                    dataDirectory,
                     configDirectory = ResolveConfigDirectory(),
-                    systemEntryCount,
+                    serviceUser = ResolveServiceUser(),
+                    systemEntries = systemEntryNames,
+                    dataFileCount,
+                    emptyDirectoryCount,
+                    warnings = systemWarnings
+                        .Append("The storage manifest is generated by the CLI backup only; this archive includes the " +
+                                "database dump, which contains every storage path needed for a restore.")
+                        .ToArray(),
                 }, new System.Text.Json.JsonSerializerOptions { WriteIndented = true }));
             }
             fileCount++;
+
+            // Finish the archive (writes the central directory) before hashing it.
+            archive.Dispose();
+            await zipStream.FlushAsync(cancellationToken);
+
+            var archiveHash = await ComputeSha256Async(backupPath, cancellationToken);
+            var shaPath = backupPath + ".sha256";
+            await File.WriteAllTextAsync(
+                shaPath, $"{archiveHash}  {Path.GetFileName(backupPath)}{Environment.NewLine}", cancellationToken);
 
             // Step 3: Determine final file size
             await zipStream.FlushAsync(cancellationToken);
@@ -371,6 +441,18 @@ public sealed class BackupService : DotNetCloud.Core.Services.IBackupService
         catch (Exception ex)
         {
             _logger.LogError(ex, "Backup failed.");
+
+            // Never leave a partial archive behind: it looks like a usable backup.
+            foreach (var partial in new[] { backupPath, backupPath + ".sha256" })
+            {
+                if (File.Exists(partial))
+                {
+                    try
+                    { File.Delete(partial); }
+                    catch { /* best effort */ }
+                }
+            }
+
             return new BackupResult
             {
                 Success = false,
@@ -411,19 +493,84 @@ public sealed class BackupService : DotNetCloud.Core.Services.IBackupService
     }
 
     /// <summary>
-    /// Enumerates the system files (configuration, certificates, systemd unit, appsettings) that must
-    /// travel with the data directory for a cold restore.
+    /// Default backup directory. Under systemd the service user's home is not writable
+    /// (<c>ProtectSystem=strict</c>), so default to the data directory's <c>backups</c> folder, which is
+    /// listed in <c>ReadWritePaths</c> and matches the CLI default on a system install.
     /// </summary>
-    private static IEnumerable<(string Source, string EntryName)> EnumerateSystemConfigurationFiles()
+    private static string ResolveDefaultBackupDirectory()
+    {
+        var dataDirectory = Environment.GetEnvironmentVariable("DOTNETCLOUD_DATA_DIR");
+        if (!string.IsNullOrWhiteSpace(dataDirectory))
+            return Path.Combine(dataDirectory, "backups");
+
+        return Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+            ".config", "dotnetcloud", "backups");
+    }
+
+    /// <summary>Resolves the data directory (<c>DOTNETCLOUD_DATA_DIR</c>).</summary>
+    private static string ResolveConfiguredDataDirectory()
+    {
+        var configured = Environment.GetEnvironmentVariable("DOTNETCLOUD_DATA_DIR");
+        return string.IsNullOrWhiteSpace(configured) ? "/var/lib/dotnetcloud" : configured;
+    }
+
+    /// <summary>Account that owns the restored data directory.</summary>
+    private static string ResolveServiceUser()
+        => Environment.GetEnvironmentVariable("DOTNETCLOUD_SERVICE_USER") ?? "dotnetcloud";
+
+    /// <summary>
+    /// Returns <see langword="true"/> when <paramref name="path"/> is one of the excluded paths or
+    /// lives beneath one of them. A sibling that merely shares a name prefix is not excluded.
+    /// </summary>
+    private static bool IsExcludedFromArchive(string path, IReadOnlyList<string> exclusions)
+    {
+        var comparison = OperatingSystem.IsWindows()
+            ? StringComparison.OrdinalIgnoreCase
+            : StringComparison.Ordinal;
+
+        var candidate = Path.GetFullPath(path);
+        foreach (var exclusion in exclusions)
+        {
+            if (candidate.Equals(exclusion, comparison))
+                return true;
+
+            if (candidate.StartsWith(exclusion + Path.DirectorySeparatorChar, comparison))
+                return true;
+        }
+
+        return false;
+    }
+
+    /// <summary>Computes the SHA-256 checksum of a file.</summary>
+    private static async Task<string> ComputeSha256Async(string filePath, CancellationToken cancellationToken)
+    {
+        await using var stream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read);
+        var hash = await System.Security.Cryptography.SHA256.HashDataAsync(stream, cancellationToken);
+        return Convert.ToHexStringLower(hash);
+    }
+
+    /// <summary>
+    /// Enumerates the system files (configuration, certificates, systemd unit, CLI wrapper, Collabora
+    /// config, appsettings) that must travel with the data directory for a cold restore. Files the
+    /// service account cannot read are reported as warnings instead of failing the backup.
+    /// </summary>
+    private static (IReadOnlyList<(string Source, string EntryName)> Entries, IReadOnlyList<string> Warnings)
+        CollectSystemConfigurationFiles()
     {
         var configDirectory = ResolveConfigDirectory();
         var installDirectory = Environment.GetEnvironmentVariable("DOTNETCLOUD_INSTALL_DIR") ?? "/opt/dotnetcloud";
+        var coolwsdDirectory = "/etc/coolwsd";
 
         var candidates = new List<(string Source, string EntryName)>
         {
             (Path.Combine(configDirectory, "config.json"), "config/config.json"),
             (Path.Combine(configDirectory, "env"), "config/env"),
             (Path.Combine("/etc/systemd/system", "dotnetcloud.service"), "system/systemd/dotnetcloud.service"),
+            (Path.Combine("/usr/local/bin", "dotnetcloud"), "system/bin/dotnetcloud"),
+            (Path.Combine(coolwsdDirectory, "coolwsd.xml"), "system/coolwsd/coolwsd.xml"),
+            (Path.Combine(coolwsdDirectory, "cert.pem"), "system/coolwsd/cert.pem"),
+            (Path.Combine(coolwsdDirectory, "ca-chain.cert.pem"), "system/coolwsd/ca-chain.cert.pem"),
             (Path.Combine(installDirectory, "appsettings.json"), "opt/appsettings.json"),
             (Path.Combine(installDirectory, "appsettings.Development.json"), "opt/appsettings.Development.json"),
             (Path.Combine(installDirectory, "VERSION"), "opt/VERSION"),
@@ -436,7 +583,40 @@ public sealed class BackupService : DotNetCloud.Core.Services.IBackupService
                 candidates.Add((file, "config/certs/" + Path.GetFileName(file)));
         }
 
-        return candidates.Where(c => File.Exists(c.Source));
+        var entries = new List<(string Source, string EntryName)>();
+        var warnings = new List<string>();
+
+        foreach (var candidate in candidates)
+        {
+            if (!File.Exists(candidate.Source))
+                continue;
+
+            if (!CanRead(candidate.Source))
+            {
+                // Collabora's config is root:cool 640 on a system install; the hardened service
+                // account cannot read it. The CLI backup (run as root) captures it instead.
+                warnings.Add($"Not readable by the service account: {candidate.Source}");
+                continue;
+            }
+
+            entries.Add(candidate);
+        }
+
+        return (entries, warnings);
+    }
+
+    /// <summary>Returns <see langword="true"/> when the file can be opened for reading.</summary>
+    private static bool CanRead(string path)
+    {
+        try
+        {
+            using var stream = File.OpenRead(path);
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
     }
 
     /// <summary>Reads a single value from a semicolon-delimited connection string.</summary>
@@ -688,6 +868,13 @@ public sealed class BackupService : DotNetCloud.Core.Services.IBackupService
     private static void CopyDirectory(string sourceDir, string targetDir)
     {
         Directory.CreateDirectory(targetDir);
+
+        foreach (var directory in Directory.GetDirectories(sourceDir, "*", SearchOption.AllDirectories))
+        {
+            var relative = Path.GetRelativePath(sourceDir, directory);
+            Directory.CreateDirectory(Path.Combine(targetDir, relative));
+        }
+
         foreach (var file in Directory.GetFiles(sourceDir, "*", SearchOption.AllDirectories))
         {
             var relativePath = Path.GetRelativePath(sourceDir, file);

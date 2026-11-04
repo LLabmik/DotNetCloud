@@ -1627,7 +1627,8 @@ Core platform boots, authenticates a user, loads a module, serves the Blazor UI.
 - ✓ `IBackupService` interface in `DotNetCloud.Core`
 - ✓ `BackupService` implementation in server with file + DB dump backup
 - ✓ Server backup resolves provider/connection from configuration and passes `PGPASSWORD` (dump no longer silently skipped)
-- ✓ Server archive includes system configuration (`config`, `certs`, `env`, systemd unit, `appsettings`) and `backup-info.json`
+- ✓ Server backup resolves the data directory for Admin UI + scheduled runs, excludes the backup directory, archives empty template folders, and writes a `<archive>.sha256` sidecar
+- ✓ Server archive includes system configuration (`config`, `certs`, `env`, systemd unit, CLI wrapper, `appsettings`) and `backup-info.json`
 - ✓ `POST /api/v1/core/admin/backup/run` - Trigger backup via API
 - ✓ `GET /api/v1/core/admin/backup/status` - Get backup status
 - ✓ `POST /api/v1/core/admin/backup/restore` - Restore from backup (resolves provider/connection, passes `PGPASSWORD`)
