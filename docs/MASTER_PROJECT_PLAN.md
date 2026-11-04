@@ -3687,6 +3687,10 @@ blob directly with no temp-file reassembly; documents keep the chunk pipeline.
   **streaming** — archive entries are written directly to their destinations and `database.sql` is piped into
   `psql` stdin, reducing peak disk use from ~3× to ~2× of the dataset. Tests: `BackupJobRunnerTests` (5),
   `BackupCompressionTests` (7); Core.Server **912 pass / 2 skip**, Core **534 pass**, CLI **205 pass**.
+- ✓ **Backup settings page simplified:** removed the redundant "Manual Only" schedule option (the Automated
+  Backups checkbox governs it), removed the Backup Scope and Notifications sections (database/file storage/
+  module data and both notifications are always enabled and saved as `true`), moved Compression into Storage,
+  fixed the "Last backup:" spacing, hydrated the last result on page load, and report progress every **25** files.
 - ✓ **CLI elevation (`sudo` re-exec):** the resolved configuration directory is passed to the elevated process as
   `--config-dir <dir>`. `sudo` resets the environment, so the re-run previously lost `DOTNETCLOUD_CONFIG_DIR` and
   silently fell back to `/etc/dotnetcloud` — a scratch-config `backup` would have targeted the production data

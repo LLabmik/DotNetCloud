@@ -37,20 +37,19 @@
 
                 <div class="form-group">
                     <label>Schedule</label>
-                    <select class="input input-sm" @bind="_schedule">
+                    <select class="input input-sm" @bind="_schedule" disabled="@(!_enabled)">
                         <option value="daily">Daily</option>
                         <option value="weekly">Weekly</option>
-                        <option value="manual">Manual Only</option>
                     </select>
                     <span class="hint">
-                        How often automated backups run. "Manual Only" disables the schedule
-                        but still allows on-demand backups.
+                        How often automated backups run. Uncheck "Automated Backups" to disable the
+                        schedule; manual backups remain available below.
                     </span>
                 </div>
 
                 <div class="form-group">
                     <label>Backup Time (UTC)</label>
-                    <input type="time" class="input input-sm" @bind="_backupTimeUtc" />
+                    <input type="time" class="input input-sm" @bind="_backupTimeUtc" disabled="@(!_enabled)" />
                     <span class="hint">Time of day (UTC) to start the backup. Default: 02:00.</span>
                 </div>
 
@@ -58,7 +57,7 @@
                 {
                     <div class="form-group">
                         <label>Day of Week</label>
-                        <select class="input input-sm" @bind="_backupDayOfWeek">
+                        <select class="input input-sm" @bind="_backupDayOfWeek" disabled="@(!_enabled)">
                             <option value="Sunday">Sunday</option>
                             <option value="Monday">Monday</option>
                             <option value="Tuesday">Tuesday</option>
@@ -91,36 +90,6 @@
                     <span class="hint">
                         Number of backup archives to keep. Oldest backups are automatically
                         deleted when this limit is exceeded. Default: 7.
-                    </span>
-                </div>
-            </section>
-
-            <!-- Backup Scope -->
-            <section class="settings-section">
-                <h2>Backup Scope</h2>
-
-                <div class="form-group">
-                    <label>Include Database</label>
-                    <input type="checkbox" @bind="_includeDatabase" />
-                    <span class="hint">
-                        Back up the PostgreSQL / SQL Server database (users, settings, metadata).
-                    </span>
-                </div>
-
-                <div class="form-group">
-                    <label>Include File Storage</label>
-                    <input type="checkbox" @bind="_includeFileStorage" />
-                    <span class="hint">
-                        Back up uploaded files and chunks. This can significantly increase backup size
-                        and duration.
-                    </span>
-                </div>
-
-                <div class="form-group">
-                    <label>Include Module Data</label>
-                    <input type="checkbox" @bind="_includeModuleData" />
-                    <span class="hint">
-                        Back up per-module data directories (Chat attachments, Calendar exports, etc.).
                     </span>
                 </div>
 
@@ -164,23 +133,6 @@
                     </div>
                 }
             </section>
-
-            <!-- Notifications -->
-            <section class="settings-section">
-                <h2>Notifications</h2>
-
-                <div class="form-group">
-                    <label>Notify on Success</label>
-                    <input type="checkbox" @bind="_notifyOnSuccess" />
-                    <span class="hint">Send a notification to admins when a backup completes successfully.</span>
-                </div>
-
-                <div class="form-group">
-                    <label>Notify on Failure</label>
-                    <input type="checkbox" @bind="_notifyOnFailure" />
-                    <span class="hint">Send a notification to admins when a backup fails.</span>
-                </div>
-            </section>
         </div>
 
         <!-- Run Backup Now -->
@@ -219,7 +171,7 @@
             {
                 <div class="backup-result @(_lastBackupResult.Success ? "backup-result-success" : "backup-result-failure")">
                     <p>
-                        <strong>Last backup:</strong>
+                        <strong>Last backup:</strong>@(" ")
                         @if (_lastBackupResult.Success)
                         {
                             <span>Completed ✅</span>

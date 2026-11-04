@@ -331,7 +331,7 @@ public sealed class BackupService : DotNetCloud.Core.Services.IBackupService
                     dataFileCount++;
                     dataBytesProcessed += length;
 
-                    if (dataFileCount % 100 == 0)
+                    if (dataFileCount % 25 == 0)
                     {
                         options.Progress?.Invoke(new BackupProgress(
                             "data", dataFileCount, filesToArchive.Count, dataBytesProcessed, dataBytesTotal));

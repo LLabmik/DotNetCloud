@@ -50,14 +50,9 @@ public partial class BackupSettings : ComponentBase, IDisposable
     private string _backupDayOfWeek = "Sunday";
     private string _backupDirectory = string.Empty;
     private int _retentionCount = 7;
-    private bool _includeDatabase = true;
-    private bool _includeFileStorage = true;
-    private bool _includeModuleData = true;
     private string _compression = "optimal";
     private bool _encryptBackups;
     private string _encryptionPassphrase = string.Empty;
-    private bool _notifyOnSuccess;
-    private bool _notifyOnFailure = true;
 
     protected override async Task OnInitializedAsync()
     {
@@ -87,20 +82,17 @@ public partial class BackupSettings : ComponentBase, IDisposable
     {
         _enabled = GetBool(settings, "Backup:Enabled");
         _schedule = GetString(settings, "Backup:Schedule", "daily");
+        if (_schedule.Equals("manual", StringComparison.OrdinalIgnoreCase))
+            _schedule = "daily";
         var timeStr = GetString(settings, "Backup:TimeUtc", "02:00");
         if (TimeOnly.TryParse(timeStr, out var t))
             _backupTimeUtc = t;
         _backupDayOfWeek = GetString(settings, "Backup:DayOfWeek", "Sunday");
         _backupDirectory = GetString(settings, "Backup:Directory", "/var/lib/dotnetcloud/backups");
         _retentionCount = GetInt(settings, "Backup:RetentionCount", 7);
-        _includeDatabase = GetBool(settings, "Backup:IncludeDatabase", defaultValue: true);
-        _includeFileStorage = GetBool(settings, "Backup:IncludeFileStorage", defaultValue: true);
-        _includeModuleData = GetBool(settings, "Backup:IncludeModuleData", defaultValue: true);
         _compression = GetString(settings, "Backup:Compression", "optimal");
         _encryptBackups = GetBool(settings, "Backup:Encrypt");
         _encryptionPassphrase = GetString(settings, "Backup:EncryptionPassphrase");
-        _notifyOnSuccess = GetBool(settings, "Backup:NotifyOnSuccess");
-        _notifyOnFailure = GetBool(settings, "Backup:NotifyOnFailure", defaultValue: true);
     }
 
     private async Task SaveAsync()
@@ -128,15 +120,18 @@ public partial class BackupSettings : ComponentBase, IDisposable
                 Api.UpsertSettingAsync(Module, "Backup:DayOfWeek", Str(_backupDayOfWeek)),
                 Api.UpsertSettingAsync(Module, "Backup:Directory", Str(_backupDirectory)),
                 Api.UpsertSettingAsync(Module, "Backup:RetentionCount", Str(_retentionCount.ToString())),
-                Api.UpsertSettingAsync(Module, "Backup:IncludeDatabase", Str(_includeDatabase.ToString())),
-                Api.UpsertSettingAsync(Module, "Backup:IncludeFileStorage", Str(_includeFileStorage.ToString())),
-                Api.UpsertSettingAsync(Module, "Backup:IncludeModuleData", Str(_includeModuleData.ToString())),
+                // Backup scope and notifications are no longer user-configurable: a complete backup
+                // always includes the database, file storage and module data, and both notification
+                // preferences stay enabled. Write them explicitly so older "false" values are corrected.
+                Api.UpsertSettingAsync(Module, "Backup:IncludeDatabase", Str(bool.TrueString)),
+                Api.UpsertSettingAsync(Module, "Backup:IncludeFileStorage", Str(bool.TrueString)),
+                Api.UpsertSettingAsync(Module, "Backup:IncludeModuleData", Str(bool.TrueString)),
                 Api.UpsertSettingAsync(Module, "Backup:Compression", Str(_compression)),
                 Api.UpsertSettingAsync(Module, "Backup:Encrypt", Str(_encryptBackups.ToString())),
                 Api.UpsertSettingAsync(Module, "Backup:EncryptionPassphrase",
                     new UpsertSystemSettingDto { Value = _encryptionPassphrase, IsSensitive = true }),
-                Api.UpsertSettingAsync(Module, "Backup:NotifyOnSuccess", Str(_notifyOnSuccess.ToString())),
-                Api.UpsertSettingAsync(Module, "Backup:NotifyOnFailure", Str(_notifyOnFailure.ToString()))
+                Api.UpsertSettingAsync(Module, "Backup:NotifyOnSuccess", Str(bool.TrueString)),
+                Api.UpsertSettingAsync(Module, "Backup:NotifyOnFailure", Str(bool.TrueString))
             };
 
             var results = await Task.WhenAll(tasks);
@@ -223,6 +218,18 @@ public partial class BackupSettings : ComponentBase, IDisposable
         {
             _runningBackup = true;
             _ = PollBackupUntilDoneAsync();
+        }
+        else if (_backupStatus is { LastBackupTime: not null })
+        {
+            // Show the most recent result after a page reload as well.
+            _lastBackupResult = new BackupResult
+            {
+                Success = _backupStatus.LastBackupSuccess == true,
+                FilePath = _backupStatus.LastBackupPath,
+                FileCount = _backupStatus.LastBackupFileCount ?? 0,
+                SizeBytes = _backupStatus.LastBackupSizeBytes ?? 0,
+                ErrorMessage = _backupStatus.LastError,
+            };
         }
     }
 

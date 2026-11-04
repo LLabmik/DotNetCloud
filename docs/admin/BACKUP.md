@@ -187,6 +187,11 @@ never cancel a multi-gigabyte backup. The page shows the current phase and file/
 **Cancel Backup** button requests cancellation. The **Compression** setting accepts `optimal`,
 `fastest` or `store` (best for media).
 
+Backup scope (database, file storage, module data) and the success/failure notification preferences are
+always enabled and are no longer exposed in the page — saving the settings writes them as `true`, so an
+older `false` value is corrected. The **Automated Backups** checkbox alone controls the schedule; there
+is no separate "Manual Only" mode, and manual backups are always available.
+
 Two differences from the CLI backup, recorded in `backup-info.json` → `warnings`:
 
 1. **No storage manifest.** The core server cannot query the process-isolated Files module's database, so

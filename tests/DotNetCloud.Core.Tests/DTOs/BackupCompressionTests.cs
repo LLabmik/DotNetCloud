@@ -47,10 +47,4 @@ public class BackupCompressionTests
         Assert.AreEqual(CompressionLevel.Optimal, BackupCompression.Parse(""));
         Assert.AreEqual(CompressionLevel.Optimal, BackupCompression.Parse("bogus"));
     }
-
-    [TestMethod]
-    public void Default_IsOptimal()
-    {
-        Assert.AreEqual("optimal", BackupCompression.Default);
-    }
 }

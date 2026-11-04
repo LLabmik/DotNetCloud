@@ -1626,6 +1626,9 @@ Core platform boots, authenticates a user, loads a module, serves the Blazor UI.
   cancellable via `/backup/cancel`) with phase/file/byte progress — no 100-second HTTP timeout
 - ✓ **Streaming restore:** entries are written straight from the archive to their destinations; `database.sql`
   is streamed into `psql` stdin — peak disk ~2× instead of 3×
+- ✓ **Settings page simplified:** no "Manual Only" (the Automated Backups checkbox governs the schedule);
+  scope and notification toggles removed (always enabled and saved as `true`); compression moved to Storage;
+  progress reports every 25 files
 
 ##### Backup Service (Server-Side)
 
