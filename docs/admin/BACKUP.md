@@ -110,6 +110,9 @@ Behaviour guarantees:
 - **The database dump is on by default** and `pg_dump`/`psql` read the password from the
   connection string in `config.json` via `PGPASSWORD`. If the dump fails, the backup **aborts** rather
   than silently producing a file-only archive.
+- **Compression** defaults to `optimal`. Use `--compression store` for large media libraries — ZIP
+  cannot shrink already-compressed photos/videos, so `store` is much faster. `--compression fastest`
+  is a middle ground.
 - `--no-db-dump` explicitly creates a file-only backup (archive is marked as unable to restore the DB).
 - `--no-system` skips the system configuration (not recommended for disaster recovery).
 - `--no-manifest` skips the storage manifest (e.g. when the database is unreachable).
@@ -168,7 +171,6 @@ DOTNETCLOUD_CONFIG_DIR=/tmp/dnc-test dotnetcloud status   # confirm ports/paths 
 
 Admin → **Backup & Restore** → **Run Backup Now** (or the scheduled `BackupHostedService`) writes a
 restore-complete archive to the configured directory (default `/var/lib/dotnetcloud/backups`). It contains:
-
 - `database.sql` — `pg_dump` using the password from `config.json` (`PGPASSWORD`)
 - `data/**` — the data directory, **excluding** the backup directory and the archive itself
 - `config/config.json`, `config/env`, `config/certs/*` (PFX, PEM, root CA)
@@ -178,6 +180,12 @@ restore-complete archive to the configured directory (default `/var/lib/dotnetcl
 
 The archive layout is identical to the CLI backup and is consumed by `dotnetcloud restore` unchanged
 (verified end-to-end, including a scratch-database restore of `database.sql`).
+
+**Large datasets:** the Admin button starts a **background job** (`POST backup/start`) and the page
+polls `backup/status` — the HTTP request returns immediately, so the browser's 100-second timeout can
+never cancel a multi-gigabyte backup. The page shows the current phase and file/byte progress, and a
+**Cancel Backup** button requests cancellation. The **Compression** setting accepts `optimal`,
+`fastest` or `store` (best for media).
 
 Two differences from the CLI backup, recorded in `backup-info.json` → `warnings`:
 
@@ -253,17 +261,18 @@ sudo dotnetcloud restore /var/backups/dnc/dotnetcloud-2026-11-03.zip
 `dotnetcloud restore` performs a **cold restore** in this order:
 
 1. Reads `backup-info.json` and prints a plan (database dump / data / configuration / system files).
-2. Stages the whole archive to a temporary directory (so a corrupt archive fails before touching live paths).
-3. Stops `dotnetcloud` (unless `--skip-service`).
-4. Restores `/etc/dotnetcloud` (`config.json`, `env`, `certs/`), the systemd unit, `/usr/local/bin/dotnetcloud`,
+2. Stops `dotnetcloud` (unless `--skip-service`).
+3. Restores `/etc/dotnetcloud` (`config.json`, `env`, `certs/`), the systemd unit, `/usr/local/bin/dotnetcloud`,
    Collabora config and `/opt/dotnetcloud/appsettings.json` + `VERSION`, fixing ownership and modes
    (secrets stay `640 root:dotnetcloud`, key directories stay `700`).
-5. Installs the archived root CA into `/usr/local/share/ca-certificates/` and runs `update-ca-certificates`.
-6. Ensures the PostgreSQL role exists, keeps its password **in sync with the restored `config.json`**, and
+4. Installs the archived root CA into `/usr/local/share/ca-certificates/` and runs `update-ca-certificates`.
+5. Ensures the PostgreSQL role exists, keeps its password **in sync with the restored `config.json`**, and
    verifies the target database is empty.
-7. Applies `database.sql` with `psql -v ON_ERROR_STOP=1` (password from `config.json`).
-8. Restores `data/**`, then `chown -R dotnetcloud:dotnetcloud` and re-applies `0600`/`0700` to secret material.
-9. `systemctl daemon-reload` / `enable` / `start` and waits for `/health/ready`.
+6. Applies `database.sql` with `psql -v ON_ERROR_STOP=1` — streamed from the archive into `psql` stdin.
+7. Restores `data/**` — streamed straight to the destination, then `chown -R dotnetcloud:dotnetcloud` and
+   re-applies `0600`/`0700` to secret material. **No full staging copy is made**: peak disk is the archive
+   plus the restored tree (~2×, not 3×).
+8. `systemctl daemon-reload` / `enable` / `start` and waits for `/health/ready`.
 
 Options:
 

@@ -3680,6 +3680,13 @@ blob directly with no temp-file reassembly; documents keep the chunk pipeline.
   archive includes system configuration. Tests: new `BackupArchiveTests` (16) + `CommandStructureTests` additions;
   CLI suite **200 pass / 0 fail**, Core.Server **907 pass / 2 skip**. Root cause: a backup that restores neither the
   database nor the certificate cannot start the server.
+- ✓ **Large-dataset hardening:** the Admin backup runs as a **background job** (`POST /backup/start`, polled via
+  `/backup/status`, cancellable via `/backup/cancel`) with phase and file/byte progress, so the browser's 100-second
+  `HttpClient` timeout can no longer abort a multi-gigabyte backup; `BackupOptions.Compression`
+  (`optimal|fastest|store`) is exposed as a CLI flag and an Admin setting (`Backup:Compression`); restore is
+  **streaming** — archive entries are written directly to their destinations and `database.sql` is piped into
+  `psql` stdin, reducing peak disk use from ~3× to ~2× of the dataset. Tests: `BackupJobRunnerTests` (5),
+  `BackupCompressionTests` (7); Core.Server **912 pass / 2 skip**, Core **534 pass**, CLI **205 pass**.
 - ✓ **CLI elevation (`sudo` re-exec):** the resolved configuration directory is passed to the elevated process as
   `--config-dir <dir>`. `sudo` resets the environment, so the re-run previously lost `DOTNETCLOUD_CONFIG_DIR` and
   silently fell back to `/etc/dotnetcloud` — a scratch-config `backup` would have targeted the production data

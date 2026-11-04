@@ -1621,6 +1621,11 @@ Core platform boots, authenticates a user, loads a module, serves the Blazor UI.
 - ✓ `dotnetcloud restore --replace-database` - Replaces an existing non-empty database (safe, explicit)
 - ✓ `dotnetcloud restore --skip-database|--skip-system|--skip-service|--data-dir|--yes|--no-health-wait` - Granular control
 - ✓ `dotnetcloud backup --schedule daily` - Schedule automatic backups
+- ✓ `--compression optimal|fastest|store` - Configurable Deflate level (`store` is much faster for media)
+- ✓ **Large datasets:** Admin UI backup runs as a background job (`POST backup/start`, polled via `/backup/status`,
+  cancellable via `/backup/cancel`) with phase/file/byte progress — no 100-second HTTP timeout
+- ✓ **Streaming restore:** entries are written straight from the archive to their destinations; `database.sql`
+  is streamed into `psql` stdin — peak disk ~2× instead of 3×
 
 ##### Backup Service (Server-Side)
 
@@ -1651,6 +1656,8 @@ Core platform boots, authenticates a user, loads a module, serves the Blazor UI.
 - ✓ `SetupCommandTests` — 9 tests (MaskConnectionString, command structure)
 - ✓ `CommandStructureTests` — 28 tests (all commands, subcommands, options, arguments; incl. --db-dump, --server)
 - ✓ `BackupArchiveTests` — 16 tests (connection-string password, tool environment, system payload, Zip-Slip rejection, backup metadata round-trip)
+- ✓ `BackupCompressionTests` — 7 tests (store/fastest/optimal mapping, aliases, case-insensitivity, fallbacks)
+- ✓ `BackupJobRunnerTests` — 5 tests (completion metadata, single-job guard, cancel, failure reporting)
 - ✓ `SystemdServiceHelperTests` — 15 tests (Type=forking, PIDFile, no ExecStop, hardening, systemd format validation)
 
 ---

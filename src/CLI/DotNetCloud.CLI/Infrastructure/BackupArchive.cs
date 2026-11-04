@@ -41,6 +41,9 @@ internal sealed record BackupInfo
     /// <summary>Whether <c>manifest/storage-manifest.tsv</c> is present.</summary>
     public bool StorageManifestIncluded { get; init; }
 
+    /// <summary>Compression level used (<c>optimal</c>, <c>fastest</c>, <c>store</c>).</summary>
+    public string Compression { get; init; } = "optimal";
+
     /// <summary>Original data directory (<c>DOTNETCLOUD_DATA_DIR</c>).</summary>
     public string? DataDirectory { get; init; }
 

@@ -250,6 +250,15 @@ public class CommandStructureTests
     }
 
     [TestMethod]
+    public void BackupCommand_HasCompressionOption()
+    {
+        var command = BackupCommands.Create();
+        var option = command.Options.FirstOrDefault(o => o.Name == "--compression");
+        Assert.IsNotNull(option, "Expected --compression option");
+        Assert.IsInstanceOfType(option, typeof(Option<string>));
+    }
+
+    [TestMethod]
     public void RestoreCommand_HasFullRestoreOptions()
     {
         var restore = BackupCommands.Create().Subcommands.First(c => c.Name == "restore");

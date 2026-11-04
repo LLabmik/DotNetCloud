@@ -173,6 +173,7 @@ public sealed class BackupService : DotNetCloud.Core.Services.IBackupService
             LastBackupSuccess = s_lastStatus?.LastBackupSuccess,
             LastBackupPath = s_lastStatus?.LastBackupPath,
             LastBackupSizeBytes = s_lastStatus?.LastBackupSizeBytes,
+            LastBackupFileCount = s_lastStatus?.LastBackupFileCount,
         });
     }
 
@@ -223,12 +224,16 @@ public sealed class BackupService : DotNetCloud.Core.Services.IBackupService
         var includeData = Directory.Exists(dataDirectory)
             && (options.IncludeFileStorage || options.IncludeModuleData);
 
+        var compression = BackupCompression.Parse(options.Compression);
+        options.Progress?.Invoke(new BackupProgress("starting", 0, 0, 0, 0));
+
         try
         {
             // Step 1: Database dump. A backup that cannot restore the database is not a backup, so a
             // failed dump aborts the run instead of producing a misleading file-only archive.
             if (options.IncludeDatabaseDump)
             {
+                options.Progress?.Invoke(new BackupProgress("database", 0, 0, 0, 0));
                 if (string.IsNullOrWhiteSpace(databaseProvider))
                 {
                     return new BackupResult
@@ -266,7 +271,7 @@ public sealed class BackupService : DotNetCloud.Core.Services.IBackupService
             // Add database dump if created
             if (createdDbDump && File.Exists(dbDumpPath))
             {
-                archive.CreateEntryFromFile(dbDumpPath, "database.sql");
+                archive.CreateEntryFromFile(dbDumpPath, "database.sql", compression);
                 fileCount++;
             }
 
@@ -295,17 +300,46 @@ public sealed class BackupService : DotNetCloud.Core.Services.IBackupService
                 };
 
                 var allDataFiles = Directory.GetFiles(dataDirectory, "*", SearchOption.AllDirectories);
+
+                // Materialize the list once so totals are known and progress can be reported.
+                var filesToArchive = new List<(string Path, long Length)>();
+                long dataBytesTotal = 0;
                 foreach (var file in allDataFiles)
                 {
-                    cancellationToken.ThrowIfCancellationRequested();
                     if (IsExcludedFromArchive(file, exclusions))
                         continue;
 
+                    long length = 0;
+                    try
+                    { length = new FileInfo(file).Length; }
+                    catch { /* unreadable; skip the size */ }
+
+                    filesToArchive.Add((file, length));
+                    dataBytesTotal += length;
+                }
+
+                options.Progress?.Invoke(new BackupProgress("data", 0, filesToArchive.Count, 0, dataBytesTotal));
+
+                var dataBytesProcessed = 0L;
+                foreach (var (file, length) in filesToArchive)
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+
                     var entryName = "data/" + Path.GetRelativePath(dataDirectory, file).Replace('\\', '/');
-                    archive.CreateEntryFromFile(file, entryName);
+                    archive.CreateEntryFromFile(file, entryName, compression);
                     fileCount++;
                     dataFileCount++;
+                    dataBytesProcessed += length;
+
+                    if (dataFileCount % 100 == 0)
+                    {
+                        options.Progress?.Invoke(new BackupProgress(
+                            "data", dataFileCount, filesToArchive.Count, dataBytesProcessed, dataBytesTotal));
+                    }
                 }
+
+                options.Progress?.Invoke(new BackupProgress(
+                    "data", dataFileCount, filesToArchive.Count, dataBytesProcessed, dataBytesTotal));
 
                 // Empty directories are meaningful template content (the default-user-content folders
                 // are empty until an operator adds files) and ZIP stores none implicitly.
@@ -342,12 +376,13 @@ public sealed class BackupService : DotNetCloud.Core.Services.IBackupService
             // A restore cannot start the server without the certificate config.json points at.
             var (systemFiles, systemWarnings) = CollectSystemConfigurationFiles();
             var systemEntryNames = new List<string>();
+            options.Progress?.Invoke(new BackupProgress("system", dataFileCount, dataFileCount, 0, 0));
             foreach (var (source, entryName) in systemFiles)
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 try
                 {
-                    archive.CreateEntryFromFile(source, entryName);
+                    archive.CreateEntryFromFile(source, entryName, compression);
                     fileCount++;
                     systemEntryNames.Add(entryName);
                 }
@@ -387,6 +422,7 @@ public sealed class BackupService : DotNetCloud.Core.Services.IBackupService
             fileCount++;
 
             // Finish the archive (writes the central directory) before hashing it.
+            options.Progress?.Invoke(new BackupProgress("finalizing", dataFileCount, dataFileCount, 0, 0));
             archive.Dispose();
             await zipStream.FlushAsync(cancellationToken);
 
@@ -416,6 +452,7 @@ public sealed class BackupService : DotNetCloud.Core.Services.IBackupService
                 LastBackupSuccess = true,
                 LastBackupPath = backupPath,
                 LastBackupSizeBytes = fileInfo.Length,
+                LastBackupFileCount = fileCount,
             };
 
             _logger.LogInformation("Backup completed: {BackupPath} ({FileCount} files, {Size:N0} bytes)",
