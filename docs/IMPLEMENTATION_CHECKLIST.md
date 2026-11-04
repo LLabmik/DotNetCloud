@@ -1611,21 +1611,26 @@ Core platform boots, authenticates a user, loads a module, serves the Blazor UI.
 
 ##### Backup Commands
 
-- ✓ `dotnetcloud backup` - Create backup
+- ✓ `dotnetcloud backup` - Complete backup: data, database dump and system configuration
 - ✓ `dotnetcloud backup --output {path}` - Backup to specific location
-- ✓ `dotnetcloud backup --db-dump` - Include database dump (pg_dump/sqlcmd)
+- ✓ Database dump on by default; `pg_dump`/`psql` authenticate with the password from `config.json` (`PGPASSWORD`)
+- ✓ `--no-db-dump` / `--no-system` / `--no-manifest` - Explicit opt-outs (a requested dump that fails aborts the backup)
+- ✓ Archive carries `backup-info.json`, `config/config.json`, `config/env`, `config/certs/*`, systemd unit, `appsettings.json`, `VERSION`, `<archive>.sha256`
 - ✓ `dotnetcloud backup --server {url}` - Trigger backup via server API
-- ✓ `dotnetcloud restore {file}` - Restore from backup (with optional DB restore)
-- ✓ `dotnetcloud restore {file}` with `database.sql` - Restore includes DB dump
+- ✓ `dotnetcloud restore {file}` - Cold restore: stops the service, restores config/certs/env/unit, database, data and ownership/modes, then starts + health-checks
+- ✓ `dotnetcloud restore --replace-database` - Replaces an existing non-empty database (safe, explicit)
+- ✓ `dotnetcloud restore --skip-database|--skip-system|--skip-service|--data-dir|--yes|--no-health-wait` - Granular control
 - ✓ `dotnetcloud backup --schedule daily` - Schedule automatic backups
 
 ##### Backup Service (Server-Side)
 
 - ✓ `IBackupService` interface in `DotNetCloud.Core`
 - ✓ `BackupService` implementation in server with file + DB dump backup
+- ✓ Server backup resolves provider/connection from configuration and passes `PGPASSWORD` (dump no longer silently skipped)
+- ✓ Server archive includes system configuration (`config`, `certs`, `env`, systemd unit, `appsettings`) and `backup-info.json`
 - ✓ `POST /api/v1/core/admin/backup/run` - Trigger backup via API
 - ✓ `GET /api/v1/core/admin/backup/status` - Get backup status
-- ✓ `POST /api/v1/core/admin/backup/restore` - Restore from backup
+- ✓ `POST /api/v1/core/admin/backup/restore` - Restore from backup (resolves provider/connection, passes `PGPASSWORD`)
 - ✓ `BackupHostedService` - Background service for scheduled backups
 - ✓ Admin UI "Run Backup Now" button at `/admin/backup`
 - ✓ Backup settings synced between UI and server (system settings table)
@@ -1643,6 +1648,7 @@ Core platform boots, authenticates a user, loads a module, serves the Blazor UI.
 - ✓ `ConsoleOutputTests` — 16 tests (FormatStatus color indicators, case insensitivity)
 - ✓ `SetupCommandTests` — 9 tests (MaskConnectionString, command structure)
 - ✓ `CommandStructureTests` — 28 tests (all commands, subcommands, options, arguments; incl. --db-dump, --server)
+- ✓ `BackupArchiveTests` — 16 tests (connection-string password, tool environment, system payload, Zip-Slip rejection, backup metadata round-trip)
 - ✓ `SystemdServiceHelperTests` — 15 tests (Type=forking, PIDFile, no ExecStop, hardening, systemd format validation)
 
 ---

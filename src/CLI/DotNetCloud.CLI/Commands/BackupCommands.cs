@@ -29,7 +29,13 @@ internal static class BackupCommands
 
         var dbDumpOption = new Option<bool>("--db-dump")
         {
-            Description = "Include a database dump in the backup (requires pg_dump/sqlcmd)",
+            Description = "Include a database dump in the backup (default: on)",
+            DefaultValueFactory = _ => true
+        };
+
+        var noDbDumpOption = new Option<bool>("--no-db-dump")
+        {
+            Description = "Skip the database dump (produces a file-only backup)",
             DefaultValueFactory = _ => false
         };
 
@@ -45,41 +51,123 @@ internal static class BackupCommands
             DefaultValueFactory = _ => false
         };
 
-        var command = new Command("backup", "Create a backup of DotNetCloud data");
+        var noSystemOption = new Option<bool>("--no-system")
+        {
+            Description = "Skip system configuration (config, certificates, env, systemd unit, appsettings)",
+            DefaultValueFactory = _ => false
+        };
+
+        var command = new Command("backup", "Create a complete backup of DotNetCloud (data, database and system configuration)");
         command.Options.Add(outputOption);
         command.Options.Add(dbDumpOption);
+        command.Options.Add(noDbDumpOption);
         command.Options.Add(serverOption);
         command.Options.Add(noManifestOption);
-        command.Subcommands.Add(CreateRestore());
+        command.Options.Add(noSystemOption);
+        command.Subcommands.Add(CreateRestoreCommand());
         command.Subcommands.Add(CreateSchedule());
         command.Subcommands.Add(CreateManifest());
 
         command.SetAction(parseResult =>
         {
             var output = parseResult.GetValue(outputOption);
-            var dbDump = parseResult.GetValue(dbDumpOption);
+            var dbDump = parseResult.GetValue(dbDumpOption) && !parseResult.GetValue(noDbDumpOption);
             var server = parseResult.GetValue(serverOption);
             var noManifest = parseResult.GetValue(noManifestOption);
-            return CreateBackupAsync(output, dbDump, server, includeManifest: !noManifest);
+            var noSystem = parseResult.GetValue(noSystemOption);
+            return CreateBackupAsync(output, dbDump, server, includeManifest: !noManifest, includeSystem: !noSystem);
         });
 
         return command;
     }
 
-    private static Command CreateRestore()
+    /// <summary>
+    /// Creates the <c>restore</c> command. It is registered both as a top-level command
+    /// (<c>dotnetcloud restore &lt;file&gt;</c>) and as a <c>backup</c> subcommand for compatibility.
+    /// </summary>
+    internal static Command CreateRestoreCommand()
     {
         var fileArg = new Argument<string>("file")
         {
             Description = "Path to the backup file to restore"
         };
-        var command = new Command("restore", "Restore from a backup file") { fileArg };
-        command.SetAction(parseResult =>
+
+        var yesOption = new Option<bool>("--yes")
         {
-            var file = parseResult.GetValue(fileArg)!;
-            return RestoreBackupAsync(file);
-        });
+            Description = "Do not prompt for confirmation",
+            DefaultValueFactory = _ => false
+        };
+        yesOption.Aliases.Add("-y");
+
+        var skipDatabaseOption = new Option<bool>("--skip-database")
+        {
+            Description = "Do not restore the database (data files and configuration are still restored)",
+            DefaultValueFactory = _ => false
+        };
+
+        var replaceDatabaseOption = new Option<bool>("--replace-database")
+        {
+            Description = "Drop the existing database before restoring (required when it already contains tables)",
+            DefaultValueFactory = _ => false
+        };
+
+        var skipSystemOption = new Option<bool>("--skip-system")
+        {
+            Description = "Do not restore configuration files, certificates, env or the systemd unit",
+            DefaultValueFactory = _ => false
+        };
+
+        var skipServiceOption = new Option<bool>("--skip-service")
+        {
+            Description = "Do not stop or start the dotnetcloud service",
+            DefaultValueFactory = _ => false
+        };
+
+        var dataDirOption = new Option<string?>("--data-dir")
+        {
+            Description = "Destination data directory (default: the one recorded in the restored configuration)"
+        };
+
+        var noHealthWaitOption = new Option<bool>("--no-health-wait")
+        {
+            Description = "Do not wait for the health endpoint after starting the service",
+            DefaultValueFactory = _ => false
+        };
+
+        var command = new Command("restore", "Restore a DotNetCloud backup (database, data and system configuration)")
+        {
+            fileArg
+        };
+        command.Options.Add(yesOption);
+        command.Options.Add(skipDatabaseOption);
+        command.Options.Add(replaceDatabaseOption);
+        command.Options.Add(skipSystemOption);
+        command.Options.Add(skipServiceOption);
+        command.Options.Add(dataDirOption);
+        command.Options.Add(noHealthWaitOption);
+
+        command.SetAction(parseResult => RestoreBackupAsync(
+            parseResult.GetValue(fileArg)!,
+            new RestoreCommandOptions(
+                AssumeYes: parseResult.GetValue(yesOption),
+                RestoreDatabase: !parseResult.GetValue(skipDatabaseOption),
+                ReplaceDatabase: parseResult.GetValue(replaceDatabaseOption),
+                RestoreSystem: !parseResult.GetValue(skipSystemOption),
+                ManageService: !parseResult.GetValue(skipServiceOption),
+                DataDirectory: parseResult.GetValue(dataDirOption),
+                WaitForHealth: !parseResult.GetValue(noHealthWaitOption))));
         return command;
     }
+
+    /// <summary>Options for <c>dotnetcloud restore</c>.</summary>
+    private sealed record RestoreCommandOptions(
+        bool AssumeYes,
+        bool RestoreDatabase,
+        bool ReplaceDatabase,
+        bool RestoreSystem,
+        bool ManageService,
+        string? DataDirectory,
+        bool WaitForHealth);
 
     private static Command CreateSchedule()
     {
@@ -289,7 +377,7 @@ internal static class BackupCommands
     }
 
     private static async Task<int> CreateBackupAsync(
-        string? outputPath, bool includeDbDump, string? serverUrl, bool includeManifest)
+        string? outputPath, bool includeDbDump, string? serverUrl, bool includeManifest, bool includeSystem = true)
     {
         // If --server is specified, call the server API to trigger the backup
         if (!string.IsNullOrWhiteSpace(serverUrl))
@@ -341,32 +429,53 @@ internal static class BackupCommands
                 ConsoleOutput.WriteInfo("Skipping the storage manifest (--no-manifest).");
             }
 
-            // Step 2: Optional database dump
+            // Step 2: Database dump. A backup that cannot be restored is worse than no backup, so a
+            // requested dump that fails aborts the run instead of silently producing a file-only archive.
+            var warnings = new List<string>();
             var dbDumpPath = Path.Combine(backupDir, $"dotnetcloud-db-{timestamp}.sql");
             var createdDbDump = false;
 
-            if (includeDbDump && !string.IsNullOrWhiteSpace(config.DatabaseProvider))
+            if (includeDbDump)
             {
+                if (string.IsNullOrWhiteSpace(config.DatabaseProvider))
+                {
+                    ConsoleOutput.WriteError(
+                        "Database provider is not configured; refusing to create an incomplete backup. " +
+                        "Use --no-db-dump for an explicit file-only backup.");
+                    return 1;
+                }
+
                 ConsoleOutput.WriteInfo($"Creating database dump using {config.DatabaseProvider}...");
                 try
                 {
-                    createdDbDump = await CreateDatabaseDumpAsync(config.DatabaseProvider, config.ConnectionString, dbDumpPath);
-                    if (createdDbDump)
-                    {
-                        ConsoleOutput.WriteSuccess("Database dump created.");
-                    }
+                    createdDbDump = await CreateDatabaseDumpAsync(
+                        config.DatabaseProvider, config.ConnectionString, dbDumpPath);
+                    if (!createdDbDump)
+                        throw new InvalidOperationException("the dump tool produced no output");
+
+                    ConsoleOutput.WriteSuccess("Database dump created.");
                 }
                 catch (Exception ex)
                 {
-                    ConsoleOutput.WriteWarning($"Database dump failed: {ex.Message}");
-                    ConsoleOutput.WriteInfo($"Install {GetDumpToolName(config.DatabaseProvider)} or run without --db-dump.");
+                    ConsoleOutput.WriteError($"Database dump failed: {ex.Message}");
+                    ConsoleOutput.WriteInfo(
+                        $"Ensure {GetDumpToolName(config.DatabaseProvider)} is installed and the connection string is valid.");
+                    ConsoleOutput.WriteInfo("Use --no-db-dump to intentionally create a file-only backup.");
+                    return 1;
                 }
+            }
+            else
+            {
+                warnings.Add("Database dump skipped (--no-db-dump); the archive cannot restore the database.");
+                ConsoleOutput.WriteWarning("Database dump skipped (--no-db-dump). The archive will be file-only.");
             }
 
             // Step 3: Create zip archive
             var fileCount = 0;
             await using var zipStream = new FileStream(backupPath, FileMode.Create);
-            using var archive = new ZipArchive(zipStream, ZipArchiveMode.Create);
+            // leaveOpen: the archive is disposed explicitly before the checksum is computed; closing
+            // the stream there would make the subsequent flush fail.
+            using var archive = new ZipArchive(zipStream, ZipArchiveMode.Create, leaveOpen: true);
 
             // Add database dump if created
             if (createdDbDump && File.Exists(dbDumpPath))
@@ -382,17 +491,36 @@ internal static class BackupCommands
                 fileCount++;
             }
 
-            // Backup configuration
-            var configPath = CliConfiguration.GetConfigFilePath();
-            if (File.Exists(configPath))
+            // Backup system configuration: config.json (DB connection string), env (Collabora/WOPI),
+            // TLS certificates + root CA, the systemd unit and the small stateful files in /opt.
+            // None of these live under the data directory, and a restore cannot start the server
+            // without the certificate the restored config.json points at.
+            var systemEntries = new List<string>();
+            if (includeSystem)
             {
-                archive.CreateEntryFromFile(configPath, "config/config.json");
-                fileCount++;
-                ConsoleOutput.WriteSuccess("Configuration backed up.");
+                var payload = BackupArchive.GetSystemPayloadEntries(
+                    configDirectory: CliConfiguration.GetConfigDirectory());
+                var existingSystemEntries = BackupArchive.ResolveExistingEntries(payload, warnings);
+
+                foreach (var entry in existingSystemEntries)
+                {
+                    archive.CreateEntryFromFile(entry.SourcePath, entry.EntryName);
+                    systemEntries.Add(entry.EntryName);
+                    fileCount++;
+                }
+
+                ConsoleOutput.WriteSuccess($"System configuration backed up ({existingSystemEntries.Count} file(s)).");
+            }
+            else
+            {
+                warnings.Add("System configuration skipped (--no-system); certificates/env/unit are not in the archive.");
+                ConsoleOutput.WriteWarning("System configuration skipped (--no-system). The archive cannot cold-restore the server.");
             }
 
             // Backup data directory
             var dataDir = config.DataDirectory;
+            var dataFileCount = 0;
+            var emptyDirectoryCount = 0;
             if (Directory.Exists(dataDir))
             {
                 // Never archive the backup directory itself (each backup would otherwise nest every
@@ -408,6 +536,7 @@ internal static class BackupCommands
                     var entryName = "data/" + Path.GetRelativePath(dataDir, file).Replace('\\', '/');
                     archive.CreateEntryFromFile(file, entryName);
                     fileCount++;
+                    dataFileCount++;
                 }
 
                 // Empty directories are meaningful template content (the stock default-user-content
@@ -426,6 +555,7 @@ internal static class BackupCommands
                         + "/";
                     archive.CreateEntry(entryName);
                     fileCount++;
+                    emptyDirectoryCount++;
                 }
 
                 ConsoleOutput.WriteSuccess($"Data directory backed up ({dataFiles.Length} files).");
@@ -438,17 +568,55 @@ internal static class BackupCommands
                 }
             }
 
-            // Backup database info entry
+            // Legacy-friendly database info note (human readable).
             var dbInfoEntry = archive.CreateEntry("config/database-info.txt");
             await using (var writer = new StreamWriter(dbInfoEntry.Open()))
             {
                 await writer.WriteLineAsync($"Provider: {config.DatabaseProvider}");
                 await writer.WriteLineAsync($"Backup Time: {DateTime.UtcNow:O}");
                 await writer.WriteLineAsync($"Database Dump Included: {createdDbDump}");
+                await writer.WriteLineAsync($"System Configuration Included: {includeSystem}");
                 await writer.WriteLineAsync();
-                await writer.WriteLineAsync("Restore: Run 'dotnetcloud restore <file>' or use your database provider's restore tool.");
+                await writer.WriteLineAsync("Restore: sudo dotnetcloud restore <file>");
             }
             fileCount++;
+
+            // Machine-readable metadata describing the archive (consumed by `dotnetcloud restore`).
+            var backupInfo = new BackupInfo
+            {
+                CreatedUtc = DateTime.UtcNow.ToString("O"),
+                CliVersion = BackupArchive.GetCliVersion(),
+                DatabaseProvider = config.DatabaseProvider,
+                DatabaseDumpIncluded = createdDbDump,
+                StorageManifestIncluded = manifestPath is not null && File.Exists(manifestPath),
+                DataDirectory = dataDir,
+                ConfigDirectory = CliConfiguration.GetConfigDirectory(),
+                ServiceUser = Environment.GetEnvironmentVariable("DOTNETCLOUD_SERVICE_USER")
+                    ?? BackupArchive.DefaultServiceUser,
+                SystemEntries = systemEntries,
+                DataFileCount = dataFileCount,
+                EmptyDirectoryCount = emptyDirectoryCount,
+                // ZipArchive.Entries cannot be enumerated in Create mode; fileCount already tracks
+                // every entry written so far, and this metadata entry is the last one.
+                TotalEntryCount = fileCount + 1,
+                Warnings = warnings,
+            };
+
+            var infoEntry = archive.CreateEntry(BackupArchive.InfoEntryName);
+            await using (var writer = new StreamWriter(infoEntry.Open()))
+            {
+                await writer.WriteAsync(BackupArchive.SerializeInfo(backupInfo));
+            }
+            fileCount++;
+
+            // Finish the archive (writes the central directory) before hashing it.
+            archive.Dispose();
+            await zipStream.FlushAsync();
+
+            var archiveHash = await ComputeSha256Async(backupPath);
+            var shaPath = backupPath + ".sha256";
+            await File.WriteAllTextAsync(
+                shaPath, $"{archiveHash}  {Path.GetFileName(backupPath)}{Environment.NewLine}");
 
             // Report result
             var fileInfo = new FileInfo(backupPath);
@@ -457,6 +625,10 @@ internal static class BackupCommands
             ConsoleOutput.WriteSuccess($"Backup created: {backupPath}");
             ConsoleOutput.WriteSuccess($"  Files archived: {fileCount}");
             ConsoleOutput.WriteSuccess($"  Archive size: {FormatSize(fileInfo.Length)}");
+            ConsoleOutput.WriteSuccess($"  Checksum: {shaPath}");
+
+            foreach (var warning in backupInfo.Warnings)
+                ConsoleOutput.WriteWarning(warning);
 
             if (manifestPath is not null)
             {
@@ -466,18 +638,12 @@ internal static class BackupCommands
 
             if (createdDbDump)
             {
-                ConsoleOutput.WriteSuccess("Database dump included in archive.");
+                ConsoleOutput.WriteSuccess("Database dump included in archive (database.sql).");
             }
-            else if (includeDbDump)
+
+            if (includeSystem)
             {
-                ConsoleOutput.WriteWarning("Database dump was requested but could not be created.");
-                ConsoleOutput.WriteInfo("  Ensure the appropriate tool is installed:");
-                ConsoleOutput.WriteInfo($"    {GetDumpToolInstallHint(config.DatabaseProvider)}");
-            }
-            else
-            {
-                ConsoleOutput.WriteInfo("For a complete backup, add --db-dump or use your provider's native tool:");
-                ConsoleOutput.WriteInfo($"    {GetDumpToolHint(config.DatabaseProvider)}");
+                ConsoleOutput.WriteSuccess("System configuration included (config, certificates, env, systemd unit).");
             }
 
             return 0;
@@ -485,6 +651,22 @@ internal static class BackupCommands
         catch (Exception ex)
         {
             ConsoleOutput.WriteError($"Backup failed: {ex.Message}");
+
+            // Never leave a partial archive behind: it looks like a usable backup.
+            if (File.Exists(backupPath))
+            {
+                try
+                { File.Delete(backupPath); }
+                catch { /* best effort */ }
+            }
+
+            if (File.Exists(backupPath + ".sha256"))
+            {
+                try
+                { File.Delete(backupPath + ".sha256"); }
+                catch { /* best effort */ }
+            }
+
             return 1;
         }
         finally
@@ -532,7 +714,7 @@ internal static class BackupCommands
         }
     }
 
-    private static async Task<int> RestoreBackupAsync(string filePath)
+    private static async Task<int> RestoreBackupAsync(string filePath, RestoreCommandOptions options)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(filePath);
 
@@ -543,100 +725,703 @@ internal static class BackupCommands
         }
 
         ConsoleOutput.WriteHeader("DotNetCloud Restore");
-        ConsoleOutput.WriteWarning("This will overwrite existing configuration and data files.");
 
-        if (!ConsoleOutput.PromptConfirm("Continue with restore?"))
-        {
-            ConsoleOutput.WriteInfo("Restore cancelled.");
-            return 0;
-        }
-
+        string? stagingDirectory = null;
         try
         {
             using var archive = ZipFile.OpenRead(filePath);
 
-            // Check if archive has a database dump
-            var hasDbDump = archive.Entries.Any(e => e.FullName == "database.sql");
+            var infoEntry = archive.GetEntry(BackupArchive.InfoEntryName);
+            var info = infoEntry is null ? null : BackupArchive.DeserializeInfo(ReadEntryText(infoEntry));
 
-            // Restore configuration
-            var configEntry = archive.GetEntry("config/config.json");
-            if (configEntry is not null)
+            var hasDatabaseDump = archive.GetEntry(BackupArchive.DatabaseEntryName) is not null;
+            var hasData = archive.Entries.Any(e => e.FullName.StartsWith("data/", StringComparison.Ordinal));
+            var hasConfig = archive.GetEntry("config/config.json") is not null;
+            var hasSystem = archive.Entries.Any(e => e.FullName.StartsWith("system/", StringComparison.Ordinal));
+
+            PrintRestorePlan(filePath, info, hasDatabaseDump, hasData, hasConfig, hasSystem);
+
+            if (!options.AssumeYes
+                && !ConsoleOutput.PromptConfirm("Continue with restore? Existing configuration and data will be overwritten."))
             {
-                var configPath = CliConfiguration.GetConfigFilePath();
-                Directory.CreateDirectory(Path.GetDirectoryName(configPath)!);
-                configEntry.ExtractToFile(configPath, overwrite: true);
-                ConsoleOutput.WriteSuccess("Configuration restored.");
+                ConsoleOutput.WriteInfo("Restore cancelled.");
+                return 0;
             }
 
-            // Restore data files
+            // Everything is staged on disk first so a corrupt/incomplete archive fails before any
+            // live path is touched.
+            stagingDirectory = CreateRestoreStagingDirectory(filePath);
+            ZipFile.ExtractToDirectory(filePath, stagingDirectory, overwriteFiles: true);
+
+            // Stop the service before replacing files it has open or config it reads at startup.
+            if (options.ManageService)
+                RunSystemctl("stop", "dotnetcloud", ignoreFailure: true);
+
+            var serviceUser = string.IsNullOrWhiteSpace(info?.ServiceUser)
+                ? BackupArchive.DefaultServiceUser
+                : info.ServiceUser;
+
+            if (options.RestoreSystem)
+                RestoreSystemConfiguration(stagingDirectory, serviceUser);
+            else
+                ConsoleOutput.WriteWarning("System configuration restore skipped (--skip-system).");
+
+            if (hasConfig)
+                ConsoleOutput.WriteSuccess("Configuration file restored.");
+
+            // Load the restored configuration: it supplies the data directory and DB connection string.
             var config = CliConfiguration.Load();
-            var dataEntries = archive.Entries.Where(e => e.FullName.StartsWith("data/")).ToList();
-            if (dataEntries.Count > 0)
+
+            var dataDirectory = string.IsNullOrWhiteSpace(options.DataDirectory)
+                ? config.DataDirectory
+                : options.DataDirectory;
+
+            if (!string.IsNullOrWhiteSpace(options.DataDirectory)
+                && !options.DataDirectory.Equals(config.DataDirectory, StringComparison.Ordinal))
             {
-                var resolvedDataDir = Path.GetFullPath(config.DataDirectory);
-                foreach (var entry in dataEntries)
-                {
-                    var relativePath = entry.FullName["data/".Length..];
-                    if (string.IsNullOrEmpty(relativePath))
-                        continue;
-
-                    var targetPath = Path.GetFullPath(Path.Combine(config.DataDirectory, relativePath.Replace('/', Path.DirectorySeparatorChar)));
-
-                    // Prevent Zip Slip: ensure the resolved path is within the data directory
-                    if (!targetPath.StartsWith(resolvedDataDir, StringComparison.Ordinal))
-                    {
-                        ConsoleOutput.WriteWarning($"Skipping entry '{entry.FullName}' — path traversal detected.");
-                        continue;
-                    }
-
-                    // Directory entry (empty folders such as the default-user-content template).
-                    if (entry.FullName.EndsWith('/'))
-                    {
-                        Directory.CreateDirectory(targetPath);
-                        continue;
-                    }
-
-                    Directory.CreateDirectory(Path.GetDirectoryName(targetPath)!);
-                    entry.ExtractToFile(targetPath, overwrite: true);
-                }
-
-                // Restored files are written as root (the CLI re-execs under sudo). The service
-                // runs as the unprivileged 'dotnetcloud' user and must be able to read the
-                // default-user-content template, so restore ownership explicitly.
-                FixDataDirectoryOwnership(resolvedDataDir);
-
-                ConsoleOutput.WriteSuccess($"Data directory restored ({dataEntries.Count} files).");
+                ConsoleOutput.WriteWarning(
+                    $"Restoring data to '{dataDirectory}', but config.json records '{config.DataDirectory}'. " +
+                    "Update dataDirectory in config.json or the service will not find its data.");
             }
 
-            // Offer database restore if dump exists
-            if (hasDbDump && ConsoleOutput.PromptConfirm("A database dump was found in this backup. Restore database now?"))
-            {
-                var dumpEntry = archive.GetEntry("database.sql")!;
-                var tempDumpPath = Path.Combine(Path.GetTempPath(), $"dotnetcloud-restore-{Guid.CreateVersion7():N}.sql");
+            if (hasData)
+                RestoreDataDirectory(stagingDirectory, dataDirectory, serviceUser);
+            else
+                ConsoleOutput.WriteWarning("Archive contains no data/ entries.");
 
-                try
+            // The root CA must be trusted before the server starts: its own module gRPC clients and
+            // Blazor loopback calls validate the self-signed certificate.
+            if (options.RestoreSystem)
+                InstallRootCaIntoSystrustStore();
+
+            if (options.RestoreDatabase)
+            {
+                if (!hasDatabaseDump)
+                    ConsoleOutput.WriteWarning("Archive contains no database.sql — database not restored.");
+                else if (!await RestoreDatabaseAsync(stagingDirectory, config, options))
+                    return 1;
+            }
+            else
+            {
+                ConsoleOutput.WriteWarning("Database restore skipped (--skip-database).");
+            }
+
+            if (options.ManageService)
+            {
+                RunSystemctl("daemon-reload", null, ignoreFailure: true);
+                RunSystemctl("enable", "dotnetcloud", ignoreFailure: true);
+
+                if (!RunSystemctl("start", "dotnetcloud", ignoreFailure: false))
                 {
-                    dumpEntry.ExtractToFile(tempDumpPath, overwrite: true);
-                    ConsoleOutput.WriteInfo("Restoring database...");
-                    ConsoleOutput.WriteInfo($"Dump file extracted to: {tempDumpPath}");
-                    ConsoleOutput.WriteInfo("Use your database provider's restore tool (psql, sqlcmd) to apply it.");
+                    ConsoleOutput.WriteError(
+                        "Could not start the dotnetcloud service. " +
+                        "Check: sudo journalctl -u dotnetcloud -n 100 --no-pager");
+                    return 1;
                 }
-                finally
-                {
-                    if (File.Exists(tempDumpPath))
-                        try
-                        { File.Delete(tempDumpPath); }
-                        catch { /* best effort */ }
-                }
+
+                if (options.WaitForHealth)
+                    await WaitForHealthAsync(config);
             }
 
             ConsoleOutput.WriteSuccess("Restore complete.");
+            ConsoleOutput.WriteInfo("Verify with: curl -sk https://localhost:5443/health/ready");
             return 0;
         }
         catch (Exception ex)
         {
             ConsoleOutput.WriteError($"Restore failed: {ex.Message}");
             return 1;
+        }
+        finally
+        {
+            if (stagingDirectory is not null && Directory.Exists(stagingDirectory))
+            {
+                try
+                { Directory.Delete(stagingDirectory, recursive: true); }
+                catch { /* best effort */ }
+            }
+        }
+    }
+
+    private static void PrintRestorePlan(
+        string filePath, BackupInfo? info, bool hasDatabaseDump, bool hasData, bool hasConfig, bool hasSystem)
+    {
+        ConsoleOutput.WriteInfo($"Archive: {filePath}");
+
+        if (info is not null)
+        {
+            ConsoleOutput.WriteDetail("Created (UTC)", info.CreatedUtc);
+            ConsoleOutput.WriteDetail("CLI version", info.CliVersion);
+            ConsoleOutput.WriteDetail("Database provider", info.DatabaseProvider ?? "(unknown)");
+            ConsoleOutput.WriteDetail("Data directory", info.DataDirectory ?? "(unknown)");
+            ConsoleOutput.WriteDetail("Backup format", info.FormatVersion.ToString());
+        }
+        else
+        {
+            ConsoleOutput.WriteWarning("No backup-info.json — this is a legacy archive; system configuration may be incomplete.");
+        }
+
+        ConsoleOutput.WriteDetail("Database dump", hasDatabaseDump ? "yes" : "NO");
+        ConsoleOutput.WriteDetail("Data files", hasData ? "yes" : "NO");
+        ConsoleOutput.WriteDetail("Configuration", hasConfig ? "yes" : "NO");
+        ConsoleOutput.WriteDetail("System files", hasSystem ? "yes" : "NO");
+
+        if (!hasDatabaseDump)
+            ConsoleOutput.WriteWarning(
+                "No database dump: users, settings, shares and file metadata will be missing after restore.");
+        if (!hasSystem)
+            ConsoleOutput.WriteWarning(
+                "No system configuration: TLS certificate, env, systemd unit and root CA will not be restored.");
+        if (!hasConfig)
+            ConsoleOutput.WriteWarning("No config/config.json: the database connection string cannot be restored.");
+    }
+
+    private static string CreateRestoreStagingDirectory(string filePath)
+    {
+        var parent = Path.GetDirectoryName(Path.GetFullPath(filePath)) ?? Path.GetTempPath();
+        var directory = Path.Combine(parent, $".dotnetcloud-restore-{Guid.CreateVersion7():N}");
+        Directory.CreateDirectory(directory);
+        return directory;
+    }
+
+    private static string ReadEntryText(ZipArchiveEntry entry)
+    {
+        using var stream = entry.Open();
+        using var reader = new StreamReader(stream);
+        return reader.ReadToEnd();
+    }
+
+    /// <summary>
+    /// Copies the archived system configuration back to its live locations, fixing ownership and
+    /// modes that an extraction performed as root would otherwise leave wrong.
+    /// </summary>
+    private static void RestoreSystemConfiguration(string stagingDirectory, string serviceUser)
+    {
+        var configDirectory = CliConfiguration.GetConfigDirectory();
+
+        // config/config.json, config/env, config/certs/**
+        var configSource = Path.Combine(stagingDirectory, "config");
+        if (Directory.Exists(configSource))
+        {
+            foreach (var file in Directory.EnumerateFiles(configSource, "*", SearchOption.AllDirectories))
+            {
+                var relative = Path.GetRelativePath(configSource, file).Replace('\\', '/');
+                if (relative.Equals("database-info.txt", StringComparison.OrdinalIgnoreCase))
+                    continue;
+
+                var target = Path.Combine(
+                    configDirectory, relative.Replace('/', Path.DirectorySeparatorChar));
+
+                Directory.CreateDirectory(Path.GetDirectoryName(target)!);
+                File.Copy(file, target, overwrite: true);
+                SetOwnerAndMode(target, "root", serviceUser,
+                    UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.GroupRead);
+                ConsoleOutput.WriteDetail("Restored", target);
+            }
+
+            var certsDirectory = Path.Combine(configDirectory, "certs");
+            if (Directory.Exists(certsDirectory))
+            {
+                SetOwnerAndMode(certsDirectory, "root", "root",
+                    UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute
+                    | UnixFileMode.GroupRead | UnixFileMode.GroupExecute
+                    | UnixFileMode.OtherRead | UnixFileMode.OtherExecute);
+            }
+        }
+
+        // system/systemd/** -> /etc/systemd/system/**
+        var systemdSource = Path.Combine(stagingDirectory, "system", "systemd");
+        if (Directory.Exists(systemdSource))
+        {
+            foreach (var file in Directory.EnumerateFiles(systemdSource, "*", SearchOption.AllDirectories))
+            {
+                var relative = Path.GetRelativePath(systemdSource, file);
+                var target = Path.Combine(BackupArchive.DefaultSystemdDirectory, relative);
+                Directory.CreateDirectory(Path.GetDirectoryName(target)!);
+                File.Copy(file, target, overwrite: true);
+                SetOwnerAndMode(target, "root", "root",
+                    UnixFileMode.UserRead | UnixFileMode.UserWrite
+                    | UnixFileMode.GroupRead | UnixFileMode.OtherRead);
+                ConsoleOutput.WriteDetail("Restored", target);
+            }
+        }
+
+        // system/bin/dotnetcloud -> /usr/local/bin/dotnetcloud
+        var binSource = Path.Combine(stagingDirectory, "system", "bin");
+        if (Directory.Exists(binSource))
+        {
+            foreach (var file in Directory.EnumerateFiles(binSource))
+            {
+                var target = Path.Combine("/usr/local/bin", Path.GetFileName(file));
+                File.Copy(file, target, overwrite: true);
+                SetOwnerAndMode(target, "root", "root",
+                    UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute
+                    | UnixFileMode.GroupRead | UnixFileMode.GroupExecute
+                    | UnixFileMode.OtherRead | UnixFileMode.OtherExecute);
+                ConsoleOutput.WriteDetail("Restored", target);
+            }
+        }
+
+        // system/coolwsd/** -> /etc/coolwsd/**
+        var coolwsdSource = Path.Combine(stagingDirectory, "system", "coolwsd");
+        if (Directory.Exists(coolwsdSource))
+        {
+            if (Directory.Exists(BackupArchive.DefaultCoolwsdDirectory))
+            {
+                foreach (var file in Directory.EnumerateFiles(coolwsdSource, "*", SearchOption.AllDirectories))
+                {
+                    var relative = Path.GetRelativePath(coolwsdSource, file);
+                    var target = Path.Combine(BackupArchive.DefaultCoolwsdDirectory, relative);
+                    Directory.CreateDirectory(Path.GetDirectoryName(target)!);
+                    File.Copy(file, target, overwrite: true);
+
+                    // coolwsd runs as the 'cool' group; fall back to root when it does not exist.
+                    SetOwnerAndMode(target, "root",
+                        GroupExists("cool") ? "cool" : "root",
+                        UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.GroupRead);
+                    ConsoleOutput.WriteDetail("Restored", target);
+                }
+            }
+            else
+            {
+                ConsoleOutput.WriteWarning(
+                    $"Collabora configuration is in the archive, but {BackupArchive.DefaultCoolwsdDirectory} " +
+                    "does not exist. Install Collabora CODE, then re-run the restore.");
+            }
+        }
+
+        // opt/appsettings*.json, opt/VERSION -> /opt/dotnetcloud/
+        var optSource = Path.Combine(stagingDirectory, "opt");
+        if (Directory.Exists(optSource))
+        {
+            Directory.CreateDirectory(BackupArchive.DefaultInstallDirectory);
+            foreach (var file in Directory.EnumerateFiles(optSource))
+            {
+                var target = Path.Combine(BackupArchive.DefaultInstallDirectory, Path.GetFileName(file));
+                File.Copy(file, target, overwrite: true);
+                SetOwnerAndMode(target, serviceUser, serviceUser,
+                    UnixFileMode.UserRead | UnixFileMode.UserWrite
+                    | UnixFileMode.GroupRead | UnixFileMode.OtherRead);
+                ConsoleOutput.WriteDetail("Restored", target);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Copies the archived <c>data/</c> tree into the data directory and restores the ownership and
+    /// modes the service expects (a zip extraction cannot be trusted to preserve either).
+    /// </summary>
+    private static void RestoreDataDirectory(string stagingDirectory, string dataDirectory, string serviceUser)
+    {
+        var source = Path.Combine(stagingDirectory, "data");
+        if (!Directory.Exists(source))
+            return;
+
+        Directory.CreateDirectory(dataDirectory);
+
+        foreach (var directory in Directory.EnumerateDirectories(source, "*", SearchOption.AllDirectories))
+        {
+            var relative = Path.GetRelativePath(source, directory);
+            if (!BackupArchive.TryResolveRestoreTarget(dataDirectory, relative, out var target, out var reason))
+            {
+                ConsoleOutput.WriteWarning($"Skipping directory entry '{relative}' — {reason}.");
+                continue;
+            }
+
+            Directory.CreateDirectory(target);
+        }
+
+        var fileCount = 0;
+        foreach (var file in Directory.EnumerateFiles(source, "*", SearchOption.AllDirectories))
+        {
+            var relative = Path.GetRelativePath(source, file);
+            if (!BackupArchive.TryResolveRestoreTarget(dataDirectory, relative, out var target, out var reason))
+            {
+                ConsoleOutput.WriteWarning($"Skipping file entry '{relative}' — {reason}.");
+                continue;
+            }
+
+            Directory.CreateDirectory(Path.GetDirectoryName(target)!);
+            File.Copy(file, target, overwrite: true);
+            fileCount++;
+        }
+
+        ConsoleOutput.WriteSuccess($"Data directory restored ({fileCount} file(s)).");
+
+        // The service runs unprivileged; restored files were written as root.
+        RunProcess("chown", ["-R", $"{serviceUser}:{serviceUser}", dataDirectory], null, out _, out _);
+
+        // Modes that matter for security. Secret material must not become world-readable just because
+        // it went through a zip extraction.
+        TrySetMode(Path.Combine(dataDirectory, "tmp"),
+            UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+        TrySetMode(Path.Combine(dataDirectory, "oidc-keys"), UserDirectoryMode);
+        TrySetMode(Path.Combine(dataDirectory, "data-protection-keys"), UserDirectoryMode);
+
+        foreach (var pem in SafeEnumerateFiles(Path.Combine(dataDirectory, "oidc-keys"), "*.pem"))
+            TrySetMode(pem, UnixFileMode.UserRead | UnixFileMode.UserWrite);
+        foreach (var xml in SafeEnumerateFiles(Path.Combine(dataDirectory, "data-protection-keys"), "*.xml"))
+            TrySetMode(xml, UnixFileMode.UserRead | UnixFileMode.UserWrite);
+
+        var backupsDirectory = Path.Combine(dataDirectory, "backups");
+        Directory.CreateDirectory(backupsDirectory);
+        RunProcess("chown", [$"{serviceUser}:{serviceUser}", backupsDirectory], null, out _, out _);
+    }
+
+    private const UnixFileMode UserDirectoryMode =
+        UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute;
+
+    private static IEnumerable<string> SafeEnumerateFiles(string directory, string pattern)
+    {
+        if (!Directory.Exists(directory))
+            return [];
+
+        try
+        { return Directory.EnumerateFiles(directory, pattern).ToArray(); }
+        catch
+        { return []; }
+    }
+
+    private static void TrySetMode(string path, UnixFileMode mode)
+    {
+        if (OperatingSystem.IsWindows() || !Path.Exists(path))
+            return;
+
+        try
+        { File.SetUnixFileMode(path, mode); }
+        catch { /* best effort */ }
+    }
+
+    private static void SetOwnerAndMode(string path, string owner, string group, UnixFileMode mode)
+    {
+        TrySetMode(path, mode);
+        if (!OperatingSystem.IsLinux())
+            return;
+
+        RunProcess("chown", [$"{owner}:{group}", path], null, out _, out _);
+    }
+
+    private static bool GroupExists(string group)
+    {
+        if (!OperatingSystem.IsLinux())
+            return false;
+
+        return RunProcess("getent", ["group", group], null, out _, out _);
+    }
+
+    /// <summary>
+    /// Installs the backup's root CA into the Linux trust store so the restored server can validate
+    /// its own self-signed certificate (module gRPC clients and Blazor loopback calls).
+    /// </summary>
+    private static void InstallRootCaIntoSystrustStore()
+    {
+        if (!OperatingSystem.IsLinux())
+            return;
+
+        const string target = "/usr/local/share/ca-certificates/dotnetcloud-root-ca.crt";
+        var source = Path.Combine(CliConfiguration.GetConfigDirectory(), "certs", "dotnetcloud-root-ca.crt");
+
+        if (!File.Exists(source))
+        {
+            ConsoleOutput.WriteWarning($"Root CA not found at {source}; skipping trust-store installation.");
+            return;
+        }
+
+        try
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(target)!);
+            File.Copy(source, target, overwrite: true);
+            TrySetMode(target,
+                UnixFileMode.UserRead | UnixFileMode.UserWrite
+                | UnixFileMode.GroupRead | UnixFileMode.OtherRead);
+
+            if (RunProcess("update-ca-certificates", [], null, out _, out var error))
+                ConsoleOutput.WriteSuccess("Root CA installed into the system trust store.");
+            else
+                ConsoleOutput.WriteWarning($"update-ca-certificates failed: {error}");
+        }
+        catch (Exception ex)
+        {
+            ConsoleOutput.WriteWarning($"Could not install the root CA: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Restores <c>database.sql</c>. PostgreSQL is fully automated; SQL Server is reported as a manual
+    /// step because <c>BACKUP DATABASE</c> produces a server-side <c>.bak</c>.
+    /// </summary>
+    private static async Task<bool> RestoreDatabaseAsync(
+        string stagingDirectory, CliConfig config, RestoreCommandOptions options)
+    {
+        var dumpPath = Path.Combine(stagingDirectory, BackupArchive.DatabaseEntryName);
+        if (!File.Exists(dumpPath))
+            return true;
+
+        if (BackupArchive.IsPostgreSql(config.DatabaseProvider))
+            return RestorePostgreSqlDatabase(dumpPath, config, options.ReplaceDatabase);
+
+        if (BackupArchive.IsSqlServer(config.DatabaseProvider))
+        {
+            ConsoleOutput.WriteWarning("Automated SQL Server restore is not supported by this command.");
+            ConsoleOutput.WriteInfo($"Restore the dump manually from: {dumpPath}");
+            ConsoleOutput.WriteInfo(
+                $"  sqlcmd -S <server> -U <user> -P <password> -Q \"RESTORE DATABASE [dotnetcloud] FROM DISK = '{dumpPath}'\"");
+            return false;
+        }
+
+        ConsoleOutput.WriteError($"Unsupported database provider '{config.DatabaseProvider}'.");
+        return false;
+    }
+
+    private static bool RestorePostgreSqlDatabase(string dumpPath, CliConfig config, bool replaceExisting)
+    {
+        var connectionString = config.ConnectionString;
+        var host = BackupArchive.TryGetConnectionStringValue(connectionString, "host", "server", "datasource") ?? "localhost";
+        var port = BackupArchive.TryGetConnectionStringValue(connectionString, "port") ?? "5432";
+        var database = BackupArchive.TryGetConnectionStringValue(connectionString, "database", "db") ?? "dotnetcloud";
+        var user = BackupArchive.TryGetConnectionStringValue(connectionString, "username", "user id", "user") ?? "dotnetcloud";
+        var password = BackupArchive.TryGetConnectionStringPassword(connectionString) ?? string.Empty;
+
+        ConsoleOutput.WriteInfo($"Restoring PostgreSQL database '{database}' as '{user}'...");
+
+        // The dump contains ALTER ... OWNER TO <user> statements, so the role must exist first.
+        if (!TryRunPostgresSql(null, $"SELECT 1 FROM pg_roles WHERE rolname = {SqlLiteral(user)};", out var roleOutput)
+            || roleOutput.Trim() != "1")
+        {
+            if (!TryRunPostgresSql(null,
+                    $"CREATE ROLE \"{QuoteIdentifier(user)}\" WITH LOGIN PASSWORD {SqlLiteral(password)} CREATEDB;",
+                    out var createError))
+            {
+                ConsoleOutput.WriteError($"Could not create the database role '{user}': {createError}");
+                return false;
+            }
+
+            ConsoleOutput.WriteSuccess($"Database role '{user}' created.");
+        }
+        else
+        {
+            // Keep the role password in sync with the restored config.json. Without this, a role
+            // created by a fresh `setup` run would not match the restored connection string.
+            if (!TryRunPostgresSql(null,
+                    $"ALTER ROLE \"{QuoteIdentifier(user)}\" WITH LOGIN PASSWORD {SqlLiteral(password)} CREATEDB;",
+                    out var alterError))
+            {
+                ConsoleOutput.WriteError($"Could not update the database role password: {alterError}");
+                return false;
+            }
+        }
+
+        var databaseExists = TryRunPostgresSql(
+            null, $"SELECT 1 FROM pg_database WHERE datname = {SqlLiteral(database)};", out var dbOutput)
+            && dbOutput.Trim() == "1";
+
+        if (databaseExists)
+        {
+            var tableCountText = TryRunPostgresSql(database,
+                "SELECT count(*) FROM information_schema.tables " +
+                "WHERE table_schema NOT IN ('pg_catalog', 'information_schema');",
+                out var countError)
+                ? countError.Trim()
+                : "0";
+
+            if (!int.TryParse(tableCountText, out var tableCount))
+                tableCount = 0;
+
+            if (tableCount > 0)
+            {
+                if (!replaceExisting)
+                {
+                    ConsoleOutput.WriteError(
+                        $"Database '{database}' already contains {tableCount} table(s). " +
+                        "Re-run with --replace-database to drop and recreate it.");
+                    return false;
+                }
+
+                ConsoleOutput.WriteWarning($"Dropping existing database '{database}'...");
+                if (!TryRunPostgresSql(null, $"DROP DATABASE \"{QuoteIdentifier(database)}\" WITH (FORCE);", out var dropError))
+                {
+                    ConsoleOutput.WriteError($"Could not drop database '{database}': {dropError}");
+                    return false;
+                }
+
+                databaseExists = false;
+            }
+        }
+
+        if (!databaseExists)
+        {
+            if (!TryRunPostgresSql(null,
+                    $"CREATE DATABASE \"{QuoteIdentifier(database)}\" OWNER \"{QuoteIdentifier(user)}\";",
+                    out var createDbError))
+            {
+                ConsoleOutput.WriteError($"Could not create database '{database}': {createDbError}");
+                return false;
+            }
+
+            ConsoleOutput.WriteSuccess($"Database '{database}' created.");
+        }
+
+        var environment = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["PGPASSWORD"] = password
+        };
+
+        var applied = RunProcess("psql", [
+            "-X", "-q", "-v", "ON_ERROR_STOP=1",
+            "-h", host, "-p", port, "-U", user, "-d", database, "-f", dumpPath
+        ], environment, out _, out var applyError);
+
+        if (!applied)
+        {
+            ConsoleOutput.WriteError($"Database dump could not be applied: {applyError}");
+            return false;
+        }
+
+        ConsoleOutput.WriteSuccess("Database restored from database.sql.");
+
+        if (TryRunPostgresSql(database,
+                "SELECT count(*) FROM information_schema.tables " +
+                "WHERE table_schema NOT IN ('pg_catalog', 'information_schema');",
+                out var restoredCount))
+        {
+            ConsoleOutput.WriteDetail("Tables restored", restoredCount.Trim());
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    /// Runs a SQL statement as the <c>postgres</c> superuser (peer authentication), optionally against
+    /// a specific database. Used for role/database creation and emptiness checks.
+    /// </summary>
+    private static bool TryRunPostgresSql(string? database, string sql, out string output)
+    {
+        output = string.Empty;
+        if (!OperatingSystem.IsLinux())
+            return false;
+
+        var arguments = new List<string> { "-u", "postgres", "--", "psql", "-X", "-v", "ON_ERROR_STOP=1", "-tA" };
+        if (!string.IsNullOrWhiteSpace(database))
+        {
+            arguments.Add("-d");
+            arguments.Add(database);
+        }
+
+        arguments.Add("-c");
+        arguments.Add(sql);
+
+        var tool = File.Exists("/usr/sbin/runuser") ? "/usr/sbin/runuser" : "runuser";
+        var succeeded = RunProcess(tool, arguments, null, out var standardOutput, out var standardError);
+
+        output = succeeded ? standardOutput : standardError;
+        return succeeded;
+    }
+
+    private static string QuoteIdentifier(string value) => value.Replace("\"", "\"\"", StringComparison.Ordinal);
+
+    private static string SqlLiteral(string value) => "'" + value.Replace("'", "''", StringComparison.Ordinal) + "'";
+
+    private static bool RunSystemctl(string action, string? service, bool ignoreFailure)
+    {
+        if (!OperatingSystem.IsLinux())
+            return true;
+
+        var arguments = service is null ? new[] { action } : [action, service];
+        var succeeded = RunProcess("systemctl", arguments, null, out _, out var error);
+
+        if (!succeeded && !ignoreFailure)
+            ConsoleOutput.WriteError($"systemctl {string.Join(' ', arguments)} failed: {error}");
+
+        return succeeded;
+    }
+
+    private static async Task WaitForHealthAsync(CliConfig config)
+    {
+        var scheme = config.EnableHttps ? "https" : "http";
+        var port = config.EnableHttps ? config.HttpsPort : config.HttpPort;
+        var url = $"{scheme}://localhost:{port}/health/ready";
+
+        ConsoleOutput.WriteInfo($"Waiting for {url} ...");
+
+        using var handler = new HttpClientHandler
+        {
+            ServerCertificateCustomValidationCallback = HttpClientHandler.DangerousAcceptAnyServerCertificateValidator
+        };
+        using var client = new HttpClient(handler) { Timeout = TimeSpan.FromSeconds(5) };
+
+        for (var attempt = 0; attempt < 45; attempt++)
+        {
+            try
+            {
+                using var response = await client.GetAsync(url);
+                if (response.IsSuccessStatusCode)
+                {
+                    ConsoleOutput.WriteSuccess($"Health endpoint is ready (HTTP {(int)response.StatusCode}).");
+                    return;
+                }
+
+                ConsoleOutput.WriteInfo($"Health endpoint returned HTTP {(int)response.StatusCode}; retrying...");
+            }
+            catch
+            {
+                // Still starting (connection refused is expected during module startup).
+            }
+
+            await Task.Delay(TimeSpan.FromSeconds(2));
+        }
+
+        ConsoleOutput.WriteWarning("Health endpoint did not become ready within 90 seconds. Check the service logs.");
+    }
+
+    /// <summary>
+    /// Runs a process with an optional environment overlay and captures both output streams.
+    /// </summary>
+    private static bool RunProcess(
+        string fileName,
+        IEnumerable<string> arguments,
+        IReadOnlyDictionary<string, string>? environment,
+        out string standardOutput,
+        out string standardError)
+    {
+        standardOutput = string.Empty;
+        standardError = string.Empty;
+
+        try
+        {
+            var startInfo = new ProcessStartInfo
+            {
+                FileName = fileName,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true,
+            };
+
+            foreach (var argument in arguments)
+                startInfo.ArgumentList.Add(argument);
+
+            if (environment is not null)
+            {
+                foreach (var (key, value) in environment)
+                    startInfo.Environment[key] = value;
+            }
+
+            using var process = new Process { StartInfo = startInfo };
+            process.Start();
+
+            // Read both streams concurrently to avoid a deadlock on large output.
+            var outputTask = process.StandardOutput.ReadToEndAsync();
+            var errorTask = process.StandardError.ReadToEndAsync();
+            process.WaitForExit();
+
+            standardOutput = outputTask.GetAwaiter().GetResult();
+            standardError = errorTask.GetAwaiter().GetResult();
+            return process.ExitCode == 0;
+        }
+        catch (Exception ex)
+        {
+            standardError = ex.Message;
+            return false;
         }
     }
 
@@ -718,12 +1503,23 @@ internal static class BackupCommands
 
     private static async Task<bool> CreateDatabaseDumpAsync(string provider, string? connectionString, string outputPath)
     {
-        var (tool, argList) = provider.ToUpperInvariant() switch
+        string tool;
+        List<string> argList;
+
+        if (BackupArchive.IsPostgreSql(provider))
         {
-            "POSTGRESQL" => ("pg_dump", BuildPgDumpArgs(connectionString, outputPath)),
-            "SQLSERVER" => ("sqlcmd", new List<string> { "-Q", $"BACKUP DATABASE [dotnetcloud] TO DISK = '{outputPath}'" }),
-            _ => throw new NotSupportedException($"Database provider '{provider}' is not supported for automated dump.")
-        };
+            tool = "pg_dump";
+            argList = BuildPgDumpArgs(connectionString, outputPath);
+        }
+        else if (BackupArchive.IsSqlServer(provider))
+        {
+            tool = "sqlcmd";
+            argList = BuildSqlServerDumpArgs(connectionString, outputPath);
+        }
+        else
+        {
+            throw new NotSupportedException($"Database provider '{provider}' is not supported for automated dump.");
+        }
 
         var psi = new ProcessStartInfo
         {
@@ -733,6 +1529,12 @@ internal static class BackupCommands
             UseShellExecute = false,
             CreateNoWindow = true,
         };
+
+        // pg_dump has no password argument: it reads PGPASSWORD (or prompts, which cannot work in a
+        // non-interactive backup). Without this the dump always fails against a password-authenticated
+        // PostgreSQL server.
+        foreach (var (key, value) in BackupArchive.BuildToolEnvironment(provider, connectionString))
+            psi.Environment[key] = value;
 
         foreach (var a in argList)
             psi.ArgumentList.Add(a);
@@ -761,10 +1563,55 @@ internal static class BackupCommands
         return File.Exists(outputPath) && new FileInfo(outputPath).Length > 0;
     }
 
-    private static List<string> BuildPgDumpArgs(string? connectionString, string outputPath)
+    internal static List<string> BuildPgDumpArgs(string? connectionString, string outputPath)
     {
         var (host, port, db, user) = ParseConnectionString(connectionString);
-        return new List<string> { "-h", host, "-p", port, "-U", user, "-d", db, "-Fp", outputPath };
+        // -Fp selects the plain format; -f names the output file. Passing the path positionally after
+        // -Fp makes pg_dump reject it as an extra command-line argument.
+        return new List<string> { "-h", host, "-p", port, "-U", user, "-d", db, "-Fp", "-f", outputPath };
+    }
+
+    /// <summary>
+    /// Builds <c>sqlcmd</c> arguments for a full database backup. Note that <c>BACKUP DATABASE</c>
+    /// writes the <c>.bak</c> file on the SQL Server host, not on the machine running the CLI.
+    /// </summary>
+    internal static List<string> BuildSqlServerDumpArgs(string? connectionString, string outputPath)
+    {
+        var args = new List<string>();
+
+        var server = BackupArchive.TryGetConnectionStringValue(connectionString, "server", "data source", "datasource");
+        var user = BackupArchive.TryGetConnectionStringValue(connectionString, "user id", "uid", "username", "user");
+        var password = BackupArchive.TryGetConnectionStringPassword(connectionString);
+
+        if (!string.IsNullOrWhiteSpace(server))
+        {
+            args.Add("-S");
+            args.Add(server);
+        }
+
+        if (!string.IsNullOrWhiteSpace(user))
+        {
+            args.Add("-U");
+            args.Add(user);
+        }
+
+        if (!string.IsNullOrWhiteSpace(password))
+        {
+            args.Add("-P");
+            args.Add(password);
+        }
+
+        args.Add("-Q");
+        args.Add($"BACKUP DATABASE [dotnetcloud] TO DISK = '{outputPath}'");
+        return args;
+    }
+
+    /// <summary>Computes the SHA-256 checksum of a file.</summary>
+    private static async Task<string> ComputeSha256Async(string filePath)
+    {
+        await using var stream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read);
+        var hash = await System.Security.Cryptography.SHA256.HashDataAsync(stream);
+        return Convert.ToHexStringLower(hash);
     }
 
     private static (string Host, string Port, string Database, string User) ParseConnectionString(string? connectionString)
@@ -813,20 +1660,6 @@ internal static class BackupCommands
         _ => provider,
     };
 
-    private static string GetDumpToolInstallHint(string provider) => provider.ToUpperInvariant() switch
-    {
-        "POSTGRESQL" => "apt install postgresql-client or yum install postgresql",
-        "SQLSERVER" => "Install SQL Server Command Line Utilities (sqlcmd)",
-        _ => $"Install the {provider} command-line client",
-    };
-
-    private static string GetDumpToolHint(string provider) => provider.ToUpperInvariant() switch
-    {
-        "POSTGRESQL" => "pg_dump dotnetcloud > dotnetcloud-db.sql",
-        "SQLSERVER" => "BACKUP DATABASE [dotnetcloud] TO DISK = 'dotnetcloud-db.bak'",
-        _ => "Use your database provider's backup tool",
-    };
-
     private static string FormatSize(long bytes) => bytes switch
     {
         < 1024 => $"{bytes} B",
@@ -834,36 +1667,4 @@ internal static class BackupCommands
         < 1024 * 1024 * 1024 => $"{bytes / (1024.0 * 1024.0):F1} MB",
         _ => $"{bytes / (1024.0 * 1024.0 * 1024.0):F2} GB",
     };
-
-    /// <summary>
-    /// Restores ownership of the data directory to the service user after an extraction performed
-    /// as root. Best-effort: a missing 'dotnetcloud' user (development installs) is not an error.
-    /// </summary>
-    private static void FixDataDirectoryOwnership(string dataDirectory)
-    {
-        if (OperatingSystem.IsWindows() || !Directory.Exists(dataDirectory))
-            return;
-
-        var serviceUser = Environment.GetEnvironmentVariable("DOTNETCLOUD_SERVICE_USER") ?? "dotnetcloud";
-
-        try
-        {
-            var startInfo = new System.Diagnostics.ProcessStartInfo("chown")
-            {
-                UseShellExecute = false,
-                RedirectStandardError = true,
-                RedirectStandardOutput = true
-            };
-            startInfo.ArgumentList.Add("-R");
-            startInfo.ArgumentList.Add($"{serviceUser}:{serviceUser}");
-            startInfo.ArgumentList.Add(dataDirectory);
-
-            using var process = System.Diagnostics.Process.Start(startInfo);
-            process?.WaitForExit(TimeSpan.FromMinutes(2));
-        }
-        catch (Exception ex)
-        {
-            ConsoleOutput.WriteWarning($"Could not fix ownership of '{dataDirectory}': {ex.Message}");
-        }
-    }
 }

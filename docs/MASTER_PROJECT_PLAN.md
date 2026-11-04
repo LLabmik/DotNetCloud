@@ -3666,6 +3666,20 @@ blob directly with no temp-file reassembly; documents keep the chunk pipeline.
   `manifest/storage-manifest.tsv` (`--no-manifest` opts out; a failure warns and the backup continues), and the
   data-directory walk now excludes the backup directory and the in-progress archive — so backups no longer nest
   every previous backup or a partial copy of themselves.
+- ✓ **Complete cold-restore backups (format v2):** `dotnetcloud backup` now dumps the database **by default** and
+  passes the connection-string password to `pg_dump` via `PGPASSWORD` (previously the dump always failed with
+  `password authentication failed` and the run silently produced a file-only archive). The archive additionally
+  carries `config/config.json`, `config/env`, `config/certs/*` (PFX/PEM/root CA), the systemd unit, the CLI wrapper,
+  Collabora's `coolwsd.xml`, `opt/appsettings.json`/`VERSION`, `backup-info.json`, and a `<archive>.sha256` sidecar.
+  `dotnetcloud restore` is now a real cold restore: stops the service, restores configuration/certs/env/unit with
+  correct ownership and modes, installs the root CA into the system trust store, creates the PostgreSQL role and
+  keeps its password in sync with the restored `config.json`, applies `database.sql` with `ON_ERROR_STOP=1`, restores
+  `data/**` with `chown`/`chmod` fixes, then starts the service and waits for `/health/ready`. New flags:
+  `--no-db-dump`, `--no-system`; `restore --replace-database|--skip-database|--skip-system|--skip-service|--data-dir|--yes`.
+  The server-side `BackupService` now resolves provider/connection from configuration and passes `PGPASSWORD`, and its
+  archive includes system configuration. Tests: new `BackupArchiveTests` (16) + `CommandStructureTests` additions;
+  CLI suite **200 pass / 0 fail**, Core.Server **907 pass / 2 skip**. Root cause: a backup that restores neither the
+  database nor the certificate cannot start the server.
 - ✓ **CLI elevation (`sudo` re-exec):** the resolved configuration directory is passed to the elevated process as
   `--config-dir <dir>`. `sudo` resets the environment, so the re-run previously lost `DOTNETCLOUD_CONFIG_DIR` and
   silently fell back to `/etc/dotnetcloud` — a scratch-config `backup` would have targeted the production data
