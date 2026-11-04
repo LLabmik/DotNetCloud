@@ -9,6 +9,7 @@ using HealthStatusGrpc = DotNetCloud.Core.Grpc.Lifecycle.HealthStatus;
 using HealthStatusCore = Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus;
 using DotNetCloud.Core.Modules.Supervisor;
 using DotNetCloud.Core.Services;
+using DotNetCloud.Core.Server.Services;
 using Grpc.Net.Client;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -31,6 +32,7 @@ public class AdminController : ControllerBase
     private readonly HealthCheckService _healthCheckService;
     private readonly IBackgroundServiceTracker _backgroundServiceTracker;
     private readonly IBackupService _backupService;
+    private readonly BackupJobRunner _backupRunner;
     private readonly IProcessSupervisor _supervisor;
     private readonly Supervisor.IModuleGrpcChannelProvider _channelProvider;
     private readonly IAuditLogger _auditLogger;
@@ -46,6 +48,7 @@ public class AdminController : ControllerBase
         HealthCheckService healthCheckService,
         IBackgroundServiceTracker backgroundServiceTracker,
         IBackupService backupService,
+        BackupJobRunner backupRunner,
         IProcessSupervisor supervisor,
         IAuditLogger auditLogger,
         IHostApplicationLifetime hostLifetime,
@@ -57,6 +60,7 @@ public class AdminController : ControllerBase
         _healthCheckService = healthCheckService ?? throw new ArgumentNullException(nameof(healthCheckService));
         _backgroundServiceTracker = backgroundServiceTracker ?? throw new ArgumentNullException(nameof(backgroundServiceTracker));
         _backupService = backupService ?? throw new ArgumentNullException(nameof(backupService));
+        _backupRunner = backupRunner ?? throw new ArgumentNullException(nameof(backupRunner));
         _supervisor = supervisor ?? throw new ArgumentNullException(nameof(supervisor));
         _channelProvider = channelProvider ?? throw new ArgumentNullException(nameof(channelProvider));
         _auditLogger = auditLogger ?? throw new ArgumentNullException(nameof(auditLogger));
@@ -585,6 +589,53 @@ public class AdminController : ControllerBase
     }
 
     /// <summary>
+    /// Start a backup in the background and return immediately. Poll <c>backup/status</c> for
+    /// progress and the final result. Use this for large datasets: a synchronous request is bounded
+    /// by the client's HTTP timeout (100 seconds by default).
+    /// </summary>
+    /// <param name="outputPath">Optional explicit output path for the backup archive.</param>
+    /// <returns>202 when the job started, 409 when a backup is already running.</returns>
+    [HttpPost("backup/start")]
+    public async Task<IActionResult> StartBackupAsync(
+        [FromQuery] string? outputPath = null)
+    {
+        var settings = await _settingsService.ListSettingsAsync("dotnetcloud.core");
+        var options = BuildBackupOptionsFromSettings(settings, outputPath);
+
+        if (!_backupRunner.TryStart(options, outputPath, out var error))
+        {
+            return Conflict(new
+            {
+                success = false,
+                error = new { code = "BACKUP_IN_PROGRESS", message = error },
+            });
+        }
+
+        _logger.LogInformation("Background backup started by admin.");
+        return Accepted(new { success = true, message = "Backup started." });
+    }
+
+    /// <summary>
+    /// Request cancellation of the running background backup.
+    /// </summary>
+    /// <returns>200 when cancellation was requested, 409 when no backup is running.</returns>
+    [HttpPost("backup/cancel")]
+    public IActionResult CancelBackup()
+    {
+        if (!_backupRunner.TryCancel())
+        {
+            return Conflict(new
+            {
+                success = false,
+                error = new { code = "NO_BACKUP_RUNNING", message = "No backup is running." },
+            });
+        }
+
+        _logger.LogInformation("Background backup cancellation requested by admin.");
+        return Ok(new { success = true, message = "Cancellation requested." });
+    }
+
+    /// <summary>
     /// Gets the current backup status.
     /// </summary>
     /// <param name="cancellationToken">Cancellation token.</param>
@@ -592,8 +643,19 @@ public class AdminController : ControllerBase
     [HttpGet("backup/status")]
     public async Task<IActionResult> GetBackupStatusAsync(CancellationToken cancellationToken = default)
     {
-        var status = await _backupService.GetStatusAsync(cancellationToken);
-        return Ok(new { success = true, data = status });
+        // Prefer the background runner while it is active or when it has the most recent result;
+        // otherwise fall back to the service (covers synchronous and scheduled runs).
+        var runnerStatus = _backupRunner.GetStatus();
+        var serviceStatus = await _backupService.GetStatusAsync(cancellationToken);
+
+        if (runnerStatus.IsRunning)
+            return Ok(new { success = true, data = runnerStatus });
+
+        if (runnerStatus.LastBackupTime is not null
+            && (serviceStatus.LastBackupTime is null || runnerStatus.LastBackupTime >= serviceStatus.LastBackupTime))
+            return Ok(new { success = true, data = runnerStatus });
+
+        return Ok(new { success = true, data = serviceStatus });
     }
 
     /// <summary>
@@ -650,6 +712,9 @@ public class AdminController : ControllerBase
                     break;
                 case "Backup:Directory":
                     options.BackupDirectory = setting.Value;
+                    break;
+                case "Backup:Compression":
+                    options.Compression = setting.Value;
                     break;
             }
         }

@@ -37,20 +37,19 @@
 
                 <div class="form-group">
                     <label>Schedule</label>
-                    <select class="input input-sm" @bind="_schedule">
+                    <select class="input input-sm" @bind="_schedule" disabled="@(!_enabled)">
                         <option value="daily">Daily</option>
                         <option value="weekly">Weekly</option>
-                        <option value="manual">Manual Only</option>
                     </select>
                     <span class="hint">
-                        How often automated backups run. "Manual Only" disables the schedule
-                        but still allows on-demand backups.
+                        How often automated backups run. Uncheck "Automated Backups" to disable the
+                        schedule; manual backups remain available below.
                     </span>
                 </div>
 
                 <div class="form-group">
                     <label>Backup Time (UTC)</label>
-                    <input type="time" class="input input-sm" @bind="_backupTimeUtc" />
+                    <input type="time" class="input input-sm" @bind="_backupTimeUtc" disabled="@(!_enabled)" />
                     <span class="hint">Time of day (UTC) to start the backup. Default: 02:00.</span>
                 </div>
 
@@ -58,7 +57,7 @@
                 {
                     <div class="form-group">
                         <label>Day of Week</label>
-                        <select class="input input-sm" @bind="_backupDayOfWeek">
+                        <select class="input input-sm" @bind="_backupDayOfWeek" disabled="@(!_enabled)">
                             <option value="Sunday">Sunday</option>
                             <option value="Monday">Monday</option>
                             <option value="Tuesday">Tuesday</option>
@@ -93,34 +92,17 @@
                         deleted when this limit is exceeded. Default: 7.
                     </span>
                 </div>
-            </section>
-
-            <!-- Backup Scope -->
-            <section class="settings-section">
-                <h2>Backup Scope</h2>
 
                 <div class="form-group">
-                    <label>Include Database</label>
-                    <input type="checkbox" @bind="_includeDatabase" />
+                    <label>Compression</label>
+                    <select class="input input-sm" @bind="_compression">
+                        <option value="optimal">Optimal — smallest archive (slowest)</option>
+                        <option value="fastest">Fastest</option>
+                        <option value="store">None — best for large media libraries</option>
+                    </select>
                     <span class="hint">
-                        Back up the PostgreSQL / SQL Server database (users, settings, metadata).
-                    </span>
-                </div>
-
-                <div class="form-group">
-                    <label>Include File Storage</label>
-                    <input type="checkbox" @bind="_includeFileStorage" />
-                    <span class="hint">
-                        Back up uploaded files and chunks. This can significantly increase backup size
-                        and duration.
-                    </span>
-                </div>
-
-                <div class="form-group">
-                    <label>Include Module Data</label>
-                    <input type="checkbox" @bind="_includeModuleData" />
-                    <span class="hint">
-                        Back up per-module data directories (Chat attachments, Calendar exports, etc.).
+                        ZIP cannot shrink already-compressed photo/video data; "None" avoids spending
+                        CPU on it and is much faster for large media libraries.
                     </span>
                 </div>
             </section>
@@ -151,52 +133,45 @@
                     </div>
                 }
             </section>
-
-            <!-- Notifications -->
-            <section class="settings-section">
-                <h2>Notifications</h2>
-
-                <div class="form-group">
-                    <label>Notify on Success</label>
-                    <input type="checkbox" @bind="_notifyOnSuccess" />
-                    <span class="hint">Send a notification to admins when a backup completes successfully.</span>
-                </div>
-
-                <div class="form-group">
-                    <label>Notify on Failure</label>
-                    <input type="checkbox" @bind="_notifyOnFailure" />
-                    <span class="hint">Send a notification to admins when a backup fails.</span>
-                </div>
-            </section>
         </div>
 
         <!-- Run Backup Now -->
         <section class="settings-section">
             <h2>Manual Backup</h2>
             <p class="text-muted">
-                Trigger an immediate backup using the current settings.
-                @if (_backupStatus?.IsRunning == true)
-                {
-                    <span class="badge badge-warning">A backup is currently running...</span>
-                }
+                Trigger an immediate backup using the current settings. The backup runs in the background,
+                so a large dataset cannot hit the browser's request timeout.
             </p>
             <div class="form-actions">
                 <button class="btn btn-primary" @onclick="RunBackupNowAsync" disabled="@_runningBackup">
-                    @if (_runningBackup)
-                    {
-                        <span>Running backup...</span>
-                    }
-                    else
-                    {
-                        <span>Run Backup Now</span>
-                    }
+                    @(_runningBackup ? "Backup in progress..." : "Run Backup Now")
                 </button>
+                @if (_backupStatus?.IsRunning == true)
+                {
+                    <button class="btn btn-outline" @onclick="CancelBackupAsync" disabled="@_backupStatus.CancelRequested">
+                        @(_backupStatus.CancelRequested ? "Cancelling..." : "Cancel Backup")
+                    </button>
+                }
             </div>
+            @if (_backupStatus?.IsRunning == true)
+            {
+                <div class="backup-result">
+                    <p><strong>Phase:</strong> @_backupStatus.Phase</p>
+                    @if (_backupStatus.FilesTotal > 0)
+                    {
+                        <p>
+                            Files: @_backupStatus.FilesProcessed / @_backupStatus.FilesTotal
+                            (@FormatSize(_backupStatus.BytesProcessed) / @FormatSize(_backupStatus.BytesTotal))
+                        </p>
+                        <progress value="@_backupStatus.FilesProcessed" max="@_backupStatus.FilesTotal"></progress>
+                    }
+                </div>
+            }
             @if (_lastBackupResult is not null)
             {
                 <div class="backup-result @(_lastBackupResult.Success ? "backup-result-success" : "backup-result-failure")">
                     <p>
-                        <strong>Last backup:</strong>
+                        <strong>Last backup:</strong>@(" ")
                         @if (_lastBackupResult.Success)
                         {
                             <span>Completed ✅</span>

@@ -19,6 +19,7 @@ public class CommandStructureTests
         root.Subcommands.Add(ComponentCommands.Create());
         root.Subcommands.Add(LogCommands.Create());
         root.Subcommands.Add(BackupCommands.Create());
+        root.Subcommands.Add(BackupCommands.CreateRestoreCommand());
         root.Subcommands.Add(MiscCommands.CreateUpdate());
         root.Subcommands.Add(MiscCommands.CreateVersion());
 
@@ -32,8 +33,19 @@ public class CommandStructureTests
         CollectionAssert.Contains(names, "component");
         CollectionAssert.Contains(names, "logs");
         CollectionAssert.Contains(names, "backup");
+        CollectionAssert.Contains(names, "restore");
         CollectionAssert.Contains(names, "update");
         CollectionAssert.Contains(names, "version");
+    }
+
+    [TestMethod]
+    public void RestoreCommand_IsAvailableAtTopLevelAndUnderBackup()
+    {
+        var topLevel = BackupCommands.CreateRestoreCommand();
+        Assert.AreEqual("restore", topLevel.Name);
+
+        var underBackup = BackupCommands.Create().Subcommands.FirstOrDefault(c => c.Name == "restore");
+        Assert.IsNotNull(underBackup, "restore should remain a backup subcommand for compatibility");
     }
 
     [TestMethod]
@@ -217,6 +229,48 @@ public class CommandStructureTests
         var option = command.Options.FirstOrDefault(o => o.Name == "--no-manifest");
         Assert.IsNotNull(option, "Expected --no-manifest option");
         Assert.IsInstanceOfType(option, typeof(Option<bool>));
+    }
+
+    [TestMethod]
+    public void BackupCommand_HasNoDbDumpOption()
+    {
+        var command = BackupCommands.Create();
+        var option = command.Options.FirstOrDefault(o => o.Name == "--no-db-dump");
+        Assert.IsNotNull(option, "Expected --no-db-dump option");
+        Assert.IsInstanceOfType(option, typeof(Option<bool>));
+    }
+
+    [TestMethod]
+    public void BackupCommand_HasNoSystemOption()
+    {
+        var command = BackupCommands.Create();
+        var option = command.Options.FirstOrDefault(o => o.Name == "--no-system");
+        Assert.IsNotNull(option, "Expected --no-system option");
+        Assert.IsInstanceOfType(option, typeof(Option<bool>));
+    }
+
+    [TestMethod]
+    public void BackupCommand_HasCompressionOption()
+    {
+        var command = BackupCommands.Create();
+        var option = command.Options.FirstOrDefault(o => o.Name == "--compression");
+        Assert.IsNotNull(option, "Expected --compression option");
+        Assert.IsInstanceOfType(option, typeof(Option<string>));
+    }
+
+    [TestMethod]
+    public void RestoreCommand_HasFullRestoreOptions()
+    {
+        var restore = BackupCommands.Create().Subcommands.First(c => c.Name == "restore");
+        var names = restore.Options.Select(o => o.Name).ToList();
+
+        CollectionAssert.Contains(names, "--yes");
+        CollectionAssert.Contains(names, "--skip-database");
+        CollectionAssert.Contains(names, "--replace-database");
+        CollectionAssert.Contains(names, "--skip-system");
+        CollectionAssert.Contains(names, "--skip-service");
+        CollectionAssert.Contains(names, "--data-dir");
+        CollectionAssert.Contains(names, "--no-health-wait");
     }
 
     [TestMethod]

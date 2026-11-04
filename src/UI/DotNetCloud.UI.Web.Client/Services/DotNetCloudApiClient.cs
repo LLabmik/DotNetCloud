@@ -1404,6 +1404,54 @@ public sealed class DotNetCloudApiClient
     }
 
     /// <summary>
+    /// Starts a backup in the background (returns as soon as the job is queued). Poll
+    /// <see cref="GetBackupStatusAsync"/> for progress and completion. Use this instead of
+    /// <see cref="RunBackupAsync"/> for large datasets, since a synchronous HTTP request is bounded
+    /// by the client timeout.
+    /// </summary>
+    /// <param name="outputPath">Optional explicit output path for the backup archive.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns><see langword="true"/> when the job started; <see langword="false"/> when one is already running.</returns>
+    public async Task<bool> StartBackupAsync(string? outputPath = null, CancellationToken ct = default)
+    {
+        var url = "api/v1/core/admin/backup/start";
+        if (!string.IsNullOrWhiteSpace(outputPath))
+            url += $"?outputPath={Uri.EscapeDataString(outputPath)}";
+
+        var response = await _http.PostAsync(url, null, ct);
+        if (response.StatusCode == System.Net.HttpStatusCode.Conflict)
+            return false;
+
+        if (!response.IsSuccessStatusCode)
+        {
+            var error = await ReadApiErrorMessageAsync(response, ct);
+            throw new HttpRequestException(error, null, response.StatusCode);
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    /// Requests cancellation of the running background backup.
+    /// </summary>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns><see langword="true"/> when cancellation was requested.</returns>
+    public async Task<bool> CancelBackupAsync(CancellationToken ct = default)
+    {
+        var response = await _http.PostAsync("api/v1/core/admin/backup/cancel", null, ct);
+        if (response.StatusCode == System.Net.HttpStatusCode.Conflict)
+            return false;
+
+        if (!response.IsSuccessStatusCode)
+        {
+            var error = await ReadApiErrorMessageAsync(response, ct);
+            throw new HttpRequestException(error, null, response.StatusCode);
+        }
+
+        return true;
+    }
+
+    /// <summary>
     /// Rotates the OpenIddict signing and encryption keys immediately (admin).
     /// Backs up the existing keys, generates fresh keys, and returns the new key IDs.
     /// </summary>

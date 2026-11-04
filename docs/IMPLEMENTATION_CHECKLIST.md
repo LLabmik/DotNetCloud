@@ -1611,21 +1611,49 @@ Core platform boots, authenticates a user, loads a module, serves the Blazor UI.
 
 ##### Backup Commands
 
-- ✓ `dotnetcloud backup` - Create backup
+- ✓ `dotnetcloud backup` - Complete backup: data, database dump and system configuration
 - ✓ `dotnetcloud backup --output {path}` - Backup to specific location
-- ✓ `dotnetcloud backup --db-dump` - Include database dump (pg_dump/sqlcmd)
+- ✓ Database dump on by default; `pg_dump`/`psql` authenticate with the password from `config.json` (`PGPASSWORD`)
+- ✓ `--no-db-dump` / `--no-system` / `--no-manifest` - Explicit opt-outs (a requested dump that fails aborts the backup)
+- ✓ Archive carries `backup-info.json`, `config/config.json`, `config/env`, `config/certs/*`, systemd unit, `appsettings.json`, `VERSION`, `<archive>.sha256`
 - ✓ `dotnetcloud backup --server {url}` - Trigger backup via server API
-- ✓ `dotnetcloud restore {file}` - Restore from backup (with optional DB restore)
-- ✓ `dotnetcloud restore {file}` with `database.sql` - Restore includes DB dump
+- ✓ `dotnetcloud restore {file}` - Cold restore: stops the service, restores config/certs/env/unit, database, data and ownership/modes, then starts + health-checks
+- ✓ `dotnetcloud restore --replace-database` - Replaces an existing non-empty database (safe, explicit)
+- ✓ `dotnetcloud restore --skip-database|--skip-system|--skip-service|--data-dir|--yes|--no-health-wait` - Granular control
 - ✓ `dotnetcloud backup --schedule daily` - Schedule automatic backups
+- ✓ `--compression optimal|fastest|store` - Configurable Deflate level (`store` is much faster for media)
+- ✓ `--mode zip|mirror` - Single/split archive, or an incremental snapshot that hardlinks unchanged
+  content-addressed blobs and resumes an interrupted run
+- ✓ `--split-size {size}` - Numbered part set (`part001.zip`…) plus `.backupset.json` manifest, so a
+  20 TB+ library can exceed the ext4 16 TiB per-file limit
+- ✓ `restore` accepts a single archive, any part of a split set (manifest located automatically), or a
+  mirror snapshot root — with `--snapshot` (pick one) and `--verify-parts` (hash every part first)
+- ✓ Unreadable data/system files are skipped and recorded as warnings instead of aborting the backup
+- ✓ **Restoring onto a new host name:** `restore` re-issues the self-signed leaf for the new `hostname`
+  (same root CA, so client trust survives), updates `config.json`, and repoints Collabora's managed
+  alias group + `cert.pem`; warns instead when the CA has no key (new root) or Let's Encrypt is used
+- ✓ **Windows Server:** platform-aware system payload, `sc.exe` service control, `certutil` root CA,
+  `DOTNETCLOUD_POSTGRES_ADMIN_CONNECTION` for role/database management, NTFS hardlinks,
+  `%ProgramData%\DotNetCloud` defaults
+- ✓ **Large datasets:** Admin UI backup runs as a background job (`POST backup/start`, polled via `/backup/status`,
+  cancellable via `/backup/cancel`) with phase/file/byte progress — no 100-second HTTP timeout
+- ✓ **Streaming restore:** entries are written straight from the archive to their destinations; `database.sql`
+  is streamed into `psql` stdin — peak disk ~2× instead of 3×
+- ✓ **Settings page simplified:** no "Manual Only" (the Automated Backups checkbox governs the schedule);
+  scope and notification toggles removed (always enabled and saved as `true`); compression moved to Storage;
+  progress reports every 25 files
 
 ##### Backup Service (Server-Side)
 
 - ✓ `IBackupService` interface in `DotNetCloud.Core`
 - ✓ `BackupService` implementation in server with file + DB dump backup
+- ✓ Server backup resolves provider/connection from configuration and passes `PGPASSWORD` (dump no longer silently skipped)
+- ✓ Server backup resolves the data directory for Admin UI + scheduled runs, excludes the backup directory, archives empty template folders, and writes a `<archive>.sha256` sidecar
+- ✓ Installer grants the service account a read-only ACL on Collabora config/public certs so Admin backups include them (private keys stay unreadable)
+- ✓ Server archive includes system configuration (`config`, `certs`, `env`, systemd unit, CLI wrapper, `appsettings`) and `backup-info.json`
 - ✓ `POST /api/v1/core/admin/backup/run` - Trigger backup via API
 - ✓ `GET /api/v1/core/admin/backup/status` - Get backup status
-- ✓ `POST /api/v1/core/admin/backup/restore` - Restore from backup
+- ✓ `POST /api/v1/core/admin/backup/restore` - Restore from backup (resolves provider/connection, passes `PGPASSWORD`)
 - ✓ `BackupHostedService` - Background service for scheduled backups
 - ✓ Admin UI "Run Backup Now" button at `/admin/backup`
 - ✓ Backup settings synced between UI and server (system settings table)
@@ -1643,6 +1671,13 @@ Core platform boots, authenticates a user, loads a module, serves the Blazor UI.
 - ✓ `ConsoleOutputTests` — 16 tests (FormatStatus color indicators, case insensitivity)
 - ✓ `SetupCommandTests` — 9 tests (MaskConnectionString, command structure)
 - ✓ `CommandStructureTests` — 28 tests (all commands, subcommands, options, arguments; incl. --db-dump, --server)
+- ✓ `BackupArchiveTests` — 16 tests (connection-string password, tool environment, system payload, Zip-Slip rejection, backup metadata round-trip)
+- ✓ `BackupCompressionTests` — 7 tests (store/fastest/optimal mapping, aliases, case-insensitivity, fallbacks)
+- ✓ `BackupJobRunnerTests` — 5 tests (completion metadata, single-job guard, cancel, failure reporting)
+- ✓ `BackupEngineTests` — 16 tests (part-size parsing, split sets + manifest + checksums, part
+  detection/verification, snapshot discovery/resume, hardlink decisions)
+- ✓ `RestoredHostIdentityTests` — 9 tests (leaf re-issue for a new host with the restored root CA,
+  new-root fallback, same-host no-op, managed Collabora alias block repointing)
 - ✓ `SystemdServiceHelperTests` — 15 tests (Type=forking, PIDFile, no ExecStop, hardening, systemd format validation)
 
 ---

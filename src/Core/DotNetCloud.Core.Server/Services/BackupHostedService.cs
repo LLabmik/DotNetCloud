@@ -175,6 +175,9 @@ public sealed class BackupHostedService : BackgroundService
                 case "Backup:Directory":
                     options.BackupDirectory = setting.Value;
                     break;
+                case "Backup:Compression":
+                    options.Compression = setting.Value;
+                    break;
             }
         }
         return options;

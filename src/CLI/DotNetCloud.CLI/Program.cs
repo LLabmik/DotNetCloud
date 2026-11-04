@@ -78,6 +78,8 @@ public static class Program
 
         // Backup & restore
         rootCommand.Subcommands.Add(BackupCommands.Create());
+        // Restore is also a top-level command so the documented `dotnetcloud restore <file>` works.
+        rootCommand.Subcommands.Add(BackupCommands.CreateRestoreCommand());
 
         // Certificate management
         rootCommand.Subcommands.Add(CertRenewCommand.Create());

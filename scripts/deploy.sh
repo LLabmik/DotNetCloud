@@ -324,7 +324,10 @@ print_summary() {
 # to ../modules (the path ModuleDiscoveryService scans). Idempotent; migrates the
 # legacy real-directory layout on first run.
 ensure_module_layout() {
-    mkdir -p "$MODULES_DIR"
+    # A deploy onto a bare machine (or after a disaster wipe + restore, which only puts back the
+    # small /opt files) has no install tree yet. Create it here so the modules symlink and the
+    # publish steps below never fail with "No such file or directory".
+    mkdir -p "$MODULES_DIR" "$DEPLOY_DIR"
 
     # Search is now a core capability; the old process-isolated Search module host
     # directory is removed if it lingers from a previous deploy.

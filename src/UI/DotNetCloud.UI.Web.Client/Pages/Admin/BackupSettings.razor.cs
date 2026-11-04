@@ -28,7 +28,7 @@ using static Microsoft.AspNetCore.Components.Web.RenderMode;
 namespace DotNetCloud.UI.Web.Client.Pages.Admin;
 
 /// <summary>Code-behind for the <see cref="BackupSettings"/> component.</summary>
-public partial class BackupSettings : ComponentBase
+public partial class BackupSettings : ComponentBase, IDisposable
 {
     [Inject] private DotNetCloudApiClient Api { get; set; } = default!;
     [Inject] private ToastService Toast { get; set; } = default!;
@@ -41,6 +41,7 @@ public partial class BackupSettings : ComponentBase
     private BackupResult? _lastBackupResult;
     private BackupStatusInfo? _backupStatus;
     private ConfirmDialog _confirmDialog = default!;
+    private CancellationTokenSource? _pollCancellation;
 
     // Form fields
     private bool _enabled;
@@ -49,17 +50,14 @@ public partial class BackupSettings : ComponentBase
     private string _backupDayOfWeek = "Sunday";
     private string _backupDirectory = string.Empty;
     private int _retentionCount = 7;
-    private bool _includeDatabase = true;
-    private bool _includeFileStorage = true;
-    private bool _includeModuleData = true;
+    private string _compression = "optimal";
     private bool _encryptBackups;
     private string _encryptionPassphrase = string.Empty;
-    private bool _notifyOnSuccess;
-    private bool _notifyOnFailure = true;
 
     protected override async Task OnInitializedAsync()
     {
         await LoadSettingsAsync();
+        await LoadBackupStatusAsync();
     }
 
     private async Task LoadSettingsAsync()
@@ -84,19 +82,17 @@ public partial class BackupSettings : ComponentBase
     {
         _enabled = GetBool(settings, "Backup:Enabled");
         _schedule = GetString(settings, "Backup:Schedule", "daily");
+        if (_schedule.Equals("manual", StringComparison.OrdinalIgnoreCase))
+            _schedule = "daily";
         var timeStr = GetString(settings, "Backup:TimeUtc", "02:00");
         if (TimeOnly.TryParse(timeStr, out var t))
             _backupTimeUtc = t;
         _backupDayOfWeek = GetString(settings, "Backup:DayOfWeek", "Sunday");
         _backupDirectory = GetString(settings, "Backup:Directory", "/var/lib/dotnetcloud/backups");
         _retentionCount = GetInt(settings, "Backup:RetentionCount", 7);
-        _includeDatabase = GetBool(settings, "Backup:IncludeDatabase", defaultValue: true);
-        _includeFileStorage = GetBool(settings, "Backup:IncludeFileStorage", defaultValue: true);
-        _includeModuleData = GetBool(settings, "Backup:IncludeModuleData", defaultValue: true);
+        _compression = GetString(settings, "Backup:Compression", "optimal");
         _encryptBackups = GetBool(settings, "Backup:Encrypt");
         _encryptionPassphrase = GetString(settings, "Backup:EncryptionPassphrase");
-        _notifyOnSuccess = GetBool(settings, "Backup:NotifyOnSuccess");
-        _notifyOnFailure = GetBool(settings, "Backup:NotifyOnFailure", defaultValue: true);
     }
 
     private async Task SaveAsync()
@@ -124,14 +120,18 @@ public partial class BackupSettings : ComponentBase
                 Api.UpsertSettingAsync(Module, "Backup:DayOfWeek", Str(_backupDayOfWeek)),
                 Api.UpsertSettingAsync(Module, "Backup:Directory", Str(_backupDirectory)),
                 Api.UpsertSettingAsync(Module, "Backup:RetentionCount", Str(_retentionCount.ToString())),
-                Api.UpsertSettingAsync(Module, "Backup:IncludeDatabase", Str(_includeDatabase.ToString())),
-                Api.UpsertSettingAsync(Module, "Backup:IncludeFileStorage", Str(_includeFileStorage.ToString())),
-                Api.UpsertSettingAsync(Module, "Backup:IncludeModuleData", Str(_includeModuleData.ToString())),
+                // Backup scope and notifications are no longer user-configurable: a complete backup
+                // always includes the database, file storage and module data, and both notification
+                // preferences stay enabled. Write them explicitly so older "false" values are corrected.
+                Api.UpsertSettingAsync(Module, "Backup:IncludeDatabase", Str(bool.TrueString)),
+                Api.UpsertSettingAsync(Module, "Backup:IncludeFileStorage", Str(bool.TrueString)),
+                Api.UpsertSettingAsync(Module, "Backup:IncludeModuleData", Str(bool.TrueString)),
+                Api.UpsertSettingAsync(Module, "Backup:Compression", Str(_compression)),
                 Api.UpsertSettingAsync(Module, "Backup:Encrypt", Str(_encryptBackups.ToString())),
                 Api.UpsertSettingAsync(Module, "Backup:EncryptionPassphrase",
                     new UpsertSystemSettingDto { Value = _encryptionPassphrase, IsSensitive = true }),
-                Api.UpsertSettingAsync(Module, "Backup:NotifyOnSuccess", Str(_notifyOnSuccess.ToString())),
-                Api.UpsertSettingAsync(Module, "Backup:NotifyOnFailure", Str(_notifyOnFailure.ToString()))
+                Api.UpsertSettingAsync(Module, "Backup:NotifyOnSuccess", Str(bool.TrueString)),
+                Api.UpsertSettingAsync(Module, "Backup:NotifyOnFailure", Str(bool.TrueString))
             };
 
             var results = await Task.WhenAll(tasks);
@@ -181,16 +181,15 @@ public partial class BackupSettings : ComponentBase
         _lastBackupResult = null;
         try
         {
-            var result = await Api.RunBackupAsync();
-            _lastBackupResult = result;
-            if (result?.Success == true)
+            // Start a background job: the HTTP call returns immediately, so the browser's 100-second
+            // timeout cannot cancel a multi-gigabyte backup.
+            if (!await Api.StartBackupAsync())
             {
-                Toast.ShowSuccess($"Backup completed: {result.FilePath}");
+                Toast.ShowError("A backup is already running.");
+                return;
             }
-            else
-            {
-                Toast.ShowError($"Backup failed: {result?.ErrorMessage ?? "Unknown error"}");
-            }
+
+            await PollBackupUntilDoneAsync();
         }
         catch (Exception ex)
         {
@@ -200,8 +199,123 @@ public partial class BackupSettings : ComponentBase
         finally
         {
             _runningBackup = false;
+        }
+    }
+
+    private async Task LoadBackupStatusAsync()
+    {
+        try
+        {
             _backupStatus = await Api.GetBackupStatusAsync();
         }
+        catch
+        {
+            return;
+        }
+
+        // If a job is already running (started before this page was opened), resume polling.
+        if (_backupStatus?.IsRunning == true && !_runningBackup)
+        {
+            _runningBackup = true;
+            _ = PollBackupUntilDoneAsync();
+        }
+        else if (_backupStatus is { LastBackupTime: not null })
+        {
+            // Show the most recent result after a page reload as well.
+            _lastBackupResult = new BackupResult
+            {
+                Success = _backupStatus.LastBackupSuccess == true,
+                FilePath = _backupStatus.LastBackupPath,
+                FileCount = _backupStatus.LastBackupFileCount ?? 0,
+                SizeBytes = _backupStatus.LastBackupSizeBytes ?? 0,
+                ErrorMessage = _backupStatus.LastError,
+            };
+        }
+    }
+
+    private async Task PollBackupUntilDoneAsync()
+    {
+        _pollCancellation?.Cancel();
+        _pollCancellation?.Dispose();
+        _pollCancellation = new CancellationTokenSource();
+        var token = _pollCancellation.Token;
+
+        try
+        {
+            while (!token.IsCancellationRequested)
+            {
+                try
+                {
+                    _backupStatus = await Api.GetBackupStatusAsync(token);
+                }
+                catch (OperationCanceledException)
+                {
+                    return;
+                }
+                catch (Exception ex)
+                {
+                    Toast.ShowError($"Could not read backup status: {ex.Message}");
+                    return;
+                }
+
+                await InvokeAsync(StateHasChanged);
+
+                if (_backupStatus is not null && !_backupStatus.IsRunning)
+                {
+                    _lastBackupResult = new BackupResult
+                    {
+                        Success = _backupStatus.LastBackupSuccess == true,
+                        FilePath = _backupStatus.LastBackupPath,
+                        FileCount = _backupStatus.LastBackupFileCount ?? 0,
+                        SizeBytes = _backupStatus.LastBackupSizeBytes ?? 0,
+                        ErrorMessage = _backupStatus.LastError,
+                    };
+
+                    if (_lastBackupResult.Success)
+                        Toast.ShowSuccess($"Backup completed: {_lastBackupResult.FilePath}");
+                    else
+                        Toast.ShowError($"Backup failed: {_lastBackupResult.ErrorMessage ?? "Unknown error"}");
+
+                    return;
+                }
+
+                try
+                { await Task.Delay(TimeSpan.FromSeconds(2), token); }
+                catch (OperationCanceledException)
+                { return; }
+            }
+        }
+        finally
+        {
+            _runningBackup = false;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private async Task CancelBackupAsync()
+    {
+        if (_backupStatus?.IsRunning != true)
+            return;
+
+        try
+        {
+            if (await Api.CancelBackupAsync())
+                Toast.ShowSuccess("Cancellation requested.");
+            else
+                Toast.ShowError("No backup is running.");
+        }
+        catch (Exception ex)
+        {
+            Toast.ShowError($"Could not cancel the backup: {ex.Message}");
+        }
+    }
+
+    /// <inheritdoc />
+    public void Dispose()
+    {
+        _pollCancellation?.Cancel();
+        _pollCancellation?.Dispose();
+        _pollCancellation = null;
     }
 
     private static string FormatSize(long bytes)

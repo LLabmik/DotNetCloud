@@ -16,6 +16,7 @@ public static class BackupServiceExtensions
     public static IServiceCollection AddDotNetCloudBackupServices(this IServiceCollection services)
     {
         services.AddScoped<IBackupService, BackupService>();
+        services.AddSingleton<BackupJobRunner>();
         services.AddHostedService<BackupHostedService>();
         return services;
     }

@@ -21,8 +21,18 @@ Both must be backed up together and restored together for a consistent state.
 | -------------------- | -------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
 | **Database**         | PostgreSQL / SQL Server                                              | `files.*` schema (file_nodes, file_versions, file_chunks, file_shares, etc.) |
 | **File storage**     | `{StorageRoot}` directory                                            | Binary chunk files, thumbnails                                               |
-| **Configuration**    | `appsettings.json`                                                   | Module settings (quota, retention, Collabora, storage path)                  |
+| **Configuration**    | `/etc/dotnetcloud/config.json`                                       | Database connection string, ports, TLS mode, module list                      |
+| **TLS material**     | `/etc/dotnetcloud/certs/`                                            | `dotnetcloud-selfsigned.pfx` (server), `.pem` (Collabora), `dotnetcloud-root-ca.crt` |
+| **Runtime env**      | `/etc/dotnetcloud/env`                                               | Collabora/WOPI settings (public origin, discovery/proxy URLs, signing key)    |
+| **Service unit**     | `/etc/systemd/system/dotnetcloud.service`                            | Service definition — may contain operator-added `Environment=` secrets        |
+| **Server settings**  | `/opt/dotnetcloud/appsettings.json`, `VERSION`                       | AllowedHosts, Kestrel, AI/email/ICE settings; deployed version                |
+| **Collabora config** | `/etc/coolwsd/coolwsd.xml` (+ `cert.pem`, `ca-chain.cert.pem`)       | WOPI alias group added by the installer                                       |
 | **Storage manifest** | Embedded by `dotnetcloud backup`; also `dotnetcloud backup manifest` | Index mapping every stored blob back to its file (see below)                 |
+
+> **⚠️ Certificates and env are not optional.** `config.json` points at
+> `/etc/dotnetcloud/certs/dotnetcloud-selfsigned.pfx`; if that file is missing the server throws
+> `FileNotFoundException` at startup and the unit crash-loops. The root CA must also be re-installed
+> into the system trust store or the server's own module gRPC clients fail TLS validation.
 
 > **⚠️ The storage tree is not self-describing.** Content is content-addressed and stored _without_ a
 > file extension — whole-file media blobs at `files/<xx>/<yy>/<sha256>`, chunked files at
@@ -71,29 +81,109 @@ fails when it is played or downloaded.
 
 ### Method 1: CLI Backup (Recommended)
 
-DotNetCloud includes a built-in backup command that handles both database and file storage:
+DotNetCloud includes a built-in backup command that produces a **complete, cold-restorable** archive:
 
 ```bash
-dotnetcloud backup --output /backup/dotnetcloud-2026-03-03.tar.gz
+sudo dotnetcloud backup --output /var/backups/dnc/dotnetcloud-2026-11-03.zip
 ```
 
-This creates a compressed archive containing:
+By default it includes:
 
-- Database dump (pg_dump / SQL Server bacpac)
-- File storage directory
-- Configuration files
-- **Storage manifest** — `manifest/storage-manifest.tsv`
+| Archive path                     | Source                                                      |
+| -------------------------------- | ----------------------------------------------------------- |
+| `database.sql`                   | `pg_dump -Fp` (PostgreSQL) or `sqlcmd BACKUP DATABASE`       |
+| `data/**`                        | `{DataDirectory}` minus the backup directory                |
+| `config/config.json`             | `/etc/dotnetcloud/config.json`                              |
+| `config/env`                     | `/etc/dotnetcloud/env`                                      |
+| `config/certs/**`                | TLS PFX/PEM + root CA                                       |
+| `system/systemd/dotnetcloud.service` | Service unit (includes locally-added env vars)          |
+| `system/bin/dotnetcloud`         | CLI wrapper on `PATH`                                       |
+| `system/coolwsd/**`              | Collabora config + certs (if present)                       |
+| `opt/appsettings.json`, `opt/VERSION` | Server settings and deployed version                   |
+| `manifest/storage-manifest.tsv`  | Blob → file index                                           |
+| `backup-info.json`               | Machine-readable metadata for `dotnetcloud restore`         |
+
+A `<archive>.sha256` sidecar is written next to the archive.
+
+Behaviour guarantees:
+
+- **The database dump is on by default** and `pg_dump`/`psql` read the password from the
+  connection string in `config.json` via `PGPASSWORD`. If the dump fails, the backup **aborts** rather
+  than silently producing a file-only archive.
+- **Compression** defaults to `optimal`. Use `--compression store` for large media libraries — ZIP
+  cannot shrink already-compressed photos/videos, so `store` is much faster. `--compression fastest`
+  is a middle ground.
+- `--no-db-dump` explicitly creates a file-only backup (archive is marked as unable to restore the DB).
+- `--no-system` skips the system configuration (not recommended for disaster recovery).
+- `--no-manifest` skips the storage manifest (e.g. when the database is unreachable).
+- The backup directory and the in-progress archive are always excluded, so backups never nest.
+- Files the current user cannot read are skipped and recorded in `backup-info.json` under `warnings`
+  instead of aborting the whole backup.
+
+#### Split sets (larger than the filesystem allows)
+
+A single ZIP is a single file, so it can never exceed the filesystem's maximum file size — **ext4 caps
+a file at 16 TiB**, which a 20 TB library exceeds once the archive grows past that. Use `--split-size`
+to write a numbered part set instead:
+
+```bash
+sudo dotnetcloud backup --output /backups/dnc/weekly.zip --split-size 8TB --compression store
+#   → /backups/dnc/weekly.part001.zip
+#   → /backups/dnc/weekly.part002.zip
+#   → /backups/dnc/weekly.part003.zip        (any number of parts)
+#   → /backups/dnc/weekly.part00N.zip.sha256 (one sidecar per part)
+#   → /backups/dnc/weekly.backupset.json     (manifest: parts, sizes, hashes, entry counts)
+```
+
+- No archive entry is ever split across parts, so any single file must be smaller than the part size.
+- Choose a part size **below** the filesystem limit (8 TB on ext4, 60 TB on NTFS) and below the free
+  space of the target volume.
+- Keep the whole set together: `restore` opens the parts through the manifest and can verify every part
+  hash first.
+- Sizes accept `KB`/`MB`/`GB`/`TB` (binary multiples); a bare number means bytes.
+
+#### Incremental snapshots (mirror mode)
+
+For a 20 TB library a full archive every night is impractical: it re-writes 20 TB each time. `--mode
+mirror` writes a **snapshot directory** instead, and hardlinks every unchanged content-addressed blob
+from the previous snapshot, so only new blobs are actually written:
+
+```bash
+sudo dotnetcloud backup --mode mirror --output /backups/dnc/mirror
+#   → /backups/dnc/mirror/20261103-020000/
+#         database.sql
+#         config/**  system/**  opt/**
+#         data/**            (unchanged storage blobs hardlinked from the previous snapshot)
+#         backup-info.json   (Mode=mirror, PreviousSnapshot, HardLinkedFiles, CopiedFiles)
+```
+
+- Only blobs named `storage/files/xx/yy/<sha256>` and `storage/chunks/xx/yy/<sha256>` are hardlinked —
+  they are immutable and content-addressed. Keys, caches and mutable files are always copied.
+- The target must be on **one volume** (hardlinks cannot cross volumes) and usually **on the server**, so
+  a snapshot is not a substitute for an off-site copy.
+- `backup-info.json` is written last, so an interrupted run leaves `<timestamp>.partial`, which the next
+  run **resumes** instead of restarting.
+- Old snapshots share blocks, so deleting one only frees space for blobs no other snapshot references.
+  Keep a small number of them (`--mode mirror` output plus a weekly full ZIP for off-site copies).
+- Restoring takes the newest complete snapshot by default: `sudo dotnetcloud restore /backups/dnc/mirror`
+  (use `--snapshot 20261027-020000` to pick an older one).
 
 The manifest is generated automatically, before the archive is written, so every backup explains its own
 storage tree:
 
 ```bash
-dotnetcloud backup --output /backup/dotnetcloud-2026-10-09.zip
+sudo dotnetcloud backup --output /var/backups/dnc/dotnetcloud-2026-11-03.zip
 #   → archive gains manifest/storage-manifest.tsv
 #   → standalone copy at /var/lib/dotnetcloud/backups/dotnetcloud-manifest-<timestamp>.tsv
 
-dotnetcloud backup --no-manifest      # opt out (e.g. when the database is unreachable)
+sudo dotnetcloud backup --no-manifest      # opt out
+sudo dotnetcloud backup --no-db-dump       # explicit file-only backup
 ```
+
+> **Take the final pre-disaster backup with the service stopped** (`sudo systemctl stop dotnetcloud`).
+> With the service running, a file uploaded mid-walk may be referenced by the database but absent from
+> the archive. Content-addressed blobs are immutable, so the window is small — but a cold snapshot
+> removes it entirely.
 
 If the manifest cannot be written the backup still completes, with a warning — look for
 `Storage manifest could not be written` and re-run `dotnetcloud backup manifest` afterwards.
@@ -127,7 +217,47 @@ configuration first — a command run without `--config-dir` operates on the sys
 DOTNETCLOUD_CONFIG_DIR=/tmp/dnc-test dotnetcloud status   # confirm ports/paths match the test config
 ```
 
-### Method 2: Manual Backup
+### Method 2: Admin UI / Scheduled Backup (server-side)
+
+Admin → **Backup & Restore** → **Run Backup Now** (or the scheduled `BackupHostedService`) writes a
+restore-complete archive to the configured directory (default `/var/lib/dotnetcloud/backups`). It contains:
+- `database.sql` — `pg_dump` using the password from `config.json` (`PGPASSWORD`)
+- `data/**` — the data directory, **excluding** the backup directory and the archive itself
+- `config/config.json`, `config/env`, `config/certs/*` (PFX, PEM, root CA)
+- `system/systemd/dotnetcloud.service`, `system/bin/dotnetcloud`
+- `opt/appsettings.json`, `VERSION`
+- `backup-info.json` and `<archive>.sha256`
+
+The archive layout is identical to the CLI backup and is consumed by `dotnetcloud restore` unchanged
+(verified end-to-end, including a scratch-database restore of `database.sql`).
+
+**Large datasets:** the Admin button starts a **background job** (`POST backup/start`) and the page
+polls `backup/status` — the HTTP request returns immediately, so the browser's 100-second timeout can
+never cancel a multi-gigabyte backup. The page shows the current phase and file/byte progress, and a
+**Cancel Backup** button requests cancellation. The **Compression** setting accepts `optimal`,
+`fastest` or `store` (best for media).
+
+Backup scope (database, file storage, module data) and the success/failure notification preferences are
+always enabled and are no longer exposed in the page — saving the settings writes them as `true`, so an
+older `false` value is corrected. The **Automated Backups** checkbox alone controls the schedule; there
+is no separate "Manual Only" mode, and manual backups are always available.
+
+Two differences from the CLI backup, recorded in `backup-info.json` → `warnings`:
+
+1. **No storage manifest.** The core server cannot query the process-isolated Files module's database, so
+   `manifest/storage-manifest.tsv` is CLI-only. It is **not required** for a restore: `database.sql` contains
+   every storage path and version/chunk mapping.
+2. **Collabora config needs a read ACL.** `/etc/coolwsd/coolwsd.xml` and the public certificate chain are
+   `root:cool 640`. The installer grants the service account read-only access with
+   `setfacl -m u:dotnetcloud:r` on exactly those three files — the `cool` group is deliberately **not** used,
+   because it also owns the TLS private key (`/etc/coolwsd/key.pem`). A `coolwsd` package upgrade replaces
+   `coolwsd.xml` and drops the ACL; re-run `install.sh` to re-apply it. If the ACL is missing, the archive
+   records an explicit warning and the CLI backup (run as root) still captures the files.
+
+> **Limitations:** the Admin page's *Encrypt Backups* and *Retention Count* settings are stored but not yet
+> enforced by the server-side backup. Use the CLI/cron plus external retention/encryption if you need those.
+
+### Method 3: Manual Backup
 
 #### Step 1: Database Backup
 
@@ -180,15 +310,90 @@ In practice, running the backup during low-activity periods is sufficient. The c
 ### Method 1: CLI Restore
 
 ```bash
-dotnetcloud restore /backup/dotnetcloud-2026-03-03.tar.gz
+sudo dotnetcloud restore /var/backups/dnc/dotnetcloud-2026-11-03.zip
 ```
 
-This restores both the database and file storage.
+`dotnetcloud restore` performs a **cold restore** in this order:
 
-If you kept a storage manifest, compare it against the restored tree before starting the server: every
-`file` row should have its `storagePath` (whole-file) or its ordered `blob` rows (chunked) present under
-the storage root. `dotnetcloud backup manifest` run after the restore will re-flag anything missing,
-and `scripts/audit-whole-file-blobs.sh` reports the whole-file subset directly.
+1. Reads `backup-info.json` and prints a plan (database dump / data / configuration / system files).
+2. Stops `dotnetcloud` (unless `--skip-service`).
+3. Restores `/etc/dotnetcloud` (`config.json`, `env`, `certs/`), the systemd unit, `/usr/local/bin/dotnetcloud`,
+   Collabora config and `/opt/dotnetcloud/appsettings.json` + `VERSION`, fixing ownership and modes
+   (secrets stay `640 root:dotnetcloud`, key directories stay `700`).
+4. Installs the archived root CA into `/usr/local/share/ca-certificates/` and runs `update-ca-certificates`.
+5. Ensures the PostgreSQL role exists, keeps its password **in sync with the restored `config.json`**, and
+   verifies the target database is empty.
+6. Applies `database.sql` with `psql -v ON_ERROR_STOP=1` — streamed from the archive into `psql` stdin.
+7. Restores `data/**` — streamed straight to the destination, then `chown -R dotnetcloud:dotnetcloud` and
+   re-applies `0600`/`0700` to secret material. **No full staging copy is made**: peak disk is the archive
+   plus the restored tree (~2×, not 3×).
+8. `systemctl daemon-reload` / `enable` / `start` and waits for `/health/ready`.
+
+Options:
+
+| Option               | Effect                                                                                     |
+| -------------------- | ------------------------------------------------------------------------------------------ |
+| `--yes`              | Non-interactive (skip confirmation)                                                        |
+| `--replace-database` | Drop and recreate the database when it already contains tables (otherwise the restore aborts) |
+| `--skip-database`    | Restore files/configuration only                                                           |
+| `--skip-system`      | Do not touch `/etc/dotnetcloud`, certs, env or the unit                                    |
+| `--skip-service`     | Do not stop or start the systemd service                                                   |
+| `--data-dir <path>`  | Restore data somewhere other than the path recorded in `config.json`                       |
+| `--no-health-wait`   | Do not poll `/health/ready` after starting                                                 |
+| `--snapshot <name>`  | When the path is a mirror root, restore this snapshot instead of the newest one            |
+| `--verify-parts`     | Verify the SHA-256 of every part of a split set before restoring                           |
+
+The `file` argument accepts all three backup shapes:
+
+```bash
+sudo dotnetcloud restore /var/backups/dnc/dotnetcloud-2026-11-03.zip   # single archive
+sudo dotnetcloud restore /var/backups/dnc/weekly.part001.zip --verify-parts  # part set (manifest is found automatically)
+sudo dotnetcloud restore /var/backups/dnc/mirror                      # newest mirror snapshot
+```
+
+#### Restoring onto a different machine (new host name)
+
+A backup deliberately carries the **previous machine's identity**, because on identical hardware that is
+exactly right: the TLS certificate, `selfSignedTlsHost` in `config.json`, and Collabora's WOPI alias
+group all name the old host. Restoring onto replacement hardware with a different name would otherwise
+produce a certificate-name mismatch in every browser and a Collabora that rejects the new origin.
+
+`restore` detects this (it compares the restored identity with `hostname`) and, when the install uses
+**self-signed TLS**, automatically:
+
+1. Re-issues the server certificate for the new name — `CN=<new host>` with SANs `<new host>`, `localhost`,
+   `127.0.0.1`, `::1` — **signed by the restored root CA**, so every device that already trusts that root
+   keeps working with no client changes.
+2. Rewrites `certs/dotnetcloud-selfsigned.pfx`, `certs/dotnetcloud-selfsigned.pem` and
+   `certs/dotnetcloud-root-ca.crt` (ownership and `0640 root:dotnetcloud` re-applied).
+3. Updates `selfSignedTlsHost` in `config.json`.
+4. Repoints the `dotnetcloud-managed` block of `/etc/coolwsd/coolwsd.xml` at the new host, refreshes
+   Collabora's `cert.pem`/`ca-chain.cert.pem` and restarts `coolwsd`.
+
+It prints a warning naming both hosts so the change is never silent. Two exceptions:
+
+- **The restored root CA has no private key** (for example a hand-built PFX containing only the leaf):
+  a new root CA is generated and the restore says so — client devices must then install the new
+  `dotnetcloud-root-ca.crt` (available at `/root-ca.crt`).
+- **Let's Encrypt** (`useLetsEncrypt: true`): the certificate is bound to a DNS name, so it cannot be
+  re-issued locally. The restore warns; point DNS for that name at the new machine (or run
+  `dotnetcloud setup` for a new certificate).
+
+Nothing else is machine-specific: the data directory, storage blobs, database and module data are
+addressed by content and by `config.json`, not by host name.
+
+> **Restoring onto a machine where `setup` already created a database:** `setup` generates a new random
+> DB password. The restore updates the role password to the one in the archived `config.json`, so the
+> service can connect. Do **not** restore `config.json` and then run `setup` again without checking it.
+
+After the restore, validate the storage tree:
+
+```bash
+sudo dotnetcloud backup manifest --output -
+# → final line reports missingWholeFileBlobs=0 truncatedWholeFileBlobs=0
+```
+
+`scripts/audit-whole-file-blobs.sh` reports the whole-file subset directly.
 
 ### Method 2: Manual Restore
 
@@ -228,7 +433,7 @@ robocopy "D:\Backup\files-storage" "C:\ProgramData\DotNetCloud\files" /MIR /MT:8
 #### Step 4: Restore Configuration
 
 ```bash
-cp /backup/appsettings.json /etc/dotnetcloud/appsettings.json
+cp /opt/dotnetcloud/appsettings.json /backup/appsettings.json
 ```
 
 #### Step 5: Start DotNetCloud
@@ -251,25 +456,45 @@ sudo systemctl start dotnetcloud
 ### Using the CLI
 
 ```bash
-dotnetcloud backup --schedule daily --output /backup/
+sudo dotnetcloud backup schedule --interval daily
 ```
 
-This creates a cron job / Windows Task Scheduler entry that runs daily backups.
+This prints the scheduler configuration. The server's `BackupHostedService` can also run scheduled
+backups when `Backup:EnableAutoBackup` is enabled in Admin → Backup Settings.
 
 ### Using cron (Linux)
 
 ```cron
-# Daily backup at 2:00 AM
-0 2 * * * /usr/local/bin/dotnetcloud backup --output /backup/dotnetcloud-$(date +\%Y-\%m-\%d).tar.gz
+# Daily cold backup at 2:00 AM (stop, back up, start)
+0 2 * * * /usr/bin/systemctl stop dotnetcloud && /usr/local/bin/dotnetcloud backup --output /var/backups/dnc/dotnetcloud-$(date +\%Y-\%m-\%d).zip && /usr/bin/systemctl start dotnetcloud
 ```
 
 ### Using Task Scheduler (Windows)
 
 ```powershell
-$action = New-ScheduledTaskAction -Execute "dotnetcloud.exe" -Argument "backup --output D:\Backup\dotnetcloud-$(Get-Date -Format 'yyyy-MM-dd').tar.gz"
+$action = New-ScheduledTaskAction -Execute "dotnetcloud.exe" -Argument "backup --output D:\Backup\dotnetcloud-$(Get-Date -Format 'yyyy-MM-dd').zip"
 $trigger = New-ScheduledTaskTrigger -Daily -At 2am
 Register-ScheduledTask -TaskName "DotNetCloudBackup" -Action $action -Trigger $trigger
 ```
+
+### Windows Server notes
+
+Backup and restore run on Windows Server with these differences:
+
+- **System payload** — there is no systemd unit, CLI wrapper or Collabora config; the archive carries
+  `config/**` (from `%APPDATA%\dotnetcloud` of the service account) and `opt/**` (from
+  `DOTNETCLOUD_INSTALL_DIR`, defaulting to the CLI's own directory). Linux-only entries are skipped.
+- **Database** — `pg_dump`/`psql` must be on `PATH`. Role and database creation needs superuser rights:
+  set `DOTNETCLOUD_POSTGRES_ADMIN_CONNECTION` to an administrative connection string, or create the role
+  and database beforehand. Without it the restore still applies the dump to an existing database.
+- **Service control** — `restore` uses `sc.exe stop|start` and `sc.exe config <name> start= auto`.
+  Override the service name with `DOTNETCLOUD_SERVICE_NAME` (default `dotnetcloud`).
+- **Root CA** — installed with `certutil -addstore -f Root` instead of `update-ca-certificates`.
+- **Hardlinks** — mirror snapshots use `CreateHardLinkW`, so the target must be an NTFS volume.
+- **Paths** — keep the backup path short; very long paths can exceed the legacy 260-character limit for
+  third-party tools.
+- **Defaults** — without `DOTNETCLOUD_DATA_DIR` the data directory is
+  `%ProgramData%\DotNetCloud\data` and backups default to `%ProgramData%\DotNetCloud\backups`.
 
 ---
 
@@ -279,12 +504,12 @@ Manage backup retention to avoid filling disk space:
 
 ```bash
 # Keep only the last 30 days of backups
-find /backup/ -name "dotnetcloud-*.tar.gz" -mtime +30 -delete
+find /var/backups/dnc -name "dotnetcloud-*.zip" -mtime +30 -delete
 ```
 
 ```powershell
 # Windows: delete backups older than 30 days
-Get-ChildItem "D:\Backup\dotnetcloud-*.tar.gz" | Where-Object { $_.LastWriteTime -lt (Get-Date).AddDays(-30) } | Remove-Item
+Get-ChildItem "D:\Backup\dotnetcloud-*.zip" | Where-Object { $_.LastWriteTime -lt (Get-Date).AddDays(-30) } | Remove-Item
 ```
 
 ---
@@ -293,11 +518,33 @@ Get-ChildItem "D:\Backup\dotnetcloud-*.tar.gz" | Where-Object { $_.LastWriteTime
 
 ### Complete Data Loss
 
-1. Install DotNetCloud on a new server: `dotnetcloud setup`
-2. Restore from the latest backup: `dotnetcloud restore /backup/latest.tar.gz`
-3. Verify all services are running: `dotnetcloud status`
-4. Force quota recalculation for all users
-5. Notify users to reconnect their sync clients
+1. Copy the backup **off** the machine first (the uninstaller removes `/opt/dotnetcloud`,
+   `/etc/dotnetcloud` and `/var/lib/dotnetcloud`).
+2. Reinstall the platform footprint on the same host (or a replacement) with the same hostname:
+
+   ```bash
+   sudo ./tools/install.sh
+   ```
+
+   This creates the `dotnetcloud` user, directories, `/opt/dotnetcloud` binaries, the systemd unit and
+   the `/usr/local/bin/dotnetcloud` wrapper. **Do not run `dotnetcloud setup` yet** — the restore
+   supplies the real configuration and database credentials.
+
+3. Restore:
+
+   ```bash
+   sudo dotnetcloud restore /var/backups/dnc/dotnetcloud-<timestamp>.zip --yes
+   ```
+
+   The restore recreates the role/database, applies `database.sql`, restores `data/**`, installs the
+   root CA, then starts the service and waits for health.
+
+4. Verify: `/health/ready`, admin login, a file download, a chat with history, and a Collabora edit.
+5. Re-take a backup and confirm `missingWholeFileBlobs=0` in a fresh manifest.
+
+> If the **whole OS** is rebuilt, also install PostgreSQL (same major version), the .NET runtime,
+> `pigz`, and `coolwsd` if Collabora is used. Keep the hostname unchanged: the self-signed certificate's
+> SAN is `mint22` (plus localhost/loopback). Changing the hostname requires `dotnetcloud cert-renew`.
 
 ### Partial Data Loss (Storage Only)
 
