@@ -4,7 +4,7 @@ namespace DotNetCloud.UI.Shared.Services;
 
 /// <summary>
 /// Provides the browser's IANA timezone and converts UTC dates to the user's local time.
-/// Uses JS interop to read <c>Intl.DateTimeFormat().resolvedOptions().timeZone</c> once per circuit.
+/// Uses JS interop to read the browser timezone once per circuit.
 /// </summary>
 public sealed class BrowserTimeProvider
 {
@@ -14,9 +14,18 @@ public sealed class BrowserTimeProvider
     /// </summary>
     public const string TimeFormatStorageKey = "dotnetcloud.timeFormat";
 
+    /// <summary>
+    /// Identifier of the JS helper that returns the browser's IANA timezone.
+    /// Blazor resolves <see cref="IJSRuntime"/> identifiers as dotted property paths, so an
+    /// inline expression such as <c>Intl.DateTimeFormat().resolvedOptions().timeZone</c> can
+    /// never be invoked (it is not a property of <c>window</c>).
+    /// </summary>
+    public const string TimeZoneHelperIdentifier = "dotnetcloud.getTimezone";
+
     private readonly IJSRuntime _js;
     private TimeZoneInfo? _timeZone;
-    private bool _initialized;
+    private bool _timeZoneResolved;
+    private bool _timeFormatLoaded;
 
     /// <summary>
     /// Initializes a new instance of <see cref="BrowserTimeProvider"/>.
@@ -28,7 +37,8 @@ public sealed class BrowserTimeProvider
 
     /// <summary>
     /// Gets the user's IANA timezone identifier (e.g. "America/Chicago").
-    /// Returns "UTC" if not yet initialized or if detection failed.
+    /// Returns "UTC" before initialization; if the browser zone cannot be resolved it falls
+    /// back to the runtime's local zone identifier.
     /// </summary>
     public string IanaTimeZone { get; private set; } = "UTC";
 
@@ -94,38 +104,75 @@ public sealed class BrowserTimeProvider
     /// user's clock preference.
     /// </summary>
     public string FormatDateTime(DateTimeOffset dateTime, string dateFormat = "MMM d, yyyy")
-        => FormatDateTime(dateTime.LocalDateTime, dateFormat);
+        => FormatDateTime(ToLocal(dateTime.UtcDateTime), dateFormat);
 
     /// <summary>
     /// Formats a <see cref="DateTimeOffset"/> including seconds in the browser's local
     /// timezone using the user's clock preference.
     /// </summary>
     public string FormatDateTimeWithSeconds(DateTimeOffset dateTime, string dateFormat = "yyyy-MM-dd")
-        => FormatDateTimeWithSeconds(dateTime.LocalDateTime, dateFormat);
+        => FormatDateTimeWithSeconds(ToLocal(dateTime.UtcDateTime), dateFormat);
 
     /// <summary>
-    /// Ensures the browser timezone has been fetched. Safe to call multiple times.
+    /// Ensures the browser timezone and clock-format preference have been fetched.
+    /// Safe to call multiple times.
     /// </summary>
     public async ValueTask EnsureInitializedAsync()
     {
-        if (_initialized)
-            return;
+        if (!_timeZoneResolved)
+            await ResolveTimeZoneAsync();
 
+        if (!_timeFormatLoaded)
+            await LoadStoredTimeFormatAsync();
+    }
+
+    private async Task ResolveTimeZoneAsync()
+    {
         try
         {
-            var iana = await _js.InvokeAsync<string>("Intl.DateTimeFormat().resolvedOptions().timeZone");
-            if (!string.IsNullOrWhiteSpace(iana))
+            var iana = await _js.InvokeAsync<string?>(TimeZoneHelperIdentifier);
+            if (!string.IsNullOrWhiteSpace(iana) && TryFindTimeZone(iana, out var zone))
             {
                 IanaTimeZone = iana;
-                _timeZone = TimeZoneInfo.FindSystemTimeZoneById(iana);
+                _timeZone = zone;
+                _timeZoneResolved = true;
+                return;
             }
         }
         catch
         {
-            // Fallback to UTC if JS interop fails (e.g. prerendering)
-            _timeZone = TimeZoneInfo.Utc;
+            // JS interop is unavailable during prerendering. The interactive circuit uses a
+            // new service scope and resolves the real zone; do not latch onto UTC.
         }
 
+        // Last resort: the runtime's local zone — the browser zone in WebAssembly and the
+        // process zone for server-interactive rendering. Never render raw UTC silently.
+        _timeZone = TimeZoneInfo.Local;
+        IanaTimeZone = _timeZone.Id;
+        _timeZoneResolved = true;
+    }
+
+    private static bool TryFindTimeZone(string ianaTimeZone, out TimeZoneInfo zone)
+    {
+        try
+        {
+            zone = TimeZoneInfo.FindSystemTimeZoneById(ianaTimeZone);
+            return true;
+        }
+        catch (TimeZoneNotFoundException)
+        {
+            zone = TimeZoneInfo.Local;
+            return false;
+        }
+        catch (InvalidTimeZoneException)
+        {
+            zone = TimeZoneInfo.Local;
+            return false;
+        }
+    }
+
+    private async Task LoadStoredTimeFormatAsync()
+    {
         try
         {
             var storedFormat = await _js.InvokeAsync<string?>("localStorage.getItem", TimeFormatStorageKey);
@@ -133,15 +180,14 @@ public sealed class BrowserTimeProvider
             {
                 ApplyTimeFormat(storedFormat);
             }
+
+            _timeFormatLoaded = true;
         }
         catch
         {
             // localStorage is unavailable during prerendering; the server setting
             // remains the source of truth and is applied by the layout.
         }
-
-        _timeZone ??= TimeZoneInfo.Utc;
-        _initialized = true;
     }
 
     /// <summary>
@@ -168,7 +214,7 @@ public sealed class BrowserTimeProvider
     /// </summary>
     public DateTime ToLocal(DateTime utcDateTime)
     {
-        if (!_initialized || _timeZone is null)
+        if (_timeZone is null)
             return utcDateTime;
 
         var utc = DateTime.SpecifyKind(utcDateTime, DateTimeKind.Utc);
@@ -181,5 +227,29 @@ public sealed class BrowserTimeProvider
     public DateTime? ToLocal(DateTime? utcDateTime)
     {
         return utcDateTime.HasValue ? ToLocal(utcDateTime.Value) : null;
+    }
+
+    /// <summary>
+    /// Converts a wall-clock time entered by the user in their local timezone back to UTC.
+    /// The input is treated as a local wall-clock value regardless of its
+    /// <see cref="DateTime.Kind"/> (the kind is ignored, so server-side rendering cannot
+    /// re-interpret it in the process timezone).
+    /// </summary>
+    public DateTime ToUtc(DateTime localDateTime)
+    {
+        var wallClock = DateTime.SpecifyKind(localDateTime, DateTimeKind.Unspecified);
+
+        if (_timeZone is null)
+            return DateTime.SpecifyKind(wallClock.ToUniversalTime(), DateTimeKind.Utc);
+
+        try
+        {
+            return TimeZoneInfo.ConvertTimeToUtc(wallClock, _timeZone);
+        }
+        catch (ArgumentException)
+        {
+            // The wall-clock time falls into a spring-forward DST gap; apply the standard offset.
+            return DateTime.SpecifyKind(wallClock - _timeZone.BaseUtcOffset, DateTimeKind.Utc);
+        }
     }
 }

@@ -12,6 +12,23 @@
 
 ---
 
+> **Recent fix (2026-11-05, branch `fix/calendar-event-times`):** **calendar event times rendered as raw UTC — the browser-timezone service never resolved a zone.**
+> `BrowserTimeProvider.EnsureInitializedAsync` called the JS identifier `Intl.DateTimeFormat().resolvedOptions().timeZone`;
+> Blazor resolves JS identifiers as dotted property paths (it does not evaluate expressions), so the call always threw
+> (`Could not find 'Intl.DateTimeFormat().resolvedOptions().timeZone' ('DateTimeFormat()' was undefined)`), the `catch`
+> latched onto UTC and every `ToLocal`/`FormatTime` became a no-op. An 11:00 AM CST event (17:00 UTC) therefore read
+> **5:00 PM** in the month/week/day cells while the editor — still converting with `DateTime.ToLocalTime()`, i.e. the server
+> process zone (`America/Chicago`) — showed 11:00 AM. Regression from #207, which moved those badges from `ToLocalTime()` to
+> `BrowserTimeProvider`. Fix: the provider now calls the existing `dotnetcloud.getTimezone` helper
+> (`wwwroot/js/timezone.js`, the same helper Profile/Admin/Register use), falls back to `TimeZoneInfo.Local` (browser zone in
+> WASM, process zone server-side) instead of raw UTC, retries after a prerender failure, formats `DateTimeOffset` through the
+> resolved zone, and gains `ToUtc(...)` (DST-gap safe). `CalendarPage` routes every conversion through the provider: day/week
+> grouping, today/current-hour, query range (`ToUtc`), editor prefill, save and the RRULE `UNTIL`. Tests: the
+> `BrowserTimeProvider` suite was rewritten/extended (helper identifier, all fallbacks, `ToUtc` round-trip + DST gap);
+> UI.Shared **242 pass**, `DotNetCloud.CI.slnf` build 0 errors. ✓ Deployed to mint22 (15/15 targets, hashes verified,
+> `/health` 200; the deployed `DotNetCloud.UI.Shared.dll` contains `dotnetcloud.getTimezone` and no `Intl.DateTimeFormat`)
+> and confirmed fixed in the browser by the user.
+
 > **Recent fix (2026-10-26, branch `fix/quick-blazor-fixes`):** **Files rename + multi-ZIP download now use modals, and the
 > now-playing tab title only applies inside the Music module while a track is actually playing.**
 > Files: `FileBrowser` rendered rename as an inline `.create-folder-dialog` bar at the top of the page (easy to miss, and it
