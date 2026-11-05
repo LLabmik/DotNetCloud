@@ -64,9 +64,7 @@
                 <div class="comment-item" id="comment-@comment.Id">
                     <div class="comment-header">
                         <span class="comment-author">@comment.AuthorName</span>
-                        <span class="comment-date" title="@comment.CreatedAt.ToString("O")">
-                            @FormatRelativeTime(comment.CreatedAt)
-                        </span>
+                        <RelativeTimestamp CssClass="comment-date" Utc="comment.CreatedAt" Options="_relativeOptions" />
                         @if (comment.UpdatedAt.HasValue)
                         {
                             <span class="comment-edited" title="Edited @comment.UpdatedAt.Value.ToString("O")">(edited)</span>
@@ -136,9 +134,7 @@
                             <div class="comment-item comment-reply" id="comment-@reply.Id">
                                 <div class="comment-header">
                                     <span class="comment-author">@reply.AuthorName</span>
-                                    <span class="comment-date" title="@reply.CreatedAt.ToString("O")">
-                                        @FormatRelativeTime(reply.CreatedAt)
-                                    </span>
+                                    <RelativeTimestamp CssClass="comment-date" Utc="reply.CreatedAt" Options="_relativeOptions" />
                                     @if (reply.UpdatedAt.HasValue)
                                     {
                                         <span class="comment-edited" title="Edited @reply.UpdatedAt.Value.ToString("O")">(edited)</span>

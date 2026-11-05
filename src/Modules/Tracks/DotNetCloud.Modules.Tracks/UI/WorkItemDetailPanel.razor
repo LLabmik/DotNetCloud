@@ -251,7 +251,7 @@
                                             <div class="tracks-comment">
                                                 <div class="tracks-comment-header">
                                                     <strong>@(comment.DisplayName ?? "User")</strong>
-                                                    <span class="tracks-comment-date">@TimeProvider.ToLocal(comment.CreatedAt).ToString("MMM d, h:mm tt")</span>
+                                                    <span class="tracks-comment-date">@TimeProvider.FormatDateTime(TimeProvider.ToLocal(comment.CreatedAt), "MMM d")</span>
                                                 </div>
                                                 <div class="tracks-comment-body markdown-body">
                                                     @((MarkupString)RenderCommentContent(comment.Content))</div>
@@ -278,7 +278,7 @@
                                                     <div class="tracks-comment tracks-comment--deleted">
                                                         <div class="tracks-comment-header">
                                                             <strong>@(comment.DisplayName ?? "User")</strong>
-                                                            <span class="tracks-comment-date">Deleted @comment.DeletedAt?.ToString("MMM d, h:mm tt")</span>
+                                                            <span class="tracks-comment-date">Deleted @TimeProvider.FormatDateTime(comment.DeletedAt, "MMM d")</span>
                                                         </div>
                                                         <div class="tracks-comment-body markdown-body tracks-comment-body--deleted">
                                                             @((MarkupString)RenderCommentContent(comment.Content))
@@ -312,7 +312,7 @@
                                         {
                                             <div class="tracks-activity-item">
                                                 <span>@FormatActivityAction(activity)</span>
-                                                <span class="tracks-activity-date">@TimeProvider.ToLocal(activity.CreatedAt).ToString("MMM d, h:mm tt")</span>
+                                                <span class="tracks-activity-date">@TimeProvider.FormatDateTime(TimeProvider.ToLocal(activity.CreatedAt), "MMM d")</span>
                                             </div>
                                         }
                                     </div>

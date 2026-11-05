@@ -6,6 +6,7 @@
 @inject IJSRuntime JSRuntime
 @inject NavigationManager _navigation
 @inject ILogger<EmailPage> _logger
+@inject DotNetCloud.UI.Shared.Services.BrowserTimeProvider TimeProvider
 
 <div class="email-layout">
     @* ── Sidebar ── *@
@@ -297,7 +298,7 @@
                                             @FormatFrom(msg.FromJson)
                                         </span>
                                         <span class="email-message-date">
-                                            @(msg.DateReceived?.ToString("g") ?? msg.CreatedAt.ToString("g"))
+                                            @TimeProvider.FormatDateTime(msg.DateReceived ?? msg.CreatedAt)
                                         </span>
                                     </div>
                                     <div class="email-message-body">

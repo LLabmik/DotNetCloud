@@ -10,6 +10,7 @@
 @inject Microsoft.AspNetCore.Components.Authorization.AuthenticationStateProvider AuthState
 @inject DotNetCloud.Core.Capabilities.IUserDirectory UserDirectory
 @inject DotNetCloud.Core.Capabilities.ITeamDirectory TeamDirectory
+@inject DotNetCloud.UI.Shared.Services.BrowserTimeProvider TimeProvider
 
 <div class="notes-page-layout">
     <div class="notes-sidebar @(_sidebarCollapsed ? "collapsed" : "")">
@@ -147,7 +148,7 @@
                                 <span class="notes-list-item-preview">@GetPreview(note.Content)</span>
                             }
                             <div class="notes-list-item-footer">
-                                <span class="notes-list-item-date">@note.UpdatedAt.ToLocalTime().ToString("g")</span>
+                                <span class="notes-list-item-date">@TimeProvider.FormatDateTime(note.UpdatedAt.ToLocalTime())</span>
                                 @if (note.Tags.Count > 0)
                                 {
                                     <span class="notes-list-item-tags">
@@ -271,7 +272,7 @@
                                 @foreach (var version in _versions.OrderByDescending(v => v.VersionNumber))
                                 {
                                     <div class="version-item">
-                                        <span>v@(version.VersionNumber) — @version.CreatedAt.ToLocalTime().ToString("g")</span>
+                                        <span>v@(version.VersionNumber) — @TimeProvider.FormatDateTime(version.CreatedAt.ToLocalTime())</span>
                                         @if (CanEdit(_selectedNote))
                                         {
                                             <button class="btn btn-sm btn-outline-primary"

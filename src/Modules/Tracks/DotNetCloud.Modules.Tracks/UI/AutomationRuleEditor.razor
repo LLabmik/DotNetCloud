@@ -54,7 +54,7 @@
                     @if (rule.LastTriggeredAt.HasValue)
                     {
                         <div class="automation-rule-last-run">
-                            Last triggered: @rule.LastTriggeredAt.Value.ToString("MMM d, yyyy HH:mm")
+                            Last triggered: @TimeProvider.FormatDateTime(rule.LastTriggeredAt)
                         </div>
                     }
                 </div>

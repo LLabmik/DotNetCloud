@@ -34,6 +34,8 @@ namespace DotNetCloud.UI.Web.Components.Shared.Search;
 /// <summary>Code-behind for the <see cref="GlobalSearchBar"/> component.</summary>
 public partial class GlobalSearchBar : ComponentBase, IAsyncDisposable
 {
+    [Inject] private BrowserTimeProvider TimeProvider { get; set; } = default!;
+
     private string _query = string.Empty;
     private bool _isOpen;
     private bool _isLoading;
@@ -49,6 +51,7 @@ public partial class GlobalSearchBar : ComponentBase, IAsyncDisposable
     {
         if (firstRender)
         {
+            await TimeProvider.EnsureInitializedAsync();
             _dotNetRef = DotNetObjectReference.Create(this);
             await JS.InvokeVoidAsync("DotNetCloudSearch.registerShortcut", _dotNetRef);
         }

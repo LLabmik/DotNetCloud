@@ -32,14 +32,23 @@ public partial class SearchAdmin : ComponentBase, IDisposable
 {
     [Inject] private DotNetCloudApiClient Api { get; set; } = default!;
     [Inject] private ToastService Toast { get; set; } = default!;
+    [Inject] private BrowserTimeProvider TimeProvider { get; set; } = default!;
 
     private bool _loading = true;
     private bool _reindexTriggered;
     private SearchAdminStatusDto? _status;
     private System.Threading.Timer? _pollTimer;
+    private RelativeTimeOptions? _relativeOptions;
+
+    private RelativeTimeOptions RelativeOptions => _relativeOptions ??= RelativeTimeOptions.Default with
+    {
+        DaysBeforeAbsolute = 7,
+        AbsoluteFormat = value => TimeProvider.FormatDateTime(value.LocalDateTime, "yyyy-MM-dd"),
+    };
 
     protected override async Task OnInitializedAsync()
     {
+        await TimeProvider.EnsureInitializedAsync();
         await RefreshAsync();
     }
 
@@ -157,15 +166,8 @@ public partial class SearchAdmin : ComponentBase, IDisposable
         return dt.HasValue ? FormatTimeAgo(dt.Value) : "Never";
     }
 
-    private static string FormatTimeAgo(DateTimeOffset dt)
-    {
-        var span = DateTimeOffset.UtcNow - dt;
-        if (span.TotalMinutes < 1) return "just now";
-        if (span.TotalMinutes < 60) return $"{(int)span.TotalMinutes}m ago";
-        if (span.TotalHours < 24) return $"{(int)span.TotalHours}h ago";
-        if (span.TotalDays < 7) return $"{(int)span.TotalDays}d ago";
-        return dt.ToString("yyyy-MM-dd HH:mm");
-    }
+    private string FormatTimeAgo(DateTimeOffset dt)
+        => RelativeTimeFormatter.Format(dt, RelativeOptions);
 
     private static string FormatDuration(double seconds)
     {

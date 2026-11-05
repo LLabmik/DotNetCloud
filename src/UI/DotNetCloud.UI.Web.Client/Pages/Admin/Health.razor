@@ -82,7 +82,7 @@ else
                         {
                             <tr>
                                 <td class="bg-svc-name">@svc.ServiceName</td>
-                                <td class="bg-svc-time" title="@svc.LastRunAt.ToString("O")">@FormatTimeAgo(svc.LastRunAt)</td>
+                                <td class="bg-svc-time"><RelativeTimestamp Value="svc.LastRunAt" Options="_relativeOptions" /></td>
                                 <td>@FormatDuration(svc.LastRunDurationMs)</td>
                                 <td>
                                     <span class="badge badge-@(svc.LastRunSuccess ? "success" : "danger")">

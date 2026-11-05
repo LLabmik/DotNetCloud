@@ -1,6 +1,7 @@
 using System.Text.Json;
 using DotNetCloud.Core.DTOs;
 using DotNetCloud.Core.Services.ModuleApis;
+using DotNetCloud.UI.Shared.Services;
 using Microsoft.AspNetCore.Components;
 
 namespace DotNetCloud.Modules.Tracks.UI;
@@ -15,6 +16,7 @@ public partial class AutomationRuleEditor : ComponentBase
     [Parameter] public List<SwimlaneDto>? ProductSwimlanes { get; set; }
 
     [Inject] private ITracksApiClient ApiClient { get; set; } = default!;
+    [Inject] private BrowserTimeProvider TimeProvider { get; set; } = default!;
 
     private List<AutomationRuleDto>? _rules;
     private bool _isEditing;

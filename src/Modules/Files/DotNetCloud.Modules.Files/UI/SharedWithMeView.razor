@@ -7,6 +7,8 @@
     Code-behind: SharedWithMeView.razor.cs
 *@
 
+@inject DotNetCloud.UI.Shared.Services.BrowserTimeProvider TimeProvider
+
 <div class="shared-view shared-with-me">
     <div class="shared-view-header">
         <h2>Shared with me</h2>
@@ -82,7 +84,7 @@
                                     }
                                     else if (item.ExpiresAt.HasValue)
                                     {
-                                        <span class="text-muted" title="Expires @item.ExpiresAt.Value.ToString("g")">
+                                        <span class="text-muted" title="Expires @TimeProvider.FormatDateTime(item.ExpiresAt.Value)">
                                             Expires @FormatRelativeDate(item.ExpiresAt.Value)
                                         </span>
                                     }

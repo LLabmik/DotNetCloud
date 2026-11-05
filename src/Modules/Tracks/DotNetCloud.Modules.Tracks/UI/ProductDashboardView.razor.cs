@@ -1,5 +1,6 @@
 using DotNetCloud.Core.DTOs;
 using DotNetCloud.Core.Services.ModuleApis;
+using DotNetCloud.UI.Shared.Services;
 using Microsoft.AspNetCore.Components;
 
 namespace DotNetCloud.Modules.Tracks.UI;
@@ -17,6 +18,12 @@ public partial class ProductDashboardView : ComponentBase, IDisposable
 
     private ProductDashboardDto? _dashboard;
     private List<SprintVelocityDto> _velocityData = [];
+    private static readonly RelativeTimeOptions _relativeOptions = RelativeTimeOptions.Default with
+    {
+        DaysBeforeAbsolute = 7,
+        AbsoluteFormat = value => value.UtcDateTime.ToString("MMM d"),
+    };
+
     private bool _isLoading = true;
     private string? _errorMessage;
 
@@ -171,20 +178,6 @@ public partial class ProductDashboardView : ComponentBase, IDisposable
         WorkItemType.SubItem => "📌",
         _ => "📋"
     };
-
-    private static string FormatRelativeTime(DateTime dateTime)
-    {
-        var diff = DateTime.UtcNow - dateTime;
-        if (diff.TotalMinutes < 1)
-            return "just now";
-        if (diff.TotalMinutes < 60)
-            return $"{(int)diff.TotalMinutes}m ago";
-        if (diff.TotalHours < 24)
-            return $"{(int)diff.TotalHours}h ago";
-        if (diff.TotalDays < 7)
-            return $"{(int)diff.TotalDays}d ago";
-        return dateTime.ToString("MMM d");
-    }
 
     private static string FormatDueDate(DateTime dueDate)
     {

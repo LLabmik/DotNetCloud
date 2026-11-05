@@ -34,6 +34,8 @@ namespace DotNetCloud.UI.Web.Components.Shared.Search;
 /// <summary>Code-behind for the <see cref="SearchResultCard"/> component.</summary>
 public partial class SearchResultCard : ComponentBase
 {
+    [Inject] private BrowserTimeProvider TimeProvider { get; set; } = default!;
+
     /// <summary>The search result item to render.</summary>
     [Parameter, EditorRequired]
     public SearchResultItem Item { get; set; } = default!;

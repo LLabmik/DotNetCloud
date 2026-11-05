@@ -33,6 +33,13 @@ public partial class SyncDevices : ComponentBase
     [Inject] private DotNetCloudApiClient Api { get; set; } = default!;
     [Inject] private ToastService Toast { get; set; } = default!;
 
+    private static readonly RelativeTimeOptions _relativeOptions = RelativeTimeOptions.Default with
+    {
+        JustNowLabel = "Just now",
+        DaysBeforeAbsolute = 30,
+        AbsoluteFormat = value => value.UtcDateTime.ToString("yyyy-MM-dd"),
+    };
+
     private bool _loading = true;
     private IReadOnlyList<DeviceSyncStatusDto> _devices = [];
     private Guid? _togglingDeviceId;
@@ -99,17 +106,4 @@ public partial class SyncDevices : ComponentBase
         return $"{device.Lag} behind";
     }
 
-    private static string FormatRelativeTime(DateTime utcTime)
-    {
-        var elapsed = DateTime.UtcNow - utcTime;
-        if (elapsed.TotalMinutes < 1)
-            return "Just now";
-        if (elapsed.TotalMinutes < 60)
-            return $"{(int)elapsed.TotalMinutes}m ago";
-        if (elapsed.TotalHours < 24)
-            return $"{(int)elapsed.TotalHours}h ago";
-        if (elapsed.TotalDays < 30)
-            return $"{(int)elapsed.TotalDays}d ago";
-        return utcTime.ToString("yyyy-MM-dd");
-    }
 }

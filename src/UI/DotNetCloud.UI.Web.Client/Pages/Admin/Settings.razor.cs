@@ -32,6 +32,7 @@ public partial class Settings : ComponentBase
 {
     [Inject] private DotNetCloudApiClient Api { get; set; } = default!;
     [Inject] private ToastService Toast { get; set; } = default!;
+    [Inject] private BrowserTimeProvider TimeProvider { get; set; } = default!;
 
     private bool _loading = true;
     private bool _actionInProgress;
@@ -56,6 +57,7 @@ public partial class Settings : ComponentBase
 
     protected override async Task OnInitializedAsync()
     {
+        await TimeProvider.EnsureInitializedAsync();
         await LoadSettingsAsync();
         await LoadOidcKeyRotationStatusAsync();
         await LoadPresenceIdleAsync();

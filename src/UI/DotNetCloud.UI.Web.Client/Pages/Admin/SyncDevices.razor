@@ -80,8 +80,8 @@ else
                                 @GetLagText(device)
                             </span>
                         </td>
-                        <td>@FormatRelativeTime(device.LastSeenAt)</td>
-                        <td>@(device.CursorUpdatedAt is not null ? FormatRelativeTime(device.CursorUpdatedAt.Value) : "Never")</td>
+                        <td><RelativeTimestamp Utc="device.LastSeenAt" Options="_relativeOptions" /></td>
+                        <td><RelativeTimestamp Utc="device.CursorUpdatedAt" Options="_relativeOptions" EmptyText="Never" /></td>
                         <td>
                             <button class="btn btn-sm btn-@(device.IsActive ? "danger-outline" : "success-outline")"
                                     disabled="@(_togglingDeviceId == device.DeviceId)"

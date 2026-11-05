@@ -48,9 +48,9 @@ else
                 <dt>Timezone</dt>
                 <dd>@_user.Timezone</dd>
                 <dt>Created</dt>
-                <dd>@_user.CreatedAt.ToString("yyyy-MM-dd HH:mm")</dd>
+                <dd>@TimeProvider.FormatDateTime(_user.CreatedAt, "yyyy-MM-dd")</dd>
                 <dt>Last Login</dt>
-                <dd>@(_user.LastLoginAt?.ToString("yyyy-MM-dd HH:mm") ?? "Never")</dd>
+                <dd>@(_user.LastLoginAt is { } lastLogin ? TimeProvider.FormatDateTime(lastLogin, "yyyy-MM-dd") : "Never")</dd>
             </dl>
         </div>
 

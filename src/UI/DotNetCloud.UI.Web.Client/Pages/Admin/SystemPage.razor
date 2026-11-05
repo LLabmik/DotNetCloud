@@ -14,7 +14,7 @@
         @if (_status is not null && _stale)
         {
             <span class="system-updated system-updated--stale">
-                stale — last updated @FormatTimeAgo(_lastSuccessUtc)
+                stale — last updated <RelativeTimestamp Value="_lastSuccessUtc" Options="_relativeOptions" />
             </span>
         }
         <a href="/admin/health" class="btn btn-outline">Health details</a>
@@ -191,7 +191,7 @@ else
                                         <span class="badge badge-success">Active</span>
                                     }
                                 </td>
-                                <td title="@row.LastActivityUtc.ToString("O")">@FormatTimeAgo(row.LastActivityUtc)</td>
+                                <td><RelativeTimestamp Value="row.LastActivityUtc" Options="_relativeOptions" /></td>
                                 <td class="num">@FormatBytes(row.BytesIn)</td>
                                 <td class="num">@FormatBytes(row.BytesOut)</td>
                                 <td class="num">@FormatBytes(row.BytesTotal)</td>
@@ -250,8 +250,8 @@ else
                                 </td>
                                 <td>@task.ModuleName</td>
                                 <td class="bg-svc-name">@task.ServiceName</td>
-                                <td>@(task.IsRunning ? FormatTimeAgo(task.CurrentRunStartedAt) : "—")</td>
-                                <td title="@task.LastRunAt.ToString("O")">@FormatTimeAgo(task.LastRunAt)</td>
+                                <td><RelativeTimestamp Value="task.IsRunning ? task.CurrentRunStartedAt : null" Options="_relativeOptions" /></td>
+                                <td><RelativeTimestamp Value="task.LastRunAt" Options="_relativeOptions" /></td>
                                 <td class="num">@FormatDuration(task.LastRunDurationMs)</td>
                                 <td>
                                     <span class="badge badge-@(task.LastRunSuccess ? "success" : "danger")">
@@ -282,7 +282,7 @@ else
     </div>
 
     <p class="system-footer-note">
-        Data transfer counted since @_status.Traffic.SinceUtc.ToLocalTime().ToString("g")
+        Data transfer counted since @TimeProvider.FormatDateTime(_status.Traffic.SinceUtc)
         (HTTP payload + WebSocket frames, authenticated traffic only). Counters reset when the core process restarts.
     </p>
 }

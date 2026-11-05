@@ -74,7 +74,7 @@ else
                                 </span>
                             </td>
                             <td>@user.CreatedAt.ToString("yyyy-MM-dd")</td>
-                            <td>@(user.LastLoginAt?.ToString("yyyy-MM-dd HH:mm") ?? "Never")</td>
+                            <td>@(user.LastLoginAt is { } lastLogin ? TimeProvider.FormatDateTime(lastLogin, "yyyy-MM-dd") : "Never")</td>
                             <td class="actions">
                                 <a href="/admin/users/@user.Id/edit" class="btn btn-sm btn-outline">Edit</a>
                             </td>

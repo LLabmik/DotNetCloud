@@ -33,7 +33,7 @@ else
                 <dt>Status</dt>
                 <dd><span class="badge badge-@GetStatusClass(_module.Status)">@_module.Status</span></dd>
                 <dt>Installed</dt>
-                <dd>@_module.InstalledAt.ToString("yyyy-MM-dd HH:mm")</dd>
+                <dd>@TimeProvider.FormatDateTime(_module.InstalledAt, "yyyy-MM-dd")</dd>
                 @if (!string.IsNullOrWhiteSpace(_module.Description))
                 {
                     <dt>Description</dt>

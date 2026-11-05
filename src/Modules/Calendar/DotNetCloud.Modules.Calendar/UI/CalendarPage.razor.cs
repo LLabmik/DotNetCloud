@@ -18,6 +18,9 @@ namespace DotNetCloud.Modules.Calendar.UI;
 /// <summary>Code-behind for the <see cref="CalendarPage"/> component.</summary>
 public partial class CalendarPage : ComponentBase
 {
+    [Inject]
+    private BrowserTimeProvider TimeProvider { get; set; } = default!;
+
     private readonly List<CalendarDto> _calendars = [];
     private readonly List<CalendarEventDto> _events = [];
     private string _activeView = "month";
@@ -75,6 +78,20 @@ public partial class CalendarPage : ComponentBase
     };
 
     private static readonly string[] DayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+    /// <summary>Formats an event time in the viewer's timezone using their clock preference.</summary>
+    private string FormatEventTime(DateTime utc)
+        => TimeProvider.FormatTime(TimeProvider.ToLocal(utc));
+
+    /// <summary>Formats an event date and time using the viewer's clock preference.</summary>
+    private string FormatEventDateTime(DateTime utc)
+        => TimeProvider.FormatDateTime(TimeProvider.ToLocal(utc), "MMM d, yyyy");
+
+    /// <summary>Formats an hour-row label for the day view using the user's clock preference.</summary>
+    private string FormatHourLabel(int hour)
+        => TimeProvider.Use24HourClock
+            ? $"{hour:D2}:00"
+            : new DateTime(2000, 1, 1, hour, 0, 0).ToString("h tt");
 
     private sealed record OrgInfo(Guid Id, string Name);
 
@@ -175,6 +192,8 @@ _sidebarCollapsed.ToString().ToLowerInvariant() });
 
     protected override async Task OnInitializedAsync()
     {
+        await TimeProvider.EnsureInitializedAsync();
+
         try
         {
             var collapsed = await JSRuntime.InvokeAsync<string>("localStorage.getItem", new object?[] {

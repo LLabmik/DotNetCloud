@@ -266,7 +266,7 @@
                                         else
                                         {
                                             <span class="text-muted share-expiry-hint"
-                                                  title="@(share.ExpiresAt.HasValue ? $"Expires {share.ExpiresAt.Value.ToLocalTime():g}" : "This share never expires")">
+                                                  title="@(share.ExpiresAt.HasValue ? $"Expires {TimeProvider.FormatDateTime(share.ExpiresAt.Value.ToLocalTime())}" : "This share never expires")">
                                                 @ShareExpiryFormatter.Format(share.ExpiresAt, DateTime.UtcNow)
                                             </span>
                                         }

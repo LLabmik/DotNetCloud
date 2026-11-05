@@ -89,7 +89,7 @@ else
                     </span>
                     @if (_status.ReindexProgress.StartedAt.HasValue)
                     {
-                        <span class="reindex-progress-elapsed">Started @FormatTimeAgo(_status.ReindexProgress.StartedAt.Value)</span>
+                        <span class="reindex-progress-elapsed">Started <RelativeTimestamp Value="_status.ReindexProgress.StartedAt.Value" Options="RelativeOptions" /></span>
                     }
                 </div>
 
@@ -210,11 +210,11 @@ else
                 }
                 <div class="last-job-row">
                     <span class="last-job-label">Started</span>
-                    <span>@(_status.LastJob.StartedAt?.ToString("yyyy-MM-dd HH:mm:ss") ?? "—")</span>
+                    <span>@(_status.LastJob.StartedAt is { } started ? TimeProvider.FormatDateTimeWithSeconds(started) : "—")</span>
                 </div>
                 <div class="last-job-row">
                     <span class="last-job-label">Completed</span>
-                    <span>@(_status.LastJob.CompletedAt?.ToString("yyyy-MM-dd HH:mm:ss") ?? "—")</span>
+                    <span>@(_status.LastJob.CompletedAt is { } completed ? TimeProvider.FormatDateTimeWithSeconds(completed) : "—")</span>
                 </div>
                 <div class="last-job-row">
                     <span class="last-job-label">Documents</span>

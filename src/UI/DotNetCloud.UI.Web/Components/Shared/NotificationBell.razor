@@ -44,7 +44,7 @@
                             {
                                 <div class="notification-message">@notification.Message</div>
                             }
-                            <div class="notification-time">@notification.CreatedAtUtc.ToLocalTime().ToString("g")</div>
+                            <div class="notification-time">@TimeProvider.FormatDateTime(notification.CreatedAtUtc.ToLocalTime())</div>
                         </li>
                     }
                 </ul>

@@ -47,11 +47,13 @@ public partial class Broadcast : ComponentBase, IAsyncDisposable
     private CancellationTokenSource? _refreshCts;
 
     [Inject] private DotNetCloudApiClient ApiClient { get; set; } = default!;
+    [Inject] private BrowserTimeProvider TimeProvider { get; set; } = default!;
     [Inject] private IMarkdownRenderer MarkdownRenderer { get; set; } = default!;
     [Inject] private ToastService Toast { get; set; } = default!;
 
     protected override async Task OnInitializedAsync()
     {
+        await TimeProvider.EnsureInitializedAsync();
         await LoadAsync();
 
         // Scheduled broadcasts are delivered by a 30-second background poll on the
@@ -290,10 +292,10 @@ public partial class Broadcast : ComponentBase, IAsyncDisposable
     /// Text for the Status badge. A scheduled broadcast also shows when it will be
     /// sent, so the administrator does not have to cross-reference the Created column.
     /// </summary>
-    private static string StatusLabel(AdminBroadcastDto broadcast) => broadcast.Status switch
+    private string StatusLabel(AdminBroadcastDto broadcast) => broadcast.Status switch
     {
         AdminBroadcastStatus.Scheduled when broadcast.ScheduledForUtc is not null =>
-            $"Scheduled {broadcast.ScheduledForUtc.Value.ToLocalTime():g}",
+            $"Scheduled {TimeProvider.FormatDateTime(broadcast.ScheduledForUtc.Value.ToLocalTime())}",
         _ => broadcast.Status.ToString(),
     };
 

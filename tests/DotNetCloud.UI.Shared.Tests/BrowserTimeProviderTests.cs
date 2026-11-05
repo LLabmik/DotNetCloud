@@ -206,6 +206,135 @@ public class BrowserTimeProviderTests
         Assert.AreEqual(12, result.Value.Hour);
     }
 
+    // ─── Clock format ───────────────────────────────────────────────
+
+    [TestMethod]
+    public void Use24HourClock_DefaultsToFalse()
+    {
+        Assert.IsFalse(_provider.Use24HourClock);
+        Assert.AreEqual("h:mm tt", _provider.TimeFormatPattern);
+    }
+
+    [TestMethod]
+    public void ApplyTimeFormat_TwentyFourHourValue_Enables24HourClock()
+    {
+        _provider.ApplyTimeFormat(UserTimeFormat.TwentyFourHour);
+
+        Assert.IsTrue(_provider.Use24HourClock);
+        Assert.AreEqual("HH:mm", _provider.TimeFormatPattern);
+    }
+
+    [TestMethod]
+    public void ApplyTimeFormat_TwelveHourValue_KeepsTwelveHourClock()
+    {
+        _provider.ApplyTimeFormat(UserTimeFormat.TwentyFourHour);
+        _provider.ApplyTimeFormat(UserTimeFormat.TwelveHour);
+
+        Assert.IsFalse(_provider.Use24HourClock);
+    }
+
+    [TestMethod]
+    public void ApplyTimeFormat_UnknownValue_FallsBackToTwelveHourClock()
+    {
+        _provider.ApplyTimeFormat("nonsense");
+
+        Assert.IsFalse(_provider.Use24HourClock);
+    }
+
+    [TestMethod]
+    public void FormatTime_UsesTwentyFourHourPattern_WhenEnabled()
+    {
+        var when = new DateTime(2026, 1, 15, 14, 5, 0);
+        _provider.SetUse24HourClock(true);
+
+        Assert.AreEqual(when.ToString("HH:mm"), _provider.FormatTime(when));
+    }
+
+    [TestMethod]
+    public void FormatTime_UsesTwelveHourPattern_ByDefault()
+    {
+        var when = new DateTime(2026, 1, 15, 14, 5, 0);
+
+        Assert.AreEqual(when.ToString("h:mm tt"), _provider.FormatTime(when));
+    }
+
+    [TestMethod]
+    public void FormatDateTime_CombinesDateAndClockPreference()
+    {
+        var when = new DateTime(2026, 1, 15, 23, 5, 0);
+
+        Assert.AreEqual(
+            $"{when.ToString("MMM d, yyyy")} {when.ToString("h:mm tt")}",
+            _provider.FormatDateTime(when));
+
+        _provider.SetUse24HourClock(true);
+
+        Assert.AreEqual(
+            $"{when.ToString("MMM d, yyyy")} {when.ToString("HH:mm")}",
+            _provider.FormatDateTime(when));
+    }
+
+    [TestMethod]
+    public void FormatDateTimeWithSeconds_UsesClockPreference()
+    {
+        var when = new DateTime(2026, 1, 15, 23, 5, 7);
+
+        Assert.AreEqual(
+            $"{when.ToString("yyyy-MM-dd")} {when.ToString("h:mm:ss tt")}",
+            _provider.FormatDateTimeWithSeconds(when));
+
+        _provider.SetUse24HourClock(true);
+
+        Assert.AreEqual(
+            $"{when.ToString("yyyy-MM-dd")} {when.ToString("HH:mm:ss")}",
+            _provider.FormatDateTimeWithSeconds(when));
+    }
+
+    [TestMethod]
+    public void FormatDateTime_DateTimeOffset_UsesLocalDateTimeAndClockPreference()
+    {
+        var when = new DateTimeOffset(2026, 1, 15, 23, 5, 0, TimeSpan.Zero);
+        _provider.SetUse24HourClock(true);
+
+        Assert.AreEqual(
+            $"{when.LocalDateTime.ToString("MMM d, yyyy")} {when.LocalDateTime.ToString("HH:mm")}",
+            _provider.FormatDateTime(when));
+    }
+
+    [TestMethod]
+    public void FormatTimeNullable_ReturnsEmptyString_ForNull()
+    {
+        Assert.AreEqual(string.Empty, _provider.FormatTime((DateTime?)null));
+        Assert.AreEqual(string.Empty, _provider.FormatDateTime((DateTime?)null));
+    }
+
+    [TestMethod]
+    public async Task EnsureInitializedAsync_AppliesStoredTimeFormat()
+    {
+        _jsMock.Setup(js => js.InvokeAsync<string?>(
+                It.IsAny<string>(),
+                It.IsAny<object[]>()))
+            .ReturnsAsync((string identifier, object[] args) =>
+                identifier == "Intl.DateTimeFormat().resolvedOptions().timeZone"
+                    ? "UTC"
+                    : UserTimeFormat.TwentyFourHour);
+
+        await _provider.EnsureInitializedAsync();
+
+        Assert.IsTrue(_provider.Use24HourClock);
+    }
+
+    [TestMethod]
+    public async Task PersistTimeFormatAsync_WritesLocalStorage()
+    {
+        await _provider.PersistTimeFormatAsync(UserTimeFormat.TwentyFourHour);
+
+        Assert.IsTrue(_jsMock.Invocations.Any(invocation =>
+            invocation.Method.Name == nameof(IJSRuntime.InvokeAsync) &&
+            invocation.Arguments.Count > 0 &&
+            Equals(invocation.Arguments[0], "localStorage.setItem")));
+    }
+
     // ─── Multiple timezones ──────────────────────────────────────────
 
     [TestMethod]

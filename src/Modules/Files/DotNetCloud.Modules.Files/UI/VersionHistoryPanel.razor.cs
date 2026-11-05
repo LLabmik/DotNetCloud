@@ -1,3 +1,4 @@
+using DotNetCloud.UI.Shared.Services;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Web;
 
@@ -8,6 +9,8 @@ namespace DotNetCloud.Modules.Files.UI;
 /// </summary>
 public partial class VersionHistoryPanel : ComponentBase
 {
+    [Inject] private BrowserTimeProvider TimeProvider { get; set; } = default!;
+
     /// <summary>Name of the file whose version history is displayed.</summary>
     [Parameter] public string? FileName { get; set; }
 

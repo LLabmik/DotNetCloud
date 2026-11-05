@@ -8239,3 +8239,21 @@ block buttons replaced the highlighted block with a canned template.
   `overflow: clip`, toolbar sticky, no regression for non-fill-height usages
 - ✓ Cancel discarded the unsaved test edits (the note still reads "Hi there!")
 - ☐ Production E2E — left to the user on production (`cloud.dotnetcloud.net`)
+
+## User Time Format Preference (2026-11-04)
+
+- ✓ Added a **Time Format** selector to the Profile page (12-hour / 24-hour)
+- ✓ Persisted the preference via `IUserSettingsService` (`dotnetcloud.ui` / `timeFormat`)
+- ✓ `UserTimeFormat` shared constants (`12h`, `24h`, module/key)
+- ✓ `BrowserTimeProvider` clock-format helpers + localStorage cache (`dotnetcloud.timeFormat`)
+- ✓ `MainLayout` loads and applies the preference at circuit start
+- ✓ Applied the preference to user-facing times: Profile, Chat, Calendar (page/widget), AI widget, Files
+  (browser, trash, versions, shared-with-me), Photos, Notes, Email, Tracks, Notifications, search results,
+  share-expiry tooltips, Example module, and all admin pages (broadcast, OIDC, traffic, modules, users,
+  search jobs, shared-folder schedules, default content, chat retention)
+- ✓ Server-generated share-expiring notification text uses the recipient's clock preference
+- ✓ Consolidated 7 duplicated relative-time helpers into `RelativeTimeFormatter`; added `<RelativeTimestamp>`
+  for the repeated relative-text + ISO-tooltip pattern
+- ✓ Tests updated: `BrowserTimeProviderTests`, `RelativeTimeFormatterTests` and `MessageListFormatTimeTests`;
+  `NotificationProducerTests` green
+

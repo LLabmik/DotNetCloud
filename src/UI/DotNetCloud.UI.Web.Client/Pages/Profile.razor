@@ -107,6 +107,15 @@ else
                     </button>
                 </div>
 
+                <div class="form-group">
+                    <label for="timeFormat">Time Format</label>
+                    <InputSelect id="timeFormat" class="input" @bind-Value="_profileModel!.TimeFormat">
+                        <option value="@UserTimeFormat.TwelveHour">12-hour (1:30 PM)</option>
+                        <option value="@UserTimeFormat.TwentyFourHour">24-hour (13:30)</option>
+                    </InputSelect>
+                    <span class="hint">Controls how times are displayed throughout the app.</span>
+                </div>
+
                 @if (!string.IsNullOrWhiteSpace(_profileError))
                 {
                     <div class="alert alert-danger">@_profileError</div>
@@ -198,7 +207,7 @@ else
                 @if (_profile.LastLoginAt.HasValue)
                 {
                     <dt>Last Login</dt>
-                    <dd>@_profile.LastLoginAt.Value.ToString("MMMM d, yyyy 'at' h:mm tt")</dd>
+                    <dd>@FormatLastLogin()</dd>
                 }
             </dl>
         </section>

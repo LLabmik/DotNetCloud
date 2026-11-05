@@ -33,6 +33,8 @@ namespace DotNetCloud.UI.Web.Components.Shared;
 /// <summary>Code-behind for the <see cref="NotificationBell"/> component.</summary>
 public partial class NotificationBell : ComponentBase, IAsyncDisposable
 {
+    [Inject] private BrowserTimeProvider TimeProvider { get; set; } = default!;
+
     private static readonly TimeSpan PollInterval = TimeSpan.FromMinutes(5);
 
     private bool _isOpen;
@@ -49,6 +51,8 @@ public partial class NotificationBell : ComponentBase, IAsyncDisposable
         {
             return;
         }
+
+        await TimeProvider.EnsureInitializedAsync();
 
         RealtimeClient.NotificationCreated += OnNotificationCreated;
 

@@ -1,3 +1,4 @@
+using DotNetCloud.UI.Shared.Services;
 using Microsoft.AspNetCore.Components;
 
 namespace DotNetCloud.Modules.Chat.UI;
@@ -8,6 +9,8 @@ namespace DotNetCloud.Modules.Chat.UI;
 /// </summary>
 public partial class ChannelSettingsDialog : ComponentBase
 {
+    [Inject] private BrowserTimeProvider TimeProvider { get; set; } = default!;
+
     private string _editName = string.Empty;
     private string? _editTopic;
     private string? _editDescription;

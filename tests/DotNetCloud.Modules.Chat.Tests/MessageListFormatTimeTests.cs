@@ -55,6 +55,25 @@ public class MessageListFormatTimeTests
     }
 
     [TestMethod]
+    public void FormatLocalTime_TwentyFourHourClock_Returns24HourTime()
+    {
+        var now = new DateTime(2026, 9, 7, 23, 0, 0);
+        var sentAt = new DateTime(2026, 9, 7, 21, 30, 0);
+
+        Assert.AreEqual("21:30", MessageList.FormatLocalTime(sentAt, now, use24HourClock: true));
+    }
+
+    [TestMethod]
+    public void FormatLocalTime_TwentyFourHourClock_OlderMessageUses24HourTime()
+    {
+        var now = new DateTime(2026, 9, 7, 9, 0, 0);
+        var sentAt = new DateTime(2026, 9, 4, 14, 5, 0);
+        var expected = sentAt.ToString("MMM d, HH:mm");
+
+        Assert.AreEqual(expected, MessageList.FormatLocalTime(sentAt, now, use24HourClock: true));
+    }
+
+    [TestMethod]
     public void FormatLocalTime_OlderThanYesterday_ReturnsDateAndTime()
     {
         var now = new DateTime(2026, 9, 7, 9, 0, 0);

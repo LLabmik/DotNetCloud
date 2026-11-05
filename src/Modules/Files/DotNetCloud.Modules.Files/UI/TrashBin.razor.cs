@@ -1,5 +1,6 @@
 using DotNetCloud.Core.Authorization;
 using DotNetCloud.Modules.Files.Services;
+using DotNetCloud.UI.Shared.Services;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
 using System.Diagnostics;
@@ -14,6 +15,7 @@ public partial class TrashBin : ComponentBase
 {
     [Inject] private ITrashService TrashService { get; set; } = default!;
     [Inject] private AuthenticationStateProvider AuthenticationStateProvider { get; set; } = default!;
+    [Inject] private BrowserTimeProvider TimeProvider { get; set; } = default!;
 
     /// <summary>Number of days items are retained before permanent deletion (displayed in the empty state).</summary>
     [Parameter] public int RetentionDays { get; set; } = 30;

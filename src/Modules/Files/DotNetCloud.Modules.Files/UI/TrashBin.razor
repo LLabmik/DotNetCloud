@@ -134,7 +134,7 @@
                     </div>
                     <div class="col-location file-meta" title="@item.OriginalPath">@item.OriginalPath</div>
                     <div class="col-date file-meta">
-                        @item.DeletedAt?.ToString("MMM d, yyyy HH:mm")
+                        @TimeProvider.FormatDateTime(item.DeletedAt)
                     </div>
                     <div class="col-size file-meta">
                         @if (item.Size > 0)

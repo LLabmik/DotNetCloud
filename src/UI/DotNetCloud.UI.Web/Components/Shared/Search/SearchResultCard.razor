@@ -62,7 +62,7 @@
                 case "calendar":
                     @if (Item.Metadata.TryGetValue("StartUtc", out var startUtc) && DateTimeOffset.TryParse(startUtc, out var start))
                     {
-                        <MaterialIcon Icon="calendar_today" CssClass="meta-tag-icon" /> <span class="meta-tag">@start.LocalDateTime.ToString("MMM d, yyyy h:mm tt")</span>
+                        <MaterialIcon Icon="calendar_today" CssClass="meta-tag-icon" /> <span class="meta-tag">@TimeProvider.FormatDateTime(start.LocalDateTime)</span>
                     }
                     @if (Item.Metadata.TryGetValue("Location", out var location) && !string.IsNullOrWhiteSpace(location))
                     {

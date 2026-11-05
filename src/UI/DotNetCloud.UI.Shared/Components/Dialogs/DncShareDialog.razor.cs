@@ -20,6 +20,14 @@ namespace DotNetCloud.UI.Shared.Components.Dialogs;
 /// <summary>Code-behind for the <see cref="DncShareDialog"/> component.</summary>
 public partial class DncShareDialog : ComponentBase
 {
+    [Inject] private BrowserTimeProvider TimeProvider { get; set; } = default!;
+
+    /// <inheritdoc />
+    protected override async Task OnInitializedAsync()
+    {
+        await TimeProvider.EnsureInitializedAsync();
+    }
+
     // ── Parameters ────────────────────────────────────────────────────────────
 
     /// <summary>Name of the shared item (file name, note title, etc.).</summary>

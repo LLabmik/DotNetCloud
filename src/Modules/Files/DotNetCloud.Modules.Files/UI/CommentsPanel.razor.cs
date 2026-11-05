@@ -1,3 +1,4 @@
+using DotNetCloud.UI.Shared.Services;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Web;
 
@@ -31,6 +32,12 @@ public partial class CommentsPanel : ComponentBase
 
     /// <summary>Comment items to display, provided by the parent component.</summary>
     [Parameter] public IReadOnlyList<FileCommentViewModel>? InitialComments { get; set; }
+
+    private static readonly RelativeTimeOptions _relativeOptions = RelativeTimeOptions.Default with
+    {
+        DaysBeforeAbsolute = 7,
+        AbsoluteFormat = value => value.UtcDateTime.ToString("MMM d, yyyy"),
+    };
 
     private List<FileCommentViewModel> _comments = [];
     private bool _isLoading;
@@ -239,20 +246,4 @@ public partial class CommentsPanel : ComponentBase
             CancelEdit();
     }
 
-    /// <summary>Formats a DateTime as a human-readable relative time string.</summary>
-    protected static string FormatRelativeTime(DateTime utcTime)
-    {
-        var diff = DateTime.UtcNow - utcTime;
-
-        if (diff.TotalMinutes < 1)
-            return "just now";
-        if (diff.TotalMinutes < 60)
-            return $"{(int)diff.TotalMinutes}m ago";
-        if (diff.TotalHours < 24)
-            return $"{(int)diff.TotalHours}h ago";
-        if (diff.TotalDays < 7)
-            return $"{(int)diff.TotalDays}d ago";
-
-        return utcTime.ToString("MMM d, yyyy");
-    }
 }

@@ -1,5 +1,6 @@
 using DotNetCloud.Core.DTOs;
 using DotNetCloud.Core.Services.ModuleApis;
+using DotNetCloud.UI.Shared.Services;
 using Microsoft.AspNetCore.Components;
 
 namespace DotNetCloud.Modules.Calendar.Widget;
@@ -11,6 +12,7 @@ namespace DotNetCloud.Modules.Calendar.Widget;
 public partial class CalendarWidget : ComponentBase
 {
     [Inject] private ICalendarApiClient ApiClient { get; set; } = default!;
+    [Inject] private BrowserTimeProvider TimeProvider { get; set; } = default!;
 
     private readonly List<CalendarEventDto> _items = [];
     private bool _loading = true;
@@ -20,6 +22,8 @@ public partial class CalendarWidget : ComponentBase
     /// <inheritdoc />
     protected override async Task OnInitializedAsync()
     {
+        await TimeProvider.EnsureInitializedAsync();
+
         try
         {
             var now = DateTime.UtcNow;
@@ -36,12 +40,12 @@ public partial class CalendarWidget : ComponentBase
         }
     }
 
-    private static string FormatStart(CalendarEventDto item)
+    private string FormatStart(CalendarEventDto item)
     {
-        var localStart = item.StartUtc.ToLocalTime();
+        var localStart = TimeProvider.ToLocal(item.StartUtc);
         return item.IsAllDay
             ? localStart.ToString("MMM d, yyyy")
-            : localStart.ToString("MMM d, yyyy h:mm tt");
+            : TimeProvider.FormatDateTime(localStart);
     }
 
     /// <summary>

@@ -295,7 +295,7 @@
                                     @_lastSweep.AttachmentsRemoved attachment row(s) removed,
                                     @_lastSweep.AttachmentsArchived attachment file(s) written to the archive and
                                     @_lastSweep.PinsRemoved pin(s) removed
-                                    @(_lastSweep.Skipped ? "(skipped &mdash; retention is disabled)." : $"(at {_lastSweep.CompletedAtUtc:u}).")
+                                    @(_lastSweep.Skipped ? "(skipped &mdash; retention is disabled)." : $"(at {TimeProvider.FormatDateTimeWithSeconds(_lastSweep.CompletedAtUtc)} UTC).")
                                     @if (_lastSweep.MessagesSkipped > 0)
                                     {
                                         <text> @_lastSweep.MessagesSkipped message(s) could not be archived and were kept; the next sweep retries

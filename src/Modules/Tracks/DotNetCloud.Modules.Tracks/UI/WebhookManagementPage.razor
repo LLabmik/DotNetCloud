@@ -1,6 +1,7 @@
 @namespace DotNetCloud.Modules.Tracks.UI
 @using DotNetCloud.Modules.Tracks.Models
 @inject DotNetCloud.Core.Services.ModuleApis.ITracksApiClient ApiClient
+@inject DotNetCloud.UI.Shared.Services.BrowserTimeProvider TimeProvider
 @inject NavigationManager Navigation
 
 @* Webhook management page — list, add, edit, delete, test webhook subscriptions *@
@@ -47,7 +48,7 @@
                             <span>Created @sub.CreatedAt.ToString("MMM d, yyyy")</span>
                             @if (sub.LastDeliveryAt.HasValue)
                             {
-                                <span>· Last delivery: @sub.LastDeliveryAt.Value.ToString("MMM d, yyyy HH:mm")</span>
+                                <span>· Last delivery: @TimeProvider.FormatDateTime(sub.LastDeliveryAt)</span>
                             }
                             @if (sub.FailedDeliveryCount > 0)
                             {
