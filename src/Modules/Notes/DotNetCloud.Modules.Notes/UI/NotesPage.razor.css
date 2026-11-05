@@ -457,6 +457,70 @@
   color: var(--color-muted);
 }
 
+.notes-version-panel p.notes-version-error {
+  color: var(--color-danger);
+}
+
+.notes-version-panel .notes-version-item {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--color-border);
+  font-size: 12px;
+}
+
+.notes-version-panel .notes-version-item:last-child {
+  border-bottom: none;
+}
+
+.notes-version-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.notes-version-label {
+  color: var(--color-muted);
+}
+
+.notes-version-title {
+  font-weight: 600;
+  color: var(--color-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.notes-version-actions {
+  display: flex;
+  gap: 6px;
+  flex: 0 0 auto;
+}
+
+.notes-version-preview {
+  flex: 1 1 100%;
+  margin-top: 8px;
+  padding: 8px 10px;
+  max-height: 360px;
+  overflow: auto;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+}
+
+.notes-version-preview-title {
+  margin-bottom: 6px;
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--color-text);
+}
+
 .notes-cross-module-links {
   padding: 12px;
   background: var(--color-bg);

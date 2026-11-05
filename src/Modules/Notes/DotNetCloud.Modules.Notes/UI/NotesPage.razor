@@ -72,7 +72,7 @@
                 }
             </a>
             <a class="notes-nav-item @(_activeSection == "shared" ? "active" : "")"
-               @onclick='() => _activeSection = "shared"' title="Shared with Me">
+               @onclick="ShowSharedWithMeAsync" title="Shared with Me">
                 <span class="notes-nav-icon">🤝</span>
                 @if (!_sidebarCollapsed)
                 {
@@ -263,7 +263,15 @@
                     {
                         <div class="notes-version-panel">
                             <h4>Version History</h4>
-                            @if (_versions.Count == 0)
+                            @if (_isLoadingVersions)
+                            {
+                                <p>Loading version history…</p>
+                            }
+                            else if (_versionLoadError is not null)
+                            {
+                                <p class="notes-version-error">@_versionLoadError</p>
+                            }
+                            else if (_versions.Count == 0)
                             {
                                 <p>No previous versions.</p>
                             }
@@ -271,12 +279,33 @@
                             {
                                 @foreach (var version in _versions.OrderByDescending(v => v.VersionNumber))
                                 {
-                                    <div class="version-item">
-                                        <span>v@(version.VersionNumber) — @TimeProvider.FormatDateTime(version.CreatedAt.ToLocalTime())</span>
-                                        @if (CanEdit(_selectedNote))
+                                    <div class="notes-version-item">
+                                        <div class="notes-version-summary">
+                                            <span class="notes-version-label">
+                                                v@(version.VersionNumber) — @TimeProvider.FormatDateTime(version.CreatedAt.ToLocalTime())
+                                            </span>
+                                            <span class="notes-version-title">@version.Title</span>
+                                        </div>
+                                        <div class="notes-version-actions">
+                                            <button class="btn btn-sm btn-outline-secondary"
+                                                    @onclick="() => ToggleVersionPreview(version)"
+                                                    aria-expanded="@(_viewingVersion?.Id == version.Id)"
+                                                    title="@(_viewingVersion?.Id == version.Id ? "Hide this version" : "View this version")">
+                                                @(_viewingVersion?.Id == version.Id ? "Hide" : "View")
+                                            </button>
+                                            @if (CanEdit(_selectedNote))
+                                            {
+                                                <button class="btn btn-sm btn-outline-primary"
+                                                        @onclick="() => RestoreVersionAsync(version.Id)">Restore</button>
+                                            }
+                                        </div>
+                                        @if (_viewingVersion?.Id == version.Id)
                                         {
-                                            <button class="btn btn-sm btn-outline-primary"
-                                                    @onclick="() => RestoreVersionAsync(version.Id)">Restore</button>
+                                            <div class="notes-version-preview">
+                                                <div class="notes-version-preview-title">@version.Title</div>
+                                                <MarkdownEditor Content="@version.Content" Renderer="MarkdownRenderer"
+                                                                PreviewOnly="true" Compact="true" />
+                                            </div>
                                         }
                                     </div>
                                 }

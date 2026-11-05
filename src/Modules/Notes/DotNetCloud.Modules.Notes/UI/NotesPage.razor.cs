@@ -38,6 +38,9 @@ public partial class NotesPage : ComponentBase
     private Guid? _selectedFolderId;
     private bool _showShareDialog;
     private bool _showVersionPanel;
+    private bool _isLoadingVersions;
+    private string? _versionLoadError;
+    private NoteVersionDto? _viewingVersion;
     private List<DncShareEntry> _shareDialogShares = [];
     private bool _isLoadingShareDialogShares;
     private bool _showFolderForm;
@@ -192,9 +195,9 @@ _sidebarCollapsed.ToString().ToLowerInvariant() });
         }
     }
 
-    private async Task ReloadAsync()
+    private async Task ReloadAsync(bool showLoading = true)
     {
-        _isLoading = true;
+        _isLoading = showLoading;
         StateHasChanged();
 
         try
@@ -225,6 +228,15 @@ _sidebarCollapsed.ToString().ToLowerInvariant() });
         {
             _selectedNote = await ApiClient.GetNoteAsync(noteId);
             _editingNote = null;
+            _viewingVersion = null;
+
+            // The history panel stays open across note selection, so it must never show
+            // the previously selected note's versions.
+            _versions.Clear();
+            if (_showVersionPanel)
+            {
+                await ReloadVersionsAsync();
+            }
         }
         finally
         {
@@ -271,6 +283,11 @@ _sidebarCollapsed.ToString().ToLowerInvariant() });
 
         _editingNote = null;
         await ReloadAsync();
+
+        if (_showVersionPanel && _selectedNote is not null)
+        {
+            await ReloadVersionsAsync();
+        }
     }
 
     private async Task DeleteNoteFromDetailAsync()
@@ -287,6 +304,8 @@ _sidebarCollapsed.ToString().ToLowerInvariant() });
 
         await ApiClient.DeleteNoteAsync(_selectedNote.Id);
         _selectedNote = null;
+        _versions.Clear();
+        _viewingVersion = null;
         await ReloadAsync();
     }
 
@@ -315,6 +334,23 @@ _sidebarCollapsed.ToString().ToLowerInvariant() });
     {
         _selectedFolderId = null;
         await ReloadAsync();
+    }
+
+    /// <summary>
+    /// Switches the sidebar to "Shared with Me" and refetches the note list. A note shared
+    /// while this module is already open is not in the cached list, so re-entering the
+    /// section must hit the API rather than only re-filtering what is on screen. The refresh
+    /// runs without the full-page spinner so the current list and detail view stay in place.
+    /// </summary>
+    private async Task ShowSharedWithMeAsync()
+    {
+        _activeSection = "shared";
+
+        // A folder filter only matches the caller's own folders, while a shared note sits in
+        // its owner's folder — leaving it set would hide every shared note.
+        _selectedFolderId = null;
+
+        await ReloadAsync(showLoading: false);
     }
 
     /// <summary>
@@ -520,10 +556,52 @@ _sidebarCollapsed.ToString().ToLowerInvariant() });
     {
         _showVersionPanel = !_showVersionPanel;
         _showShareDialog = false;
+        _viewingVersion = null;
+
         if (_showVersionPanel && _selectedNote is not null)
         {
-            _versions.Clear();
+            await ReloadVersionsAsync();
+        }
+    }
+
+    /// <summary>
+    /// Shows the content of a historical version, or collapses it when the same version is
+    /// already being previewed. The version DTO already carries the title and body saved at
+    /// that point in time, so no extra request is needed.
+    /// </summary>
+    private void ToggleVersionPreview(NoteVersionDto version)
+    {
+        _viewingVersion = _viewingVersion?.Id == version.Id ? null : version;
+    }
+
+    /// <summary>Reloads the selected note's version list from the API.</summary>
+    private async Task ReloadVersionsAsync()
+    {
+        _versions.Clear();
+        _viewingVersion = null;
+        _versionLoadError = null;
+
+        if (_selectedNote is null)
+        {
+            return;
+        }
+
+        _isLoadingVersions = true;
+        StateHasChanged();
+
+        try
+        {
             _versions.AddRange(await ApiClient.GetVersionHistoryAsync(_selectedNote.Id));
+        }
+        catch (Exception)
+        {
+            // Keep the panel visible so the failure is reported instead of the
+            // click appearing to do nothing.
+            _versionLoadError = "Unable to load version history. Please try again.";
+        }
+        finally
+        {
+            _isLoadingVersions = false;
         }
     }
 
@@ -535,10 +613,10 @@ _sidebarCollapsed.ToString().ToLowerInvariant() });
         }
 
         _selectedNote = await ApiClient.RestoreVersionAsync(_selectedNote.Id, versionId);
+        _viewingVersion = null;
         if (_selectedNote is not null)
         {
-            _versions.Clear();
-            _versions.AddRange(await ApiClient.GetVersionHistoryAsync(_selectedNote.Id));
+            await ReloadVersionsAsync();
         }
 
         await ReloadAsync();

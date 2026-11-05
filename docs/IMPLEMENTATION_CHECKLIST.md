@@ -4650,6 +4650,8 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
 - ✓ Cross-entity link references (Files, Calendar, Contact, Note)
 - ✓ Note sharing model (ReadOnly/ReadWrite per-user)
 - ✓ Version history with restore
+- ✓ View a previous version's title and rendered Markdown content from the History panel (per-version View/Hide toggle), with loading and failure feedback when the history request runs
+- ✓ "Shared with Me" refetches the note list on every click (silent refresh, no full-page spinner) so a note shared while the module is open appears immediately; the click also clears the folder filter, which would otherwise hide every shared note
 - ✓ Optimistic concurrency via ExpectedVersion
 - ✓ Note folder assignment: choose a folder while creating/editing a note, and move/unfile an existing note (patch semantics via `UpdateNoteDto.ClearFolder`, folder must belong to the note owner); sidebar note cards tag the folder name in small red text
 - ✓ Android note folder picker wired to the same contract (folder list in create **and** edit mode, move between folders, "None (unfiled)" → `ClearFolder`) — implemented + committed on `fix/notes-folder-assignment`, 334 Android tests + arm64 build green; **verified on-device** (R5CWC356B2K, 2026-09-15) — the first on-device pass exposed a broken folder-chip row (raw DTO text instead of folder names), fixed in `fix/android-notes`

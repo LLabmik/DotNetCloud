@@ -2069,6 +2069,8 @@ Also colour-coded the Android repeat control by mode (2026-10-23, `feature/music
 - ✓ Cross-entity link references (Files, Calendar, Contact, Note)
 - ✓ Note sharing (ReadOnly/ReadWrite per-user permissions)
 - ✓ Version history with restore + optimistic concurrency
+- ✓ Version content preview in the History panel: each version row shows its title and a View/Hide toggle that renders that version's saved Markdown body (the REST/gRPC version DTO already carries title + content), with loading/error feedback and history reloaded when the selected note changes
+- ✓ "Shared with Me" sidebar section refetches the note list on every click (`ShowSharedWithMeAsync` → silent `ReloadAsync(showLoading: false)`), so a note shared while the page is open appears without navigating away and back; the click also clears `_selectedFolderId` because a folder filter only matches the caller's own folders and would hide shared notes
 - ✓ Note folder assignment in Blazor UI (folder picker in the create/edit form + a move/unfile control in the note detail view + a small red folder tag on each sidebar note card) backed by `UpdateNoteDto.ClearFolder` and folder-ownership validation
 - ✓ 50 passing tests (module lifecycle, CRUD, search, versioning, folders, sharing)
 

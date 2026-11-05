@@ -481,6 +481,22 @@ public class NoteServiceTests
     }
 
     [TestMethod]
+    public async Task GetVersionHistory_ReturnsVersionContentForPreview()
+    {
+        var created = await _service.CreateNoteAsync(
+            new CreateNoteDto { Title = "First title", Content = "first body" }, _caller);
+        await _service.UpdateNoteAsync(created.Id,
+            new UpdateNoteDto { Title = "Second title", Content = "second body" }, _caller);
+
+        var versions = await _service.GetVersionHistoryAsync(created.Id, _caller);
+
+        Assert.AreEqual(1, versions.Count);
+        Assert.AreEqual("First title", versions[0].Title);
+        Assert.AreEqual("first body", versions[0].Content);
+        Assert.AreEqual(created.Id, versions[0].NoteId);
+    }
+
+    [TestMethod]
     public async Task RestoreVersion_RestoresContent()
     {
         var created = await _service.CreateNoteAsync(
