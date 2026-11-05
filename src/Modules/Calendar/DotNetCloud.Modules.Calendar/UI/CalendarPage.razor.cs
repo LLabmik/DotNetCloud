@@ -70,11 +70,17 @@ public partial class CalendarPage : ComponentBase
         ? "Personal"
         : (_organizations.FirstOrDefault(o => o.Id == _selectedOrgId)?.Name ?? "Org") + " Calendars";
 
+    /// <summary>Today's date in the viewer's timezone.</summary>
+    private DateTime Today => TimeProvider.ToLocal(DateTime.UtcNow).Date;
+
+    /// <summary>The current hour in the viewer's timezone.</summary>
+    private int CurrentLocalHour => TimeProvider.ToLocal(DateTime.UtcNow).Hour;
+
     private string RangeLabel => _activeView switch
     {
-        "day" => _anchorDate.ToLocalTime().ToString("D"),
-        "week" => $"Week of {_anchorDate.ToLocalTime():d}",
-        _ => _anchorDate.ToLocalTime().ToString("Y")
+        "day" => _anchorDate.ToString("D"),
+        "week" => $"Week of {_anchorDate:d}",
+        _ => _anchorDate.ToString("Y")
     };
 
     private static readonly string[] DayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -124,8 +130,8 @@ public partial class CalendarPage : ComponentBase
         return _events
             .Where(e =>
             {
-                var localStart = e.StartUtc.ToLocalTime();
-                var localEnd = e.EndUtc.ToLocalTime();
+                var localStart = TimeProvider.ToLocal(e.StartUtc);
+                var localEnd = TimeProvider.ToLocal(e.EndUtc);
                 // Event starts on this date, OR spans across it (multi-day)
                 // End date is inclusive — an all-day event April 27-30 shows on all four days
                 return localStart.Date <= date.Date && localEnd.Date >= date.Date;
@@ -140,7 +146,7 @@ public partial class CalendarPage : ComponentBase
         return _events
             .Where(e =>
             {
-                var local = e.StartUtc.ToLocalTime();
+                var local = TimeProvider.ToLocal(e.StartUtc);
                 return local.Date == date.Date && local.Hour == hour;
             })
             .OrderBy(e => e.StartUtc)
@@ -194,6 +200,9 @@ _sidebarCollapsed.ToString().ToLowerInvariant() });
     {
         await TimeProvider.EnsureInitializedAsync();
 
+        // Anchor the grid on the viewer's local "today" once their zone is known.
+        _anchorDate = Today;
+
         try
         {
             var collapsed = await JSRuntime.InvokeAsync<string>("localStorage.getItem", new object?[] {
@@ -233,7 +242,7 @@ _sidebarCollapsed.ToString().ToLowerInvariant() });
             if (calendar is not null)
             {
                 _selectedCalendar = calendar;
-                _anchorDate = evt.StartUtc.ToLocalTime();
+                _anchorDate = TimeProvider.ToLocal(evt.StartUtc);
                 await ReloadEventsAsync();
             }
 
@@ -258,7 +267,7 @@ _sidebarCollapsed.ToString().ToLowerInvariant() });
         if (calendar is null) return;
 
         _selectedCalendar = calendar;
-        _anchorDate = DateTime.Today;
+        _anchorDate = Today;
         await ReloadEventsAsync();
     }
 
@@ -386,13 +395,14 @@ _sidebarCollapsed.ToString().ToLowerInvariant() });
 
     private (DateTime startUtc, DateTime endUtc) GetRange()
     {
+        // _anchorDate holds a viewer-local date; the API queries an absolute UTC window.
         return _activeView switch
         {
-            "day" => (_anchorDate.Date, _anchorDate.Date.AddDays(1)),
-            "week" => (_anchorDate.Date, _anchorDate.Date.AddDays(7)),
-            "agenda" => (_anchorDate.Date, _anchorDate.Date.AddDays(30)),
-            _ => (new DateTime(_anchorDate.Year, _anchorDate.Month, 1), new DateTime(_anchorDate.Year, _anchorDate.Month,
-1).AddMonths(1))
+            "day" => (TimeProvider.ToUtc(_anchorDate.Date), TimeProvider.ToUtc(_anchorDate.Date.AddDays(1))),
+            "week" => (TimeProvider.ToUtc(_anchorDate.Date), TimeProvider.ToUtc(_anchorDate.Date.AddDays(7))),
+            "agenda" => (TimeProvider.ToUtc(_anchorDate.Date), TimeProvider.ToUtc(_anchorDate.Date.AddDays(30))),
+            _ => (TimeProvider.ToUtc(new DateTime(_anchorDate.Year, _anchorDate.Month, 1)),
+                TimeProvider.ToUtc(new DateTime(_anchorDate.Year, _anchorDate.Month, 1).AddMonths(1)))
         };
     }
 
@@ -436,7 +446,7 @@ _sidebarCollapsed.ToString().ToLowerInvariant() });
 
     private async Task GoToToday()
     {
-        _anchorDate = DateTime.UtcNow.Date;
+        _anchorDate = Today;
         await ReloadEventsAsync();
     }
 
@@ -519,11 +529,12 @@ _sidebarCollapsed.ToString().ToLowerInvariant() });
             return;
         }
 
+        var localNow = TimeProvider.ToLocal(DateTime.UtcNow);
         _eventEditor = new EventEditorModel
         {
             CalendarId = _selectedCalendar.Id,
-            StartLocal = DateTime.UtcNow,
-            EndLocal = DateTime.UtcNow.AddHours(1)
+            StartLocal = localNow,
+            EndLocal = localNow.AddHours(1)
         };
 
         _showEventModal = true;
@@ -531,7 +542,7 @@ _sidebarCollapsed.ToString().ToLowerInvariant() });
 
     private void BeginEditEvent(CalendarEventDto dto)
     {
-        _eventEditor = EventEditorModel.From(dto);
+        _eventEditor = EventEditorModel.From(dto, TimeProvider);
         _showEventModal = true;
     }
 
@@ -544,11 +555,11 @@ _sidebarCollapsed.ToString().ToLowerInvariant() });
 
         if (_eventEditor.Id is null)
         {
-            await ApiClient.CreateEventAsync(_eventEditor.ToCreateDto());
+            await ApiClient.CreateEventAsync(_eventEditor.ToCreateDto(TimeProvider));
         }
         else
         {
-            await ApiClient.UpdateEventAsync(_eventEditor.Id.Value, _eventEditor.ToUpdateDto());
+            await ApiClient.UpdateEventAsync(_eventEditor.Id.Value, _eventEditor.ToUpdateDto(TimeProvider));
         }
 
         _eventEditor = null;
@@ -915,15 +926,15 @@ _sidebarCollapsed.ToString().ToLowerInvariant() });
         // Monthly BYDAY position: null=no preference, 1=first, 2=second, 3=third, 4=fourth, -1=last
         public int? MonthlyByDayPosition { get; set; }
 
-        public static EventEditorModel From(CalendarEventDto dto) => new()
+        public static EventEditorModel From(CalendarEventDto dto, BrowserTimeProvider timeProvider) => new()
         {
             Id = dto.Id,
             CalendarId = dto.CalendarId,
             Title = dto.Title,
             Description = dto.Description,
             Location = dto.Location,
-            StartLocal = dto.StartUtc.ToLocalTime(),
-            EndLocal = dto.EndUtc.ToLocalTime(),
+            StartLocal = timeProvider.ToLocal(dto.StartUtc),
+            EndLocal = timeProvider.ToLocal(dto.EndUtc),
             IsAllDay = dto.IsAllDay,
             Color = dto.Color,
             Url = dto.Url,
@@ -952,18 +963,18 @@ _sidebarCollapsed.ToString().ToLowerInvariant() });
             MonthlyByDayPosition = ParseMonthlyByDayPosition(dto.RecurrenceRule)
         };
 
-        public CreateCalendarEventDto ToCreateDto() => new()
+        public CreateCalendarEventDto ToCreateDto(BrowserTimeProvider timeProvider) => new()
         {
             CalendarId = CalendarId,
             Title = Title,
             Description = Description,
             Location = Location,
-            StartUtc = StartLocal.ToUniversalTime(),
-            EndUtc = EndLocal.ToUniversalTime(),
+            StartUtc = timeProvider.ToUtc(StartLocal),
+            EndUtc = timeProvider.ToUtc(EndLocal),
             IsAllDay = IsAllDay,
             Color = Color,
             Url = Url,
-            RecurrenceRule = BuildRrule(),
+            RecurrenceRule = BuildRrule(timeProvider),
             Attendees = Attendees.Select(a => new EventAttendeeDto
             {
                 UserId = a.ContactId,
@@ -979,17 +990,17 @@ _sidebarCollapsed.ToString().ToLowerInvariant() });
             }).ToList()
         };
 
-        public UpdateCalendarEventDto ToUpdateDto() => new()
+        public UpdateCalendarEventDto ToUpdateDto(BrowserTimeProvider timeProvider) => new()
         {
             Title = Title,
             Description = Description,
             Location = Location,
-            StartUtc = StartLocal.ToUniversalTime(),
-            EndUtc = EndLocal.ToUniversalTime(),
+            StartUtc = timeProvider.ToUtc(StartLocal),
+            EndUtc = timeProvider.ToUtc(EndLocal),
             IsAllDay = IsAllDay,
             Color = Color,
             Url = Url,
-            RecurrenceRule = BuildRrule(),
+            RecurrenceRule = BuildRrule(timeProvider),
             Attendees = Attendees.Select(a => new EventAttendeeDto
             {
                 UserId = a.ContactId,
@@ -1005,7 +1016,7 @@ _sidebarCollapsed.ToString().ToLowerInvariant() });
             }).ToList()
         };
 
-        private string? BuildRrule()
+        private string? BuildRrule(BrowserTimeProvider timeProvider)
         {
             if (string.IsNullOrEmpty(RecurrenceType) || RecurrenceType == "None")
             {
@@ -1048,7 +1059,7 @@ _sidebarCollapsed.ToString().ToLowerInvariant() });
 
             if (RecurrenceEndDate.HasValue)
             {
-                rule += $";UNTIL={RecurrenceEndDate.Value.ToUniversalTime():yyyyMMddTHHmmssZ}";
+                rule += $";UNTIL={timeProvider.ToUtc(RecurrenceEndDate.Value):yyyyMMddTHHmmssZ}";
             }
 
             return rule;

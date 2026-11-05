@@ -8,6 +8,16 @@
 
 ---
 
+## Recent Fix — Calendar event times rendered in UTC (2026-11-05, `fix/calendar-event-times`)
+
+> Reported live: the TUE 3 cell read **5:00 PM** for an event whose *Edit Event* dialog showed **11:00 AM** (CST).
+
+- ✓ **Root cause** — `BrowserTimeProvider.EnsureInitializedAsync` invoked the JS identifier `Intl.DateTimeFormat().resolvedOptions().timeZone`. Blazor resolves identifiers as **dotted property paths only** (verified in the served `blazor.web.js`: `findObjectMember` splits on `.`), so `"DateTimeFormat()" in Intl` is false, the call throws `Could not find …`, and the `catch` latched onto **UTC** — every `ToLocal`/`FormatTime` became a no-op. 11:00 AM CST is stored as 17:00 UTC, so the badge printed **5:00 PM**, while the editor used `DateTime.ToLocalTime()` (server = `America/Chicago`) and printed 11:00 AM. Regression introduced by #207, which switched the badges from `ToLocalTime()` to `BrowserTimeProvider`.
+- ✓ **Fix** — `BrowserTimeProvider` now calls the existing helper `dotnetcloud.getTimezone` (`wwwroot/js/timezone.js`, already used by Profile/Admin/Register), falls back to `TimeZoneInfo.Local` (browser zone in WASM, process zone under server-interactive rendering) instead of raw UTC, retries after a prerender failure, formats `DateTimeOffset` through the resolved zone (no more process-local `LocalDateTime`), and adds `ToUtc(...)` for wall-clock → UTC with a DST-gap guard.
+- ✓ **Calendar consistency** — `CalendarPage` funnels every conversion through the provider: day/week cell grouping, `Today`/`CurrentLocalHour`, range query (`GetRange` → `ToUtc`), editor prefill (`ToLocal`), save (`ToUtc`) and the RRULE `UNTIL` timestamp. `_anchorDate` is now explicitly a viewer-local date.
+- ✓ **Tests** — `BrowserTimeProviderTests` rewritten for the helper identifier, the local-zone fallbacks (throw / null / whitespace / unknown id) and new `ToUtc` cases (conversion, kind-agnostic input, `ToLocal` round-trip, spring-forward gap, pre-init behaviour), plus `DateTimeOffset` formatting through the browser zone. UI.Shared **242 pass**; `DotNetCloud.CI.slnf` build 0 errors; all other unit suites green (only the 2 pre-existing `BackupEndpointTests` integration failures remain — missing `sqlcmd` in this environment).
+- ✓ **Deployed + verified (mint22)** — `deploy.sh --force --verify` 15/15 targets, all assembly hashes verified, `/health` 200; the deployed `DotNetCloud.UI.Shared.dll` contains `dotnetcloud.getTimezone` and no `Intl.DateTimeFormat`; the user confirmed the cell now reads **11:00 AM**.
+
 ## Security follow-ups — HLS regression test + background-work refactors (2026-10-25, `fix/security-followups`)
 
 > Closes the last unproven P0 finding from batch 1 and implements the two background-work refactors that batch deferred. Deployed and verified on mint22 (15/15 targets, `/health/ready` 14/14).

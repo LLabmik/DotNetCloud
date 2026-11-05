@@ -184,7 +184,7 @@
                     var dayEvents = GetEventsForDate(day);
                     var visibleEvents = dayEvents.Take(3).ToList();
                     var overflowCount = dayEvents.Count - 3;
-                    <div class="calendar-day-cell @(day.Month != _anchorDate.Month ? "other-month" : "") @(day.Date == DateTime.Today ? "today" : "")"
+                    <div class="calendar-day-cell @(day.Month != _anchorDate.Month ? "other-month" : "") @(day.Date == Today ? "today" : "")"
                          @onclick="() => DayClicked(day)">
                         <span class="calendar-day-number">@day.Day</span>
                         @foreach (var evt in visibleEvents)
@@ -217,7 +217,7 @@
                 {
                     var dayEvents = GetEventsForDate(day);
                     <div class="calendar-week-col">
-                        <div class="calendar-week-col-header @(day.Date == DateTime.Today ? "today" : "")">
+                        <div class="calendar-week-col-header @(day.Date == Today ? "today" : "")">
                             <span class="calendar-week-day-name">@day.ToString("ddd")</span>
                             <span class="calendar-week-day-num">@day.Day</span>
                         </div>
@@ -254,7 +254,7 @@
                     var hour = h;
                     var hourEvents = GetEventsForHour(_anchorDate, hour);
                     <div
-                        class="calendar-hour-row @(DateTime.Now.Hour == hour && _anchorDate.Date == DateTime.Today ? "current-hour" : "")">
+                        class="calendar-hour-row @(CurrentLocalHour == hour && _anchorDate.Date == Today ? "current-hour" : "")">
                         <div class="calendar-hour-label">@FormatHourLabel(hour)</div>
                         <div class="calendar-hour-content" @onclick="() => CreateEventAtHour(hour)">
                             @foreach (var evt in hourEvents)

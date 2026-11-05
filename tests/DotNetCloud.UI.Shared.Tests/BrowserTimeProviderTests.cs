@@ -30,6 +30,12 @@ public class BrowserTimeProviderTests
         await _provider.EnsureInitializedAsync();
 
         Assert.AreEqual("America/Chicago", _provider.IanaTimeZone);
+        // Blazor resolves JS identifiers as dotted property paths, so the call must target
+        // a real helper function — an inline expression silently throws and leaves every
+        // timestamp rendered as raw UTC.
+        _jsMock.Verify(js => js.InvokeAsync<string>(
+            BrowserTimeProvider.TimeZoneHelperIdentifier,
+            It.IsAny<object[]>()), Times.Once);
     }
 
     [TestMethod]
@@ -42,47 +48,57 @@ public class BrowserTimeProviderTests
         await _provider.EnsureInitializedAsync();
 
         _jsMock.Verify(js => js.InvokeAsync<string>(
-            "Intl.DateTimeFormat().resolvedOptions().timeZone",
+            BrowserTimeProvider.TimeZoneHelperIdentifier,
             It.IsAny<object[]>()), Times.Once);
     }
 
     [TestMethod]
-    public async Task EnsureInitializedAsync_FallsBackToUtc_WhenJsThrows()
+    public async Task EnsureInitializedAsync_FallsBackToRuntimeLocalZone_WhenJsThrows()
     {
         _jsMock.Setup(js => js.InvokeAsync<string>(
-                "Intl.DateTimeFormat().resolvedOptions().timeZone",
+                BrowserTimeProvider.TimeZoneHelperIdentifier,
                 It.IsAny<object[]>()))
             .ThrowsAsync(new InvalidOperationException("Prerendering"));
 
         await _provider.EnsureInitializedAsync();
 
-        Assert.AreEqual("UTC", _provider.IanaTimeZone);
+        Assert.AreEqual(TimeZoneInfo.Local.Id, _provider.IanaTimeZone);
     }
 
     [TestMethod]
-    public async Task EnsureInitializedAsync_FallsBackToUtc_WhenJsReturnsNull()
+    public async Task EnsureInitializedAsync_FallsBackToRuntimeLocalZone_WhenJsReturnsNull()
     {
         _jsMock.Setup(js => js.InvokeAsync<string>(
-                "Intl.DateTimeFormat().resolvedOptions().timeZone",
+                BrowserTimeProvider.TimeZoneHelperIdentifier,
                 It.IsAny<object[]>()))
             .ReturnsAsync((string)null!);
 
         await _provider.EnsureInitializedAsync();
 
-        Assert.AreEqual("UTC", _provider.IanaTimeZone);
+        Assert.AreEqual(TimeZoneInfo.Local.Id, _provider.IanaTimeZone);
     }
 
     [TestMethod]
-    public async Task EnsureInitializedAsync_FallsBackToUtc_WhenJsReturnsWhitespace()
+    public async Task EnsureInitializedAsync_FallsBackToRuntimeLocalZone_WhenJsReturnsWhitespace()
     {
         _jsMock.Setup(js => js.InvokeAsync<string>(
-                "Intl.DateTimeFormat().resolvedOptions().timeZone",
+                BrowserTimeProvider.TimeZoneHelperIdentifier,
                 It.IsAny<object[]>()))
             .ReturnsAsync("   ");
 
         await _provider.EnsureInitializedAsync();
 
-        Assert.AreEqual("UTC", _provider.IanaTimeZone);
+        Assert.AreEqual(TimeZoneInfo.Local.Id, _provider.IanaTimeZone);
+    }
+
+    [TestMethod]
+    public async Task EnsureInitializedAsync_FallsBackToRuntimeLocalZone_WhenZoneIsUnknown()
+    {
+        SetupJsTimezone("Nowhere/Atlantis");
+
+        await _provider.EnsureInitializedAsync();
+
+        Assert.AreEqual(TimeZoneInfo.Local.Id, _provider.IanaTimeZone);
     }
 
     // ─── IanaTimeZone property ───────────────────────────────────────
@@ -132,10 +148,10 @@ public class BrowserTimeProviderTests
     }
 
     [TestMethod]
-    public async Task ToLocal_ReturnsSameTime_WhenFallbackUtc()
+    public async Task ToLocal_UsesRuntimeLocalZone_WhenJsIsUnavailable()
     {
         _jsMock.Setup(js => js.InvokeAsync<string>(
-                "Intl.DateTimeFormat().resolvedOptions().timeZone",
+                BrowserTimeProvider.TimeZoneHelperIdentifier,
                 It.IsAny<object[]>()))
             .ThrowsAsync(new InvalidOperationException("Prerendering"));
         await _provider.EnsureInitializedAsync();
@@ -143,8 +159,7 @@ public class BrowserTimeProviderTests
         var utc = new DateTime(2026, 3, 10, 15, 30, 0, DateTimeKind.Utc);
         var result = _provider.ToLocal(utc);
 
-        Assert.AreEqual(15, result.Hour);
-        Assert.AreEqual(30, result.Minute);
+        Assert.AreEqual(TimeZoneInfo.ConvertTimeFromUtc(utc, TimeZoneInfo.Local), result);
     }
 
     [TestMethod]
@@ -291,13 +306,19 @@ public class BrowserTimeProviderTests
     }
 
     [TestMethod]
-    public void FormatDateTime_DateTimeOffset_UsesLocalDateTimeAndClockPreference()
+    public async Task FormatDateTime_DateTimeOffset_UsesBrowserTimeZoneAndClockPreference()
     {
-        var when = new DateTimeOffset(2026, 1, 15, 23, 5, 0, TimeSpan.Zero);
+        SetupJsTimezone("America/Chicago");
+        await _provider.EnsureInitializedAsync();
         _provider.SetUse24HourClock(true);
 
+        var when = new DateTimeOffset(2026, 1, 15, 23, 5, 0, TimeSpan.Zero);
+        var chicago = TimeZoneInfo.ConvertTimeFromUtc(
+            when.UtcDateTime,
+            TimeZoneInfo.FindSystemTimeZoneById("America/Chicago"));
+
         Assert.AreEqual(
-            $"{when.LocalDateTime.ToString("MMM d, yyyy")} {when.LocalDateTime.ToString("HH:mm")}",
+            $"{chicago.ToString("MMM d, yyyy", System.Globalization.CultureInfo.CurrentCulture)} {chicago.ToString("HH:mm")}",
             _provider.FormatDateTime(when));
     }
 
@@ -315,7 +336,7 @@ public class BrowserTimeProviderTests
                 It.IsAny<string>(),
                 It.IsAny<object[]>()))
             .ReturnsAsync((string identifier, object[] args) =>
-                identifier == "Intl.DateTimeFormat().resolvedOptions().timeZone"
+                identifier == BrowserTimeProvider.TimeZoneHelperIdentifier
                     ? "UTC"
                     : UserTimeFormat.TwentyFourHour);
 
@@ -343,7 +364,7 @@ public class BrowserTimeProviderTests
         // Test with Europe/Berlin (CET = UTC+1 in winter)
         var jsMock = new Mock<IJSRuntime>();
         jsMock.Setup(js => js.InvokeAsync<string>(
-                "Intl.DateTimeFormat().resolvedOptions().timeZone",
+                BrowserTimeProvider.TimeZoneHelperIdentifier,
                 It.IsAny<object[]>()))
             .ReturnsAsync("Europe/Berlin");
 
@@ -356,12 +377,71 @@ public class BrowserTimeProviderTests
         Assert.AreEqual(13, local.Hour); // UTC+1 in January
     }
 
+    // ─── ToUtc ───────────────────────────────────────────────────────
+
+    [TestMethod]
+    public async Task ToUtc_ConvertsLocalWallClockToUtc()
+    {
+        SetupJsTimezone("America/Chicago");
+        await _provider.EnsureInitializedAsync();
+
+        // 2026-01-15 12:00 CST (UTC-6, standard time) = 18:00 UTC
+        var local = new DateTime(2026, 1, 15, 12, 0, 0, DateTimeKind.Unspecified);
+        var utc = _provider.ToUtc(local);
+
+        Assert.AreEqual(new DateTime(2026, 1, 15, 18, 0, 0), utc);
+        Assert.AreEqual(DateTimeKind.Utc, utc.Kind);
+    }
+
+    [TestMethod]
+    public async Task ToUtc_IgnoresInputKind()
+    {
+        SetupJsTimezone("America/Chicago");
+        await _provider.EnsureInitializedAsync();
+
+        // An editor value can arrive with a stray Utc kind; it is still a wall-clock entry.
+        var localAsUtcKind = new DateTime(2026, 1, 15, 12, 0, 0, DateTimeKind.Utc);
+
+        Assert.AreEqual(new DateTime(2026, 1, 15, 18, 0, 0), _provider.ToUtc(localAsUtcKind));
+    }
+
+    [TestMethod]
+    public async Task ToUtc_RoundTripsWithToLocal()
+    {
+        SetupJsTimezone("America/New_York");
+        await _provider.EnsureInitializedAsync();
+
+        var local = new DateTime(2026, 7, 15, 9, 30, 0, DateTimeKind.Unspecified);
+
+        Assert.AreEqual(local, _provider.ToLocal(_provider.ToUtc(local)));
+    }
+
+    [TestMethod]
+    public async Task ToUtc_SpringForwardGap_UsesStandardOffset()
+    {
+        SetupJsTimezone("America/New_York");
+        await _provider.EnsureInitializedAsync();
+
+        // 2026-03-08 02:30 does not exist in New York (clocks jump 02:00 -> 03:00).
+        var gap = new DateTime(2026, 3, 8, 2, 30, 0, DateTimeKind.Unspecified);
+
+        Assert.AreEqual(new DateTime(2026, 3, 8, 7, 30, 0), _provider.ToUtc(gap));
+    }
+
+    [TestMethod]
+    public void ToUtc_MatchesRuntimeConversion_WhenNotInitialized()
+    {
+        var local = new DateTime(2026, 1, 15, 12, 0, 0, DateTimeKind.Unspecified);
+
+        Assert.AreEqual(local.ToUniversalTime(), _provider.ToUtc(local));
+    }
+
     // ─── Helper ─────────────────────────────────────────────────────
 
     private void SetupJsTimezone(string iana)
     {
         _jsMock.Setup(js => js.InvokeAsync<string>(
-                "Intl.DateTimeFormat().resolvedOptions().timeZone",
+                BrowserTimeProvider.TimeZoneHelperIdentifier,
                 It.IsAny<object[]>()))
             .ReturnsAsync(iana);
     }
