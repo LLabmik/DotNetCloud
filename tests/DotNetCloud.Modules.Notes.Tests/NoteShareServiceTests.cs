@@ -138,4 +138,28 @@ public class NoteShareServiceTests
         Assert.IsNotNull(result);
         Assert.AreEqual("Shared Access", result.Title);
     }
+
+    /// <summary>
+    /// A note shared *after* the recipient already loaded their list must show up on the
+    /// next list call — the sidebar's "Shared with Me" refresh relies on this rather than
+    /// on any cached state.
+    /// </summary>
+    [TestMethod]
+    public async Task ListNotesAsync_ShareCreatedAfterFirstLoad_RecipientSeesNewlySharedNote()
+    {
+        var recipient = new CallerContext(Guid.CreateVersion7(), ["user"], CallerType.User);
+        var before = await _noteService.ListNotesAsync(recipient);
+        Assert.AreEqual(0, before.Count);
+
+        var note = await _noteService.CreateNoteAsync(
+            new CreateNoteDto { Title = "Late share" }, _owner);
+        await _shareService.ShareNoteAsync(
+            note.Id, recipient.UserId, NoteSharePermission.ReadOnly, _owner);
+
+        var after = await _noteService.ListNotesAsync(recipient);
+
+        Assert.AreEqual(1, after.Count);
+        Assert.AreEqual(note.Id, after[0].Id);
+        Assert.AreEqual(NoteSharePermission.ReadOnly, after[0].ViewerPermission);
+    }
 }
