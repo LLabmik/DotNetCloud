@@ -90,7 +90,7 @@
                         }
 
                         <span class="version-date" title="@version.CreatedAt.ToString("O")">
-                            @version.CreatedAt.ToString("MMM d, yyyy HH:mm")
+                            @TimeProvider.FormatDateTime(version.CreatedAt)
                         </span>
                         <span class="version-author">@version.AuthorName</span>
                         <span class="version-size">@FormatSize(version.SizeBytes)</span>

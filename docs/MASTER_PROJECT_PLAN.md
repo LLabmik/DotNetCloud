@@ -7004,3 +7004,42 @@ Plan document: `docs/ADMIN_SYSTEM_PAGE_PER_USER_TRAFFIC_PLAN.md`.
 - ✓ Cosmetic follow-ups from the live check: the traffic table's presence column is headed **SignalR** (it had
   read "Presence" next to a traffic-derived "Active", which looked self-contradictory), and the header's
   "updated Ns ago" stamp is gone — only the **stale** warning is shown, when a refresh actually fails.
+
+## User Time Format Preference (2026-11-04, `feature/user-time-format-selection`)
+
+### Status
+
+**completed** — implemented and the solution builds clean; `DotNetCloud.UI.Shared.Tests` and
+`DotNetCloud.Modules.Chat.Tests` are green.
+
+### Deliverables
+
+- ✓ **Profile page** gained a **Time Format** selector: 12-hour (1:30 PM) or 24-hour (13:30), persisted with the
+  existing `IUserSettingsService` store (module `dotnetcloud.ui`, key `timeFormat`).
+- ✓ `UserTimeFormat` shared helper — central constants for the settings module/key and the `12h` / `24h` values.
+- ✓ `BrowserTimeProvider` gained `Use24HourClock`, `TimeFormatPattern`, `ApplyTimeFormat`, `SetUse24HourClock`,
+  `FormatTime`, `FormatDateTime` (including `DateTimeOffset` and seconds variants) overloads. It caches the
+  preference in `localStorage` (`dotnetcloud.timeFormat`) so separately-interactive components render consistently.
+- ✓ `MainLayout` loads the stored preference when the circuit starts (falling back to 12-hour) and seeds the
+  localStorage cache before child components initialise.
+- ✓ Applied the preference across user-facing timestamps: Profile last login, Chat message/search/settings
+  times, Calendar page/widget/intraday labels/agenda, AI widget, Files browser/trash/version
+  history/shared-with-me, Photos, Notes, Email, Tracks comments/activity/automation/webhooks, Notifications,
+  global search results, share-expiry tooltips, the Example module, and **all admin pages** (broadcast history,
+  OIDC rotation, traffic window, module install date, user created/last login, search jobs, shared-folder
+  schedules, default-content last pass, chat retention sweep).
+- ✓ Server-generated share-expiring notification text now uses the recipient's clock preference.
+- ✓ Consolidated **7 duplicated relative-time helpers** into `RelativeTimeFormatter` (options for seconds,
+  remainders, day thresholds, absolute fallbacks, labels) and added the `<RelativeTimestamp>` component for the
+  repeated relative-text + ISO-tooltip pattern in admin tables.
+- ✓ Tests: `BrowserTimeProvider` (12h default, parse/format helpers, seconds and `DateTimeOffset` variants,
+  localStorage read/write), `RelativeTimeFormatter` thresholds/fallbacks, Chat `FormatLocalTime` 24-hour
+  coverage, and `NotificationProducerTests` remain green.
+
+### Notes
+
+- The preference is user-scoped and follows the account across devices; `localStorage` is only a per-browser
+  cache and is refreshed from the server setting on every circuit start.
+- Native clients (Android, SyncTray) and native `<input type="time">` / `datetime-local` values keep their own
+  formats — this setting covers the web UI.
+

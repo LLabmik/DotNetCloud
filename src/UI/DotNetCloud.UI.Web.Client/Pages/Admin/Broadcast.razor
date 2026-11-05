@@ -112,7 +112,7 @@
                                 @foreach (var broadcast in _broadcasts)
                                 {
                                     <tr>
-                                        <td>@broadcast.CreatedAtUtc.ToLocalTime().ToString("g")</td>
+                                        <td>@TimeProvider.FormatDateTime(TimeProvider.ToLocal(broadcast.CreatedAtUtc))</td>
                                         <td>@broadcast.Title</td>
                                         <td>
                                             <MaterialIcon Icon="@SeverityIcon(broadcast.Severity)" Size="MaterialIconSize.Sm" />
@@ -121,8 +121,8 @@
                                         <td>
                                             <span class="badge">@StatusLabel(broadcast)</span>
                                         </td>
-                                        <td>@(broadcast.SentAtUtc?.ToLocalTime().ToString("g") ?? "—")</td>
-                                        <td>@(broadcast.ExpiresAtUtc?.ToLocalTime().ToString("g") ?? "—")</td>
+                                        <td>@(broadcast.SentAtUtc is { } sent ? TimeProvider.FormatDateTime(TimeProvider.ToLocal(sent)) : "—")</td>
+                                        <td>@(broadcast.ExpiresAtUtc is { } expires ? TimeProvider.FormatDateTime(TimeProvider.ToLocal(expires)) : "—")</td>
                                         <td>@broadcast.DismissedCount</td>
                                         <td class="actions">
                                             @if (broadcast.Status == AdminBroadcastStatus.Scheduled)

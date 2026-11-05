@@ -92,7 +92,7 @@
 
                 <div class="settings-section channel-metadata">
                     <label>Channel Metadata</label>
-                    <div>Created: @CreatedAt.ToString("yyyy-MM-dd HH:mm") UTC</div>
+                    <div>Created: @CreatedAt.ToString("yyyy-MM-dd") @TimeProvider.FormatTime(CreatedAt) UTC</div>
                     <div>Creator: @CreatedByDisplayName</div>
                 </div>
 

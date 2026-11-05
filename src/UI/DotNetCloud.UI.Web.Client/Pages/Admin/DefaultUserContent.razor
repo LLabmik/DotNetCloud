@@ -90,7 +90,7 @@
                     <dd>@_status.UsersConverged converged · @_status.UsersFailed failed</dd>
 
                     <dt>Last pass</dt>
-                    <dd>@(_status.LastAppliedAtUtc?.ToString("u") ?? "never")</dd>
+                    <dd>@FormatLastPass()</dd>
                 </dl>
 
                 <div class="form-actions">

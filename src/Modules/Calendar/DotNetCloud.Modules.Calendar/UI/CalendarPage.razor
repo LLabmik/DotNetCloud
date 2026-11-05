@@ -194,7 +194,7 @@
                                  @onclick="() => BeginEditEvent(evt)" title="@evt.Title">
                                 @if (!evt.IsAllDay)
                                 {
-                                    <span class="calendar-event-time-badge">@evt.StartUtc.ToLocalTime().ToString("HH:mm")</span>
+                                    <span class="calendar-event-time-badge">@FormatEventTime(evt.StartUtc)</span>
                                 }
                                 <span class="calendar-event-title">@evt.Title</span>
                             </div>
@@ -235,7 +235,7 @@
                                          @onclick="() => BeginEditEvent(evt)">
                                         @if (!evt.IsAllDay)
                                         {
-                                            <span class="calendar-event-time-badge">@evt.StartUtc.ToLocalTime().ToString("HH:mm")</span>
+                                            <span class="calendar-event-time-badge">@FormatEventTime(evt.StartUtc)</span>
                                         }
                                         <span class="calendar-event-title">@evt.Title</span>
                                     </div>
@@ -255,7 +255,7 @@
                     var hourEvents = GetEventsForHour(_anchorDate, hour);
                     <div
                         class="calendar-hour-row @(DateTime.Now.Hour == hour && _anchorDate.Date == DateTime.Today ? "current-hour" : "")">
-                        <div class="calendar-hour-label">@($"{hour:D2}:00")</div>
+                        <div class="calendar-hour-label">@FormatHourLabel(hour)</div>
                         <div class="calendar-hour-content" @onclick="() => CreateEventAtHour(hour)">
                             @foreach (var evt in hourEvents)
                             {
@@ -265,8 +265,8 @@
                                     <span class="calendar-event-title">@evt.Title</span>
                                     @if (!evt.IsAllDay)
                                     {
-                                        <span class="calendar-event-time-badge">@evt.StartUtc.ToLocalTime().ToString("HH:mm") –
-                                            @evt.EndUtc.ToLocalTime().ToString("HH:mm")</span>
+                                        <span class="calendar-event-time-badge">@FormatEventTime(evt.StartUtc) –
+                                            @FormatEventTime(evt.EndUtc)</span>
                                         }
                                     </div>
                                 }
@@ -290,8 +290,8 @@
                             <div class="calendar-event-row">
                                 <button class="btn btn-link p-0 text-start" @onclick="() => BeginEditEvent(eventItem)">
                                     <strong>@eventItem.Title</strong>
-                                    <span>@eventItem.StartUtc.ToLocalTime().ToString("g") –
-                                        @eventItem.EndUtc.ToLocalTime().ToString("g")</span>
+                                    <span>@FormatEventDateTime(eventItem.StartUtc) –
+                                        @FormatEventDateTime(eventItem.EndUtc)</span>
                                         <span>@eventItem.Location</span>
                                     </button>
                                     @if (CanCurrentUserRsvp(eventItem))
@@ -624,8 +624,8 @@
                                             }
                                             else
                                             {
-                                                <span>@evt.StartUtc.ToLocalTime().ToString("HH:mm") –
-                                                    @evt.EndUtc.ToLocalTime().ToString("HH:mm")</span>
+                                                <span>@FormatEventTime(evt.StartUtc) –
+                                                    @FormatEventTime(evt.EndUtc)</span>
                                                 }
                                             </div>
                                             <div class="calendar-day-detail-title">@evt.Title</div>

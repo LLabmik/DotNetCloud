@@ -32,6 +32,7 @@ public partial class ChatSettings : ComponentBase
 {
     [Inject] private DotNetCloudApiClient Api { get; set; } = default!;
     [Inject] private ToastService Toast { get; set; } = default!;
+    [Inject] private BrowserTimeProvider TimeProvider { get; set; } = default!;
 
     private const string Module = "dotnetcloud.chat";
 
@@ -65,6 +66,7 @@ public partial class ChatSettings : ComponentBase
 
     protected override async Task OnInitializedAsync()
     {
+        await TimeProvider.EnsureInitializedAsync();
         await LoadAsync();
     }
 

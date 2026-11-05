@@ -176,7 +176,7 @@ else
                                         <code class="shared-folder-path">@folder.SourcePath</code>
                                         <div class="shared-folder-meta">
                                             <span>@ResolveOrganizationName(folder.OrganizationId)</span>
-                                            <span>Updated @FormatRelative(folder.UpdatedAt)</span>
+                                            <span>Updated <RelativeTimestamp Utc="folder.UpdatedAt" /></span>
                                         </div>
                                     </div>
                                 </td>

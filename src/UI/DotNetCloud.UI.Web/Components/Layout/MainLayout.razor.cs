@@ -55,6 +55,34 @@ public partial class MainLayout
         {
             await LoadSidebarPreferenceAsync();
         }
+
+        await LoadTimeFormatPreferenceAsync();
+    }
+
+    /// <summary>
+    /// Loads the user's clock-format preference so every child component formats
+    /// times consistently. Falls back to the 12-hour default when unavailable.
+    /// </summary>
+    private async Task LoadTimeFormatPreferenceAsync()
+    {
+        var userId = await GetAuthenticatedUserIdAsync();
+        if (userId is null)
+        {
+            return;
+        }
+
+        try
+        {
+            var setting = await UserSettingsService.GetSettingAsync(
+                userId.Value, UserTimeFormat.SettingsModule, UserTimeFormat.SettingKey);
+            var storedValue = setting?.Value ?? UserTimeFormat.TwelveHour;
+            TimeProvider.ApplyTimeFormat(storedValue);
+            await TimeProvider.PersistTimeFormatAsync(storedValue);
+        }
+        catch
+        {
+            TimeProvider.ApplyTimeFormat(null);
+        }
     }
 
     private Task PersistState()

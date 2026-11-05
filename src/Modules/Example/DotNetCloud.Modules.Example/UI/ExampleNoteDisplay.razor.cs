@@ -1,3 +1,4 @@
+using DotNetCloud.UI.Shared.Services;
 using Microsoft.AspNetCore.Components;
 
 namespace DotNetCloud.Modules.Example.UI;
@@ -5,6 +6,8 @@ namespace DotNetCloud.Modules.Example.UI;
 /// <summary>Code-behind for the <see cref="ExampleNoteDisplay"/> component.</summary>
 public partial class ExampleNoteDisplay : ComponentBase
 {
+    [Inject] private BrowserTimeProvider TimeProvider { get; set; } = default!;
+
     [Parameter, EditorRequired]
     public ExampleNotesPage.NoteViewModel Note { get; set; } = default!;
 

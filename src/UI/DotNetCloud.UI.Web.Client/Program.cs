@@ -20,6 +20,7 @@ public static class Program
             new HttpClient { BaseAddress = new Uri(builder.HostEnvironment.BaseAddress) });
 
         builder.Services.AddScoped<DotNetCloudApiClient>();
+        builder.Services.AddScoped<BrowserTimeProvider>();
 
         // Markdown rendering for shared components/pages rendered in WebAssembly — e.g. the
         // admin broadcast composer (InteractiveAuto). Server-interactive rendering resolves the

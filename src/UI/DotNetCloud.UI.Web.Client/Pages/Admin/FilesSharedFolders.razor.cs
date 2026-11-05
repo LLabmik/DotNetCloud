@@ -32,6 +32,7 @@ public partial class FilesSharedFolders : ComponentBase, IDisposable
 {
     [Inject] private DotNetCloudApiClient Api { get; set; } = default!;
     [Inject] private ToastService Toast { get; set; } = default!;
+    [Inject] private BrowserTimeProvider TimeProvider { get; set; } = default!;
 
     private readonly SharedFolderEditorState _editor = new();
     private bool _loading = true;
@@ -62,6 +63,7 @@ public partial class FilesSharedFolders : ComponentBase, IDisposable
 
     protected override async Task OnInitializedAsync()
     {
+        await TimeProvider.EnsureInitializedAsync();
         await RefreshAsync();
     }
 
@@ -599,32 +601,11 @@ public partial class FilesSharedFolders : ComponentBase, IDisposable
             ?? organizationId.Value.ToString();
     }
 
-    private static string FormatSchedule(DateTime? value)
+    private string FormatSchedule(DateTime? value)
     {
         return value.HasValue
-            ? value.Value.ToLocalTime().ToString("yyyy-MM-dd HH:mm")
+            ? TimeProvider.FormatDateTime(value.Value.ToLocalTime(), "yyyy-MM-dd")
             : "Not scheduled";
-    }
-
-    private static string FormatRelative(DateTime value)
-    {
-        var delta = DateTime.UtcNow - value;
-        if (delta.TotalMinutes < 1)
-        {
-            return "just now";
-        }
-
-        if (delta.TotalHours < 1)
-        {
-            return $"{Math.Floor(delta.TotalMinutes)}m ago";
-        }
-
-        if (delta.TotalDays < 1)
-        {
-            return $"{Math.Floor(delta.TotalHours)}h ago";
-        }
-
-        return $"{Math.Floor(delta.TotalDays)}d ago";
     }
 
     private static string GetScanStatusClass(string status)

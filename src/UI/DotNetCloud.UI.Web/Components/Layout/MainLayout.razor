@@ -8,6 +8,7 @@
 @inject PersistentComponentState PersistentState
 @inject MusicPlaybackState MusicPlayback
 @inject NavigationManager Navigation
+@inject DotNetCloud.UI.Shared.Services.BrowserTimeProvider TimeProvider
 @implements IDisposable
 
 <div class="app-container @(MusicPlayback.NowPlaying is not null ? "has-global-player" : "")">

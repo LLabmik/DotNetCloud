@@ -9,6 +9,7 @@ using DotNetCloud.Modules.Files.DTOs;
 using DotNetCloud.Modules.Files.Options;
 using DotNetCloud.Modules.Files.Services;
 using DotNetCloud.UI.Shared.Components.Dialogs;
+using DotNetCloud.UI.Shared.Services;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Forms;
 using Microsoft.AspNetCore.Components.Web;
@@ -46,6 +47,7 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
     [Inject] private NavigationManager Navigation { get; set; } = default!;
     [Inject] private IJSRuntime Js { get; set; } = default!;
     [Inject] private HttpClient Http { get; set; } = default!;
+    [Inject] private BrowserTimeProvider TimeProvider { get; set; } = default!;
     [Inject] private ILogger<FileBrowser> Logger { get; set; } = default!;
 
     /// <summary>The current user ID, used for opening the document editor.</summary>
@@ -2570,15 +2572,15 @@ public partial class FileBrowser : ComponentBase, IAsyncDisposable
     /// Formats the "image creation time" shown on gallery tiles: the EXIF capture timestamp when
     /// known, otherwise the node's created timestamp, as <c>"MMM d, yyyy · h:mm tt"</c>.
     /// </summary>
-    protected static string FormatPhotoTimestamp(FileNodeViewModel node)
-        => (node.CapturedAt ?? node.CreatedAt).ToString("MMM d, yyyy · h:mm tt");
+    protected string FormatPhotoTimestamp(FileNodeViewModel node)
+        => TimeProvider.FormatDateTime(node.CapturedAt ?? node.CreatedAt, "MMM d, yyyy ·");
 
     /// <summary>
     /// Formats the date shown in a list/grid row's meta line. Images show when the picture was taken
     /// (EXIF capture time when known, otherwise the file's created time, as date and time); all other
     /// files keep showing the last-modified date.
     /// </summary>
-    protected static string FormatRowDate(FileNodeViewModel node)
+    protected string FormatRowDate(FileNodeViewModel node)
         => FilesImageHelper.IsImage(node)
             ? FormatPhotoTimestamp(node)
             : node.UpdatedAt.ToString("MMM d, yyyy");

@@ -1,3 +1,4 @@
+using DotNetCloud.UI.Shared.Services;
 using DotNetCloud.UI.Web.Client.Services;
 using Microsoft.AspNetCore.Components;
 
@@ -14,6 +15,11 @@ public partial class DefaultUserContent : ComponentBase
     private string? _errorMessage;
     private string? _successMessage;
 
+    private string FormatLastPass()
+        => _status?.LastAppliedAtUtc is { } applied
+            ? $"{TimeProvider.FormatDateTimeWithSeconds(applied)} UTC"
+            : "never";
+
     private DefaultUserContentStatusDto? _status;
     private DefaultContentQueueStatusDto? _queue;
     private IReadOnlyList<DefaultContentIssueDto> _issues = [];
@@ -28,10 +34,12 @@ public partial class DefaultUserContent : ComponentBase
     private bool _confirmDeletions;
 
     [Inject] private DotNetCloudApiClient Api { get; set; } = null!;
+    [Inject] private BrowserTimeProvider TimeProvider { get; set; } = default!;
 
     /// <inheritdoc />
     protected override async Task OnInitializedAsync()
     {
+        await TimeProvider.EnsureInitializedAsync();
         await RefreshAsync();
         _loading = false;
     }

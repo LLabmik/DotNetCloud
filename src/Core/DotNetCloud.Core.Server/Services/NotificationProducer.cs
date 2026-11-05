@@ -1,6 +1,8 @@
 using DotNetCloud.Core.Capabilities;
 using DotNetCloud.Core.DTOs;
 using DotNetCloud.Core.Events;
+using DotNetCloud.Core.Services;
+using DotNetCloud.UI.Shared.Services;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace DotNetCloud.Core.Server.Services;
@@ -260,6 +262,11 @@ internal sealed class NotificationProducer :
     /// <inheritdoc />
     public async Task HandleAsync(ShareExpiringEvent e, CancellationToken ct = default)
     {
+        var use24HourClock = await Use24HourClockAsync(e.CreatedByUserId);
+        var expiresAt = use24HourClock
+            ? e.ExpiresAt.ToString("yyyy-MM-dd HH:mm")
+            : e.ExpiresAt.ToString("yyyy-MM-dd h:mm tt");
+
         await SendAsync(new NotificationDto
         {
             Id = Guid.CreateVersion7(),
@@ -267,11 +274,29 @@ internal sealed class NotificationProducer :
             SourceModuleId = "dotnetcloud.files",
             Type = NotificationType.SystemAlert,
             Title = "Share expiring soon",
-            Message = $"Your share for \"{e.FileName}\" expires at {e.ExpiresAt:u}.",
+            Message = $"Your share for \"{e.FileName}\" expires at {expiresAt} UTC.",
             Priority = NotificationPriority.High,
             ActionUrl = $"/apps/files?node={e.FileNodeId}",
             CreatedAtUtc = e.CreatedAt
         }, ct);
+    }
+
+    /// <summary>
+    /// Reads the recipient's clock-format preference so server-generated notification
+    /// messages match the times rendered elsewhere in the UI. Defaults to 12-hour.
+    /// </summary>
+    private async Task<bool> Use24HourClockAsync(Guid userId)
+    {
+        await using var scope = _scopeFactory.CreateAsyncScope();
+        var settings = scope.ServiceProvider.GetService<IUserSettingsService>();
+        if (settings is null)
+        {
+            return false;
+        }
+
+        var setting = await settings.GetSettingAsync(
+            userId, UserTimeFormat.SettingsModule, UserTimeFormat.SettingKey);
+        return UserTimeFormat.IsTwentyFourHour(setting?.Value);
     }
 
     private async Task SendAsync(NotificationDto notification, CancellationToken ct)

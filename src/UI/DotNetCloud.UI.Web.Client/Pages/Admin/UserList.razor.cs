@@ -32,6 +32,7 @@ public partial class UserList : ComponentBase
 {
     [Inject] private DotNetCloudApiClient Api { get; set; } = default!;
     [Inject] private ToastService Toast { get; set; } = default!;
+    [Inject] private BrowserTimeProvider TimeProvider { get; set; } = default!;
 
     private bool _loading = true;
     private int _page = 1;
@@ -41,6 +42,7 @@ public partial class UserList : ComponentBase
 
     protected override async Task OnInitializedAsync()
     {
+        await TimeProvider.EnsureInitializedAsync();
         await LoadUsersAsync();
     }
 

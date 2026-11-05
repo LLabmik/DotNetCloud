@@ -44,7 +44,7 @@
                 <strong>OpenIddict keys were rotated</strong>
                 @if (_rotationStatus.RotatedAtUtc is not null)
                 {
-                    <span> at <code>@_rotationStatus.RotatedAtUtc.Value.ToLocalTime().ToString("g")</code>.</span>
+                    <span> at <code>@TimeProvider.FormatDateTime(TimeProvider.ToLocal(_rotationStatus.RotatedAtUtc.Value))</code>.</span>
                 }
                 <span> Restart the server to activate the new keys. The service restarts in a few seconds — connected
                     clients

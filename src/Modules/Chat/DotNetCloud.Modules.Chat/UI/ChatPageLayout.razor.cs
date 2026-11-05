@@ -312,11 +312,11 @@ public partial class ChatPageLayout : ComponentBase, IAsyncDisposable
 
     /// <summary>
     /// Formats a message's UTC sent time for the search results list in the viewer's
-    /// local timezone (search results always render as a wall-clock post time with an
-    /// AM/PM indicator, e.g., "Sep 4, 2:05 PM").
+    /// local timezone using the user's selected clock format (e.g., "Sep 4, 2:05 PM"
+    /// or "Sep 4, 14:05").
     /// </summary>
     private string FormatSearchResultTime(DateTime sentAtUtc)
-        => TimeProvider.ToLocal(sentAtUtc).ToString("MMM d, h:mm tt");
+        => TimeProvider.FormatDateTime(TimeProvider.ToLocal(sentAtUtc), "MMM d,");
 
     /// <inheritdoc />
     protected override async Task OnInitializedAsync()

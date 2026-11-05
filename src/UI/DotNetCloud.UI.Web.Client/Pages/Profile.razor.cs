@@ -33,6 +33,7 @@ public partial class Profile : ComponentBase
     [Inject] private DotNetCloudApiClient Api { get; set; } = default!;
     [Inject] private ToastService Toast { get; set; } = default!;
     [Inject] private IJSRuntime JS { get; set; } = default!;
+    [Inject] private BrowserTimeProvider TimeProvider { get; set; } = default!;
 
     private bool _loading = true;
     private UserProfileResponse? _profile;
@@ -62,14 +63,22 @@ public partial class Profile : ComponentBase
     {
         try
         {
+            await TimeProvider.EnsureInitializedAsync();
+
             _profile = await Api.GetCurrentUserProfileAsync();
             if (_profile is not null)
             {
+                var timeFormatSetting = await Api.GetUserSettingAsync(
+                    UserTimeFormat.SettingsModule, UserTimeFormat.SettingKey);
+                var use24HourClock = UserTimeFormat.IsTwentyFourHour(timeFormatSetting?.Value);
+                TimeProvider.SetUse24HourClock(use24HourClock);
+
                 _profileModel = new ProfileEditModel
                 {
                     DisplayName = _profile.DisplayName,
                     Locale = _profile.Locale,
                     Timezone = _profile.Timezone,
+                    TimeFormat = use24HourClock ? UserTimeFormat.TwentyFourHour : UserTimeFormat.TwelveHour,
                 };
             }
         }
@@ -105,6 +114,21 @@ public partial class Profile : ComponentBase
 
         // Single name or email — just use first character
         return char.ToUpperInvariant(name[0]).ToString();
+    }
+
+    /// <summary>
+    /// Formats the last-login timestamp in the viewer's timezone using the
+    /// user's selected clock format.
+    /// </summary>
+    private string FormatLastLogin()
+    {
+        if (_profile?.LastLoginAt is not { } lastLogin)
+        {
+            return "—";
+        }
+
+        var local = TimeProvider.ToLocal(lastLogin);
+        return $"{local.ToString("MMMM d, yyyy")} at {TimeProvider.FormatTime(local)}";
     }
 
     // ── Timezone Detection ──
@@ -163,6 +187,25 @@ public partial class Profile : ComponentBase
             _profileModel.DisplayName = result.DisplayName;
             _profileModel.Locale = result.Locale;
             _profileModel.Timezone = result.Timezone;
+
+            var timeFormatSaved = await Api.UpsertUserSettingAsync(
+                UserTimeFormat.SettingsModule,
+                UserTimeFormat.SettingKey,
+                new UpsertUserSettingDto
+                {
+                    Value = _profileModel.TimeFormat,
+                    Description = "Preferred clock format (12h or 24h).",
+                    IsSensitive = false,
+                });
+            TimeProvider.SetUse24HourClock(UserTimeFormat.IsTwentyFourHour(_profileModel.TimeFormat));
+            await TimeProvider.PersistTimeFormatAsync(_profileModel.TimeFormat);
+
+            if (!timeFormatSaved)
+            {
+                _profileError = "Profile updated, but the time format preference could not be saved.";
+                return;
+            }
+
             _profileSuccess = "Profile updated successfully.";
             Toast.ShowSuccess("Profile updated.");
         }
@@ -370,6 +413,7 @@ public partial class Profile : ComponentBase
         public string DisplayName { get; set; } = string.Empty;
         public string Locale { get; set; } = "en-US";
         public string Timezone { get; set; } = "UTC";
+        public string TimeFormat { get; set; } = UserTimeFormat.TwelveHour;
     }
 
     private sealed class PasswordChangeModel

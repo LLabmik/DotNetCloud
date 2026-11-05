@@ -184,7 +184,7 @@ public partial class MessageList : ComponentBase
     {
         var localSentAt = TimeProvider.ToLocal(sentAtUtc);
         var localNow = TimeProvider.ToLocal(DateTime.UtcNow);
-        return FormatLocalTime(localSentAt, localNow);
+        return FormatLocalTime(localSentAt, localNow, TimeProvider.Use24HourClock);
     }
 
     /// <summary>
@@ -193,9 +193,10 @@ public partial class MessageList : ComponentBase
     /// wall-clock post time so they read naturally in the user's timezone. Wall-clock
     /// times use a 12-hour clock with an AM/PM indicator (e.g., "3:42 PM").
     /// </summary>
-    internal static string FormatLocalTime(DateTime localSentAt, DateTime localNow)
+    internal static string FormatLocalTime(DateTime localSentAt, DateTime localNow, bool use24HourClock = false)
     {
         var diff = localNow - localSentAt;
+        var timePattern = use24HourClock ? "HH:mm" : "h:mm tt";
 
         if (diff.TotalMinutes < 1)
         {
@@ -209,15 +210,15 @@ public partial class MessageList : ComponentBase
 
         if (localSentAt.Date == localNow.Date)
         {
-            return localSentAt.ToString("h:mm tt");
+            return localSentAt.ToString(timePattern);
         }
 
         if (localSentAt.Date == localNow.Date.AddDays(-1))
         {
-            return $"Yesterday {localSentAt:h:mm tt}";
+            return $"Yesterday {localSentAt.ToString(timePattern)}";
         }
 
-        return localSentAt.ToString("MMM d, h:mm tt");
+        return localSentAt.ToString($"MMM d, {timePattern}");
     }
 
     /// <summary>Formats a file size for display.</summary>

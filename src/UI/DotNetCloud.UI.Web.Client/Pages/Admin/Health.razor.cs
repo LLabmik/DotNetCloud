@@ -33,6 +33,12 @@ public partial class Health : ComponentBase
     [Inject] private DotNetCloudApiClient Api { get; set; } = default!;
     [Inject] private ToastService Toast { get; set; } = default!;
 
+    private static readonly RelativeTimeOptions _relativeOptions = RelativeTimeOptions.Default with
+    {
+        IncludeSeconds = true,
+        IncludeRemainder = true,
+    };
+
     private bool _loading = true;
     private HealthReportDto? _health;
     private IReadOnlyList<BackgroundServiceStatusDto> _bgServices = [];
@@ -70,15 +76,6 @@ public partial class Health : ComponentBase
         "Unhealthy" => "danger",
         _ => "muted"
     };
-
-    private static string FormatTimeAgo(DateTimeOffset time)
-    {
-        var elapsed = DateTimeOffset.UtcNow - time;
-        if (elapsed.TotalSeconds < 60) return $"{elapsed.Seconds}s ago";
-        if (elapsed.TotalMinutes < 60) return $"{elapsed.Minutes}m ago";
-        if (elapsed.TotalHours < 24) return $"{elapsed.Hours}h {elapsed.Minutes % 60}m ago";
-        return $"{elapsed.Days}d {elapsed.Hours % 24}h ago";
-    }
 
     private static string FormatDuration(double ms)
     {

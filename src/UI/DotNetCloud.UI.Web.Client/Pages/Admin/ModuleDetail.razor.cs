@@ -33,6 +33,7 @@ public partial class ModuleDetail : ComponentBase
     [Parameter] public string ModuleId { get; set; } = string.Empty;
     [Inject] private DotNetCloudApiClient Api { get; set; } = default!;
     [Inject] private ToastService Toast { get; set; } = default!;
+    [Inject] private BrowserTimeProvider TimeProvider { get; set; } = default!;
 
     private bool _loading = true;
     private bool _actionInProgress;
@@ -40,6 +41,7 @@ public partial class ModuleDetail : ComponentBase
 
     protected override async Task OnInitializedAsync()
     {
+        await TimeProvider.EnsureInitializedAsync();
         await LoadAsync();
     }
 

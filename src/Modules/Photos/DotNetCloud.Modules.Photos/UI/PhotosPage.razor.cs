@@ -7,6 +7,7 @@ using DotNetCloud.Modules.Files;
 using DotNetCloud.Modules.Photos.Events;
 using DotNetCloud.Modules.Photos.Services;
 using DotNetCloud.UI.Shared.Components.Dialogs;
+using DotNetCloud.UI.Shared.Services;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Components.Web;
@@ -1209,10 +1210,10 @@ public partial class PhotosPage : ComponentBase, IAsyncDisposable
 
     /// <summary>
     /// Formats a photo's creation time (EXIF date taken, or upload date when unavailable)
-    /// as <c>"MMM d, yyyy · h:mm tt"</c> for grid tiles, the list view, and the lightbox.
+    /// for grid tiles, the list view, and the lightbox using the user's clock preference.
     /// </summary>
-    private static string FormatDateTime(DateTime dt)
-        => dt.ToString("MMM d, yyyy · h:mm tt");
+    private string FormatDateTime(DateTime dt)
+        => TimeProvider.FormatDateTime(dt, "MMM d, yyyy ·");
 
     private static string FormatSize(long bytes)
     {

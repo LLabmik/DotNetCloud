@@ -181,7 +181,7 @@
                                             }
                                         </span>
                                     </div>
-                                    <span class="tracks-dashboard-feed-time">@FormatRelativeTime(item.UpdatedAt)</span>
+                                    <RelativeTimestamp CssClass="tracks-dashboard-feed-time" Utc="item.UpdatedAt" Options="_relativeOptions" />
                                 </button>
                             }
                         </div>

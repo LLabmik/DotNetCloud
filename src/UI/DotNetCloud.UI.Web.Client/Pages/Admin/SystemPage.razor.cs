@@ -32,8 +32,15 @@ public partial class SystemPage : ComponentBase, IAsyncDisposable
 {
     private static readonly TimeSpan PollInterval = TimeSpan.FromSeconds(5);
 
+    private static readonly RelativeTimeOptions _relativeOptions = RelativeTimeOptions.Default with
+    {
+        IncludeSeconds = true,
+        IncludeRemainder = true,
+    };
+
     [Inject] private DotNetCloudApiClient ApiClient { get; set; } = default!;
     [Inject] private ToastService Toast { get; set; } = default!;
+    [Inject] private BrowserTimeProvider TimeProvider { get; set; } = default!;
 
     private readonly CancellationTokenSource _cts = new();
     private AdminSystemStatusDto? _status;
@@ -45,6 +52,7 @@ public partial class SystemPage : ComponentBase, IAsyncDisposable
 
     protected override async Task OnInitializedAsync()
     {
+        await TimeProvider.EnsureInitializedAsync();
         await FetchAsync();
         _ = PollAsync(_cts.Token);
     }
@@ -184,17 +192,4 @@ public partial class SystemPage : ComponentBase, IAsyncDisposable
         return $"{span.Seconds}s";
     }
 
-    private static string FormatTimeAgo(DateTimeOffset? time)
-    {        if (time is null || time.Value == default || time.Value == DateTimeOffset.MinValue)
-        {
-            return "—";
-        }
-
-        var elapsed = DateTimeOffset.UtcNow - time.Value;
-        if (elapsed < TimeSpan.Zero) elapsed = TimeSpan.Zero;
-        if (elapsed.TotalSeconds < 60) return $"{(int)elapsed.TotalSeconds}s ago";
-        if (elapsed.TotalMinutes < 60) return $"{(int)elapsed.TotalMinutes}m ago";
-        if (elapsed.TotalHours < 24) return $"{(int)elapsed.TotalHours}h {(int)elapsed.Minutes % 60}m ago";
-        return $"{(int)elapsed.TotalDays}d {(int)elapsed.TotalHours % 24}h ago";
-    }
 }

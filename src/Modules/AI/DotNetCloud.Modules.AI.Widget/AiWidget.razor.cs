@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using DotNetCloud.Core.Services.ModuleApis;
+using DotNetCloud.UI.Shared.Services;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
 
@@ -13,6 +14,7 @@ public partial class AiWidget : ComponentBase
 {
     [Inject] private IAiApiClient ApiClient { get; set; } = default!;
     [Inject] private AuthenticationStateProvider AuthStateProvider { get; set; } = default!;
+    [Inject] private BrowserTimeProvider TimeProvider { get; set; } = default!;
 
     private ConversationStatsDto? _stats;
     private bool _loading = true;
@@ -20,13 +22,25 @@ public partial class AiWidget : ComponentBase
 
     private ConversationStatsDto? Stats => _stats;
 
-    private string LastActivityText => _stats?.LastActivityAt is { } last
-        ? last.ToLocalTime().ToString("MMM d, yyyy 'at' h:mm tt")
-        : "No activity yet.";
+    private string LastActivityText
+    {
+        get
+        {
+            if (_stats?.LastActivityAt is not { } last)
+            {
+                return "No activity yet.";
+            }
+
+            var local = TimeProvider.ToLocal(last);
+            return $"{local.ToString("MMMM d, yyyy")} at {TimeProvider.FormatTime(local)}";
+        }
+    }
 
     /// <inheritdoc />
     protected override async Task OnInitializedAsync()
     {
+        await TimeProvider.EnsureInitializedAsync();
+
         try
         {
             var userId = await GetUserIdAsync();
