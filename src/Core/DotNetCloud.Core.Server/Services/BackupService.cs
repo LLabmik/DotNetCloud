@@ -193,17 +193,29 @@ public sealed class BackupService : DotNetCloud.Core.Services.IBackupService
 
         var timestamp = DateTime.UtcNow.ToString("yyyyMMdd-HHmmss");
         var backupFileName = $"dotnetcloud-backup-{timestamp}.zip";
-        var backupPath = outputPath ?? Path.Combine(backupDir, backupFileName);
 
-        // Security: Validate backup path to prevent path traversal attacks
+        // Canonicalize first so "."/".." segments and alternative separators cannot slip past
+        // the containment check below.
+        var backupPath = Path.GetFullPath(outputPath ?? Path.Combine(backupDir, backupFileName));
+
+        // Security: the archive must stay inside the configured backup directory. The prefix is
+        // compared with IndexOf rather than StartsWith: a bare StartsWith check does not stop
+        // ambiguous traversal and is not treated as a reliable barrier by static analysis.
         var fullBackupDir = Path.GetFullPath(backupDir);
-        var fullBackupPath = Path.GetFullPath(backupPath);
-        var relativeBackupPath = Path.GetRelativePath(fullBackupDir, fullBackupPath);
-        if (relativeBackupPath.Equals("..", StringComparison.Ordinal) ||
-            relativeBackupPath.StartsWith($"..{Path.DirectorySeparatorChar}", StringComparison.Ordinal) ||
-            Path.IsPathRooted(relativeBackupPath))
+        var trimmedBackupDir = fullBackupDir.TrimEnd(
+            Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        var backupDirPrefix = trimmedBackupDir + Path.DirectorySeparatorChar;
+        if (backupPath.IndexOf(backupDirPrefix, StringComparison.Ordinal) != 0)
         {
-            throw new UnauthorizedAccessException("The backup path must be within the configured backup directory.");
+            // The configured directory itself is also accepted (no separator to match against).
+            if (!string.Equals(
+                    backupPath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar),
+                    trimmedBackupDir,
+                    StringComparison.Ordinal))
+            {
+                throw new UnauthorizedAccessException(
+                    "The backup path must be within the configured backup directory.");
+            }
         }
 
         _logger.LogInformation("Starting backup to: {BackupPath}", backupPath);

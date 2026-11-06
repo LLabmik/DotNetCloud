@@ -4,6 +4,7 @@ using DotNetCloud.Modules.Email.Models;
 using DotNetCloud.Modules.Email.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 
@@ -24,7 +25,8 @@ public class EmailSyncServiceTests
 
     private static (EmailSyncService Service, ServiceProvider Provider) CreateService(
         string dbName,
-        IEmailProvider? provider = null)
+        IEmailProvider? provider = null,
+        ILogger<EmailSyncService>? logger = null)
     {
         var services = new ServiceCollection();
         services.AddDbContext<EmailDbContext>(o => o.UseInMemoryDatabase(dbName));
@@ -34,7 +36,7 @@ public class EmailSyncServiceTests
 
         var service = new EmailSyncService(
             serviceProvider.GetRequiredService<IServiceScopeFactory>(),
-            NullLogger<EmailSyncService>.Instance);
+            logger ?? NullLogger<EmailSyncService>.Instance);
 
         return (service, serviceProvider);
     }
@@ -172,5 +174,44 @@ public class EmailSyncServiceTests
             Assert.AreEqual(1, candidates.Count);
             Assert.AreEqual(account.Id, candidates[0].AccountId);
         }
+    }
+
+    [TestMethod]
+    public async Task SyncAccountAsync_ForeignAccount_DoesNotWriteAccountIdToLog()
+    {
+        var dbName = Guid.CreateVersion7().ToString();
+        var account = CreateAccount(Guid.CreateVersion7());
+        await SeedAsync(dbName, account);
+        var logger = new CapturingLogger<EmailSyncService>();
+
+        var (service, services) = CreateService(dbName, logger: logger);
+        await using (services)
+        {
+            var synced = await service.SyncAccountAsync(account.Id, Guid.CreateVersion7());
+
+            Assert.IsFalse(synced);
+        }
+
+        Assert.AreEqual(1, logger.Messages.Count);
+        Assert.IsFalse(
+            logger.Messages[0].Contains(account.Id.ToString(), StringComparison.OrdinalIgnoreCase),
+            "The account identifier must not be written to the log in clear text.");
+    }
+
+    private sealed class CapturingLogger<T> : ILogger<T>
+    {
+        public List<string> Messages { get; } = [];
+
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(
+            LogLevel logLevel,
+            EventId eventId,
+            TState state,
+            Exception? exception,
+            Func<TState, Exception?, string> formatter)
+            => Messages.Add(formatter(state, exception));
     }
 }

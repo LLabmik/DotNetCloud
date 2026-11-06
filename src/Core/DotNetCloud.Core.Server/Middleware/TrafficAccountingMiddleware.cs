@@ -98,7 +98,8 @@ public sealed class TrafficAccountingMiddleware
             context.Features.Set(originalBodyFeature);
             context.Features.Set(originalRequestPipeFeature);
             context.Features.Set(originalWebSocketFeature);
-            _logger.LogDebug(ex, "Traffic accounting features could not be installed for {Path}", context.Request.Path);
+            _logger.LogDebug(ex, "Traffic accounting features could not be installed for {Path}",
+                LogSanitizer.Sanitize(context.Request.Path.Value));
         }
 
         try

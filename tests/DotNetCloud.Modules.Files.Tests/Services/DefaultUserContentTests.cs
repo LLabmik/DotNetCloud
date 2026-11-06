@@ -1,5 +1,7 @@
 using System.IO.Compression;
 using DotNetCloud.Core.Authorization;
+using DotNetCloud.Core.Data.Context;
+using DotNetCloud.Core.Data.Naming;
 using DotNetCloud.Core.Errors;
 using DotNetCloud.Core.Events;
 using DotNetCloud.Modules.Files.Data;
@@ -51,6 +53,26 @@ public class DefaultUserContentTests
 
     private DefaultUserContentStore CreateStore(DefaultUserContentOptions options) =>
         new(NullLogger<DefaultUserContentStore>.Instance);
+
+    private DefaultUserContentAdminService CreateAdmin(
+        FilesDbContext db,
+        CoreDbContext coreDb,
+        DefaultUserContentOptions options) =>
+        new(
+            db,
+            coreDb,
+            new StaticSettings(options),
+            CreateStore(options),
+            CreateProvisioner(db, options),
+            new DefaultUserContentQueue(db),
+            NullLogger<DefaultUserContentAdminService>.Instance);
+
+    private static CoreDbContext CreateCoreContext() =>
+        new(
+            new DbContextOptionsBuilder<CoreDbContext>()
+                .UseInMemoryDatabase(Guid.CreateVersion7().ToString())
+                .Options,
+            new PostgreSqlNamingStrategy());
 
     private FileImportService CreateImport(FilesDbContext db) =>
         new(
@@ -122,6 +144,35 @@ public class DefaultUserContentTests
 
         Assert.AreEqual(first.Fingerprint, second.Fingerprint);
         Assert.AreNotEqual(string.Empty, first.Fingerprint);
+    }
+
+    // ── Browse (admin) ────────────────────────────────────────────────────────
+
+    [TestMethod]
+    public async Task BrowseAsync_ParentTraversal_ThrowsValidationException()
+    {
+        Directory.CreateDirectory(Path.Combine(_templateRoot, "Documents"));
+        using var db = CreateContext();
+        using var coreDb = CreateCoreContext();
+        var admin = CreateAdmin(db, coreDb, Options());
+
+        await Assert.ThrowsExactlyAsync<ValidationException>(
+            () => admin.BrowseAsync("../../"));
+    }
+
+    [TestMethod]
+    public async Task BrowseAsync_Subdirectory_ReturnsEntries()
+    {
+        Directory.CreateDirectory(Path.Combine(_templateRoot, "Documents"));
+        await File.WriteAllTextAsync(Path.Combine(_templateRoot, "Documents", "letter.txt"), "hello");
+        using var db = CreateContext();
+        using var coreDb = CreateCoreContext();
+        var admin = CreateAdmin(db, coreDb, Options());
+
+        var result = await admin.BrowseAsync("Documents");
+
+        Assert.AreEqual("Documents", result.Path);
+        Assert.IsTrue(result.Entries.Any(e => e.Name == "letter.txt"));
     }
 
     // ── Provisioner ───────────────────────────────────────────────────────────

@@ -126,11 +126,20 @@ public sealed class DefaultUserContentAdminService
             ? root
             : Path.GetFullPath(Path.Combine(root, normalized));
 
-        var rootWithSeparator = root.TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
-        if (!target.StartsWith(rootWithSeparator, StringComparison.Ordinal)
-            && !string.Equals(target.TrimEnd(Path.DirectorySeparatorChar), root.TrimEnd(Path.DirectorySeparatorChar), StringComparison.Ordinal))
+        // Reject traversal before touching the filesystem. The canonical target must be the root
+        // itself or live beneath it. IndexOf is used rather than StartsWith because a bare prefix
+        // check is ambiguous and is not treated as a reliable traversal barrier by static analysis.
+        var trimmedRoot = root.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        var rootWithSeparator = trimmedRoot + Path.DirectorySeparatorChar;
+        if (target.IndexOf(rootWithSeparator, StringComparison.Ordinal) != 0)
         {
-            throw new Core.Errors.ValidationException("path", "Path escapes the template root.");
+            if (!string.Equals(
+                    target.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar),
+                    trimmedRoot,
+                    StringComparison.Ordinal))
+            {
+                throw new Core.Errors.ValidationException("path", "Path escapes the template root.");
+            }
         }
 
         var validation = await _store.ValidateAsync(options, cancellationToken).ConfigureAwait(false);
