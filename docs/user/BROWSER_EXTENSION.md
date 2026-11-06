@@ -8,7 +8,7 @@
 
 The DotNetCloud Bookmarks browser extension syncs your browser bookmarks bidirectionally with your DotNetCloud server. Save pages while you browse and keep your bookmarks available everywhere — in the [Bookmarks](BOOKMARKS.md) web app and across devices.
 
-The extension supports **Chrome** (Manifest V3) and **Firefox** (Manifest V3, Firefox 109 or later).
+The extension supports **Chrome** and **Microsoft Edge** (both Manifest V3) and **Firefox** (Manifest V3, Firefox 109 or later).
 
 ---
 
@@ -19,6 +19,13 @@ The extension supports **Chrome** (Manifest V3) and **Firefox** (Manifest V3, Fi
 1. Open the extension's listing in the **Chrome Web Store** (or load it from your administrator's distribution)
 2. Click **Add to Chrome**
 3. The extension icon appears in the toolbar
+
+### Microsoft Edge
+
+1. Open `edge://extensions` and enable **Allow extensions from other stores**
+2. Open the extension's **Chrome Web Store** listing (or load the administrator-provided ZIP with **Load unpacked**)
+3. Click **Add to Chrome** — Edge installs it as a normal extension
+4. The extension icon appears in the toolbar
 
 ### Firefox
 

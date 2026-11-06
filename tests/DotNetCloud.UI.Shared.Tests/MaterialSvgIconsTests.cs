@@ -11,9 +11,9 @@ public class MaterialSvgIconsTests
 {
     /// <summary>
     /// Icons referenced by the sidebar "open in new tab" affordance and the
-    /// Desktop Sync Client page. If one of these is missing its SVG path, the
-    /// <see cref="MaterialIcon"/> component falls back to plain text, so each
-    /// must resolve to real path data.
+    /// client download pages (Desktop Sync, Browser Extension, Android).
+    /// If one of these is missing its SVG path, the <see cref="MaterialIcon"/>
+    /// component falls back to plain text, so each must resolve to real path data.
     /// </summary>
     [TestMethod]
     [DataRow("open_in_new")]
@@ -24,7 +24,12 @@ public class MaterialSvgIconsTests
     [DataRow("folder")]
     [DataRow("favorite")]
     [DataRow("info")]
-    public void GetPath_IconUsedBySidebarOrDesktopSync_ReturnsPathData(string icon)
+    [DataRow("extension")]
+    [DataRow("smartphone")]
+    [DataRow("chat")]
+    [DataRow("description")]
+    [DataRow("lock")]
+    public void GetPath_IconUsedBySidebarOrClientPages_ReturnsPathData(string icon)
     {
         Assert.IsTrue(MaterialSvgIcons.HasPath(icon), $"Icon '{icon}' has no SVG path and would render as text.");
         var path = MaterialSvgIcons.GetPath(icon);

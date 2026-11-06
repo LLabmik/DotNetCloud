@@ -14,7 +14,10 @@ The DotNetCloud Android app gives you mobile access to your DotNetCloud server â
 
 ## Installation
 
-The Android app is available from:
+> **Not yet published:** The Android client is **not yet available on Google Play or F-Droid**. Until it is
+> published, the only supported installation method is the signed direct APK from GitHub Releases.
+
+Planned store channels (for when they go live):
 
 | Channel         | App ID                          |
 | --------------- | ------------------------------- |
@@ -25,7 +28,7 @@ Both flavors can be installed side-by-side on the same device. They differ only 
 
 ### Direct APK
 
-Signed APKs are also published on [GitHub Releases](https://github.com/LLabmik/DotNetCloud/releases):
+Signed APKs are published on [GitHub Releases](https://github.com/LLabmik/DotNetCloud/releases):
 
 1. Download the APK for your preferred flavor
 2. Verify the SHA-256 checksum against `checksums-sha256.txt` (optional but recommended)

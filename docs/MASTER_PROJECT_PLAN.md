@@ -7062,3 +7062,34 @@ Plan document: `docs/ADMIN_SYSTEM_PAGE_PER_USER_TRAFFIC_PLAN.md`.
 - Native clients (Android, SyncTray) and native `<input type="time">` / `datetime-local` values keep their own
   formats — this setting covers the web UI.
 
+
+## Client Download Nav Items: Browser Extension + Android Client (2026-11-05, `feature/browser-extension-and-android-client-links`)
+
+### Status
+
+**completed** — implemented and `DotNetCloud.UI.Web` builds clean; `DotNetCloud.UI.Shared.Tests` green.
+
+### Deliverables
+
+- ✓ **Browser Extension** and **Android Client** items added to the bottom sidebar group, directly below
+  **Desktop Sync Client**, each with the matching hover "open in new tab" affordance.
+- ✓ `/apps/browser-extension` page (`BrowserExtension.razor` + `.razor.css`): two-way bookmark sync overview,
+  "why you'd want it" cards, Chrome/Firefox install cards linking to
+  `docs/clients/BROWSER_EXTENSION_INSTALLATION.md`, plus a developer-preview source link.
+- ✓ `/apps/android` page (`AndroidClient.razor` + `.razor.css`): feature cards, download cards, sideload
+  accordion and connection steps.
+- ✓ The Android page explicitly notes the client **has not yet been published to Google Play or F-Droid**;
+  Google Play and F-Droid cards are marked "Not yet published" and direct users to the signed APK on
+  GitHub Releases (the only supported channel today).
+- ✓ `smartphone` SVG path added to `MaterialSvgIcons` (the `extension` path already existed); icon test coverage
+  extended.
+- ✓ **Microsoft Edge** install instructions added to the page and to
+  `docs/clients/BROWSER_EXTENSION_INSTALLATION.md` / `docs/user/BROWSER_EXTENSION.md` (Edge reuses the Chrome
+  Manifest V3 build: `edge://extensions` → Developer mode → Load unpacked, or Chrome Web Store via "Allow
+  extensions from other stores").
+
+### Notes
+
+- Both new routes require authentication, matching `/apps/synctray`.
+- Page styles mirror the existing Desktop Sync Client visual language (`ds-*` classes) in page-scoped CSS.
+- No store listing URLs are linked because neither store publication exists yet.

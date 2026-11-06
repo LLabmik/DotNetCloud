@@ -66,6 +66,31 @@ The ZIP file (`dist/dotnetcloud-bookmarks-chrome.zip`) can be uploaded to the Ch
 
 ---
 
+## Loading in Microsoft Edge
+
+Microsoft Edge is Chromium-based, so it runs the **Chrome** build (Manifest V3) unchanged — no separate package is produced.
+
+### Load unpacked (developer / manual install)
+
+1. Build the Chrome extension: `npm run build:chrome` (or `dist/chrome/` from `build-extension.sh` / `build-extension.ps1`)
+2. Open `edge://extensions`
+3. Enable **Developer mode** (toggle in the left sidebar)
+4. Click **Load unpacked**
+5. Select the `dist/chrome/` folder
+
+The extension icon appears in the toolbar. Click it to open the popup.
+
+### Install from the Chrome Web Store
+
+1. Open `edge://extensions`
+2. Enable **Allow extensions from other stores** (left sidebar)
+3. Accept the prompt, then open the extension's Chrome Web Store listing
+4. Click **Add to Chrome** — Edge installs it as a normal extension
+
+> **Note:** If your organization distributes the extension privately, unzip the administrator-provided ZIP and use **Load unpacked** as above.
+
+---
+
 ## Loading in Firefox
 
 ### Temporary add-on (development)
