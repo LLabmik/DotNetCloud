@@ -3419,6 +3419,21 @@ Plan: `docs/SECURITY_AUDIT_REMEDIATION_PLAN.md` (workstreams 1–3, 11 findings)
 - ☐ Video controller regression test for the HLS entitlement check
 - ☐ Operator action: rotate the exposed TMDB key at the provider
 
+#### Security Hardening — Third-Party Module Sandbox A0 (2026-11-06)
+
+Plan: `docs/THIRD_PARTY_MODULE_SANDBOX_AND_STORE_PLAN.md` (phase A0). Branch `feature/third-party-modules`.
+
+- ✓ All 15 `CoreCapabilities` RPCs mapped to capabilities (`LogAudit`, `SubmitSearchIndex`, `GetGroupsForUser` previously unenforced); `BroadcastRealtimeEvent` re-tiered from Public to `IRealtimeBroadcaster`
+- ✓ Shared `CapabilityCatalog` replaces the dead `CapabilityValidator`; unknown capabilities fail closed
+- ✓ `GetCurrentUser` returns the verified caller context; `SubmitSearchIndex` uses the authenticated module id
+- ✓ `minCoreVersion` enforced at module start; all in-repo manifests corrected to `0.7.0`
+- ✓ Supervisor module-path containment uses `Path.GetFullPath` + `Path.GetRelativePath` (sibling-prefix bypass closed)
+- ✓ gRPC detailed errors limited to Development
+- ✓ Module transport documentation truth-passed (`CROSS_MODULE_TRUST.md`, `SECURITY_MODEL.md`, `ARCHITECTURE.md`, `MODULE_DEVELOPMENT.md`); remaining files recorded for Track D in the plan
+- ✓ Regression tests: capability mapping completeness, capability tiers, `minCoreVersion`, path containment, verified `GetCurrentUser`, search-index attribution
+- ☐ Phase A1 — isolation foundation (manifest v2, scoped DB principals, settings plane, quotas)
+- ☐ Phases A2–A6 / B1–B5 / C / D per the plan
+
 ---
 
 ## Phase 2: Chat & Notifications

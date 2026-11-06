@@ -3,7 +3,7 @@
 > **Purpose:** Guide for building DotNetCloud modules  
 > **Audience:** First-party and third-party module developers  
 > **Status:** Skeleton — will be expanded as the module ecosystem matures  
-> **Last Updated:** 2026-03-03
+> **Last Updated:** 2026-11-06 (transport statement reconciled with v0.7.0)
 
 ---
 
@@ -29,7 +29,7 @@
 DotNetCloud modules are process-isolated plugins that extend the platform. Each module:
 
 - Runs in its own process for crash isolation
-- Communicates with the core server over gRPC (Unix sockets on Linux, Named Pipes on Windows)
+- Communicates with the core server over gRPC (cleartext HTTP/2 on a loopback port in v0.7.0; per-module Unix sockets / Named Pipes planned)
 - Declares its capabilities and events in a manifest
 - Follows a strict lifecycle (Initialize → Start → Run → Stop → Dispose)
 - Has its own database tables (isolated by schema or table prefix)

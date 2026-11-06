@@ -8,12 +8,13 @@
         "INotificationService",
         "IUserDirectory",
         "ICurrentUserContext",
-        "IAuditLogger"
+        "IAuditLogger",
+        "IRealtimeBroadcaster"
     ],
     "publishedEvents": [
         "MessageSentEvent",
         "ChannelCreatedEvent"
     ],
     "subscribedEvents": [],
-    "minCoreVersion": "1.0.0"
+    "minCoreVersion": "0.7.0"
 }

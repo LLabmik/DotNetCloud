@@ -125,20 +125,70 @@ internal sealed class CoreCapabilitiesServiceImpl : CoreCapabilities.CoreCapabil
     /// <summary>
     /// Gets the current caller's identity (ICurrentUserContext capability).
     /// </summary>
-    public override Task<GetCurrentUserResponse> GetCurrentUser(GetCurrentUserRequest request, ServerCallContext context)
+    /// <remarks>
+    /// The acting identity is read only from the verified <c>CallerContext</c> injected by
+    /// <c>CallerContextInterceptor</c> (core-signed user assertion re-validated per call).
+    /// <c>request.Caller</c> is caller-supplied and is deliberately ignored: trusting it let any
+    /// module read another user's identity.
+    /// </remarks>
+    public override async Task<GetCurrentUserResponse> GetCurrentUser(
+        GetCurrentUserRequest request, ServerCallContext context)
     {
-        _logger.LogDebug("GetCurrentUser called by module {ModuleId}", GetModuleId(context));
+        var moduleId = GetModuleId(context);
+        _logger.LogDebug("GetCurrentUser called by module {ModuleId}", moduleId);
+
+        if (!context.UserState.TryGetValue("CallerContext", out var callerState)
+            || callerState is not CallerContext caller)
+        {
+            // CallerContextInterceptor runs before this service; reaching this point means the
+            // interceptor chain was misconfigured. Fail closed rather than inventing an identity.
+            throw new RpcException(new Status(
+                StatusCode.Unauthenticated,
+                "No verified caller identity is available for this call"));
+        }
+
+        if (caller.Type is not CallerType.User)
+        {
+            // A module acting for itself has no end-user identity to report.
+            return new GetCurrentUserResponse
+            {
+                UserId = string.Empty,
+                DisplayName = string.Empty,
+                Email = string.Empty,
+                Locale = "en-US",
+                Timezone = "UTC",
+            };
+        }
 
         var response = new GetCurrentUserResponse
         {
-            UserId = request.Caller?.UserId ?? string.Empty,
-            DisplayName = string.Empty,
+            UserId = caller.UserId.ToString(),
             Email = string.Empty,
             Locale = "en-US",
-            Timezone = "UTC"
+            Timezone = "UTC",
         };
 
-        return Task.FromResult(response);
+        response.Roles.AddRange(caller.Roles);
+
+        try
+        {
+            using var scope = _serviceProvider.CreateScope();
+            var userDir = scope.ServiceProvider.GetRequiredService<IUserDirectory>();
+            var names = await userDir.GetDisplayNamesAsync([caller.UserId], context.CancellationToken);
+
+            if (names.TryGetValue(caller.UserId, out var displayName))
+            {
+                response.DisplayName = displayName;
+            }
+        }
+        catch (Exception ex)
+        {
+            // The identity fields above are authoritative; a directory hiccup only costs the
+            // display name.
+            _logger.LogWarning(ex, "GetCurrentUser could not resolve the display name for module {ModuleId}", moduleId);
+        }
+
+        return response;
     }
 
     /// <summary>
@@ -265,14 +315,21 @@ internal sealed class CoreCapabilitiesServiceImpl : CoreCapabilities.CoreCapabil
     /// <summary>
     /// Enqueues a real-time search-index request from a process-isolated module.
     /// </summary>
+    /// <remarks>
+    /// The index entry is attributed to the <em>authenticated</em> module identity, never to the
+    /// <c>module_id</c> field in the request. A module could otherwise index, overwrite or remove
+    /// entries on behalf of another module.
+    /// </remarks>
     public override async Task<SubmitSearchIndexResponse> SubmitSearchIndex(
         SubmitSearchIndexRequest request, ServerCallContext context)
     {
+        var moduleId = GetModuleId(context);
+
         if (request.Action is < 0 or > 1)
         {
             _logger.LogWarning(
-                "SubmitSearchIndex: invalid action {Action} for {ModuleId}/{EntityId} from module {Caller}",
-                request.Action, request.ModuleId, request.EntityId, GetModuleId(context));
+                "SubmitSearchIndex: invalid action {Action} for {EntityId} from module {ModuleId}",
+                request.Action, LogSanitizer.Sanitize(request.EntityId), moduleId);
             return new SubmitSearchIndexResponse { Success = false };
         }
 
@@ -280,7 +337,7 @@ internal sealed class CoreCapabilitiesServiceImpl : CoreCapabilities.CoreCapabil
         {
             EventId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow,
-            ModuleId = request.ModuleId,
+            ModuleId = moduleId,
             EntityId = request.EntityId,
             Action = (SearchIndexAction)request.Action
         });

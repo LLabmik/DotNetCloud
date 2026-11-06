@@ -1724,6 +1724,30 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 
 ---
 
+### Step: third-party-module-sandbox-a0-2026-11-06 - Module Sandbox A0 (residual hardening)
+
+**Status:** completed ✅
+**Duration:** ~1 day
+**Description:** Phase A0 of `docs/THIRD_PARTY_MODULE_SANDBOX_AND_STORE_PLAN.md` on branch `feature/third-party-modules`. Closes the authorization and documentation exposure left after the module-transport identity work, ahead of the A1 isolation foundation.
+
+**Deliverables:**
+
+- ✓ All 15 `CoreCapabilities` RPCs mapped to capabilities: `LogAudit`→`IAuditLogger`, `SubmitSearchIndex`→`ISearchProvider`, `GetGroupsForUser`→`ITeamDirectory`, `BroadcastRealtimeEvent`→`IRealtimeBroadcaster` (no longer Public `INotificationService`); unknown capabilities fail closed
+- ✓ `CapabilityCatalog` is the single tier source for interceptor enforcement and manifest grant provisioning; dead `CapabilityValidator.ValidateAsync`/`GrantCapabilitiesAsync`/`CapabilityValidationResult` and its DI registration removed
+- ✓ `GetCurrentUser` returns the verified `CallerContext` (request-supplied caller id ignored); `SubmitSearchIndex` stamps the authenticated module id
+- ✓ `minCoreVersion` enforced at module start with an admin-visible failure reason (`ModuleCompatibility`); malformed values rejected at manifest validation; all 18 manifests corrected from `1.0.0` to `0.7.0`
+- ✓ Manifest capability declarations aligned with the new enforcement (About/Example `IAuditLogger`; search-bridge modules `ISearchProvider`; Chat/Calendar `IRealtimeBroadcaster`)
+- ✓ Supervisor path containment replaced with `Path.GetFullPath` + `Path.GetRelativePath` (`PathContainment`), closing the sibling-prefix bypass
+- ✓ gRPC `EnableDetailedErrors` limited to the Development environment
+- ✓ Truth pass on `docs/security/CROSS_MODULE_TRUST.md`, `docs/security/SECURITY_MODEL.md`, `docs/architecture/ARCHITECTURE.md`, `docs/guides/MODULE_DEVELOPMENT.md`; remaining inventory recorded for Track D
+- ✓ New tests: capability catalog tiers, RPC→capability mapping completeness, `minCoreVersion` parsing/enforcement, path containment (sibling-prefix regression), verified-caller `GetCurrentUser`, search-index attribution
+
+**Dependencies:** module transport identity work (`server-security-remediation-p0-2026-10-25`)
+**Blocking Issues:** None
+**Notes:** `DotNetCloud.Core.Server` and its test project build with 0 warnings; `DotNetCloud.Core.Server.Tests` 966 passed / 0 failed / 2 skipped. A1 (isolation foundation) is the next phase and is not started.
+
+---
+
 ## Phase 2: Chat & Notifications & Android
 
 **STATUS:** ✅ COMPLETED (13/13 sub-phases)

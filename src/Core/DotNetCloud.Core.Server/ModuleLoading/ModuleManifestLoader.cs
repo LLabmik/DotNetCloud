@@ -32,7 +32,10 @@ internal sealed record ModuleManifestData
     /// <summary>Event types this module subscribes to.</summary>
     public IReadOnlyList<string> SubscribedEvents { get; init; } = [];
 
-    /// <summary>Minimum core version this module is compatible with.</summary>
+    /// <summary>
+    /// Minimum core version this module is compatible with. Enforced by
+    /// <see cref="ModuleCompatibility"/> before the module process is started.
+    /// </summary>
     public string? MinCoreVersion { get; init; }
 
     /// <summary>Configured restart policy override, or null for default.</summary>
@@ -169,6 +172,13 @@ internal sealed class ModuleManifestLoader
         else if (!System.Version.TryParse(manifest.Version.Split('-')[0], out _))
         {
             errors.Add($"Module version must follow semantic versioning. Got: '{manifest.Version}'");
+        }
+
+        // A malformed compatibility floor would silently disable the start-time check.
+        if (!string.IsNullOrWhiteSpace(manifest.MinCoreVersion)
+            && !ModuleCompatibility.TryParseVersion(manifest.MinCoreVersion, out _))
+        {
+            errors.Add($"minCoreVersion must be a semantic version. Got: '{manifest.MinCoreVersion}'");
         }
 
         // Validate restart policy if specified

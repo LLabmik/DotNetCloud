@@ -7,5 +7,5 @@
     "requiredCapabilities": [],
     "publishedEvents": [],
     "subscribedEvents": [],
-    "minCoreVersion": "1.0.0"
+    "minCoreVersion": "0.7.0"
 }

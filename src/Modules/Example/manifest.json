@@ -6,13 +6,14 @@
   "author": "DotNetCloud",
   "requiredCapabilities": [
     "INotificationService",
-    "IStorageProvider"
+    "IStorageProvider",
+    "IAuditLogger"
   ],
   "publishedEvents": [
     "NoteCreatedEvent",
     "NoteDeletedEvent"
   ],
   "subscribedEvents": [],
-  "minCoreVersion": "1.0.0",
+  "minCoreVersion": "0.7.0",
   "schemaProvider": "self"
 }

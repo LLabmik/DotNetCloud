@@ -22,9 +22,11 @@ namespace DotNetCloud.Core.Server.Grpc.Interceptors;
 /// be revoked from the admin surface, which takes effect on the very next call.
 /// </para>
 /// <para>
-/// RPCs that do not map to a modelled capability are allowed through. The capability model does
-/// not yet cover every internal bridge (audit, search indexing), and inventing tier assignments
-/// for them here would silently deny working traffic.
+/// The map below is <strong>exhaustive</strong> for the <c>CoreCapabilities</c> service in
+/// <c>module_capabilities.proto</c>. Every RPC must map to a capability or be added to an explicit
+/// allow-list with a comment explaining why it is not capability-governed — an unmapped RPC is
+/// enforced by nothing, which is how <c>LogAudit</c>, <c>SubmitSearchIndex</c> and
+/// <c>GetGroupsForUser</c> previously escaped enforcement.
 /// </para>
 /// </remarks>
 internal sealed class CapabilityGrantInterceptor : Interceptor
@@ -32,6 +34,12 @@ internal sealed class CapabilityGrantInterceptor : Interceptor
     /// <summary>
     /// Maps a fully-qualified gRPC method name to the capability it exercises.
     /// </summary>
+    /// <remarks>
+    /// Group/team lookups all enforce <see cref="ITeamDirectory"/>: that is the directory
+    /// capability modules declare, and it is the only grant the module hosts actually hold when
+    /// they resolve shared-folder or team membership. Unifying <c>IGroupDirectory</c> and
+    /// <c>ITeamDirectory</c> behind one catalog entry is part of the Module API v1 work (phase A2).
+    /// </remarks>
     private static readonly Dictionary<string, string> MethodCapabilities = new(StringComparer.Ordinal)
     {
         ["GetUser"] = nameof(IUserDirectory),
@@ -42,10 +50,16 @@ internal sealed class CapabilityGrantInterceptor : Interceptor
         ["GetSetting"] = nameof(IModuleSettings),
         ["SetSetting"] = nameof(IModuleSettings),
         ["GetGroup"] = nameof(ITeamDirectory),
+        ["GetGroupsForUser"] = nameof(ITeamDirectory),
         ["GetTeam"] = nameof(ITeamDirectory),
         ["GetTeamsForUser"] = nameof(ITeamDirectory),
         ["CleanupAdminSharedFolder"] = nameof(IAdminSharedFolderCleanup),
-        ["BroadcastRealtimeEvent"] = nameof(INotificationService),
+
+        // Re-tiered away from Public INotificationService: broadcasting a platform-branded
+        // real-time event to any group is not the same power as sending a notification.
+        ["BroadcastRealtimeEvent"] = nameof(IRealtimeBroadcaster),
+        ["LogAudit"] = nameof(IAuditLogger),
+        ["SubmitSearchIndex"] = nameof(ISearchProvider),
     };
 
     private readonly ILogger<CapabilityGrantInterceptor> _logger;
@@ -105,11 +119,15 @@ internal sealed class CapabilityGrantInterceptor : Interceptor
             return;
         }
 
-        var tier = CapabilityValidator.GetCapabilityTier(capability);
+        var tier = CapabilityCatalog.GetCapabilityTier(capability);
         if (tier is CapabilityTier.Public)
         {
             return;
         }
+
+        // Unknown tiers fail closed: there is no grant row for a capability that is not in the
+        // catalog, so a mapping added without a matching catalog entry is denied loudly instead
+        // of silently allowed.
 
         var moduleId = context.UserState.TryGetValue("ModuleId", out var value) ? value as string : null;
         if (string.IsNullOrEmpty(moduleId))
@@ -143,7 +161,12 @@ internal sealed class CapabilityGrantInterceptor : Interceptor
                 $"[CAPABILITY_NOT_GRANTED] Capability '{capability}' is not granted to module '{moduleId}'."),
             new Metadata { { "error-code", ErrorCodes.CapabilityNotGranted } });
 
-    private static string? ResolveCapability(string method)
+    /// <summary>
+    /// Resolves the capability a gRPC method exercises.
+    /// </summary>
+    /// <param name="method">The fully-qualified gRPC method name.</param>
+    /// <returns>The capability name, or <see langword="null"/> when the method is not mapped.</returns>
+    internal static string? ResolveCapability(string method)
     {
         if (string.IsNullOrEmpty(method))
         {

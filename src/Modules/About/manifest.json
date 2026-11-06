@@ -4,8 +4,10 @@
     "version": "1.0.0",
     "description": "System information, version, and license status.",
     "author": "DotNetCloud",
-    "requiredCapabilities": [],
+    "requiredCapabilities": [
+        "IAuditLogger"
+    ],
     "publishedEvents": [],
     "subscribedEvents": [],
-    "minCoreVersion": "1.0.0"
+    "minCoreVersion": "0.7.0"
 }

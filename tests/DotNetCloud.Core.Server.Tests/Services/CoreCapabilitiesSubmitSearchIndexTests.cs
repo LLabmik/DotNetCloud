@@ -77,4 +77,23 @@ public class CoreCapabilitiesSubmitSearchIndexTests
         Assert.IsFalse(response.Success);
         Assert.AreEqual(0, indexingService.PendingCount);
     }
+
+    [TestMethod]
+    public async Task SubmitSearchIndex_RequestModuleIdDiffersFromAuthenticatedModule_UsesAuthenticatedModuleId()
+    {
+        // A module must not be able to index, overwrite or remove entries attributed to another
+        // module. The index entry is stamped from the credential-verified module identity.
+        var indexingService = CreateIndexingService();
+        var service = CreateService(indexingService);
+        var context = new TestServerCallContext();
+        context.UserState["ModuleId"] = "dotnetcloud.notes";
+
+        var response = await service.SubmitSearchIndex(
+            CreateRequest(action: 0, moduleId: "dotnetcloud.chat"),
+            context);
+
+        Assert.IsTrue(response.Success);
+        Assert.IsTrue(indexingService.TryPeekPending(out var pending));
+        Assert.AreEqual("dotnetcloud.notes", pending!.ModuleId);
+    }
 }

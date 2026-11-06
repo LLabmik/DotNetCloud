@@ -6,7 +6,7 @@
 
 > **Version:** 1.0  
 > **Status:** Approved  
-> **Last Updated:** 2026-03-06  
+> **Last Updated:** 2026-11-06 (module transport section reconciled with v0.7.0)  
 > **Domain:** dotnetcloud.net  
 > **Repository:** https://github.com/LLabmik/DotNetCloud
 
@@ -80,7 +80,7 @@ DotNetCloud is a self-hosted, open-source cloud platform built on .NET 10/C#. It
 
 ### Overview
 
-DotNetCloud runs as a single core process that supervises individual module processes. Modules communicate with the core over gRPC via Unix sockets (Linux) or Named Pipes (Windows).
+DotNetCloud runs as a single core process that supervises individual module processes. Modules communicate with the core over gRPC. The current release uses cleartext HTTP/2 (h2c) on a supervisor-assigned loopback TCP port, authenticated per launch by a supervisor-issued module secret; per-module Unix sockets (Linux) and Named Pipes (Windows) are the planned transport hardening (phase A4 of the module sandbox program).
 
 ```
 dotnetcloud (core process — supervisor)
@@ -102,11 +102,13 @@ dotnetcloud (core process — supervisor)
 
 ### Process Communication
 
-| Platform          | Transport                                       |
-| ----------------- | ----------------------------------------------- |
-| Linux             | Unix domain sockets (`/run/dotnetcloud/*.sock`) |
-| Windows           | Named Pipes                                     |
-| Docker/Kubernetes | TCP localhost (fallback)                        |
+| Platform          | Transport (v0.7.0)                                                              |
+| ----------------- | ------------------------------------------------------------------------------- |
+| All platforms     | Loopback TCP, cleartext HTTP/2 (h2c), per-launch module secret                  |
+| Linux (planned)   | Unix domain sockets (`<dataDir>/modules/<id>/run/module.sock`, 0600) — phase A4 |
+| Windows (planned) | Named Pipes with an explicit ACL — phase A4                                     |
+
+Modules connect **only to the core**. There is no module-to-module transport.
 
 #### ⚠️ Inter-Module Communication Policy (MANDATORY)
 

@@ -9,7 +9,8 @@
     "ICurrentUserContext",
     "IAuditLogger",
     "IContactDirectory",
-    "IStorageProvider"
+    "IStorageProvider",
+    "ISearchProvider"
   ],
   "publishedEvents": [
     "EmailAccountAddedEvent",
@@ -20,6 +21,6 @@
     "EmailRuleTriggeredEvent"
   ],
   "subscribedEvents": [],
-  "minCoreVersion": "1.0.0",
+  "minCoreVersion": "0.7.0",
   "schemaProvider": "core"
 }

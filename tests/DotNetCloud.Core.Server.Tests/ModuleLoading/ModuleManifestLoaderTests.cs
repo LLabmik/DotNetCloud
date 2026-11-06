@@ -327,6 +327,40 @@ public class ModuleManifestLoaderTests
         Assert.IsNotNull(result.Manifest);
     }
 
+    [TestMethod]
+    public void ValidateWhenMinCoreVersionIsSemanticVersionThenSuccess()
+    {
+        var manifest = new ModuleManifestData
+        {
+            Id = "test.module",
+            Name = "Test Module",
+            Version = "1.0.0",
+            MinCoreVersion = "0.7.0"
+        };
+
+        var result = _loader.Validate(manifest, "test.module");
+
+        Assert.IsTrue(result.IsValid);
+    }
+
+    [TestMethod]
+    public void ValidateWhenMinCoreVersionIsNotSemanticVersionThenFailure()
+    {
+        // A malformed floor would silently disable the start-time compatibility check.
+        var manifest = new ModuleManifestData
+        {
+            Id = "test.module",
+            Name = "Test Module",
+            Version = "1.0.0",
+            MinCoreVersion = "latest"
+        };
+
+        var result = _loader.Validate(manifest, "test.module");
+
+        Assert.IsFalse(result.IsValid);
+        Assert.IsTrue(result.Errors.Any(e => e.Contains("minCoreVersion")));
+    }
+
     // ── CreateDefaultManifest ──────────────────────────────────────
 
     [TestMethod]

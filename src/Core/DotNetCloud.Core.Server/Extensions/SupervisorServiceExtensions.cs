@@ -21,10 +21,15 @@ internal static class SupervisorServiceExtensions
     /// </summary>
     /// <param name="services">The service collection.</param>
     /// <param name="configureOptions">Optional action to configure supervisor options.</param>
+    /// <param name="enableDetailedErrors">
+    /// Whether the module-facing gRPC server should include exception details in status messages.
+    /// Only valid in a development environment; production callers pass <see langword="false"/>.
+    /// </param>
     /// <returns>The service collection for chaining.</returns>
     public static IServiceCollection AddProcessSupervisor(
         this IServiceCollection services,
-        Action<ProcessSupervisorOptions>? configureOptions = null)
+        Action<ProcessSupervisorOptions>? configureOptions = null,
+        bool enableDetailedErrors = false)
     {
         // Register options
         if (configureOptions is not null)
@@ -40,7 +45,6 @@ internal static class SupervisorServiceExtensions
         // Register module loading services
         services.AddSingleton<ModuleDiscoveryService>();
         services.AddSingleton<ModuleManifestLoader>();
-        services.AddScoped<CapabilityValidator>();
         services.AddScoped<ModuleConfigurationLoader>();
 
         // Register supervisor infrastructure
@@ -81,7 +85,10 @@ internal static class SupervisorServiceExtensions
         {
             options.MaxReceiveMessageSize = 16 * 1024 * 1024; // 16 MB
             options.MaxSendMessageSize = 16 * 1024 * 1024; // 16 MB
-            options.EnableDetailedErrors = true;
+
+            // Exception details leak stack traces and internal paths to module processes. Only a
+            // development host may return them; production relies on ErrorHandlingInterceptor.
+            options.EnableDetailedErrors = enableDetailedErrors;
 
             // Add interceptors in order
             options.Interceptors.Add<LoggingInterceptor>();

@@ -260,10 +260,12 @@ public class Program
 
         // Configure and register supervisor + module gRPC infrastructure.
         builder.ConfigureGrpcForModules();
-        builder.Services.AddProcessSupervisor(options =>
-        {
-            options.PreferTcpTransport = true;
-        });
+        builder.Services.AddProcessSupervisor(
+            options =>
+            {
+                options.PreferTcpTransport = true;
+            },
+            enableDetailedErrors: builder.Environment.IsDevelopment());
 
         // Add service defaults (logging, telemetry, health checks)
         builder.AddDotNetCloudServiceDefaults();

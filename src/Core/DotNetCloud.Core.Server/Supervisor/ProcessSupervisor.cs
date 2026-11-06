@@ -250,6 +250,31 @@ internal sealed class ProcessSupervisor : BackgroundService, IProcessSupervisor
         _logger.LogInformation("Starting module {ModuleId} from {Path}", SanitizeForLog(moduleId), SanitizeForLog(discovered.ExecutablePath));
 
         var manifest = LoadManifest(discovered);
+
+        if (ModuleCompatibility.TryGetIncompatibilityReason(manifest, out var incompatibilityReason))
+        {
+            // Refuse the start instead of launching a host that cannot work against this core.
+            // The handle is recorded so the admin surface shows why the module is not running.
+            _logger.LogError(
+                "Module {ModuleId} v{Version} is incompatible with this core: {Reason}",
+                SanitizeForLog(moduleId), SanitizeForLog(manifest.Version), incompatibilityReason);
+
+            var rejected = new ModuleProcessHandle
+            {
+                ModuleId = moduleId,
+                ModuleName = manifest.Name,
+                Version = manifest.Version,
+                ExecutablePath = discovered.ExecutablePath,
+                GrpcEndpoint = BuildGrpcEndpoint(moduleId),
+                RestartPolicy = ParseRestartPolicy(manifest.RestartPolicy),
+                MaxRestartAttempts = _options.MaxRestartAttempts
+            };
+
+            rejected.SetStatus(ModuleProcessStatus.Failed, incompatibilityReason);
+            _modules[moduleId] = rejected;
+            return;
+        }
+
         var restartPolicy = ParseRestartPolicy(manifest.RestartPolicy);
         var memoryLimitMb = manifest.MemoryLimitMb ?? _options.DefaultMemoryLimitMb;
         var grpcEndpoint = BuildGrpcEndpoint(moduleId);
@@ -366,11 +391,12 @@ internal sealed class ProcessSupervisor : BackgroundService, IProcessSupervisor
             // Validate that the discovered executable and directory paths are
             // within the configured modules directory to prevent path traversal
             // or execution of arbitrary binaries (CWE-078).
+            //
+            // A prefix comparison would accept a sibling directory such as
+            // "<modulesDir>-evil"; resolve both paths and compare them relatively instead.
             var modulesDir = Path.GetFullPath(GetModulesDirectory());
-            var fullExePath = Path.GetFullPath(discovered.ExecutablePath);
-            var fullModuleDir = Path.GetFullPath(discovered.ModuleDirectory);
 
-            if (!fullExePath.StartsWith(modulesDir, StringComparison.Ordinal))
+            if (!PathContainment.TryResolveWithin(modulesDir, discovered.ExecutablePath, out var fullExePath))
             {
                 _logger.LogError(
                     "Module {ModuleId} executable path {Path} is outside the modules directory",
@@ -378,7 +404,7 @@ internal sealed class ProcessSupervisor : BackgroundService, IProcessSupervisor
                 return null;
             }
 
-            if (!fullModuleDir.StartsWith(modulesDir, StringComparison.Ordinal))
+            if (!PathContainment.TryResolveWithin(modulesDir, discovered.ModuleDirectory, out var fullModuleDir))
             {
                 _logger.LogError(
                     "Module {ModuleId} directory {Path} is outside the modules directory",
@@ -928,11 +954,12 @@ internal sealed class ProcessSupervisor : BackgroundService, IProcessSupervisor
 
             foreach (var capability in manifest.RequiredCapabilities)
             {
-                var tier = CapabilityValidator.GetCapabilityTier(capability);
-                if (tier is not (CapabilityTier.Restricted or CapabilityTier.Privileged))
+                if (!CapabilityCatalog.RequiresGrant(capability))
                 {
                     continue;
                 }
+
+                var tier = CapabilityCatalog.GetCapabilityTier(capability);
 
                 var key = $"{module.ModuleId}\u0000{capability}";
                 if (!existingGrantKeys.Add(key))
