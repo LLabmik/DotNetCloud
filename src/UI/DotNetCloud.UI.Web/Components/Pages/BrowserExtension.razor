@@ -1,0 +1,140 @@
+@page "/apps/browser-extension"
+@attribute [Authorize]
+@using DotNetCloud.UI.Shared.Services
+
+<PageTitle>Browser Extension - DotNetCloud</PageTitle>
+
+<div class="page-header">
+    <h1>Browser Extension</h1>
+    <p class="text-muted">Keep your browser bookmarks in sync with your DotNetCloud server — in both directions.</p>
+</div>
+
+<div class="ds-hero">
+    <div class="ds-hero-icon">
+        <MaterialIcon Icon="extension" Size="MaterialIconSize.Xl" />
+    </div>
+    <div class="ds-hero-body">
+        <h2>Your bookmarks, everywhere</h2>
+        <p>
+            The DotNetCloud Bookmarks extension connects your browser to your server's Bookmarks app. Save a page while
+            you browse and it appears on every device; add a bookmark on the server and it lands in your browser tree
+            automatically.
+        </p>
+        <p class="ds-hero-note">
+            <MaterialIcon Icon="info" Size="MaterialIconSize.Sm" /> Built for <strong>Chrome</strong>,
+            <strong>Microsoft Edge</strong> (both Manifest V3) and <strong>Firefox</strong> (Manifest V3, Firefox 109
+            or later).
+        </p>
+    </div>
+</div>
+
+@* ── Why you'd want it ─────────────────────────────────── *@
+<div class="ds-section">
+    <h2 class="ds-section-title">Why you'd want it</h2>
+    <div class="ds-grid">
+        <div class="ds-card">
+            <div class="ds-card-icon">
+                <MaterialIcon Icon="sync" />
+            </div>
+            <h3>Two-way sync</h3>
+            <p>Changes made in the browser go to the server, and server changes come back to the browser.</p>
+        </div>
+        <div class="ds-card">
+            <div class="ds-card-icon">
+                <MaterialIcon Icon="star" />
+            </div>
+            <h3>Save as you browse</h3>
+            <p>Save the current tab as a bookmark without leaving the page.</p>
+        </div>
+        <div class="ds-card">
+            <div class="ds-card-icon">
+                <MaterialIcon Icon="search" />
+            </div>
+            <h3>Find anything fast</h3>
+            <p>Search your saved bookmarks by title, URL, or tag from the popup.</p>
+        </div>
+        <div class="ds-card">
+            <div class="ds-card-icon">
+                <MaterialIcon Icon="folder" />
+            </div>
+            <h3>Same folders, everywhere</h3>
+            <p>Your browser folders and your DotNetCloud bookmark folders stay in step.</p>
+        </div>
+    </div>
+</div>
+
+@* ── Install ───────────────────────────────────────────── *@
+<div class="ds-section">
+    <h2 class="ds-section-title">Install</h2>
+    <p class="ds-muted ds-hint">
+        Store listings are on the way. Until then, build the extension from source or install the ZIP supplied by your
+        administrator.
+    </p>
+    <div class="ds-grid">
+        <div class="ds-card ds-download">
+            <div class="ds-platform">
+                <MaterialIcon Icon="extension" /> Chrome
+            </div>
+            <p class="ds-muted">
+                Build <code>dotnetcloud-bookmarks-chrome.zip</code>, then load the unzipped folder from
+                <code>chrome://extensions</code> with <strong>Developer mode</strong> enabled.
+            </p>
+            <a class="btn btn-primary ds-dl-btn" href="https://github.com/LLabmik/DotNetCloud/blob/main/docs/clients/BROWSER_EXTENSION_INSTALLATION.md"
+               target="_blank" rel="noopener noreferrer">
+                <MaterialIcon Icon="description" Size="MaterialIconSize.Sm" /> Chrome install guide
+            </a>
+        </div>
+        <div class="ds-card ds-download">
+            <div class="ds-platform">
+                <MaterialIcon Icon="extension" /> Microsoft Edge
+            </div>
+            <p class="ds-muted">
+                Edge is Chromium-based and runs the Chrome build. Save the unzipped extension locally, then open
+                <code>edge://extensions</code>, turn on <strong>Developer mode</strong> and choose
+                <strong>Load unpacked</strong>. You can also allow Chrome Web Store installs from the same page.
+            </p>
+            <a class="btn btn-primary ds-dl-btn" href="https://github.com/LLabmik/DotNetCloud/blob/main/docs/clients/BROWSER_EXTENSION_INSTALLATION.md#loading-in-microsoft-edge"
+               target="_blank" rel="noopener noreferrer">
+                <MaterialIcon Icon="description" Size="MaterialIconSize.Sm" /> Edge install guide
+            </a>
+        </div>
+        <div class="ds-card ds-download">
+            <div class="ds-platform">
+                <MaterialIcon Icon="extension" /> Firefox
+            </div>
+            <p class="ds-muted">
+                Build <code>dotnetcloud-bookmarks-firefox.zip</code>, then load
+                <code>dist/firefox/manifest.json</code> from <code>about:debugging</code> — or install the signed
+                add-on from Mozilla Add-ons once listed.
+            </p>
+            <a class="btn btn-primary ds-dl-btn" href="https://github.com/LLabmik/DotNetCloud/blob/main/docs/clients/BROWSER_EXTENSION_INSTALLATION.md"
+               target="_blank" rel="noopener noreferrer">
+                <MaterialIcon Icon="description" Size="MaterialIconSize.Sm" /> Firefox install guide
+            </a>
+        </div>
+        <div class="ds-card ds-download ds-soon">
+            <div class="ds-platform">
+                <MaterialIcon Icon="download" /> Source
+                <span class="badge badge-muted">Developer preview</span>
+            </div>
+            <p class="ds-muted">
+                The extension is TypeScript + Vite. Build both browsers with <code>./build-extension.sh</code> (Linux)
+                or <code>.\build-extension.ps1</code> (Windows).
+            </p>
+            <a class="btn btn-outline ds-dl-btn" href="https://github.com/LLabmik/DotNetCloud/tree/main/src/Clients/DotNetCloud.Client.BrowserExtension"
+               target="_blank" rel="noopener noreferrer">Browse the source</a>
+        </div>
+    </div>
+</div>
+
+@* ── Getting connected ─────────────────────────────────── *@
+<div class="ds-section">
+    <h2 class="ds-section-title">Getting connected</h2>
+    <ol class="ds-steps">
+        <li>Make sure the <strong>Bookmarks</strong> module is enabled on your server.</li>
+        <li>Click the extension icon → the <strong>Connect to Server</strong> screen appears.</li>
+        <li>Enter your server address (for example, <code>https://cloud.example.com</code>) and choose
+            <strong>Connect to Server</strong>.</li>
+        <li>A tab opens for authorization — log in and approve the device. Initial sync starts automatically.</li>
+    </ol>
+</div>

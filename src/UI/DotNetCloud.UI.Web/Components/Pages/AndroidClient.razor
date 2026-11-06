@@ -1,0 +1,164 @@
+@page "/apps/android"
+@attribute [Authorize]
+@using DotNetCloud.UI.Shared.Services
+
+<PageTitle>Android Client - DotNetCloud</PageTitle>
+
+<div class="page-header">
+    <h1>Android Client</h1>
+    <p class="text-muted">Your DotNetCloud server in your pocket — chat, files, photos, music, calendar, notes, and AI.</p>
+</div>
+
+<div class="ds-hero">
+    <div class="ds-hero-icon">
+        <MaterialIcon Icon="smartphone" Size="MaterialIconSize.Xl" />
+    </div>
+    <div class="ds-hero-body">
+        <h2>DotNetCloud on your phone</h2>
+        <p>
+            The Android app connects directly to your own DotNetCloud server. Browse and upload files, keep up with
+            chat, back up your camera roll, stream your music library, and check your calendar and notes — all with the
+            same account you use on the web.
+        </p>
+        <p class="ds-hero-note">
+            <MaterialIcon Icon="info" Size="MaterialIconSize.Sm" /> Requires Android 8.0 (API 26) or later and network
+            access to your DotNetCloud server (HTTPS recommended).
+        </p>
+    </div>
+</div>
+
+@* ── Why you'd want it ─────────────────────────────────── *@
+<div class="ds-section">
+    <h2 class="ds-section-title">Why you'd want it</h2>
+    <div class="ds-grid">
+        <div class="ds-card">
+            <div class="ds-card-icon">
+                <MaterialIcon Icon="chat" />
+            </div>
+            <h3>Chat on the go</h3>
+            <p>Channels and direct messages with unread badges and alerts while the app is closed.</p>
+        </div>
+        <div class="ds-card">
+            <div class="ds-card-icon">
+                <MaterialIcon Icon="folder" />
+            </div>
+            <h3>Files in your pocket</h3>
+            <p>Browse folders, preview files, upload, create folders, and edit documents.</p>
+        </div>
+        <div class="ds-card">
+            <div class="ds-card-icon">
+                <MaterialIcon Icon="cloud" />
+            </div>
+            <h3>Automatic backup</h3>
+            <p>Back up photos and videos from your camera roll, with Wi-Fi and date-folder options.</p>
+        </div>
+        <div class="ds-card">
+            <div class="ds-card-icon">
+                <MaterialIcon Icon="lock" />
+            </div>
+            <h3>Secure sign-in</h3>
+            <p>OAuth2 / OIDC login in your browser; tokens are stored in the Android Keystore.</p>
+        </div>
+    </div>
+</div>
+
+@* ── Download ──────────────────────────────────────────── *@
+<div class="ds-section">
+    <h2 class="ds-section-title">Download</h2>
+    <p class="ds-muted ds-hint">
+        <strong>The Android client has not yet been published to Google Play or F-Droid.</strong> Until it is, the only
+        supported distribution channel is the signed APK attached to our GitHub releases.
+    </p>
+    <div class="ds-grid">
+        <div class="ds-card ds-download ds-soon">
+            <div class="ds-platform">
+                <MaterialIcon Icon="smartphone" /> Google Play
+                <span class="badge badge-muted">Not yet published</span>
+            </div>
+            <p class="ds-muted">
+                The Google Play flavor (app ID <code>net.dotnetcloud.client</code>) is not available in the store yet.
+            </p>
+            <a class="btn btn-outline ds-dl-btn" href="https://github.com/LLabmik/DotNetCloud/releases/latest"
+               target="_blank" rel="noopener noreferrer">Get the APK instead</a>
+        </div>
+        <div class="ds-card ds-download ds-soon">
+            <div class="ds-platform">
+                <MaterialIcon Icon="smartphone" /> F-Droid
+                <span class="badge badge-muted">Not yet published</span>
+            </div>
+            <p class="ds-muted">
+                The F-Droid flavor (app ID <code>net.dotnetcloud.client.fdroid</code>) is not listed yet. When published
+                it will contain no proprietary dependencies.
+            </p>
+            <a class="btn btn-outline ds-dl-btn" href="https://github.com/LLabmik/DotNetCloud/releases/latest"
+               target="_blank" rel="noopener noreferrer">Get the APK instead</a>
+        </div>
+        <div class="ds-card ds-download">
+            <div class="ds-platform">
+                <MaterialIcon Icon="download" /> Direct APK
+                <span class="badge">Available</span>
+            </div>
+            <p class="ds-muted">
+                Signed APKs are attached to each release on GitHub, together with a SHA-256 checksum file.
+            </p>
+            <a class="btn btn-primary ds-dl-btn" href="https://github.com/LLabmik/DotNetCloud/releases/latest"
+               target="_blank" rel="noopener noreferrer">
+                <MaterialIcon Icon="download" Size="MaterialIconSize.Sm" /> Get the APK
+            </a>
+        </div>
+    </div>
+</div>
+
+@* ── Installation ──────────────────────────────────────── *@
+<div class="ds-section">
+    <h2 class="ds-section-title">Installation</h2>
+
+    <div class="ds-accordion">
+        <details class="ds-install">
+            <summary>
+                <MaterialIcon Icon="smartphone" /> Google Play or F-Droid
+            </summary>
+            <div class="ds-install-body">
+                <p class="ds-muted ds-hint">
+                    The app is not available from Google Play or F-Droid yet. Once it is published, install it from the
+                    store and updates will be delivered through the store — the app never installs APKs itself.
+                </p>
+            </div>
+        </details>
+
+        <details class="ds-install">
+            <summary>
+                <MaterialIcon Icon="download" /> Direct APK (sideload)
+            </summary>
+            <div class="ds-install-body">
+                <ol class="ds-steps">
+                    <li>Download the APK for your preferred flavor from
+                        <a href="https://github.com/LLabmik/DotNetCloud/releases/latest" target="_blank"
+                           rel="noopener noreferrer">GitHub Releases</a>.</li>
+                    <li>Optionally verify its SHA-256 checksum against <code>checksums-sha256.txt</code>.</li>
+                    <li>
+                        Allow sideloading: <strong>Settings → Apps → Special app access → Install unknown apps</strong>,
+                        then permit your browser or file manager.
+                    </li>
+                    <li>Open the APK and tap <strong>Install</strong>.</li>
+                </ol>
+                <p class="ds-muted ds-hint">
+                    For security, the app does not download or install updates directly — updates always come from your
+                    app store.
+                </p>
+            </div>
+        </details>
+    </div>
+</div>
+
+@* ── Getting connected ─────────────────────────────────── *@
+<div class="ds-section">
+    <h2 class="ds-section-title">Getting connected</h2>
+    <ol class="ds-steps">
+        <li>Open the app and enter your DotNetCloud server address (for example,
+            <code>https://cloud.example.com</code>).</li>
+        <li>Tap <strong>Connect</strong> — your browser opens the server's sign-in page.</li>
+        <li>Log in and approve the device; the app receives the login and opens your chat.</li>
+        <li>Use the drawer (☰) to move between Chat, Files, Photos, Music, Calendar, Notes, and Settings.</li>
+    </ol>
+</div>

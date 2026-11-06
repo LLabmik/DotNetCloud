@@ -8269,3 +8269,20 @@ block buttons replaced the highlighted block with a canned template.
 - ✓ Tests updated: `BrowserTimeProviderTests`, `RelativeTimeFormatterTests` and `MessageListFormatTimeTests`;
   `NotificationProducerTests` green
 
+
+## Client Download Nav Items: Browser Extension + Android Client (2026-11-05)
+
+- ✓ Added **Browser Extension** sidebar item below Desktop Sync Client → `/apps/browser-extension` (login required)
+- ✓ Added **Android Client** sidebar item below Browser Extension → `/apps/android` (login required)
+- ✓ New `/apps/browser-extension` page (`UI.Web/Components/Pages/BrowserExtension.razor` + `.razor.css`): overview,
+  two-way bookmark sync, Chrome/Firefox install guides and developer-preview source link
+- ✓ New `/apps/android` page (`UI.Web/Components/Pages/AndroidClient.razor` + `.razor.css`): overview, feature
+  cards, download cards, sideload instructions and connection steps
+- ✓ Android page states explicitly that the client **has not yet been published to Google Play or F-Droid**;
+  direct APK via GitHub Releases is the only available channel
+- ✓ `docs/user/ANDROID.md` installation section updated to match (not yet published; direct APK only)
+- ✓ Added `smartphone` SVG path to `MaterialSvgIcons`; `extension` reused for the browser extension
+- ✓ Browser Extension page + guides include **Microsoft Edge** install instructions (Chromium build, Load unpacked
+  from `edge://extensions`, or Chrome Web Store via "Allow extensions from other stores")
+- ✓ `MaterialSvgIconsTests` covers `extension`, `smartphone`, `chat`, `description` and `lock`
+- ✓ `dotnet build src/UI/DotNetCloud.UI.Web` clean (0 warnings / 0 errors); `MaterialSvgIconsTests` 85/85 pass

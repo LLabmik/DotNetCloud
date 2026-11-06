@@ -266,6 +266,46 @@
                         </a>
                     }
                 </li>
+                <li class="nav-item nav-item-has-external">
+                    <NavLink href="/apps/browser-extension" Match="NavLinkMatch.Prefix" class="nav-link"
+                             title="Browser Extension" aria-label="Browser Extension">
+                        <span class="nav-icon">
+                            <MaterialIcon Icon="extension" />
+                        </span>
+                        @if (!Collapsed)
+                        {
+                            <span class="nav-text">Browser Extension</span>
+                        }
+                    </NavLink>
+                    @if (!Collapsed)
+                    {
+                        <a href="/apps/browser-extension" target="_blank" rel="noopener" class="nav-external"
+                           title="Open Browser Extension in a new tab"
+                           aria-label="Open Browser Extension in a new tab">
+                            <MaterialIcon Icon="open_in_new" Size="MaterialIconSize.Sm" />
+                        </a>
+                    }
+                </li>
+                <li class="nav-item nav-item-has-external">
+                    <NavLink href="/apps/android" Match="NavLinkMatch.Prefix" class="nav-link"
+                             title="Android Client" aria-label="Android Client">
+                        <span class="nav-icon">
+                            <MaterialIcon Icon="smartphone" />
+                        </span>
+                        @if (!Collapsed)
+                        {
+                            <span class="nav-text">Android Client</span>
+                        }
+                    </NavLink>
+                    @if (!Collapsed)
+                    {
+                        <a href="/apps/android" target="_blank" rel="noopener" class="nav-external"
+                           title="Open Android Client in a new tab"
+                           aria-label="Open Android Client in a new tab">
+                            <MaterialIcon Icon="open_in_new" Size="MaterialIconSize.Sm" />
+                        </a>
+                    }
+                </li>
                 @foreach (var item in bottomItems)
                 {
                     <li class="nav-item nav-item-has-external">
