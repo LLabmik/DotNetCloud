@@ -171,8 +171,8 @@ internal sealed class EmailSyncScheduler : BackgroundService
             if (!await CanActForUserAsync(userId, cancellationToken))
             {
                 _logger.LogInformation(
-                    "EmailSyncScheduler skipped account {AccountId}: user {UserId} is unknown or inactive",
-                    accountId, userId);
+                    "EmailSyncScheduler skipped a due account: user {UserId} is unknown or inactive",
+                    userId);
                 skipped++;
                 continue;
             }
@@ -200,16 +200,16 @@ internal sealed class EmailSyncScheduler : BackgroundService
                 {
                     failed++;
                     _logger.LogWarning(
-                        "Email sync for account {AccountId} was not accepted: {Error}",
-                        accountId, response.ErrorMessage);
+                        "Email sync was not accepted: {Error}",
+                        response.ErrorMessage);
                 }
             }
             catch (RpcException ex)
             {
                 failed++;
                 _logger.LogWarning(
-                    "Email sync for account {AccountId} failed ({Status}): {Detail}",
-                    accountId, ex.StatusCode, ex.Status.Detail);
+                    "Email sync failed ({Status}): {Detail}",
+                    ex.StatusCode, ex.Status.Detail);
             }
         }
 

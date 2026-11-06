@@ -49,6 +49,22 @@ ALL modules **MUST** communicate exclusively via gRPC. No exceptions.
 
 A concern is a **core capability**, not a module, when it has no user-owned domain of its own and exists only to read/aggregate other modules' data (search, notifications, audit, auth). Core capabilities live in `DotNetCloud.Core.*` libraries and are owned by the core process.
 
+## 🛡️ Security Static-Analysis Rules (MANDATORY)
+
+GitHub code scanning repeatedly finds the same classes of issues. Before writing code that logs user input, builds a filesystem path from a parameter, or touches credentials/account identifiers, follow:
+
+- `.github/instructions/csharp-security-static-analysis.instructions.md` — C# log forging, PII in logs, cleartext storage, path injection.
+- `.github/instructions/javascript-security-static-analysis.instructions.md` — JS/TS code sanitization and npm dependency advisories.
+
+Non-negotiables:
+
+- ✅ Wrap request/user-derived values in `LogSanitizer.Sanitize(...)` before logging them.
+- ❌ Never log credentials, emails, or parameter-supplied account ids (sanitizing does not clear those queries — remove the value).
+- ✅ `Path.GetFullPath` + a **non-weak** containment guard (`IndexOf`/`string.Equals`) on the same variable before any `File`/`Directory`/`FileStream` call.
+- ❌ Never rely on `StartsWith`, `EndsWith`, `IsNullOrEmpty`, `File.Exists`, or `Directory.Exists` alone as a traversal guard — CodeQL treats them as weak guards.
+- ✅ Add a hostile-input regression test with every security fix.
+- 🚫 **npm is only allowed for the browser extension** (`src/Clients/DotNetCloud.Client.BrowserExtension/`). Never add `package.json`, `package-lock.json`, `.npmrc`, `node_modules/`, or npm build steps anywhere else (server, modules, CLI, `tools/`, docs, or repo root).
+
 ## �📋 Documentation Format Standards
 
 ### Visual Checkbox Format (MANDATORY)

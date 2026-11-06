@@ -61,8 +61,8 @@ public sealed class AntiforgeryValidationFilter : IAsyncAuthorizationFilter
             _logger.LogWarning(
                 ex,
                 "Antiforgery validation failed for {Method} {Path}",
-                context.HttpContext.Request.Method,
-                context.HttpContext.Request.Path);
+                LogSanitizer.Sanitize(context.HttpContext.Request.Method),
+                LogSanitizer.Sanitize(context.HttpContext.Request.Path.Value));
 
             context.Result = new BadRequestObjectResult(new
             {

@@ -71,7 +71,7 @@ public sealed class EmailSyncService : IEmailSyncService
     {
         if (userId == Guid.Empty)
         {
-            _logger.LogWarning("Refusing to sync account {AccountId} for an empty user id", accountId);
+            _logger.LogWarning("Refusing to sync an account for an empty user id");
             return false;
         }
 
@@ -87,8 +87,8 @@ public sealed class EmailSyncService : IEmailSyncService
         if (account is null)
         {
             _logger.LogWarning(
-                "Sync requested for account {AccountId} which does not belong to user {UserId}",
-                accountId, userId);
+                "Sync requested for an account which does not belong to user {UserId}",
+                userId);
             return false;
         }
 

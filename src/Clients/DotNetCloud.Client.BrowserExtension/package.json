@@ -16,6 +16,7 @@
     "@types/chrome": "^0.0.268",
     "@types/firefox-webext-browser": "^120.0.4",
     "@types/jest": "^29.5.12",
+    "deepmerge": "file:./vendor/deepmerge",
     "jest": "^29.7.0",
     "ts-jest": "^29.1.4",
     "typescript": "^5.4.5",
