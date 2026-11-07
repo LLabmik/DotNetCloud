@@ -99,6 +99,7 @@ public class ModuleDataStoreSqlBuilderTests
         StringAssert.Contains(sql, $"[{principal}]");
         StringAssert.Contains(sql, $"CREATE SCHEMA [{schema}] AUTHORIZATION");
         StringAssert.Contains(sql, "DEFAULT_SCHEMA");
+        StringAssert.Contains(sql, $"GRANT CREATE TABLE, CREATE VIEW, CREATE FUNCTION, CREATE PROCEDURE, CREATE TYPE, CREATE SYNONYM TO [{principal}]");
         StringAssert.Contains(sql, "WITH PASSWORD = 's3cret'");
     }
 

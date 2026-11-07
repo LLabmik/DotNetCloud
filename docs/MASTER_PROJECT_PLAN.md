@@ -1771,7 +1771,7 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 - ✓ Resource quotas (F10): `Modules:Quotas` policy + `ModuleQuotaResolver` (`min(request, override, ceiling)`), admin `GET/PUT modules/{id}/quota` with audit, cgroup `memory.max`/`cpu.max`/`pids.max`, PG `CONNECTION LIMIT` + `Maximum Pool Size` with refresh on re-provision, identity-keyed request/event/notification/audit limiters over a cached quota, and measured DB/data-dir usage with `QuotaExceeded` suspension and start refusal
 - ✓ Storage namespacing (F5): `IStorageProvider` is a real namespaced contract (`StorageScope.Module`/`User`, `StorageObjectInfo`) and `ModuleStorageNamespace` stamps the verified module/user segments, rejects traversal, rooted paths, backslashes, control characters, invalid containers and non-Guid users, then re-checks containment
 - ✓ Adoption/legacy-override service (§9): `ModuleAdoptionService` preflight + in-place ownership transfer (PG schema/objects/`__EFMigrationsHistory`; SQL Server `ALTER AUTHORIZATION` on schema and tables), startup `ModuleSandboxMigrationHostedService` ordered before the supervisor, bundled-only audited `LegacyOverride`, `dotnetcloud datastore preflight`
-- ☐ Live provisioning integration tests on PostgreSQL and SQL Server
+- ✓ Live provisioning/adoption integration tests on PostgreSQL and SQL Server: own-schema DDL allowed, sibling and `core` schema access denied, adoption ownership transfer incl. `__EFMigrationsHistory`, destroy removes schema + principal, prerequisites satisfied (live run also found and fixed the missing SQL Server DDL grant for contained users)
 
 **Dependencies:** `third-party-module-sandbox-a0-2026-11-06`
 **Blocking Issues:** None

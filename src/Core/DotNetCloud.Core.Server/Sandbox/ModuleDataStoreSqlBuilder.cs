@@ -111,6 +111,10 @@ internal sealed class ModuleDataStoreSqlBuilder
                      ALTER USER {user} WITH PASSWORD = {literal};
                  """,
                 $"IF SCHEMA_ID({ModuleDataStoreNaming.EscapeLiteral(_schema)}) IS NULL EXEC('CREATE SCHEMA {schema} AUTHORIZATION {user}');",
+                // Owning the schema grants CONTROL on it, but object creation still requires the
+                // database-scoped DDL permissions. Schema-qualified creation in a schema the user
+                // does not own is still denied (it lacks ALTER there).
+                $"GRANT CREATE TABLE, CREATE VIEW, CREATE FUNCTION, CREATE PROCEDURE, CREATE TYPE, CREATE SYNONYM TO {user};",
                 $"ALTER USER {user} WITH DEFAULT_SCHEMA = {schema};",
             ];
         }
