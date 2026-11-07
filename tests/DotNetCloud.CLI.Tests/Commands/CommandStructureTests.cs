@@ -112,7 +112,8 @@ public class CommandStructureTests
 
     [TestMethod]
     public void ModuleStartCommand_HasModuleArgument()
-    {        var command = ModuleCommands.Create();
+    {
+        var command = ModuleCommands.Create();
         var startCmd = command.Subcommands.First(c => c.Name == "start");
         Assert.AreEqual(1, startCmd.Arguments.Count);
         Assert.AreEqual("module", startCmd.Arguments[0].Name);

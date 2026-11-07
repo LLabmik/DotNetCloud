@@ -583,7 +583,8 @@ public class Program
         // Route constraint for the module UI plane: /apps/{moduleId} only matches reverse-DNS module
         // ids, so the shell's first-party pages (/apps/files, /apps/chat, ...) are never captured.
         builder.Services.Configure<Microsoft.AspNetCore.Routing.RouteOptions>(options =>
-            options.ConstraintMap[Proxy.ModuleAppProxy.ModuleIdConstraint] = typeof(Proxy.ModuleIdRouteConstraint));        builder.Services.AddScoped<DotNetCloud.UI.Web.Services.HomeWidgetLayoutService>();
+            options.ConstraintMap[Proxy.ModuleAppProxy.ModuleIdConstraint] = typeof(Proxy.ModuleIdRouteConstraint));
+        builder.Services.AddScoped<DotNetCloud.UI.Web.Services.HomeWidgetLayoutService>();
         builder.Services.AddScoped<DotNetCloud.UI.Shared.Services.BrowserTimeProvider>();
         builder.Services.AddScoped<ToastService>();
         // Shared share-recipient search (users + the caller's teams) used by the

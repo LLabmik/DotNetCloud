@@ -177,7 +177,8 @@ internal sealed class ModuleDiscoveryService
     }
 
     private DiscoveredModule? TryDiscoverModule(string moduleDir)
-    {        var dirName = Path.GetFileName(moduleDir);
+    {
+        var dirName = Path.GetFileName(moduleDir);
         var moduleId = dirName;
 
         // Look for executable matching directory name
