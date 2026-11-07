@@ -104,5 +104,15 @@ public enum AuditAction
     /// A module's call was denied by capability enforcement (missing grant, unmapped RPC or
     /// forbidden capability).
     /// </summary>
-    ModuleCapabilityDenied
+    ModuleCapabilityDenied,
+
+    /// <summary>
+    /// A module failed transport authentication (missing or invalid credential).
+    /// </summary>
+    ModuleAuthFailed,
+
+    /// <summary>
+    /// A module's user-scoped call named a different user than the authenticated caller.
+    /// </summary>
+    ModuleIdentityMismatch
 }

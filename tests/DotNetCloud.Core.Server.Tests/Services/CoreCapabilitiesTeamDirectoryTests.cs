@@ -1,7 +1,9 @@
+using DotNetCloud.Core.Authorization;
 using DotNetCloud.Core.Capabilities;
 using DotNetCloud.Core.Grpc.Capabilities;
 using DotNetCloud.Core.Server.Grpc.Services;
 using DotNetCloud.Core.Server.Services;
+using Grpc.Core;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
@@ -39,6 +41,27 @@ public class CoreCapabilitiesTeamDirectoryTests
         UserId = (userId ?? Guid.CreateVersion7()).ToString(),
     };
 
+    /// <summary>
+    /// A call from a module acting for itself (no end-user assertion). The capability grant is the
+    /// control on this path, so any target user is allowed.
+    /// </summary>
+    private static TestServerCallContext CreateModuleContext()
+    {
+        var context = new TestServerCallContext();
+        context.UserState["ModuleId"] = "dotnetcloud.files";
+        context.UserState["CallerContext"] = CallerContext.CreateModuleContext(Guid.CreateVersion7());
+        return context;
+    }
+
+    /// <summary>A call on behalf of a signed-in user (core-signed assertion already verified).</summary>
+    private static TestServerCallContext CreateUserContext(Guid userId)
+    {
+        var context = new TestServerCallContext();
+        context.UserState["ModuleId"] = "dotnetcloud.files";
+        context.UserState["CallerContext"] = new CallerContext(userId, ["User"], CallerType.User);
+        return context;
+    }
+
     private static TeamInfo CreateTeam(string name = "Engineering") => new()
     {
         Id = Guid.CreateVersion7(),
@@ -63,7 +86,7 @@ public class CoreCapabilitiesTeamDirectoryTests
         var service = CreateService(teamDirectory);
         var userId = Guid.CreateVersion7();
 
-        var response = await service.GetTeamsForUser(CreateTeamsRequest(userId), new TestServerCallContext());
+        var response = await service.GetTeamsForUser(CreateTeamsRequest(userId), CreateModuleContext());
 
         Assert.AreEqual(2, response.Teams.Count);
         Assert.AreEqual(team1.Id.ToString(), response.Teams[0].Id);
@@ -83,7 +106,7 @@ public class CoreCapabilitiesTeamDirectoryTests
 
         var service = CreateService(teamDirectory);
 
-        var response = await service.GetTeamsForUser(CreateTeamsRequest(), new TestServerCallContext());
+        var response = await service.GetTeamsForUser(CreateTeamsRequest(), CreateModuleContext());
 
         Assert.IsNotNull(response);
         Assert.AreEqual(0, response.Teams.Count);
@@ -95,12 +118,60 @@ public class CoreCapabilitiesTeamDirectoryTests
         var teamDirectory = new Mock<ITeamDirectory>();
         var service = CreateService(teamDirectory);
 
-        var response = await service.GetTeamsForUser(new GetTeamsForUserRequest { UserId = "not-a-guid" }, new TestServerCallContext());
+        var response = await service.GetTeamsForUser(new GetTeamsForUserRequest { UserId = "not-a-guid" }, CreateModuleContext());
 
         Assert.AreEqual(0, response.Teams.Count);
         teamDirectory.Verify(
             x => x.GetTeamsForUserAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()),
             Times.Never);
+    }
+
+    [TestMethod]
+    public async Task GetTeamsForUser_UserScaledCallForOwnUserId_ReturnsTeams()
+    {
+        var userId = Guid.CreateVersion7();
+        var teamDirectory = new Mock<ITeamDirectory>();
+        teamDirectory
+            .Setup(x => x.GetTeamsForUserAsync(userId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new[] { CreateTeam() });
+
+        var service = CreateService(teamDirectory);
+
+        var response = await service.GetTeamsForUser(CreateTeamsRequest(userId), CreateUserContext(userId));
+
+        Assert.AreEqual(1, response.Teams.Count);
+    }
+
+    [TestMethod]
+    public async Task GetTeamsForUser_UserScaledCallForAnotherUser_IsDenied()
+    {
+        var caller = Guid.CreateVersion7();
+        var victim = Guid.CreateVersion7();
+
+        var teamDirectory = new Mock<ITeamDirectory>();
+        var service = CreateService(teamDirectory);
+
+        var ex = await Assert.ThrowsExactlyAsync<RpcException>(
+            () => service.GetTeamsForUser(CreateTeamsRequest(victim), CreateUserContext(caller)));
+
+        Assert.AreEqual(StatusCode.PermissionDenied, ex.StatusCode);
+        Assert.AreEqual("AUTH_SUBJECT_MISMATCH", ex.Trailers.GetValue("error-code"));
+        teamDirectory.Verify(
+            x => x.GetTeamsForUserAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()),
+            Times.Never,
+            "a mismatched call must not reach the directory");
+    }
+
+    [TestMethod]
+    public async Task GetTeamsForUser_NoVerifiedCaller_FailsClosed()
+    {
+        var teamDirectory = new Mock<ITeamDirectory>();
+        var service = CreateService(teamDirectory);
+
+        var ex = await Assert.ThrowsExactlyAsync<RpcException>(
+            () => service.GetTeamsForUser(CreateTeamsRequest(), new TestServerCallContext()));
+
+        Assert.AreEqual(StatusCode.Unauthenticated, ex.StatusCode);
     }
 
     [TestMethod]
@@ -113,7 +184,7 @@ public class CoreCapabilitiesTeamDirectoryTests
 
         var service = CreateService(teamDirectory);
 
-        var response = await service.GetTeamsForUser(CreateTeamsRequest(), new TestServerCallContext());
+        var response = await service.GetTeamsForUser(CreateTeamsRequest(), CreateModuleContext());
 
         Assert.AreEqual(0, response.Teams.Count);
     }

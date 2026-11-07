@@ -1,3 +1,4 @@
+using DotNetCloud.Core;
 using DotNetCloud.Core.Auth.Security;
 using DotNetCloud.Core.Grpc.TokenIntrospection;
 using Grpc.Core;
@@ -13,8 +14,53 @@ namespace DotNetCloud.Core.Server.Grpc.Services;
 /// Validates bearer tokens by verifying their signature against the shared
 /// OpenIddict signing keys, then returns scoped claims to the calling module.
 /// </summary>
+/// <remarks>
+/// <para>
+/// The caller is a process-isolated module, not the resource owner. Everything returned here is
+/// handed to code that must never see more than it needs, so the claim list is an allow-list of
+/// identity/authorization claims: OpenIddict internals and ASP.NET Identity bookkeeping (security
+/// stamp, token/authorization ids, persisted-grant markers) are dropped rather than forwarded
+/// (F15).
+/// </para>
+/// <para>
+/// Scope filtering to the module's declared scopes ships with the consent plane (phase A3), where
+/// a module-scope catalog exists to filter against.
+/// </para>
+/// </remarks>
 internal sealed class TokenIntrospectionServiceImpl : TokenIntrospection.TokenIntrospectionBase
 {
+    /// <summary>
+    /// Claims forwarded to the calling module. Anything else is dropped: the module needs an
+    /// identity and its roles/scopes, not the token's internal bookkeeping.
+    /// </summary>
+    private static readonly HashSet<string> ExposedClaimTypes = new(StringComparer.Ordinal)
+    {
+        "sub",
+        "name",
+        "preferred_username",
+        "email",
+        "given_name",
+        "family_name",
+        "locale",
+        "role",
+        "roles",
+        "scope",
+        "scp",
+        "client_id",
+        "azp",
+        "sid",
+        "jti",
+        "iat",
+        "nbf",
+        "exp",
+        "iss",
+        "aud",
+        ClaimTypes.NameIdentifier,
+        ClaimTypes.Name,
+        ClaimTypes.Email,
+        ClaimTypes.Role,
+    };
+
     private readonly ILogger<TokenIntrospectionServiceImpl> _logger;
     private readonly TokenValidationParameters _validationParameters;
 
@@ -54,6 +100,13 @@ internal sealed class TokenIntrospectionServiceImpl : TokenIntrospection.TokenIn
     }
 
     /// <summary>
+    /// Determines whether a claim type is forwarded to the calling module.
+    /// </summary>
+    /// <param name="claimType">The raw token claim type.</param>
+    /// <returns><see langword="true"/> when the claim is on the exposure allow-list.</returns>
+    internal static bool IsExposedClaim(string claimType) => ExposedClaimTypes.Contains(claimType);
+
+    /// <summary>
     /// Validates a bearer token and returns scoped claims for the calling module.
     /// </summary>
     public override Task<IntrospectTokenResponse> IntrospectToken(
@@ -67,7 +120,8 @@ internal sealed class TokenIntrospectionServiceImpl : TokenIntrospection.TokenIn
         {
             _logger.LogWarning(
                 "IntrospectToken: module ID mismatch. Auth={Auth}, Request={Req}",
-                authenticatedModuleId, request.CallerModuleId);
+                LogSanitizer.Sanitize(authenticatedModuleId ?? "unknown"),
+                LogSanitizer.Sanitize(request.CallerModuleId));
 
             return Task.FromResult(new IntrospectTokenResponse
             {
@@ -131,6 +185,11 @@ internal sealed class TokenIntrospectionServiceImpl : TokenIntrospection.TokenIn
 
             foreach (var claim in principal.Claims)
             {
+                if (!ExposedClaimTypes.Contains(claim.Type))
+                {
+                    continue;
+                }
+
                 response.Claims.Add(new ClaimEntry
                 {
                     Type = claim.Type,
@@ -140,7 +199,7 @@ internal sealed class TokenIntrospectionServiceImpl : TokenIntrospection.TokenIn
 
             _logger.LogDebug(
                 "IntrospectToken: token valid for user {Sub}, module {Module}",
-                response.Sub, request.CallerModuleId);
+                response.Sub, LogSanitizer.Sanitize(request.CallerModuleId));
 
             return Task.FromResult(response);
         }

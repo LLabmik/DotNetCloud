@@ -39,6 +39,11 @@ public static class ErrorCodes
     /// <summary>Error code for email not confirmed.</summary>
     public const string EmailNotConfirmed = "AUTH_EMAIL_NOT_CONFIRMED";
 
+    /// <summary>
+    /// Error code returned when a request names a user other than the authenticated caller.
+    /// </summary>
+    public const string SubjectMismatch = "AUTH_SUBJECT_MISMATCH";
+
     // User & Identity
     /// <summary>Error code for user not found.</summary>
     public const string UserNotFound = "USER_NOT_FOUND";
@@ -117,6 +122,12 @@ public static class ErrorCodes
 
     /// <summary>Error code for invalid module manifest.</summary>
     public const string InvalidModuleManifest = "MODULE_INVALID_MANIFEST";
+
+    /// <summary>
+    /// Error code returned when a module sends a request whose content is out of policy (for
+    /// example an oversized notification or a non-relative action link).
+    /// </summary>
+    public const string ModuleInvalidRequest = "MODULE_INVALID_REQUEST";
 
     // Events
     /// <summary>Error code for event bus error.</summary>

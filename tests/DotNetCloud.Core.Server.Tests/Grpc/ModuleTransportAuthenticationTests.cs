@@ -1,9 +1,11 @@
 using DotNetCloud.Core.Authorization;
+using DotNetCloud.Core.Capabilities;
 using DotNetCloud.Core.Grpc;
 using DotNetCloud.Core.Server.Grpc.Interceptors;
 using DotNetCloud.Core.Server.Supervisor;
 using DotNetCloud.Core.Server.Tests.Services;
 using Grpc.Core;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace DotNetCloud.Core.Server.Tests.Grpc;
@@ -327,10 +329,167 @@ public class ModuleTransportAuthenticationTests
             ModuleCallerIdentity.ToUserId("dotnetcloud.chat"));
     }
 
-    private static AuthenticationInterceptor CreateAuthenticationInterceptor(out ModuleCredentialStore store)
+    [TestMethod]
+    public async Task Authenticate_InvalidCredential_WritesModuleAuthFailedAudit()
+    {
+        var audit = new RecordingAuditLogger();
+        var interceptor = CreateAuthenticationInterceptor(out _, audit);
+        var context = CreateContext(new Metadata
+        {
+            { ModuleIdentityMetadata.ModuleIdHeader, ModuleId },
+            { ModuleIdentityMetadata.ModuleTokenHeader, "not-the-issued-token" },
+        });
+
+        await Assert.ThrowsExactlyAsync<RpcException>(
+            () => interceptor.UnaryServerHandler("request", context, (_, _) => Task.FromResult("ok")));
+
+        var entry = audit.Entries.Single();
+        Assert.AreEqual(AuditAction.ModuleAuthFailed, entry.Action);
+        Assert.AreEqual(ModuleId, entry.ModuleId);
+        Assert.AreEqual("ModuleAuth", entry.EntityType);
+        Assert.AreEqual(CallerType.System, entry.Caller.Type,
+            "A rejected claimant has no proven identity; the entry must not borrow one.");
+    }
+
+    [TestMethod]
+    public async Task Authenticate_MissingModuleId_RecordsUnknownClaimantInAudit()
+    {
+        var audit = new RecordingAuditLogger();
+        var interceptor = CreateAuthenticationInterceptor(out _, audit);
+        var context = CreateContext(new Metadata { { ModuleIdentityMetadata.ModuleTokenHeader, "token" } });
+
+        await Assert.ThrowsExactlyAsync<RpcException>(
+            () => interceptor.UnaryServerHandler("request", context, (_, _) => Task.FromResult("ok")));
+
+        Assert.AreEqual("unknown", audit.Entries.Single().ModuleId);
+    }
+
+    [TestMethod]
+    public async Task Authenticate_OverlongClaimedModuleId_IsTruncatedInAudit()
+    {
+        var audit = new RecordingAuditLogger();
+        var interceptor = CreateAuthenticationInterceptor(out _, audit);
+        var context = CreateContext(new Metadata
+        {
+            { ModuleIdentityMetadata.ModuleIdHeader, new string('a', 400) },
+            { ModuleIdentityMetadata.ModuleTokenHeader, "not-the-issued-token" },
+        });
+
+        await Assert.ThrowsExactlyAsync<RpcException>(
+            () => interceptor.UnaryServerHandler("request", context, (_, _) => Task.FromResult("ok")));
+
+        Assert.AreEqual(
+            AuthenticationInterceptor.MaxClaimedModuleIdLength,
+            audit.Entries.Single().ModuleId.Length);
+    }
+
+    [TestMethod]
+    public async Task Authenticate_RepeatedFailuresWithinWindow_WritesOneAuditEntryPerWindow()
+    {
+        // The claimed module id is attacker-controlled: an unthrottled audit write would be a
+        // disk-fill vector, so repeated failures collapse into one entry per window.
+        var audit = new RecordingAuditLogger();
+        var clock = new AdjustableTimeProvider();
+        var interceptor = CreateAuthenticationInterceptor(out _, audit, clock);
+        var context = CreateContext(new Metadata
+        {
+            { ModuleIdentityMetadata.ModuleIdHeader, ModuleId },
+            { ModuleIdentityMetadata.ModuleTokenHeader, "not-the-issued-token" },
+        });
+
+        for (var attempt = 0; attempt < 5; attempt++)
+        {
+            await Assert.ThrowsExactlyAsync<RpcException>(
+                () => interceptor.UnaryServerHandler("request", context, (_, _) => Task.FromResult("ok")));
+        }
+
+        Assert.AreEqual(1, audit.Entries.Count);
+
+        clock.UtcNow += AuthenticationInterceptor.FailureAuditWindow + TimeSpan.FromSeconds(1);
+
+        await Assert.ThrowsExactlyAsync<RpcException>(
+            () => interceptor.UnaryServerHandler("request", context, (_, _) => Task.FromResult("ok")));
+
+        Assert.AreEqual(2, audit.Entries.Count);
+    }
+
+    [TestMethod]
+    public async Task Authenticate_ValidCredential_WritesNoFailureAudit()
+    {
+        var audit = new RecordingAuditLogger();
+        var interceptor = CreateAuthenticationInterceptor(out var store, audit);
+        var token = store.Issue(ModuleId);
+        var context = CreateContext(new Metadata
+        {
+            { ModuleIdentityMetadata.ModuleIdHeader, ModuleId },
+            { ModuleIdentityMetadata.ModuleTokenHeader, token },
+        });
+
+        await interceptor.UnaryServerHandler("request", context, (_, _) => Task.FromResult("ok"));
+
+        Assert.AreEqual(0, audit.Entries.Count);
+    }
+
+    [TestMethod]
+    public async Task Authenticate_AuditStoreUnavailable_StillRejectsUnauthenticated()
+    {
+        // Auditing is observability, not authorization: a broken audit writer must never turn a
+        // rejection into an accepted call.
+        var interceptor = CreateAuthenticationInterceptor(out _, new ThrowingAuditLogger());
+        var context = CreateContext(new Metadata
+        {
+            { ModuleIdentityMetadata.ModuleIdHeader, ModuleId },
+            { ModuleIdentityMetadata.ModuleTokenHeader, "not-the-issued-token" },
+        });
+
+        var ex = await Assert.ThrowsExactlyAsync<RpcException>(
+            () => interceptor.UnaryServerHandler("request", context, (_, _) => Task.FromResult("ok")));
+
+        Assert.AreEqual(StatusCode.Unauthenticated, ex.StatusCode);
+    }
+
+    private static AuthenticationInterceptor CreateAuthenticationInterceptor(
+        out ModuleCredentialStore store,
+        IAuditLogger? auditLogger = null,
+        TimeProvider? timeProvider = null)
     {
         store = new ModuleCredentialStore();
-        return new AuthenticationInterceptor(NullLogger<AuthenticationInterceptor>.Instance, store);
+        var services = new ServiceCollection();
+        services.AddSingleton(auditLogger ?? new RecordingAuditLogger());
+
+        return new AuthenticationInterceptor(
+            NullLogger<AuthenticationInterceptor>.Instance,
+            store,
+            services.BuildServiceProvider().GetRequiredService<IServiceScopeFactory>(),
+            timeProvider ?? TimeProvider.System);
+    }
+
+    /// <summary>Captures the audit entries the interceptor writes on rejection.</summary>
+    private sealed class RecordingAuditLogger : IAuditLogger
+    {
+        public List<AuditEntry> Entries { get; } = [];
+
+        public Task LogAsync(AuditEntry entry, CancellationToken cancellationToken = default)
+        {
+            Entries.Add(entry);
+            return Task.CompletedTask;
+        }
+    }
+
+    /// <summary>Audit sink that always fails, standing in for an unavailable audit store.</summary>
+    private sealed class ThrowingAuditLogger : IAuditLogger
+    {
+        public Task LogAsync(AuditEntry entry, CancellationToken cancellationToken = default) =>
+            throw new InvalidOperationException("audit store unavailable");
+    }
+
+    /// <summary>Clock the test can move forward to step over the audit throttle window.</summary>
+    private sealed class AdjustableTimeProvider : TimeProvider
+    {
+        public DateTimeOffset UtcNow { get; set; } =
+            new(2026, 11, 7, 12, 0, 0, TimeSpan.Zero);
+
+        public override DateTimeOffset GetUtcNow() => UtcNow;
     }
 
     private static CallerContextInterceptor CreateCallerContextInterceptor(

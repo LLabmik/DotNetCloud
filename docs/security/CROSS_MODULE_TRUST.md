@@ -62,16 +62,16 @@ All event subscriptions follow a **need-to-receive** principle:
 
 ## gRPC Security Model
 
-| Property                  | Setting (v0.7.0)                                                                                 |
-| ------------------------- | ------------------------------------------------------------------------------------------------ |
-| **Transport**             | Loopback TCP, cleartext HTTP/2 (h2c); per-module sockets/pipes planned (phase A4)                |
-| **Module authentication** | Per-launch token (`dnc-module-id` + `dnc-module-token`), constant-time compare, rotates on start |
-| **Core authentication**   | `ModulePeerAuthenticationInterceptor` verifies the same token on core→module calls               |
-| **User identity**         | Core-signed `dnc-user-assertion` (ECDSA P-256, short-lived, module-scoped)                       |
+| Property                  | Setting (v0.7.0)                                                                                                                                          |
+| ------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Transport**             | Loopback TCP, cleartext HTTP/2 (h2c); per-module sockets/pipes planned (phase A4)                                                                         |
+| **Module authentication** | Per-launch token (`dnc-module-id` + `dnc-module-token`), constant-time compare, rotates on start                                                          |
+| **Core authentication**   | `ModulePeerAuthenticationInterceptor` verifies the same token on core→module calls                                                                        |
+| **User identity**         | Core-signed `dnc-user-assertion` (ECDSA P-256, short-lived, module-scoped)                                                                                |
 | **Authorization**         | `ModuleAccessInterceptor` -> `ModuleAccessEvaluator` enforces `ModuleCapabilityGrants` per RPC (60 s cache, invalidated on grant/revoke, denials audited) |
-| **Max message size**      | 16 MB receive/send on the module listener                                                        |
-| **Detailed errors**       | Disabled outside Development                                                                     |
-| **Reflection**            | Disabled in production                                                                           |
+| **Max message size**      | 16 MB receive/send on the module listener                                                                                                                 |
+| **Detailed errors**       | Disabled outside Development                                                                                                                              |
+| **Reflection**            | Disabled in production                                                                                                                                    |
 
 ### CallerContext Propagation
 
@@ -91,9 +91,9 @@ While every module runs under the same OS user as the core, this is an **API, co
 
 ## File System Isolation
 
-| Area                     | Policy                                                                                                                         |
-| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------ |
+| Area                     | Policy                                                                                                                                                                                                                                                           |
+| ------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Module data directory    | Sandboxed modules (manifest v2, non-required) get `<dataDir>/modules/<id>/{config,data,run}` (0700) and never see `DOTNETCLOUD_CONFIG_DIR`/`DOTNETCLOUD_DATA_DIR`; v1 modules keep the shared directories only while `ProcessSupervisor:AllowLegacyAccess` is on |
-| Cross-module file access | Prohibited — modules must use gRPC to request file data                                                                        |
-| Temporary files          | Cleaned up in `finally` blocks and on process exit                                                                             |
-| Avatar storage           | Centralized in Core server, not per-module                                                                                     |
+| Cross-module file access | Prohibited — modules must use gRPC to request file data                                                                                                                                                                                                          |
+| Temporary files          | Cleaned up in `finally` blocks and on process exit                                                                                                                                                                                                               |
+| Avatar storage           | Centralized in Core server, not per-module                                                                                                                                                                                                                       |

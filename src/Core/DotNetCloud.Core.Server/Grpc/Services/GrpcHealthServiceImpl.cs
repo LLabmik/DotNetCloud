@@ -2,11 +2,13 @@ using System.Text.Json;
 using DotNetCloud.Core.Authorization;
 using DotNetCloud.Core.Capabilities;
 using DotNetCloud.Core.DTOs;
+using DotNetCloud.Core.Errors;
 using DotNetCloud.Core.Events;
 using DotNetCloud.Core.Events.Search;
 using DotNetCloud.Core.Grpc.Capabilities;
 using DotNetCloud.Core.Modules;
 using DotNetCloud.Core.Modules.Supervisor;
+using DotNetCloud.Core.Server.Grpc.ModuleAccess;
 using DotNetCloud.Core.Server.RealTime;
 using DotNetCloud.Core.Server.Services;
 using DotNetCloud.Modules.Chat.DTOs;
@@ -195,12 +197,47 @@ internal class CoreCapabilitiesServiceImpl : CoreCapabilities.CoreCapabilitiesBa
     /// <summary>
     /// Sends a notification (INotificationService capability).
     /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Every notification is attributed to the authenticated module (<c>SourceModuleId</c>), never
+    /// to a caller-supplied field, so a module cannot post platform-branded messages as another
+    /// module.
+    /// </para>
+    /// <para>
+    /// Content is untrusted: title and body are length-capped, and the action link must be a
+    /// site-relative path. Core navigates the browser to that link, so an absolute URL would let a
+    /// module turn a notification into a phishing hop out of the platform (F6). Out-of-policy
+    /// content fails the call with <c>MODULE_INVALID_REQUEST</c> rather than being silently
+    /// mangled.
+    /// </para>
+    /// </remarks>
     public override async Task<SendNotificationResponse> SendNotification(SendNotificationRequest request, ServerCallContext context)
     {
         var moduleId = GetModuleId(context);
+
+        if (!ModuleNotificationLimits.IsValidTitle(request.Title)
+            || !ModuleNotificationLimits.IsValidBody(request.Body)
+            || !ModuleNotificationLimits.IsValidLink(request.Link))
+        {
+            _logger.LogWarning(
+                "SendNotification rejected from module {ModuleId}: content is out of policy " +
+                "(title {TitleLength}, body {BodyLength}, link {LinkLength} characters)",
+                LogSanitizer.Sanitize(moduleId),
+                request.Title?.Length ?? 0,
+                request.Body?.Length ?? 0,
+                request.Link?.Length ?? 0);
+
+            throw new RpcException(
+                new Status(
+                    StatusCode.InvalidArgument,
+                    "[MODULE_INVALID_REQUEST] Notification title/body is too long or the action " +
+                    "link is not a site-relative path."),
+                new Metadata { { "error-code", ErrorCodes.ModuleInvalidRequest } });
+        }
+
         _logger.LogInformation(
             "SendNotification: '{Title}' to {Count} recipients from module {ModuleId}",
-            request.Title, request.RecipientUserIds.Count, moduleId);
+            LogSanitizer.Sanitize(request.Title), request.RecipientUserIds.Count, moduleId);
 
         try
         {
@@ -519,13 +556,20 @@ internal class CoreCapabilitiesServiceImpl : CoreCapabilities.CoreCapabilitiesBa
     /// <summary>
     /// Lists the teams a given user belongs to (ITeamDirectory capability).
     /// </summary>
+    /// <remarks>
+    /// The target user is bound to the verified caller: a call carrying a user assertion may only
+    /// ask for that user's teams, and naming someone else is rejected (F4). Module-scope calls
+    /// (background work, no assertion) stay subject to the capability grant and are audited.
+    /// </remarks>
     public override async Task<GetTeamsForUserResponse> GetTeamsForUser(GetTeamsForUserRequest request, ServerCallContext context)
     {
-        if (!Guid.TryParse(request.UserId, out var userId))
+        var binding = await BindSubjectAsync(context, request.UserId, "GetTeamsForUser");
+        if (binding.UserId == Guid.Empty)
         {
-            _logger.LogWarning("GetTeamsForUser called with invalid UserId '{RawId}'", LogSanitizer.Sanitize(request.UserId));
             return new GetTeamsForUserResponse();
         }
+
+        var userId = binding.UserId;
 
         _logger.LogInformation("GetTeamsForUser called for {UserId} by module {ModuleId}",
             userId, GetModuleId(context));
@@ -562,14 +606,20 @@ internal class CoreCapabilitiesServiceImpl : CoreCapabilities.CoreCapabilitiesBa
     /// resolve admin shared-folder group grants; without it a host cannot tell whether a caller
     /// is entitled to a folder, and must deny by default.
     /// </summary>
+    /// <remarks>
+    /// As with <see cref="GetTeamsForUser"/>, a user-scoped call may only ask for its own
+    /// membership; naming another user is rejected (F4).
+    /// </remarks>
     public override async Task<GetGroupsForUserResponse> GetGroupsForUser(
         GetGroupsForUserRequest request, ServerCallContext context)
     {
-        if (!Guid.TryParse(request.UserId, out var userId))
+        var binding = await BindSubjectAsync(context, request.UserId, "GetGroupsForUser");
+        if (binding.UserId == Guid.Empty)
         {
-            _logger.LogWarning("GetGroupsForUser called with invalid UserId '{RawId}'", LogSanitizer.Sanitize(request.UserId));
             return new GetGroupsForUserResponse();
         }
+
+        var userId = binding.UserId;
 
         _logger.LogDebug("GetGroupsForUser called for {UserId} by module {ModuleId}",
             userId, GetModuleId(context));
@@ -927,6 +977,77 @@ internal class CoreCapabilitiesServiceImpl : CoreCapabilities.CoreCapabilitiesBa
         return context.UserState.TryGetValue("ModuleId", out var mid)
             ? mid as string ?? "unknown"
             : "unknown";
+    }
+
+    /// <summary>
+    /// Binds a user-scoped request to the subject the call may act for, throwing when the payload
+    /// names someone other than the verified caller.
+    /// </summary>
+    /// <remarks>
+    /// A denial is audited as <see cref="AuditAction.ModuleIdentityMismatch"/> before the call is
+    /// rejected; an audit failure never changes the outcome.
+    /// </remarks>
+    private async Task<SubjectBinding> BindSubjectAsync(
+        ServerCallContext context,
+        string? requestedUserId,
+        string rpc)
+    {
+        var binding = CallerSubjectGuard.Bind(context, requestedUserId);
+
+        if (binding.IsAllowed)
+        {
+            if (binding.IsModuleScope)
+            {
+                _logger.LogDebug(
+                    "{Rpc} served {UserId} to module {ModuleId} on a module-scope (no user assertion) call",
+                    rpc, binding.UserId, GetModuleId(context));
+            }
+
+            return binding;
+        }
+
+        if (binding.Outcome is SubjectBindingOutcome.Mismatch)
+        {
+            await AuditSubjectMismatchAsync(context, rpc);
+        }
+
+        throw CallerSubjectGuard.CreateDeniedException(binding.Outcome);
+    }
+
+    private async Task AuditSubjectMismatchAsync(
+        ServerCallContext context,
+        string rpc)
+    {
+        var moduleId = GetModuleId(context);
+        var caller = CallerSubjectGuard.GetCaller(context);
+
+        _logger.LogWarning(
+            "{Rpc} rejected for module {ModuleId}: the caller ({CallerUserId}) asked for another user's data",
+            rpc,
+            LogSanitizer.Sanitize(moduleId),
+            caller?.UserId);
+
+        try
+        {
+            using var scope = _serviceProvider.CreateScope();
+            var auditLogger = scope.ServiceProvider.GetRequiredService<IAuditLogger>();
+
+            await auditLogger.LogAsync(
+                new AuditEntry
+                {
+                    Caller = caller ?? CallerContext.CreateSystemContext(),
+                    ModuleId = moduleId,
+                    Action = AuditAction.ModuleIdentityMismatch,
+                    EntityType = "ModuleAuth",
+                    EntityId = Guid.Empty,
+                    Description = $"{rpc} denied: request named a user other than the authenticated caller.",
+                },
+                context.CancellationToken);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _logger.LogWarning(ex, "Could not record the subject-mismatch audit entry for module {ModuleId}", moduleId);
+        }
     }
 
     /// <summary>
