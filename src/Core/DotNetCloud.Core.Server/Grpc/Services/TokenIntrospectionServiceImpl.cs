@@ -107,6 +107,28 @@ internal sealed class TokenIntrospectionServiceImpl : TokenIntrospection.TokenIn
     internal static bool IsExposedClaim(string claimType) => ExposedClaimTypes.Contains(claimType);
 
     /// <summary>
+    /// Determines whether a token satisfies the audience the calling module requires.
+    /// </summary>
+    /// <param name="tokenAudiences">The token's <c>aud</c> values.</param>
+    /// <param name="requiredAudience">
+    /// The audience the module requires, or <see langword="null"/>/empty when the module does not
+    /// pin one (the default, because OpenIddict issues client-scoped audiences rather than
+    /// module-scoped ones until the per-module OIDC clients land in phase A3).
+    /// </param>
+    /// <returns><see langword="true"/> when no audience is required or one value matches.</returns>
+    internal static bool SatisfiesAudience(IEnumerable<string>? tokenAudiences, string? requiredAudience)
+    {
+        if (string.IsNullOrWhiteSpace(requiredAudience))
+        {
+            return true;
+        }
+
+        return tokenAudiences is not null
+            && tokenAudiences.Any(audience =>
+                string.Equals(audience, requiredAudience, StringComparison.Ordinal));
+    }
+
+    /// <summary>
     /// Validates a bearer token and returns scoped claims for the calling module.
     /// </summary>
     public override Task<IntrospectTokenResponse> IntrospectToken(
@@ -155,12 +177,22 @@ internal sealed class TokenIntrospectionServiceImpl : TokenIntrospection.TokenIn
                 });
             }
 
-            // Audience check intentionally omitted.
-            // OpenIddict sets the audience to the issuer URL or client ID,
-            // not module-specific identifiers like "dotnetcloud.files".
-            // JWT-level audience validation is already disabled (ValidateAudience=false),
-            // and scope-based authorization provides sufficient access control.
-            // See: CLIENT_SERVER_MEDIATION_HANDOFF.md 20260622 (token introspection architecture)
+            // Audience check. The proto documents required_audience as mandatory when supplied;
+            // it was previously ignored, so a module could validate a token that was never
+            // intended for it. Only enforced when the caller asks for it, because OpenIddict
+            // currently issues client-scoped audiences (the per-module clients arrive with A3).
+            if (!SatisfiesAudience(jwtToken.Audiences, request.RequiredAudience))
+            {
+                _logger.LogWarning(
+                    "IntrospectToken: token audience does not include the required audience for module {Module}",
+                    LogSanitizer.Sanitize(request.CallerModuleId));
+
+                return Task.FromResult(new IntrospectTokenResponse
+                {
+                    Active = false,
+                    ErrorDescription = "Token audience mismatch."
+                });
+            }
 
             // Extract claims and scopes.
             var scopes = principal.FindFirst("scope")?.Value
