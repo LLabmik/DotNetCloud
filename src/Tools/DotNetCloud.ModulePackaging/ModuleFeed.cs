@@ -257,7 +257,7 @@ public static class ModuleFeed
             ? new ModulePackageSignatureFile
             {
                 KeyId = keyId,
-                Package = Path.GetFileName(packagePath),
+                File = Path.GetFileName(packagePath),
                 Sha256 = entry.Sha256,
                 Signature = signatureValue,
             }

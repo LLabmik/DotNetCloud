@@ -209,7 +209,7 @@ public class ModulePackageTests
         {
             KeyId = signature.KeyId,
             Algorithm = "rsa-pkcs1",
-            Package = signature.Package,
+            File = signature.File,
             Sha256 = signature.Sha256,
             Signature = signature.Signature,
         };

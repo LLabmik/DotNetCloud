@@ -80,7 +80,7 @@ Rejected by design:
   "schemaVersion": 1,
   "keyId": "store-2026",
   "algorithm": "ed25519",
-  "package": "org.example.receipt-scanner-1.2.3.dncpkg",
+  "file": "org.example.receipt-scanner-1.2.3.dncpkg",
   "sha256": "9f2c…",
   "signature": "base64 of 64 bytes"
 }

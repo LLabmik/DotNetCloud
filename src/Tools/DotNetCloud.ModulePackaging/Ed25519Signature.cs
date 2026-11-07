@@ -35,7 +35,7 @@ public sealed class ModulePackageSignatureFile
     public string Algorithm { get; init; } = Ed25519Signature.AlgorithmName;
 
     /// <summary>The package file name the signature was produced for.</summary>
-    public required string Package { get; init; }
+    public required string File { get; init; }
 
     /// <summary>Lower-case hex SHA-256 of the package bytes.</summary>
     public required string Sha256 { get; init; }
@@ -224,7 +224,7 @@ public static class ModulePackageSigner
         var signature = new ModulePackageSignatureFile
         {
             KeyId = keyPair.KeyId,
-            Package = Path.GetFileName(packagePath),
+            File = Path.GetFileName(packagePath),
             Sha256 = digestHex,
             Signature = Ed25519Signature.Sign(digest, keyPair.PrivateKey),
         };

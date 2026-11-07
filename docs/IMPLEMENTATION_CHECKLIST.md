@@ -3516,7 +3516,20 @@ Plan: `docs/THIRD_PARTY_MODULE_SANDBOX_AND_STORE_PLAN.md` (phase A0). Branch `fe
   - ✓ Single manifest source: duplicate RCL `manifest.json` copies (Bookmarks, Email, Tracks) and their `Content Remove` blocks deleted
   - ✓ CI `module-package` job packs/signs/verifies the Example module and uploads `example-module-package` (`.dncpkg` + `.sig` + `index.json`)
   - ✓ 52 packaging tests: determinism, signature/hash/tamper, untrusted keys, manifest failures, hostile archives, extraction, feed
-- ☐ Phases B2–B5 / C / D per the plan
+- ✓ Phase B2 — store repository (`DotNetCloud.ModuleStore`, separate repo)
+  - ✓ Repo scaffold: `packages/`, `index/`, `tools/` (`dotnetcloud-store`), `schemas/`, `policy/`, `site/`, `docs/`, `scripts/`, workflows, solution + central pins
+  - ✓ `build` / `validate` / `verify-index` / `yank` / `publishers add|list` / `keygen`
+  - ✓ Catalogue `index/v1/index.json` + per-package documents, **detached** `index.json.sig` over the index digest (inline signature superseded per F8)
+  - ✓ Append-only publication enforced as a build failure; `publishedAt` inherited so rebuilds are byte-identical
+  - ✓ Publisher registry `publishers.json` (public keys only, duplicate/format checks) and `yanked.json` (deprecation/security + reasons)
+  - ✓ JSON Schema for the catalogue, package documents and registry; validated with a private schema registry per run
+  - ✓ Validation workflow: secret scan, build, tooling tests, store validation, append-only check, vulnerable-dependency scan, SPDX SBOM
+  - ✓ `build-index` workflow: signs with `STORE_SIGNING_KEY` (runner temp, `umask 077`, deleted), commits the signed catalogue
+  - ✓ Policy set: `STORE_POLICY.md`, `REVIEW_CHECKLIST.md`, `PUBLISHER_AGREEMENT.md`, `REVOCATION_RUNBOOK.md`, `docs/SUBMISSION.md`, PR template
+  - ✓ Static store frontend (browse/search, package detail, publisher page) reusing the website's visual language; no npm, `textContent`-only rendering, URL scheme checks
+  - ✓ 20 tooling tests; local end-to-end pack → build → verify → yank → verify passes
+  - ✓ Unified the detached-signature field on `file` across the packer (B1) and the store
+- ☐ Phases B3–B5 / C / D per the plan
 
 ---
 

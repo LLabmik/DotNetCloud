@@ -382,11 +382,11 @@ public static class ModulePackageVerifier
             return issues;
         }
 
-        if (!string.Equals(signature.Package, Path.GetFileName(packagePath), StringComparison.Ordinal))
+        if (!string.Equals(signature.File, Path.GetFileName(packagePath), StringComparison.Ordinal))
         {
             issues.Add(new PackageIssue(
                 PackageIssueCodes.SignatureInvalid,
-                $"The signature is for '{signature.Package}', not '{Path.GetFileName(packagePath)}'."));
+                $"The signature is for '{signature.File}', not '{Path.GetFileName(packagePath)}'."));
         }
 
         if (!string.Equals(signature.Sha256, sha256, StringComparison.OrdinalIgnoreCase))

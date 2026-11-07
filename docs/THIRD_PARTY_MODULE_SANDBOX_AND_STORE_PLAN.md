@@ -1,8 +1,8 @@
 # Third-Party Module Sandbox & Module Store — Implementation Plan
 
-> **Status:** Approved — ready for implementation · **security review applied 2026-09-15 (§2.1)** · **reconciled against current code 2026-11-06 (§0, §2.1)** · **all decisions D1–D6 locked 2026-11-06 (§14)** · **security verification 2026-11-06 (§15)** · **phase A0 implemented 2026-11-06 (§5)** · **phase A1 implemented 2026-11-06 (§5)** · **phase A2 implemented 2026-11-07 (§5)** · **phase A3 implemented 2026-11-07 (§5)** · **phase A4 implemented 2026-11-07 (§5)** · **phase A5 implemented 2026-11-07 (§5)** · **phase A6 implemented 2026-11-07 (§5)** · **phase B1 implemented 2026-11-07 (§6)**
+> **Status:** Approved — ready for implementation · **security review applied 2026-09-15 (§2.1)** · **reconciled against current code 2026-11-06 (§0, §2.1)** · **all decisions D1–D6 locked 2026-11-06 (§14)** · **security verification 2026-11-06 (§15)** · **phase A0 implemented 2026-11-06 (§5)** · **phase A1 implemented 2026-11-06 (§5)** · **phase A2 implemented 2026-11-07 (§5)** · **phase A3 implemented 2026-11-07 (§5)** · **phase A4 implemented 2026-11-07 (§5)** · **phase A5 implemented 2026-11-07 (§5)** · **phase A6 implemented 2026-11-07 (§5)** · **phase B1 implemented 2026-11-07 (§6)** · **phase B2 implemented 2026-11-07 (§6, separate repository)**
 > **Branch:** `feature/third-party-modules` (the plan's original name `feature/third-party-module-support` was never created)
-> **Last Updated:** 2026-11-07 (phase B1 complete — `.dncpkg` spec, deterministic packer, detached Ed25519 signatures, archive hardening, local feed, CI package fixture)
+> **Last Updated:** 2026-11-07 (phase B2 complete — `DotNetCloud.ModuleStore`: catalogue builder + detached index signature, publisher key registry, schemas, yank runbook, policy set, static store frontend, CI validate/build-index workflows)
 > **Code baseline:** version `0.7.0` (`Directory.Build.props`), .NET SDK `10.0.100` (`global.json`)
 > **Audience:** implementation agents (assumes knowledge of .NET 10 / EF Core / gRPC / Blazor, not of this repo's module history)
 
@@ -378,11 +378,15 @@ Also extend `AuditAction` (`src/Core/DotNetCloud.Core/Capabilities/IAuditLogger.
 
 ### 4.9 Store index v1 (served from `modules.dotnetcloud.net`)
 
+> **Amended in B2:** the index no longer carries an inline `signature` object — a document cannot
+> sign its own bytes (F8). The catalogue is `index.json` + a detached `index.json.sig` covering the
+> index digest, exactly like a `.dncpkg`. Per-version `signature` objects remain (they describe the
+> package, not the index). The implementation lives in the `DotNetCloud.ModuleStore` repository.
+
 ```json
 {
   "schemaVersion": 1,
   "generatedAt": "2026-09-15T12:00:00Z",
-  "signature": { "keyId": "store-2026", "value": "base64…" },
   "packages": [
     {
       "id": "org.example.customapp",
@@ -433,7 +437,7 @@ Also extend `AuditAction` (`src/Core/DotNetCloud.Core/Capabilities/IAuditLogger.
     └── win-x64/
 
 <id>-<version>.dncpkg.sig        (detached; Ed25519 over SHA-256 of the package)
-                                 { schemaVersion, keyId, algorithm: "ed25519", package, sha256, signature }
+                                 { schemaVersion, keyId, algorithm: "ed25519", file, sha256, signature }
 ```
 
 **Superseded:** the original sketch put `signature.json` *inside* the archive, which is impossible —
@@ -833,20 +837,37 @@ Per-module directories: `<dataDir>/modules/<moduleId>/{config,data,run}` created
 
 ### Phase B2 — Store repo (`DotNetCloud.ModuleStore`)
 
-**Status:** ☐ Not started
+**Status:** ✓ implemented 2026-11-07 — **separate repository** `~/Repos/DotNetCloud.ModuleStore` (created locally; pushing it to GitHub and making it private are the moderator's actions)
 **Effort:** Large (~2–3 weeks)
 **Parallel with:** A3–A5.
 
 **Deliverables**
 
-- ☐ Repo scaffold (private initially): `packages/`, `index/`, `tools/` (index builder + Ed25519 signer), `policy/`, `site/` (frontend), `.github/workflows/`.
-- ☐ Index builder producing `/v1/index.json` + per-package documents, signed with the curated store key (GitHub Actions secret).
-- ☐ Validation workflow: JSON schema, semver + immutability (no version rewrites), SHA-256 verification, manifest v2 validation, **erasure-support check** (`handlesUserErasure` when the module has user data/scopes), dependency + secret scanning, SBOM generation.
-- ☐ Submission process: PR template, `STORE_POLICY.md`, `REVIEW_CHECKLIST.md`, `PUBLISHER_AGREEMENT.md`, review SLA.
-- ☐ Publisher registry (`publishers.json`) with verified publisher Ed25519 public keys (tier 2 signing).
-- ☐ Revocation/yank process (`yanked: true` entries; documented operator runbook).
-- ☐ Store frontend (browse/search/package detail/publisher page/install instructions) reading the index; deployed to `modules.dotnetcloud.net`; reuses the website's visual language.
-- ☐ Private-phase note: while private, index/packages are not anonymously fetchable — the core-side client is developed against the local feed from B1; Release assets become the download source at launch.
+- ✓ Repo scaffold: `packages/`, `index/`, `tools/` (`dotnetcloud-store` index builder + Ed25519 signer + validator), `schemas/`, `policy/`, `site/`, `docs/`, `scripts/`, `.github/workflows/`, plus a solution + central package pins. The repo is self-contained: it builds from its own checkout with no reference to the DotNetCloud source tree.
+- ✓ Index builder producing `index/v1/index.json` + `index/v1/packages/<id>.json`, signed with the curated store key supplied through the `STORE_SIGNING_KEY` Actions secret. `build`, `validate`, `verify-index`, `yank`, `publishers add|list`, `keygen`.
+- ✓ Validation workflow (`validate.yml`): JSON Schema validation of the catalogue and the registry, semver + append-only immutability, SHA-256 re-verification, v2 manifest validation, the erasure-support check, the scope vocabulary, a secret scan, `dotnet list package --vulnerable`, and SPDX SBOM generation.
+- ✓ Submission process: `.github/PULL_REQUEST_TEMPLATE.md`, `docs/SUBMISSION.md`, `policy/STORE_POLICY.md` (rules, tiers, scope catalogue, data handling, SLAs), `policy/REVIEW_CHECKLIST.md`, `policy/PUBLISHER_AGREEMENT.md`.
+- ✓ Publisher registry `publishers.json` (verified publisher Ed25519 public keys only; private keys are refused by the secret scan) with `publishers add` writing only the public half.
+- ✓ Revocation/yank: `yanked.json` + `yank` command (deprecation vs security), rendered as `yanked: true` + reason in the catalogue, documented in `policy/REVOCATION_RUNBOOK.md` including key compromise and emergency rotation.
+- ✓ Store frontend (`site/index.html`, `package.html`, `publisher.html`, `store.css`, `store.js`) — browse/search/filter, package detail with versions, capabilities, scopes, hash and key id, publisher page, install instructions. Static, no build step, no npm; shares the marketing site's visual language (Inter, `#2563eb`, `#f59e0b`, same radii).
+- ✓ Private-phase note: README + site banner state that the catalogue is not announced and the installer is not enabled; the core client is developed against the B1 local feed, and release assets become the download source at launch (`--base-url`).
+
+**Findings recorded during implementation**
+
+1. **The index cannot carry its own signature.** §4.9 drew an inline `signature` object; signing it would mean signing bytes that contain the signature (F8). The catalogue is now `<index.json>` + detached `<index.json.sig>` over the index digest, exactly like `.dncpkg`. §4.9 is superseded on that point.
+2. **Cross-repository drift surfaced immediately.** The packer wrote `"package"` in its `.sig`; the store expected `"file"`. Every real package would have been rejected. The field is now `file` in **both** repositories (packer, its tests, `MODULE_PACKAGING.md` §3.2 and §4.10 here), so one signature format serves packages and the catalogue.
+3. **Schema registries are global.** `JsonSchema.FromText` registers by `$id` and throws when the same schema is parsed twice, which happens as soon as `validate` runs twice in one process (or several roots are validated). Each validation now builds a private `SchemaRegistry`.
+4. **`publishedAt` must be inherited.** Taking it from the clock on every build would rewrite every entry on every run. The builder reuses the published value for known versions and derives `generatedAt` as `max(publishedAt)`, so an unchanged package set produces a byte-identical index and signature.
+5. **Append-only is enforced as a build failure, not a warning.** Rewriting a published version breaks every installed copy that pinned the hash; `yank` is the only way to retire a version.
+6. **The catalogue never references bytes inside a zip.** Icons are copied out of the package directory into `index/v1/icons/`, so the site serves plain files and the package stays the unit of integrity.
+7. **SBOM generation is external tooling.** .NET 10 has no built-in SBOM command; the workflow installs `Microsoft.Sbom.DotNetTool` and is marked `continue-on-error` until the invocation is proven in this repo's CI, rather than blocking every PR on an unverified step.
+8. **No npm anywhere.** The store frontend is hand-written HTML/CSS/JS with `textContent`-only rendering and URL scheme checks, consistent with the repository rule that npm is allowed only for the browser extension.
+
+**Implementation notes**
+
+1. `packages/<id>/<version>/` holds the signed package, its `.sig`, and an optional `store.json` (summary, source, screenshots, icon).
+2. The tool exits `1` on any validation failure; both workflows depend on it.
+3. The local end-to-end run (pack → sign → `build` → `verify-index` → `yank` → rebuild → verify) passes, so the two repositories agree on the format today.
 
 ### Phase B3 — Core package installer (first release) + store client (deferred)
 
