@@ -170,5 +170,10 @@
     <PackageVersion Include="Yarp.ReverseProxy" Version="2.3.0" />
     <!-- Certes (ACME / Let's Encrypt) -->
     <PackageVersion Include="Certes" Version="3.0.4" />
+    <!-- Package signing (B1). Decision: Ed25519 via BouncyCastle rather than a native libsodium
+         binding, so `dotnetcloud-pack` runs anywhere the SDK does (no native assets) and .NET's
+         own System.Security.Cryptography has no Ed25519 surface in net10.0. Provenance, key
+         formats and the canonical signing scheme are in docs/modules/MODULE_PACKAGING.md. -->
+    <PackageVersion Include="BouncyCastle.Cryptography" Version="2.7.0" />
   </ItemGroup>
 </Project>

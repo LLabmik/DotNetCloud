@@ -19,7 +19,8 @@
     <InternalsVisibleTo Include="DotNetCloud.Integration.Tests" />
     <InternalsVisibleTo Include="DotNetCloud.Integration.Tests.PostgreSQL" />
     <InternalsVisibleTo Include="DotNetCloud.Integration.Tests.SqlServer" />
-    <!-- Allows Moq/Castle to proxy internal types (for example the legacy capability service the
+    <!-- The packer validates packaged manifests with the same loader the core uses. -->
+    <InternalsVisibleTo Include="dotnetcloud-pack" />    <!-- Allows Moq/Castle to proxy internal types (for example the legacy capability service the
          canonical module API adapter delegates to) from the test project. -->
     <InternalsVisibleTo Include="DynamicProxyGenAssembly2" />
   </ItemGroup>

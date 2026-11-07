@@ -1,8 +1,8 @@
 # Third-Party Module Sandbox & Module Store — Implementation Plan
 
-> **Status:** Approved — ready for implementation · **security review applied 2026-09-15 (§2.1)** · **reconciled against current code 2026-11-06 (§0, §2.1)** · **all decisions D1–D6 locked 2026-11-06 (§14)** · **security verification 2026-11-06 (§15)** · **phase A0 implemented 2026-11-06 (§5)** · **phase A1 implemented 2026-11-06 (§5)** · **phase A2 implemented 2026-11-07 (§5)** · **phase A3 implemented 2026-11-07 (§5)** · **phase A4 implemented 2026-11-07 (§5)** · **phase A5 implemented 2026-11-07 (§5)** · **phase A6 implemented 2026-11-07 (§5)**
+> **Status:** Approved — ready for implementation · **security review applied 2026-09-15 (§2.1)** · **reconciled against current code 2026-11-06 (§0, §2.1)** · **all decisions D1–D6 locked 2026-11-06 (§14)** · **security verification 2026-11-06 (§15)** · **phase A0 implemented 2026-11-06 (§5)** · **phase A1 implemented 2026-11-06 (§5)** · **phase A2 implemented 2026-11-07 (§5)** · **phase A3 implemented 2026-11-07 (§5)** · **phase A4 implemented 2026-11-07 (§5)** · **phase A5 implemented 2026-11-07 (§5)** · **phase A6 implemented 2026-11-07 (§5)** · **phase B1 implemented 2026-11-07 (§6)**
 > **Branch:** `feature/third-party-modules` (the plan's original name `feature/third-party-module-support` was never created)
-> **Last Updated:** 2026-11-07 (phase A6 complete — lifecycle/ops/audit: uninstall with keep-vs-destroy, orphaned data stores, launch-credential rotate/revoke, health `UnhealthyThreshold`, audit hardening, CLI lifecycle reconciliation)
+> **Last Updated:** 2026-11-07 (phase B1 complete — `.dncpkg` spec, deterministic packer, detached Ed25519 signatures, archive hardening, local feed, CI package fixture)
 > **Code baseline:** version `0.7.0` (`Directory.Build.props`), .NET SDK `10.0.100` (`global.json`)
 > **Audience:** implementation agents (assumes knowledge of .NET 10 / EF Core / gRPC / Blazor, not of this repo's module history)
 
@@ -424,15 +424,21 @@ Also extend `AuditAction` (`src/Core/DotNetCloud.Core/Capabilities/IAuditLogger.
 ```
 <id>-<version>.dncpkg            (zip, deterministic: sorted entries, fixed timestamps)
 ├── manifest.json                (v2)
-├── signature.json               ({ keyId, algorithm: "ed25519", value, sha256 of package })
-├── LICENSE
-├── README.md
-├── CHANGELOG.md
-├── icon.png
+├── LICENSE                      (required)
+├── README.md                    (required)
+├── CHANGELOG.md                 (required)
+├── icon.png                     (optional)
 └── files/
     ├── linux-x64/               (self-contained publish output)
     └── win-x64/
+
+<id>-<version>.dncpkg.sig        (detached; Ed25519 over SHA-256 of the package)
+                                 { schemaVersion, keyId, algorithm: "ed25519", package, sha256, signature }
 ```
+
+**Superseded:** the original sketch put `signature.json` *inside* the archive, which is impossible —
+a file cannot cover its own bytes (F8). The signature is detached and covers the package digest.
+Full specification, limits and tool usage: `docs/modules/MODULE_PACKAGING.md`.
 
 ### 4.11 Module resource quotas (F10 — first-release requirement)
 
@@ -792,21 +798,38 @@ Per-module directories: `<dataDir>/modules/<moduleId>/{config,data,run}` created
 
 ### Phase B1 — Package format & tooling (this repo)
 
-**Status:** ☐ Not started
+**Status:** ✓ implemented 2026-11-07
 **Effort:** Small–Medium (~1 week)
 **Parallel with:** A1–A2.
 
 **Deliverables**
 
-- ☐ `.dncpkg` specification per §4.10 (`docs/modules/MODULE_PACKAGING.md`).
-- ☐ Extraction hardening in the specification + tooling: reject absolute paths, `..` traversal, symlink entries, and case collisions (zip-slip class) — signature verification does not cover archive structure. Add zip-bomb ratios, duplicate entries, Windows reserved names/ADS and size caps (F13).
-- ☐ Signature canonicalization spec (F8): detached `<package>.sig` or a signed `package.lock` (manifest hash + sorted per-file hashes); the archive never signs bytes that contain its own signature, and unlisted entries are rejected.
-- ☐ `DotNetCloud.ModulePackaging` tool. **Current `tools/` only contains OS/app packaging** (`tools/packaging/build-deb|rpm|msi|docker…`); create a `src/Tools/DotNetCloud.ModulePackaging/` project and add it to both `DotNetCloud.sln` and `DotNetCloud.CI.slnf`. Commands: `pack` (build + stage per-RID publishes + manifest validation + deterministic zip + sign), `verify`, `inspect`.
-- ☐ Choose and record the Ed25519 implementation. `Directory.Packages.props` has no crypto-signing package today; use the platform API if .NET 10 exposes one (`System.Security.Cryptography.Ed25519`) or add one vetted package — either way pin it in `Directory.Packages.props` and document key formats in the spec.
-- ☐ Deterministic zip: fixed timestamps/sorted entries via `System.IO.Compression`; assert byte-identical output in tests.
-- ☐ Local-feed format (an `index.json` + packages directory) usable for dev/testing and by integration tests.
-- ☐ Sample package fixture: the Example module, built as a `.dncpkg` in CI, stored as a test artifact for installer tests. Use one manifest source — Bookmarks/Email currently carry duplicate RCL `manifest.json` copies that are excluded from publish.
-- ☐ Tests: determinism (same inputs → byte-identical zip), hash/signature verification, tamper detection, manifest validation failures (`minCoreVersion`, strict v2 fields), malicious-archive rejection (zip-slip/symlink fixtures).
+- ✓ `.dncpkg` specification: `docs/modules/MODULE_PACKAGING.md` (layout, determinism rules, signing scheme, verification pipeline, hardening limits, local feed, tool reference, authoring checklist).
+- ✓ Extraction hardening in the specification **and** the tooling: absolute paths, `..` traversal, backslashes, control characters, empty/`.` segments, trailing dots/spaces, `:` alternate data streams, Windows reserved device names, duplicate entries, case-only collisions, symbolic links, over-long paths, entry/total size caps and a 200:1 zip-bomb ratio. `ExtractAsync` re-resolves every path against the destination root before writing.
+- ✓ Signature canonicalization (F8): **detached `<package>.sig`** over `SHA-256(package bytes)`. The archive never contains its own signature, the signature names the package file, a non-`ed25519` `algorithm` is rejected, and unknown key ids are never trusted. Signing the digest keeps signing/verification streaming.
+- ✓ `src/Tools/DotNetCloud.ModulePackaging/` (`dotnetcloud-pack`), added to `DotNetCloud.sln` and `DotNetCloud.CI.slnf`: `pack` (stages per-RID `dotnet publish` output, validates the manifest, writes a deterministic zip, signs, and verifies its own output), `verify`, `inspect`, `keygen`, and a `feed` group (`list`, `verify`).
+- ✓ Ed25519 implementation chosen and recorded: **BouncyCastle.Cryptography 2.7.0**, pinned in `Directory.Packages.props` — .NET 10 has no `System.Security.Cryptography.Ed25519` surface, and a libsodium binding would add a native asset to a cross-platform build tool. Key formats (raw 32-byte seed / 32-byte public key, base64) are specified in the packaging doc.
+- ✓ Deterministic zip verified by test: sorted ordinal entries, fixed `1980-01-01` timestamps, no directory entries, no owner/permission data — two packs of the same staging tree are byte-identical.
+- ✓ Local-feed format (deterministic `index.json` + package files), with containment checks on entry paths and an inline-signature fallback when no `.sig` file is present.
+- ✓ Sample package fixture: the `module-package` CI job packs the Example module (linux-x64), signs it with an ephemeral key, verifies and inspects it, and uploads the `.dncpkg` + `.sig` + `index.json` as the `example-module-package` artifact. The three duplicate RCL `manifest.json` copies (Bookmarks, Email, Tracks) were deleted — see finding 6.
+- ✓ Tests: 52 tests covering determinism, hash/signature verification, tamper detection, untrusted keys, foreign signatures, manifest failures (`minCoreVersion`, strict v2 unknown fields, invalid `dataStore`, id/version mismatch, missing required entries), every hostile archive shape, extraction containment, and the local feed.
+
+**Findings recorded during implementation**
+
+1. **.NET 10 has no Ed25519 API** — the plan offered "use the platform API if .NET 10 exposes one". It does not (`System.Security.Cryptography.Ed25519` fails to compile on `net10.0`), so the vetted-package branch was taken with BouncyCastle (pure managed, no native dependency, MIT-style licence).
+2. **Manifest identity is validated twice, deliberately.** The core loader rejects an id that does not match the expected directory name, which surfaces a *mismatch* as a parse error. The packager therefore validates structure against the manifest's own id and compares the id/version to the package file name separately, so an operator sees `MANIFEST_MISMATCH` rather than a confusing "does not match directory name ''".
+3. **ZIP timestamps are local wall-clock, not UTC.** `ZipArchiveEntry.LastWriteTime` round-trips through the machine's local time zone. Determinism is unaffected (the same wall-clock value is written), but the determinism test must compare the wall clock; comparing `.UtcDateTime` fails on any non-UTC host. This is now documented and asserted correctly.
+4. **A feed entry could name a path outside the feed.** Reading `file` from `index.json` and handing it to the verifier is a traversal vector, so resolution is containment-checked and `AddAsync` copies any outside package into the feed instead of recording `../…`.
+5. **`pack` verifies its own output.** A package that the installer would refuse (wrong manifest, unsafe entries, bad signature) is never published, which keeps the fixture and CI honest.
+6. **The duplicate manifests had drifted, not merely duplicated.** The RCL copies under Bookmarks/Email/Tracks declared different capabilities and published events from the canonical root manifests, so deleting them (and the `<Content Remove>` blocks that hid them from publish) removes an active source of confusion rather than dead weight.
+7. **v1 manifests are accepted with a warning, not an error.** All in-repo modules are still v1 until Track C migrates them; rejecting them would make the packer unusable for the products it ships with. The `MANIFEST_LEGACY_V1` warning keeps the gap visible.
+
+**Implementation notes**
+
+1. The packer reuses `ModuleManifestLoader`/`ModuleCompatibility` from Core.Server through an `InternalsVisibleTo` entry, so packaged manifests are validated by exactly the code the supervisor runs.
+2. `dotnetcloud-pack` exits `1` on any verification failure; the CI job depends on that.
+3. SSRF allow-lists, index anti-replay and revocation stay with B3/B5 — they belong to the download path, not the archive format.
+
 
 ### Phase B2 — Store repo (`DotNetCloud.ModuleStore`)
 

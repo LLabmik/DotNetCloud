@@ -3,6 +3,7 @@
     "path": "DotNetCloud.sln",
     "projects": [
       "src\\CLI\\DotNetCloud.CLI\\DotNetCloud.CLI.csproj",
+      "src\\Tools\\DotNetCloud.ModulePackaging\\DotNetCloud.ModulePackaging.csproj",
       "src\\Clients\\DotNetCloud.Client.Core\\DotNetCloud.Client.Core.csproj",
       "src\\Clients\\DotNetCloud.Client.SyncTray\\DotNetCloud.Client.SyncTray.csproj",
       "src\\Core\\DotNetCloud.Core\\DotNetCloud.Core.csproj",
@@ -90,6 +91,7 @@
       "src\\Modules\\Tracks\\DotNetCloud.Modules.Tracks.Widget\\DotNetCloud.Modules.Tracks.Widget.csproj",
       "src\\Modules\\Video\\DotNetCloud.Modules.Video.Widget\\DotNetCloud.Modules.Video.Widget.csproj",
       "tests\\DotNetCloud.CLI.Tests\\DotNetCloud.CLI.Tests.csproj",
+      "tests\\DotNetCloud.ModulePackaging.Tests\\DotNetCloud.ModulePackaging.Tests.csproj",
       "tests\\DotNetCloud.Client.Core.Tests\\DotNetCloud.Client.Core.Tests.csproj",
       "tests\\DotNetCloud.Client.SyncTray.Tests\\DotNetCloud.Client.SyncTray.Tests.csproj",
       "tests\\DotNetCloud.Core.Auth.Tests\\DotNetCloud.Core.Auth.Tests.csproj",

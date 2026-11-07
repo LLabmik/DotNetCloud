@@ -3504,7 +3504,19 @@ Plan: `docs/THIRD_PARTY_MODULE_SANDBOX_AND_STORE_PLAN.md` (phase A0). Branch `fe
   - ✓ Backup/restore tests prove `<dataDir>/modules/*/data` + the DataProtection key ring are archived and restored; credential-reset recovery documented
   - ✓ CLI: manifest-backed `module install`, `module uninstall --destroy-data|--keep-files`, `module restart` via `RestartPending`, `start|stop` applied by the supervisor
   - ✓ Tests: uninstall matrix (keep/destroy/rollback/files), credential rotate/revoke, orphan list, audit sanitizer, backup+restore round-trip, health-failure counter, CLI option structure
-- ☐ Phases B1–B5 / C / D per the plan
+- ✓ Phase B1 — package format & tooling
+  - ✓ `docs/modules/MODULE_PACKAGING.md`: layout, determinism rules, signing scheme, verification pipeline, hardening limits, local feed, tool reference, authoring checklist
+  - ✓ `src/Tools/DotNetCloud.ModulePackaging` (`dotnetcloud-pack`) with `pack`, `verify`, `inspect`, `keygen` and `feed list|verify`; added to `DotNetCloud.sln` + `DotNetCloud.CI.slnf`
+  - ✓ Detached `<package>.sig` over `SHA-256(package)` (F8): the archive never signs its own bytes, the file name is bound, non-Ed25519 algorithms and untrusted key ids are rejected
+  - ✓ Ed25519 via BouncyCastle.Cryptography 2.7.0 (pinned centrally); key formats documented
+  - ✓ Deterministic zip (sorted ordinal entries, fixed 1980-01-01 timestamps, no directory entries) proven byte-identical by test
+  - ✓ Archive hardening (F13): absolute paths, traversal, backslashes, control chars, ADS, trailing dot/space, reserved device names, duplicates, case collisions, symlinks, path/size caps, 200:1 zip-bomb ratio; extraction re-checks containment
+  - ✓ Manifest validation reuses the core `ModuleManifestLoader` (strict v2, `minCoreVersion`, data-store/UI rules); v1 accepted with a `MANIFEST_LEGACY_V1` warning until Track C
+  - ✓ Local feed (`index.json` + packages) with containment checks and inline-signature fallback
+  - ✓ Single manifest source: duplicate RCL `manifest.json` copies (Bookmarks, Email, Tracks) and their `Content Remove` blocks deleted
+  - ✓ CI `module-package` job packs/signs/verifies the Example module and uploads `example-module-package` (`.dncpkg` + `.sig` + `index.json`)
+  - ✓ 52 packaging tests: determinism, signature/hash/tamper, untrusted keys, manifest failures, hostile archives, extraction, feed
+- ☐ Phases B2–B5 / C / D per the plan
 
 ---
 
