@@ -203,6 +203,67 @@ public sealed class ModuleDataStoreProvisioningService : IModuleDataStoreProvisi
     }
 
     /// <inheritdoc />
+    public async Task<ModuleDataStoreProvisioningResult> AdoptExistingStoreAsync(
+        string moduleId, CancellationToken cancellationToken = default)
+    {
+        if (!ModuleDataStoreNaming.TryCreate(moduleId, out _, out _, out var namingError))
+        {
+            return ModuleDataStoreProvisioningResult.Failed(namingError ?? "Invalid module id.");
+        }
+
+        var limit = await ResolveConnectionLimitAsync(moduleId, cancellationToken);
+        var store = await GetStoreAsync(moduleId, cancellationToken);
+
+        if (store is null || string.IsNullOrEmpty(store.EncryptedConnectionString))
+        {
+            // No principal yet (or a previous attempt failed): create it. The schema already
+            // exists, so CREATE SCHEMA IF NOT EXISTS is a no-op and no data moves.
+            var provisioned = await EnsureProvisionedAsync(moduleId, limit, cancellationToken);
+            if (!provisioned.Success)
+            {
+                return provisioned;
+            }
+
+            store = await GetStoreAsync(moduleId, cancellationToken);
+            if (store is null)
+            {
+                return ModuleDataStoreProvisioningResult.Failed(
+                    "The module data store could not be read after provisioning.");
+            }
+        }
+
+        try
+        {
+            var builder = ModuleDataStoreSqlBuilder.Create(
+                _database.Provider, _database.ConnectionString, store.SchemaName, store.PrincipalName);
+
+            await ExecuteAsync(builder.AdoptStatements(), cancellationToken);
+
+            store.Status = ModuleDataStoreStatus.Active;
+            store.LastError = null;
+            store.UpdatedAtUtc = DateTime.UtcNow;
+            await SaveStoreRowAsync(store, cancellationToken);
+
+            _logger.LogInformation(
+                "Adopted the existing data store for module {ModuleId} (schema {Schema}, principal {Principal})",
+                moduleId, store.SchemaName, store.PrincipalName);
+
+            return new ModuleDataStoreProvisioningResult(true, store.SchemaName, store.PrincipalName, null);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            var error = SanitizeError(ex.Message);
+            store.Status = ModuleDataStoreStatus.Error;
+            store.LastError = error;
+            store.UpdatedAtUtc = DateTime.UtcNow;
+            await SaveStoreRowAsync(store, cancellationToken);
+
+            _logger.LogError("Adopting the data store for module {ModuleId} failed: {Error}", moduleId, error);
+            return ModuleDataStoreProvisioningResult.Failed(error);
+        }
+    }
+
+    /// <inheritdoc />
     public async Task DestroyAsync(string moduleId, CancellationToken cancellationToken = default)
     {
         var store = await GetStoreAsync(moduleId, cancellationToken);

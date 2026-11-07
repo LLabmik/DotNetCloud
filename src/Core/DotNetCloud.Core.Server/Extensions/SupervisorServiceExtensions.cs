@@ -82,6 +82,11 @@ internal static class SupervisorServiceExtensions
         // Sandboxed module data stores (scoped schema + principal, encrypted connection string).
         services.AddSingleton<IModuleDataStoreProvisioningService, ModuleDataStoreProvisioningService>();
 
+        // Upgrade path (§9): adopt already-installed modules' core-managed schemas before the
+        // supervisor spawns anything. Registered before the supervisor so StartAsync completes first.
+        services.AddSingleton<ModuleAdoptionService>();
+        services.AddHostedService<ModuleSandboxMigrationHostedService>();
+
         // Register gRPC interceptors
         services.AddSingleton<ICallerIdentityResolver, CallerIdentityResolver>();
         services.AddSingleton<AuthenticationInterceptor>();

@@ -17,7 +17,7 @@ public class DataStoreCommandTests
 
         var names = command.Subcommands.Select(c => c.Name).OrderBy(n => n, StringComparer.Ordinal).ToList();
         CollectionAssert.AreEquivalent(
-            new[] { "destroy", "provision", "reset-credentials", "rotate", "status" },
+            new[] { "destroy", "preflight", "provision", "reset-credentials", "rotate", "status" },
             names);
     }
 

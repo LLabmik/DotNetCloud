@@ -194,6 +194,96 @@ internal sealed class ModuleDataStoreSqlBuilder
     }
 
     /// <summary>
+    /// Statements that hand an existing, core-created schema to the module principal (adoption, §9).
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Existing optional modules were migrated by the core, so their schema and every object in it
+    /// — including <c>__EFMigrationsHistory</c> — are owned by the core role. Without transferring
+    /// that ownership the module's first self-migration either sees no history (and re-applies
+    /// migrations) or is denied write access.
+    /// </para>
+    /// <para>
+    /// PostgreSQL: temporary membership so the core role may transfer ownership, then schema and
+    /// per-object owner changes for tables, sequences, views, materialized views, foreign tables and
+    /// partitioned tables. SQL Server: <c>ALTER AUTHORIZATION ON SCHEMA</c> plus per-table
+    /// <c>ALTER AUTHORIZATION ON OBJECT</c> where objects are still dbo-owned.
+    /// </para>
+    /// </remarks>
+    /// <returns>The statements to execute; idempotent and safe on an already-adopted schema.</returns>
+    public IReadOnlyList<string> AdoptStatements()
+    {
+        var schemaLiteral = ModuleDataStoreNaming.EscapeLiteral(_schema);
+
+        if (_provider == DatabaseProvider.SqlServer)
+        {
+            return
+            [
+                $"ALTER AUTHORIZATION ON SCHEMA::{ModuleDataStoreNaming.QuoteSqlServer(_schema)} TO {ModuleDataStoreNaming.QuoteSqlServer(_principal)};",
+                $"""
+                 DECLARE @adoptSql nvarchar(max) = N'';
+                 SELECT @adoptSql = @adoptSql
+                     + N'ALTER AUTHORIZATION ON OBJECT::'
+                     + QUOTENAME(s.name) + N'.' + QUOTENAME(t.name)
+                     + N' TO {ModuleDataStoreNaming.QuoteSqlServer(_principal)};'
+                 FROM sys.tables t
+                 JOIN sys.schemas s ON s.schema_id = t.schema_id
+                 WHERE s.name = {ModuleDataStoreNaming.EscapeLiteral(_schema)};
+                 IF @adoptSql <> N'' EXEC sp_executesql @adoptSql;
+                 """,
+            ];
+        }
+
+        var role = ModuleDataStoreNaming.QuotePostgreSql(_principal);
+        var pgSchema = ModuleDataStoreNaming.QuotePostgreSql(_schema);
+        var appRole = ModuleDataStoreNaming.QuotePostgreSql(_applicationPrincipal);
+        var principalLiteral = ModuleDataStoreNaming.EscapeLiteral(_principal);
+
+        return
+        [
+            $"GRANT {role} TO {appRole};",
+            $"""
+             DO $$
+             DECLARE r record;
+             BEGIN
+                 FOR r IN
+                     SELECT c.relname, c.relkind
+                     FROM pg_class c
+                     JOIN pg_namespace n ON n.oid = c.relnamespace
+                     WHERE n.nspname = {schemaLiteral}
+                       AND c.relkind IN ('r', 'p', 'S', 'v', 'm', 'f')
+                 LOOP
+                     EXECUTE format(
+                         'ALTER %s %I.%I OWNER TO %I',
+                         CASE r.relkind
+                             WHEN 'S' THEN 'SEQUENCE'
+                             WHEN 'v' THEN 'VIEW'
+                             WHEN 'm' THEN 'MATERIALIZED VIEW'
+                             WHEN 'f' THEN 'FOREIGN TABLE'
+                             ELSE 'TABLE'
+                         END,
+                         {schemaLiteral}, r.relname, {principalLiteral});
+                 END LOOP;
+             END
+             $$;
+             """,
+            // The history table is a plain table and is covered by the loop above; the explicit
+            // statement documents (and asserts) the migration-history requirement.
+            $"""
+             DO $$
+             BEGIN
+                 IF to_regclass('{_schema}.__EFMigrationsHistory') IS NOT NULL THEN
+                     EXECUTE 'ALTER TABLE {pgSchema}.__EFMigrationsHistory OWNER TO {role}';
+                 END IF;
+             END
+             $$;
+             """,
+            $"ALTER SCHEMA {pgSchema} OWNER TO {role};",
+            $"REVOKE {role} FROM {appRole};",
+        ];
+    }
+
+    /// <summary>
     /// Statements that remove the module schema and principal.
     /// </summary>
     /// <remarks>

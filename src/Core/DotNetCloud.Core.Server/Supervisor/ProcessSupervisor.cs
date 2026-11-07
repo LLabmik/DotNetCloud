@@ -292,6 +292,7 @@ internal sealed class ProcessSupervisor : BackgroundService, IProcessSupervisor
         // the process never launches without the store it was promised.
         string? moduleConnectionString = null;
         string? sandboxSchema = null;
+        var useLegacyLayout = !IsSandboxed(manifest);
         if (IsSandboxed(manifest))
         {
             if (manifest.EffectiveDataStoreMode == ModuleDataStoreMode.Isolated)
@@ -301,29 +302,44 @@ internal sealed class ProcessSupervisor : BackgroundService, IProcessSupervisor
 
                 if (!provisioned.Success)
                 {
-                    _logger.LogError(
-                        "Module {ModuleId} cannot start: {Reason}", SanitizeForLog(moduleId), provisioned.Error);
-                    RecordRejectedStart(
-                        discovered, manifest, $"Data-store provisioning failed: {provisioned.Error}");
-                    await SetSandboxStatusAsync(moduleId, ModuleSandboxStatus.Error, cancellationToken);
-                    return;
+                    // Transitional override (§9.5): a bundled module whose store cannot be
+                    // provisioned may keep the legacy config/data layout so the server still boots.
+                    // Store-tier modules never qualify.
+                    if (await TryEnterLegacyOverrideAsync(moduleId, provisioned.Error ?? "unknown error", cancellationToken))
+                    {
+                        useLegacyLayout = true;
+                    }
+                    else
+                    {
+                        _logger.LogError(
+                            "Module {ModuleId} cannot start: {Reason}", SanitizeForLog(moduleId), provisioned.Error);
+                        RecordRejectedStart(
+                            discovered, manifest, $"Data-store provisioning failed: {provisioned.Error}");
+                        await SetSandboxStatusAsync(moduleId, ModuleSandboxStatus.Error, cancellationToken);
+                        return;
+                    }
                 }
-
-                moduleConnectionString = await _dataStoreProvisioning.GetConnectionStringAsync(
-                    moduleId, cancellationToken);
-                sandboxSchema = provisioned.SchemaName;
-
-                if (string.IsNullOrEmpty(moduleConnectionString))
+                else
                 {
-                    const string reason = "The module data store is provisioned but its connection string could not be read.";
-                    _logger.LogError("Module {ModuleId} cannot start: {Reason}", SanitizeForLog(moduleId), reason);
-                    RecordRejectedStart(discovered, manifest, reason);
-                    await SetSandboxStatusAsync(moduleId, ModuleSandboxStatus.Error, cancellationToken);
-                    return;
+                    moduleConnectionString = await _dataStoreProvisioning.GetConnectionStringAsync(
+                        moduleId, cancellationToken);
+                    sandboxSchema = provisioned.SchemaName;
+
+                    if (string.IsNullOrEmpty(moduleConnectionString))
+                    {
+                        const string reason = "The module data store is provisioned but its connection string could not be read.";
+                        _logger.LogError("Module {ModuleId} cannot start: {Reason}", SanitizeForLog(moduleId), reason);
+                        RecordRejectedStart(discovered, manifest, reason);
+                        await SetSandboxStatusAsync(moduleId, ModuleSandboxStatus.Error, cancellationToken);
+                        return;
+                    }
                 }
             }
 
-            await SetSandboxStatusAsync(moduleId, ModuleSandboxStatus.Active, cancellationToken);
+            if (!useLegacyLayout)
+            {
+                await SetSandboxStatusAsync(moduleId, ModuleSandboxStatus.Active, cancellationToken);
+            }
         }
 
         var restartPolicy = ParseRestartPolicy(manifest.RestartPolicy);
@@ -347,7 +363,8 @@ internal sealed class ProcessSupervisor : BackgroundService, IProcessSupervisor
         // so a process that did not come from this supervisor cannot impersonate the module.
         var moduleSecret = _credentials.Issue(moduleId);
 
-        var process = SpawnModuleProcess(discovered, manifest, grpcEndpoint, moduleSecret, moduleConnectionString, sandboxSchema);
+        var process = SpawnModuleProcess(
+            discovered, manifest, grpcEndpoint, moduleSecret, moduleConnectionString, sandboxSchema, useLegacyLayout);
         if (process is null)
         {
             _credentials.Revoke(moduleId);
@@ -442,7 +459,8 @@ internal sealed class ProcessSupervisor : BackgroundService, IProcessSupervisor
         string grpcEndpoint,
         string moduleSecret,
         string? moduleConnectionString,
-        string? sandboxSchema)
+        string? sandboxSchema,
+        bool useLegacyLayout)
     {
         try
         {
@@ -501,7 +519,7 @@ internal sealed class ProcessSupervisor : BackgroundService, IProcessSupervisor
             startInfo.Environment["DOTNETCLOUD_GRPC_ENDPOINT"] = ForceHttpForInternalGrpc(grpcEndpoint);
             startInfo.Environment["DOTNETCLOUD_CORE_ENDPOINT"] = ForceHttpForInternalGrpc(BuildCoreEndpoint());
 
-            if (IsSandboxed(manifest))
+            if (IsSandboxed(manifest) && !useLegacyLayout)
             {
                 // Sandboxed modules never see the core config directory or data directory: those
                 // carry the core connection string, TLS material and the WOPI signing key. They get
@@ -852,6 +870,72 @@ internal sealed class ProcessSupervisor : BackgroundService, IProcessSupervisor
     /// Persists the sandbox state shown to operators. Best effort: a database hiccup must not stop
     /// a module from starting.
     /// </summary>
+    /// <summary>
+    /// Applies the transitional legacy-access override (§9.5) when a sandboxed module cannot be
+    /// provisioned. Only bundled (non-required, non-store-tier) modules qualify, the override must
+    /// be enabled by the operator, and every use is audit-logged. Returns false when the module
+    /// must be refused instead.
+    /// </summary>
+    private async Task<bool> TryEnterLegacyOverrideAsync(
+        string moduleId, string reason, CancellationToken cancellationToken)
+    {
+        if (!_options.AllowLegacyAccess)
+        {
+            return false;
+        }
+
+        try
+        {
+            using var scope = _scopeFactory.CreateScope();
+            var dbContext = scope.ServiceProvider.GetRequiredService<CoreDbContext>();
+
+            var row = await dbContext.InstalledModules
+                .AsTracking()
+                .FirstOrDefaultAsync(m => m.ModuleId == moduleId, cancellationToken);
+
+            if (row is null || row.IsRequired || row.TrustTier == ModuleTrustTier.Store)
+            {
+                return false;
+            }
+
+            row.SandboxStatus = ModuleSandboxStatus.LegacyOverride;
+            row.UpdatedAt = DateTime.UtcNow;
+            await dbContext.SaveChangesAsync(cancellationToken);
+
+            _logger.LogWarning(
+                "Module {ModuleId} is using the transitional legacy-access override because its data store could not be provisioned: {Reason}. " +
+                "Fix the prerequisite and restart; this override is removed in 1.0.",
+                SanitizeForLog(moduleId), reason);
+
+            try
+            {
+                var auditLogger = scope.ServiceProvider.GetRequiredService<DotNetCloud.Core.Capabilities.IAuditLogger>();
+                await auditLogger.LogAsync(
+                    new DotNetCloud.Core.Capabilities.AuditEntry
+                    {
+                        Caller = DotNetCloud.Core.Authorization.CallerContext.CreateSystemContext(),
+                        ModuleId = "dotnetcloud.core",
+                        Action = DotNetCloud.Core.Capabilities.AuditAction.Update,
+                        EntityType = "Module",
+                        EntityId = Guid.CreateVersion7(),
+                        Description = $"module-legacy-access-used:{moduleId}",
+                    },
+                    cancellationToken);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                _logger.LogWarning(ex, "Could not audit legacy access for module {ModuleId}", SanitizeForLog(moduleId));
+            }
+
+            return true;
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _logger.LogError(ex, "Could not apply the legacy-access override for module {ModuleId}", SanitizeForLog(moduleId));
+            return false;
+        }
+    }
+
     private async Task SetSandboxStatusAsync(
         string moduleId, ModuleSandboxStatus status, CancellationToken cancellationToken)
     {

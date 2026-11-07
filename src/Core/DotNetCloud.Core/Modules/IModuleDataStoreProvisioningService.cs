@@ -75,6 +75,18 @@ public interface IModuleDataStoreProvisioningService
         CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Adopts an existing, core-created schema for a module (upgrade path, §9): provisions the
+    /// principal when needed and transfers schema/object ownership — including
+    /// <c>__EFMigrationsHistory</c> — to it without moving any data.
+    /// </summary>
+    /// <param name="moduleId">The module id.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The outcome; idempotent on an already-adopted store.</returns>
+    Task<ModuleDataStoreProvisioningResult> AdoptExistingStoreAsync(
+        string moduleId,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Drops the module schema and principal. Used on uninstall with "destroy data".
     /// </summary>
     /// <param name="moduleId">The module id.</param>

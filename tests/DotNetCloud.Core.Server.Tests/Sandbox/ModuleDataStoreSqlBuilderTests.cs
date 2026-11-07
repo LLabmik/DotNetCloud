@@ -153,6 +153,35 @@ public class ModuleDataStoreSqlBuilderTests
     }
 
     [TestMethod]
+    public void PostgreSqlAdoptStatements_TransferSchemaObjectAndHistoryOwnership()
+    {
+        ModuleDataStoreNaming.TryCreate("org.example.customapp", out var schema, out var principal, out _);
+        var builder = ModuleDataStoreSqlBuilder.Create(DatabaseProvider.PostgreSQL, PgConnectionString, schema, principal);
+
+        var sql = string.Join("\n", builder.AdoptStatements());
+
+        StringAssert.Contains(sql, $"GRANT \"{principal}\" TO");
+        StringAssert.Contains(sql, "FOR r IN");
+        StringAssert.Contains(sql, "pg_class");
+        StringAssert.Contains(sql, "__EFMigrationsHistory");
+        StringAssert.Contains(sql, $"ALTER SCHEMA \"{schema}\" OWNER TO \"{principal}\"");
+        StringAssert.Contains(sql, $"REVOKE \"{principal}\" FROM");
+    }
+
+    [TestMethod]
+    public void SqlServerAdoptStatements_AlterSchemaAndObjectAuthorization()
+    {
+        ModuleDataStoreNaming.TryCreate("org.example.customapp", out var schema, out var principal, out _);
+        var builder = ModuleDataStoreSqlBuilder.Create(DatabaseProvider.SqlServer, SqlConnectionString, schema, principal);
+
+        var sql = string.Join("\n", builder.AdoptStatements());
+
+        StringAssert.Contains(sql, $"ALTER AUTHORIZATION ON SCHEMA::[{schema}] TO [{principal}]");
+        StringAssert.Contains(sql, "ALTER AUTHORIZATION ON OBJECT::");
+        StringAssert.Contains(sql, "sys.tables");
+    }
+
+    [TestMethod]
     public void SqlServerScopedConnectionString_UsesContainedUserAndPoolLimit()
     {
         ModuleDataStoreNaming.TryCreate("org.example.customapp", out var schema, out var principal, out _);

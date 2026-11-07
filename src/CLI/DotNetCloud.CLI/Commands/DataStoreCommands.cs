@@ -22,6 +22,7 @@ internal static class DataStoreCommands
             "datastore",
             "Manage isolated module data stores (dedicated schemas and database principals)");
         command.Subcommands.Add(CreateStatus());
+        command.Subcommands.Add(CreatePreflight());
         command.Subcommands.Add(CreateProvision());
         command.Subcommands.Add(CreateRotate());
         command.Subcommands.Add(CreateResetCredentials());
@@ -60,9 +61,17 @@ internal static class DataStoreCommands
         return command;
     }
 
-    private static Command CreateProvision()
+    private static Command CreatePreflight()
     {
-        var moduleArg = CreateModuleArgument("The module ID to provision");
+        var command = new Command(
+            "preflight",
+            "Report which installed modules can adopt their existing schema, and why any cannot");
+        command.SetAction(_ => PreflightAsync());
+        return command;
+    }
+
+    private static Command CreateProvision()
+    {        var moduleArg = CreateModuleArgument("The module ID to provision");
         var limitOption = CreateConnectionLimitOption();
         var command = new Command("provision", "Provision the schema and database principal for an isolated module")
         {
@@ -201,6 +210,93 @@ internal static class DataStoreCommands
         ConsoleOutput.WriteTable(headers, rows);
         Console.WriteLine();
         ConsoleOutput.WriteInfo($"Total: {stores.Count} data store(s)");
+        return 0;
+    }
+
+    private static async Task<int> PreflightAsync()
+    {
+        ConsoleOutput.WriteHeader("Module Data Store Preflight");
+
+        await using var provider = ServiceProviderFactory.CreateForDataStore();
+        if (provider is null)
+            return 1;
+
+        using var scope = provider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<CoreDbContext>();
+        var provisioning = scope.ServiceProvider.GetRequiredService<IModuleDataStoreProvisioningService>();
+
+        var modules = await db.InstalledModules
+            .AsNoTracking()
+            .OrderBy(m => m.ModuleId)
+            .ToListAsync();
+
+        if (modules.Count == 0)
+        {
+            ConsoleOutput.WriteInfo("No modules installed.");
+            return 0;
+        }
+
+        var stores = await db.ModuleDataStores
+            .AsNoTracking()
+            .ToDictionaryAsync(d => d.ModuleId);
+
+        ModuleDataStorePrerequisiteResult? prerequisites = null;
+        var rows = new List<string[]>(modules.Count);
+        var blocked = 0;
+
+        foreach (var module in modules)
+        {
+            string outcome;
+            string detail;
+
+            if (module.IsRequired)
+            {
+                outcome = "Skipped";
+                detail = "required module (core-managed schema)";
+            }
+            else if (module.DataStoreMode != ModuleDataStoreMode.Isolated)
+            {
+                outcome = "Skipped";
+                detail = "dataStore: none";
+            }
+            else if (stores.TryGetValue(module.ModuleId, out var store)
+                     && store.Status == ModuleDataStoreStatus.Active
+                     && !string.IsNullOrEmpty(store.EncryptedConnectionString))
+            {
+                outcome = "Ready";
+                detail = $"schema {store.SchemaName}";
+            }
+            else
+            {
+                prerequisites ??= await provisioning.CheckPrerequisitesAsync();
+
+                if (prerequisites.IsSatisfied)
+                {
+                    outcome = "Adoptable";
+                    detail = "existing schema will be adopted at startup";
+                }
+                else
+                {
+                    outcome = "Blocked";
+                    detail = string.Join(" ", prerequisites.Errors);
+                    blocked++;
+                }
+            }
+
+            rows.Add([module.ModuleId, module.TrustTier.ToString(), outcome, detail]);
+        }
+
+        ConsoleOutput.WriteTable(["Module ID", "Tier", "Outcome", "Detail"], rows);
+        Console.WriteLine();
+
+        if (blocked > 0)
+        {
+            ConsoleOutput.WriteWarning(
+                $"{blocked} module(s) will be held with SandboxStatus=Error until the prerequisites above are fixed.");
+            return 1;
+        }
+
+        ConsoleOutput.WriteInfo("No blocking problems found.");
         return 0;
     }
 
