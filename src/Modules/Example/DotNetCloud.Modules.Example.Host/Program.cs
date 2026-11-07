@@ -3,6 +3,8 @@ using DotNetCloud.Core.Grpc;
 using DotNetCloud.Modules.Example;
 using DotNetCloud.Modules.Example.Data;
 using DotNetCloud.Modules.Example.Host.Services;
+using Microsoft.AspNetCore.DataProtection;
+using Microsoft.AspNetCore.Server.Kestrel.Core;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
@@ -14,7 +16,38 @@ public static partial class Program
     {
         var builder = WebApplication.CreateBuilder(args);
 
-        // Load shared config from DOTNETCLOUD_CONFIG_DIR (set by ProcessSupervisor)
+        // Bind the gRPC endpoint the supervisor assigned. Without this the host was not
+        // addressable by ProcessSupervisor at all.
+        var grpcEndpoint = Environment.GetEnvironmentVariable("DOTNETCLOUD_GRPC_ENDPOINT");
+        if (!string.IsNullOrEmpty(grpcEndpoint))
+        {
+            var uri = new Uri(grpcEndpoint.Replace("unix://", "http://").Replace("net.pipe://", "http://"));
+            builder.WebHost.ConfigureKestrel(o =>
+                o.Listen(System.Net.IPAddress.Loopback, uri.Port, l => l.Protocols = HttpProtocols.Http2));
+        }
+
+        // DataProtection keys are private to the module. Sandboxed hosts persist them under their
+        // own data directory; never the core key ring.
+        var moduleDataDir = Environment.GetEnvironmentVariable("DOTNETCLOUD_MODULE_DATA_DIR");
+        var dataProtectionDir = !string.IsNullOrWhiteSpace(moduleDataDir)
+            ? Path.Combine(moduleDataDir, "data-protection-keys")
+            : Path.Combine(builder.Environment.ContentRootPath, "data-protection-keys");
+        Directory.CreateDirectory(dataProtectionDir);
+        builder.Services.AddDataProtection()
+            .SetApplicationName("DotNetCloud.Modules.Example")
+            .PersistKeysToFileSystem(new DirectoryInfo(dataProtectionDir));
+
+        // Sandboxed modules receive only non-secret topology in module.json. Legacy hosts keep
+        // loading the shared config.json until they are migrated to the sandboxed model.
+        var moduleConfigDir = Environment.GetEnvironmentVariable("DOTNETCLOUD_MODULE_CONFIG_DIR");
+        if (!string.IsNullOrEmpty(moduleConfigDir))
+        {
+            var moduleJsonPath = Path.Combine(moduleConfigDir, "module.json");
+            if (File.Exists(moduleJsonPath))
+                builder.Configuration.AddJsonFile(moduleJsonPath, optional: false, reloadOnChange: false);
+        }
+
+        // Load shared config from DOTNETCLOUD_CONFIG_DIR (set by ProcessSupervisor for legacy hosts)
         var configDir = Environment.GetEnvironmentVariable("DOTNETCLOUD_CONFIG_DIR");
         if (!string.IsNullOrEmpty(configDir))
         {
@@ -26,9 +59,14 @@ public static partial class Program
         // Register the Example module as a singleton for lifecycle management
         builder.Services.AddSingleton<ExampleModule>();
 
-        // Register EF Core with the configured database provider (no in-memory fallback)
-        var connectionString = builder.Configuration["connectionString"]
-            ?? builder.Configuration.GetConnectionString("DefaultConnection");
+        // Register EF Core with the configured database provider (no in-memory fallback).
+        // Sandboxed hosts get a scoped connection string from the supervisor and the engine name
+        // from module.json; legacy hosts read both from config.json.
+        var sandboxConnectionString = Environment.GetEnvironmentVariable("DOTNETCLOUD_MODULE_DB_CONNECTION_STRING");
+        var connectionString = !string.IsNullOrEmpty(sandboxConnectionString)
+            ? sandboxConnectionString
+            : builder.Configuration["connectionString"]
+                ?? builder.Configuration.GetConnectionString("DefaultConnection");
         var dbProvider = builder.Configuration["databaseProvider"]
             ?? builder.Configuration["database:provider"];
 
@@ -36,21 +74,34 @@ public static partial class Program
         {
             throw new InvalidOperationException(
                 "The Example module requires a database connection string and provider. " +
-                "These are provided via config.json (DOTNETCLOUD_CONFIG_DIR) when launched by the core server.");
+                "Sandboxed hosts receive them from ProcessSupervisor; legacy hosts read them from " +
+                "config.json (DOTNETCLOUD_CONFIG_DIR).");
         }
 
         var isPostgreSql = string.Equals(dbProvider, "PostgreSql", StringComparison.OrdinalIgnoreCase);
 
-        builder.Services.AddSingleton<ITableNamingStrategy>(isPostgreSql
+        // Sandboxed modules own a generated schema; the host must use it for both the model's
+        // default schema and the migration-history table.
+        var sandboxSchema = builder.Configuration["databaseSchema"];
+        var migrationsSchema = string.IsNullOrWhiteSpace(sandboxSchema) ? "example" : sandboxSchema;
+
+        ITableNamingStrategy namingStrategy = isPostgreSql
             ? new PostgreSqlNamingStrategy()
-            : new SqlServerNamingStrategy());
+            : new SqlServerNamingStrategy();
+
+        if (!string.IsNullOrWhiteSpace(sandboxSchema))
+        {
+            namingStrategy = new SandboxTableNamingStrategy(namingStrategy, "example", sandboxSchema);
+        }
+
+        builder.Services.AddSingleton(namingStrategy);
 
         builder.Services.AddDbContext<ExampleDbContext>(options =>
         {
             if (isPostgreSql)
             {
                 options.UseNpgsql(connectionString, npgsql =>
-                    npgsql.MigrationsHistoryTable("__EFMigrationsHistory", "example"));
+                    npgsql.MigrationsHistoryTable("__EFMigrationsHistory", migrationsSchema));
             }
             else
             {
@@ -59,13 +110,15 @@ public static partial class Program
                     sql.EnableRetryOnFailure(maxRetryCount: 3);
                     sql.CommandTimeout(30);
                     sql.MigrationsAssembly("DotNetCloud.Modules.Example.Data.SqlServer");
-                    sql.MigrationsHistoryTable("__EFMigrationsHistory", "example");
+                    sql.MigrationsHistoryTable("__EFMigrationsHistory", migrationsSchema);
                 });
             }
         });
 
-        // Register the gRPC-backed audit logger (SOC 2 CC4) — routes to Core.Server.
+        // Register the gRPC-backed audit logger (SOC 2 CC4) and module settings — both route to
+        // Core.Server over the authenticated module channel.
         builder.Services.AddAuditLogger();
+        builder.Services.AddModuleSettingsClient();
 
         // gRPC + health checks
         builder.Services.AddGrpc(options =>
@@ -77,7 +130,7 @@ public static partial class Program
         // Adopt the core-signed end-user assertion before anything can call back into the core.
         app.UseModuleUserAssertion();
 
-        // Self-migrate on startup (schemaProvider: "self").
+        // Self-migrate on startup (dataStore: "isolated" means the module owns its schema).
         // A connection string is now mandatory, so this is unconditional.
         // Retries with exponential backoff so a database that is briefly unavailable
         // at startup does not crash the module — it continues running in degraded mode.

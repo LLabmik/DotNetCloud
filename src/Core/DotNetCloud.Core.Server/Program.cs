@@ -303,6 +303,9 @@ public class Program
         }
         builder.Services.AddDotNetCloudDbContext(connectionString, provider);
 
+        // Captured for services that need raw ADO.NET access (module data-store provisioning).
+        builder.Services.AddSingleton(new Sandbox.CoreDatabaseOptions(connectionString, provider));
+
         // DB outage resilience: a transient database failure in a background service must
         // NOT stop the entire host. The default BackgroundServiceExceptionBehavior is
         // StopHost, which would crash the server when e.g. ModuleUiRegistrationHostedService,

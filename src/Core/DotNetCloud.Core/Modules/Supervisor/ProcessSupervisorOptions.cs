@@ -131,4 +131,19 @@ public sealed class ProcessSupervisorOptions
     /// Default: true.
     /// </summary>
     public bool PreferTcpTransport { get; set; } = true;
+
+    /// <summary>
+    /// Allows product-shipped non-required modules that still use a version 1 manifest to keep
+    /// receiving the shared <c>config.json</c> and data directory while they are migrated to the
+    /// sandboxed model.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// This is a transition control only. It never applies to store-tier or unverified packages,
+    /// it is audit-logged by the caller, and it is removed as a 1.0 release criterion. Sandboxed
+    /// (version 2) modules never use it.
+    /// </para>
+    /// <para>Default: <see langword="true"/> for the 0.7.x transition releases.</para>
+    /// </remarks>
+    public bool AllowLegacyAccess { get; set; } = true;
 }

@@ -10,6 +10,7 @@ using DotNetCloud.Core;
 using DotNetCloud.Core.Modules;
 using DotNetCloud.Core.Modules.Supervisor;
 using DotNetCloud.Core.Server.ModuleLoading;
+using DotNetCloud.Core.Server.Sandbox;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -35,6 +36,8 @@ internal sealed class ProcessSupervisor : BackgroundService, IProcessSupervisor
     private readonly ModuleSchemaService _moduleSchemaService;
     private readonly ModuleCredentialStore _credentials;
     private readonly ModuleAssertionKeyRing _assertions;
+    private readonly IModuleDataStoreProvisioningService _dataStoreProvisioning;
+    private readonly CoreDatabaseOptions _database;
     private readonly ConcurrentDictionary<string, ModuleProcessHandle> _modules = new();
     private readonly SemaphoreSlim _startStopLock = new(1, 1);
 
@@ -48,7 +51,9 @@ internal sealed class ProcessSupervisor : BackgroundService, IProcessSupervisor
         IServiceScopeFactory scopeFactory,
         ModuleSchemaService moduleSchemaService,
         ModuleCredentialStore credentials,
-        ModuleAssertionKeyRing assertions)
+        ModuleAssertionKeyRing assertions,
+        IModuleDataStoreProvisioningService dataStoreProvisioning,
+        CoreDatabaseOptions database)
     {
         _logger = logger;
         _options = options.Value;
@@ -60,6 +65,8 @@ internal sealed class ProcessSupervisor : BackgroundService, IProcessSupervisor
         _moduleSchemaService = moduleSchemaService;
         _credentials = credentials;
         _assertions = assertions;
+        _dataStoreProvisioning = dataStoreProvisioning;
+        _database = database;
     }
 
     // ---- IProcessSupervisor ----
@@ -259,20 +266,46 @@ internal sealed class ProcessSupervisor : BackgroundService, IProcessSupervisor
                 "Module {ModuleId} v{Version} is incompatible with this core: {Reason}",
                 SanitizeForLog(moduleId), SanitizeForLog(manifest.Version), incompatibilityReason);
 
-            var rejected = new ModuleProcessHandle
-            {
-                ModuleId = moduleId,
-                ModuleName = manifest.Name,
-                Version = manifest.Version,
-                ExecutablePath = discovered.ExecutablePath,
-                GrpcEndpoint = BuildGrpcEndpoint(moduleId),
-                RestartPolicy = ParseRestartPolicy(manifest.RestartPolicy),
-                MaxRestartAttempts = _options.MaxRestartAttempts
-            };
-
-            rejected.SetStatus(ModuleProcessStatus.Failed, incompatibilityReason);
-            _modules[moduleId] = rejected;
+            RecordRejectedStart(discovered, manifest, incompatibilityReason!);
             return;
+        }
+
+        // Sandboxed modules own a scoped database principal. Provision it before the host starts so
+        // the process never launches without the store it was promised.
+        string? moduleConnectionString = null;
+        string? sandboxSchema = null;
+        if (IsSandboxed(manifest))
+        {
+            if (manifest.EffectiveDataStoreMode == ModuleDataStoreMode.Isolated)
+            {
+                var provisioned = await _dataStoreProvisioning.EnsureProvisionedAsync(
+                    moduleId, cancellationToken: cancellationToken);
+
+                if (!provisioned.Success)
+                {
+                    _logger.LogError(
+                        "Module {ModuleId} cannot start: {Reason}", SanitizeForLog(moduleId), provisioned.Error);
+                    RecordRejectedStart(
+                        discovered, manifest, $"Data-store provisioning failed: {provisioned.Error}");
+                    await SetSandboxStatusAsync(moduleId, ModuleSandboxStatus.Error, cancellationToken);
+                    return;
+                }
+
+                moduleConnectionString = await _dataStoreProvisioning.GetConnectionStringAsync(
+                    moduleId, cancellationToken);
+                sandboxSchema = provisioned.SchemaName;
+
+                if (string.IsNullOrEmpty(moduleConnectionString))
+                {
+                    const string reason = "The module data store is provisioned but its connection string could not be read.";
+                    _logger.LogError("Module {ModuleId} cannot start: {Reason}", SanitizeForLog(moduleId), reason);
+                    RecordRejectedStart(discovered, manifest, reason);
+                    await SetSandboxStatusAsync(moduleId, ModuleSandboxStatus.Error, cancellationToken);
+                    return;
+                }
+            }
+
+            await SetSandboxStatusAsync(moduleId, ModuleSandboxStatus.Active, cancellationToken);
         }
 
         var restartPolicy = ParseRestartPolicy(manifest.RestartPolicy);
@@ -296,7 +329,7 @@ internal sealed class ProcessSupervisor : BackgroundService, IProcessSupervisor
         // so a process that did not come from this supervisor cannot impersonate the module.
         var moduleSecret = _credentials.Issue(moduleId);
 
-        var process = SpawnModuleProcess(discovered, grpcEndpoint, moduleSecret);
+        var process = SpawnModuleProcess(discovered, manifest, grpcEndpoint, moduleSecret, moduleConnectionString, sandboxSchema);
         if (process is null)
         {
             _credentials.Revoke(moduleId);
@@ -384,7 +417,13 @@ internal sealed class ProcessSupervisor : BackgroundService, IProcessSupervisor
 
     // ---- Process Spawning ----
 
-    private Process? SpawnModuleProcess(DiscoveredModule discovered, string grpcEndpoint, string moduleSecret)
+    private Process? SpawnModuleProcess(
+        DiscoveredModule discovered,
+        ModuleManifestData manifest,
+        string grpcEndpoint,
+        string moduleSecret,
+        string? moduleConnectionString,
+        string? sandboxSchema)
     {
         try
         {
@@ -443,10 +482,42 @@ internal sealed class ProcessSupervisor : BackgroundService, IProcessSupervisor
             startInfo.Environment["DOTNETCLOUD_GRPC_ENDPOINT"] = ForceHttpForInternalGrpc(grpcEndpoint);
             startInfo.Environment["DOTNETCLOUD_CORE_ENDPOINT"] = ForceHttpForInternalGrpc(BuildCoreEndpoint());
 
-            // Forward shared config and data directory env vars so modules can
-            // load config.json and find DataProtection keys / file storage.
-            ForwardEnvVar(startInfo, "DOTNETCLOUD_CONFIG_DIR");
-            ForwardEnvVar(startInfo, "DOTNETCLOUD_DATA_DIR");
+            if (IsSandboxed(manifest))
+            {
+                // Sandboxed modules never see the core config directory or data directory: those
+                // carry the core connection string, TLS material and the WOPI signing key. They get
+                // a private directory tree containing only non-secret topology.
+                var layout = ModuleSandboxLayout.Create(GetDataRootDirectory(), discovered.ModuleId);
+                layout.EnsureCreated();
+                layout.WriteModuleJson(
+                    manifest.Version,
+                    manifest.EffectiveDataStoreMode,
+                    _database.Provider.ToString(),
+                    sandboxSchema,
+                    ForceHttpForInternalGrpc(BuildCoreEndpoint()),
+                    ForceHttpForInternalGrpc(grpcEndpoint));
+
+                startInfo.Environment["DOTNETCLOUD_MODULE_CONFIG_DIR"] = layout.ConfigDirectory;
+                startInfo.Environment["DOTNETCLOUD_MODULE_DATA_DIR"] = layout.DataDirectory;
+
+                if (!string.IsNullOrEmpty(moduleConnectionString))
+                {
+                    startInfo.Environment["DOTNETCLOUD_MODULE_DB_CONNECTION_STRING"] = moduleConnectionString;
+                }
+            }
+            else if (_options.AllowLegacyAccess)
+            {
+                // Transition only: product-shipped v1 modules still load the shared config.json and
+                // data directory while they are migrated to the sandboxed model (Track C).
+                ForwardEnvVar(startInfo, "DOTNETCLOUD_CONFIG_DIR");
+                ForwardEnvVar(startInfo, "DOTNETCLOUD_DATA_DIR");
+            }
+            else
+            {
+                _logger.LogError(
+                    "Module {ModuleId} is not sandboxed and legacy access is disabled; refusing to forward the core config/data directories",
+                    SanitizeForLog(discovered.ModuleId));
+            }
 
             startInfo.WorkingDirectory = fullModuleDir;
 
@@ -718,6 +789,72 @@ internal sealed class ProcessSupervisor : BackgroundService, IProcessSupervisor
     }
 
     // ---- Helpers ----
+
+    /// <summary>
+    /// Whether a module runs in the sandboxed model: a version 2 manifest on a non-required module.
+    /// </summary>
+    private static bool IsSandboxed(ModuleManifestData manifest) =>
+        manifest.ManifestVersion >= 2 && !RequiredModules.IsRequired(manifest.Id);
+
+    /// <summary>
+    /// Records a module that was refused before a process was spawned, so the admin surface can
+    /// show why it is not running.
+    /// </summary>
+    private void RecordRejectedStart(DiscoveredModule discovered, ModuleManifestData manifest, string reason)
+    {
+        var rejected = new ModuleProcessHandle
+        {
+            ModuleId = discovered.ModuleId,
+            ModuleName = manifest.Name,
+            Version = manifest.Version,
+            ExecutablePath = discovered.ExecutablePath,
+            GrpcEndpoint = BuildGrpcEndpoint(discovered.ModuleId),
+            RestartPolicy = ParseRestartPolicy(manifest.RestartPolicy),
+            MaxRestartAttempts = _options.MaxRestartAttempts
+        };
+
+        rejected.SetStatus(ModuleProcessStatus.Failed, reason);
+        _modules[discovered.ModuleId] = rejected;
+    }
+
+    /// <summary>
+    /// Persists the sandbox state shown to operators. Best effort: a database hiccup must not stop
+    /// a module from starting.
+    /// </summary>
+    private async Task SetSandboxStatusAsync(
+        string moduleId, ModuleSandboxStatus status, CancellationToken cancellationToken)
+    {
+        try
+        {
+            using var scope = _scopeFactory.CreateScope();
+            var dbContext = scope.ServiceProvider.GetRequiredService<CoreDbContext>();
+
+            var row = await dbContext.InstalledModules
+                .FirstOrDefaultAsync(m => m.ModuleId == moduleId, cancellationToken);
+
+            if (row is null || row.SandboxStatus == status)
+            {
+                return;
+            }
+
+            row.SandboxStatus = status;
+            row.UpdatedAt = DateTime.UtcNow;
+            await dbContext.SaveChangesAsync(cancellationToken);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _logger.LogWarning(ex, "Could not persist sandbox status for module {ModuleId}", SanitizeForLog(moduleId));
+        }
+    }
+
+    /// <summary>
+    /// Resolves the server data directory used for per-module sandbox directories.
+    /// </summary>
+    private static string GetDataRootDirectory()
+    {
+        var configured = Environment.GetEnvironmentVariable("DOTNETCLOUD_DATA_DIR");
+        return string.IsNullOrWhiteSpace(configured) ? AppContext.BaseDirectory : configured;
+    }
 
     private ModuleManifestData LoadManifest(DiscoveredModule discovered)
     {

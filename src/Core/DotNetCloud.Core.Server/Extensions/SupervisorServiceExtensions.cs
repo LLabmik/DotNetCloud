@@ -1,8 +1,10 @@
+using DotNetCloud.Core.Modules;
 using DotNetCloud.Core.Modules.Supervisor;
 using DotNetCloud.Core.Server.Grpc.Configuration;
 using DotNetCloud.Core.Server.Grpc.Interceptors;
 using DotNetCloud.Core.Server.Grpc.Services;
 using DotNetCloud.Core.Server.ModuleLoading;
+using DotNetCloud.Core.Server.Sandbox;
 using DotNetCloud.Core.Server.Services;
 using DotNetCloud.Core.Server.Supervisor;
 using DotNetCloud.Core.Services;
@@ -58,6 +60,9 @@ internal static class SupervisorServiceExtensions
 
         // Signing key for end-user assertions. Modules get only the public half.
         services.AddSingleton<ModuleAssertionKeyRing>();
+
+        // Sandboxed module data stores (scoped schema + principal, encrypted connection string).
+        services.AddSingleton<IModuleDataStoreProvisioningService, ModuleDataStoreProvisioningService>();
 
         // Register gRPC interceptors
         services.AddSingleton<ICallerIdentityResolver, CallerIdentityResolver>();

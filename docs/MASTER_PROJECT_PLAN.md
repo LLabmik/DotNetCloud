@@ -1762,8 +1762,12 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 - ✓ `SyncDiscoveredModulesToDatabaseAsync` is an upsert that reconciles version/required/tier/mode/sandbox state and never upgrades an existing store-tier row
 - ✓ Manifest grants are gated by trust tier; store-tier modules require explicit admin approval
 - ✓ Settings plane: `IModuleSettingsStore` + `ModuleSettingsStore`, module-namespaced `GetSetting`/`SetSetting` (request `module_id` ignored), `IModuleSettings` gRPC client + `AddModuleSettingsClient()`, key/value limits
+- ✓ Data-store provisioning: `ModuleDataStoreProvisioningService` + SQL builder + deterministic naming (PostgreSQL login role/schema, SQL Server contained user/schema), prerequisite detection with remediation text, idempotent ensure, rotation, drop, DataProtection-encrypted connection strings
+- ✓ Supervisor env split: sandboxed modules get private `{config,data,run}` directories and a non-secret `module.json`; legacy v1 modules stay on shared config behind `ProcessSupervisor:AllowLegacyAccess`
+- ✓ Example host made supervisor-addressable: Kestrel listener on `DOTNETCLOUD_GRPC_ENDPOINT`, private DataProtection ring, sandbox connection string, module settings client
+- ✓ `DatabaseSetupHelper`/`BackupCommands` create the PostgreSQL app role with `CREATEROLE`
 - ✓ Fixed `LogAudit` attribution (verified module id, not the payload) and made `AuditLoggerGrpcClient` present the supervisor-issued credential
-- ☐ Provisioning service, supervisor env split, sanitized `module.json`, Example host listener/DataProtection, setup `CREATEROLE`/prerequisites, admin+CLI `datastore`, quotas, storage namespacing, adoption service
+- ☐ Admin/CLI `datastore` commands, quotas, storage namespacing, adoption service, live provisioning integration tests
 
 **Dependencies:** `third-party-module-sandbox-a0-2026-11-06`
 **Blocking Issues:** None

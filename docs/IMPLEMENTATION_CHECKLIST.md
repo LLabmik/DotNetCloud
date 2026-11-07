@@ -3437,9 +3437,12 @@ Plan: `docs/THIRD_PARTY_MODULE_SANDBOX_AND_STORE_PLAN.md` (phase A0). Branch `fe
   - ✓ Module registry upsert (version, required flag, trust tier, data-store mode, sandbox state)
   - ✓ Trust-tier gated manifest grants (store-tier modules are never auto-granted)
   - ✓ Settings plane: `IModuleSettingsStore`/`ModuleSettingsStore`, working `GetSetting`/`SetSetting` namespaced by the authenticated module, `IModuleSettings` gRPC client
-  - ☐ Data-store provisioning service (PostgreSQL + SQL Server, scoped principals, encrypted connection strings)
-  - ☐ Supervisor env split + per-module directories + sanitized `module.json`; Example host listener/DataProtection fix
-  - ☐ Setup `CREATEROLE` + prerequisite checks; admin/CLI `datastore` commands
+  - ✓ Provisioning service: PostgreSQL role/schema and SQL Server contained user/schema, prerequisite detection with remediation, idempotent ensure, rotation, drop, DataProtection-encrypted connection strings
+  - ✓ Supervisor env split + per-module `{config,data,run}` directories + sanitized `module.json`; legacy v1 modules gated by `ProcessSupervisor:AllowLegacyAccess`
+  - ✓ Example host binds `DOTNETCLOUD_GRPC_ENDPOINT`, uses a private DataProtection ring and reads the sandbox connection string / module settings client
+  - ✓ Setup/restore create the PostgreSQL app role with `CREATEROLE`
+  - ☐ Live provisioning integration tests on PostgreSQL and SQL Server
+  - ☐ Admin/CLI `datastore` commands (status/provision/rotate/destroy, credential reset)
   - ☐ Resource quotas (kernel, API rate, measured storage) and storage namespacing
   - ☐ Adoption/legacy-override migration service
 - ☐ Phases A2–A6 / B1–B5 / C / D per the plan

@@ -1609,7 +1609,7 @@ internal static class BackupCommands
                 || roleOutput.Trim() != "1")
             {
                 if (!TryRunPostgresSql(null,
-                        $"CREATE ROLE \"{QuoteIdentifier(user)}\" WITH LOGIN PASSWORD {SqlLiteral(password)} CREATEDB;",
+                        $"CREATE ROLE \"{QuoteIdentifier(user)}\" WITH LOGIN PASSWORD {SqlLiteral(password)} CREATEDB CREATEROLE;",
                         out var createError))
                 {
                     ConsoleOutput.WriteError($"Could not create the database role '{user}': {createError}");
@@ -1623,7 +1623,7 @@ internal static class BackupCommands
                 // Keep the role password in sync with the restored config.json. Without this, a role
                 // created by a fresh `setup` run would not match the restored connection string.
                 if (!TryRunPostgresSql(null,
-                        $"ALTER ROLE \"{QuoteIdentifier(user)}\" WITH LOGIN PASSWORD {SqlLiteral(password)} CREATEDB;",
+                        $"ALTER ROLE \"{QuoteIdentifier(user)}\" WITH LOGIN PASSWORD {SqlLiteral(password)} CREATEDB CREATEROLE;",
                         out var alterError))
                 {
                     ConsoleOutput.WriteError($"Could not update the database role password: {alterError}");
