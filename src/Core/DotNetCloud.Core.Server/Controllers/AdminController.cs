@@ -281,6 +281,184 @@ public class AdminController : ControllerBase
         return Ok(new { success = true, message = $"Module '{moduleId}' restarted successfully." });
     }
 
+    /// <summary>
+    /// Get the isolated data store of a module.
+    /// </summary>
+    /// <param name="moduleId">The module identifier.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The data-store state, including schema, principal and provisioning status.</returns>
+    [HttpGet("modules/{moduleId}/datastore")]
+    public async Task<IActionResult> GetModuleDataStoreAsync(string moduleId, CancellationToken cancellationToken)
+    {
+        var store = await _moduleService.GetDataStoreAsync(moduleId, cancellationToken);
+        if (store is null)
+        {
+            return NotFound(new { success = false, error = new { code = "MODULE_NOT_FOUND", message = $"Module '{moduleId}' not found." } });
+        }
+
+        return Ok(new { success = true, data = store });
+    }
+
+    /// <summary>
+    /// Provisions (or repairs) the schema and database principal for an isolated module.
+    /// </summary>
+    /// <param name="moduleId">The module identifier.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The provisioning outcome. Never contains credentials.</returns>
+    [HttpPost("modules/{moduleId}/datastore/provision")]
+    public async Task<IActionResult> ProvisionModuleDataStoreAsync(string moduleId, CancellationToken cancellationToken)
+    {
+        var result = await _moduleService.ProvisionDataStoreAsync(moduleId, cancellationToken);
+        if (result is null)
+        {
+            return NotFound(new { success = false, error = new { code = "MODULE_NOT_FOUND", message = $"Module '{moduleId}' not found." } });
+        }
+
+        if (!result.Success)
+        {
+            _logger.LogWarning("Data store provisioning for module {ModuleId} failed by admin request", SanitizeForLog(moduleId));
+            return BadRequest(new { success = false, error = new { code = "MODULE_DATASTORE_OPERATION_FAILED", message = result.Error } });
+        }
+
+        await _auditLogger.LogAsync(new AuditEntry
+        {
+            Caller = BuildCaller(),
+            ModuleId = "dotnetcloud.core",
+            Action = AuditAction.Create,
+            EntityType = "ModuleDataStore",
+            EntityId = Guid.CreateVersion7(),
+            Description = $"module-datastore-provisioned:{SanitizeForLog(moduleId)}",
+        });
+        _logger.LogInformation("Data store for module {ModuleId} provisioned by admin", SanitizeForLog(moduleId));
+        return Ok(new { success = true, data = result });
+    }
+
+    /// <summary>
+    /// Rotates the module database principal's password and re-encrypts the stored connection string.
+    /// </summary>
+    /// <param name="moduleId">The module identifier.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The rotation outcome. Never contains credentials.</returns>
+    [HttpPost("modules/{moduleId}/datastore/rotate")]
+    public async Task<IActionResult> RotateModuleDataStoreCredentialsAsync(string moduleId, CancellationToken cancellationToken)
+    {
+        var result = await _moduleService.RotateDataStoreCredentialsAsync(moduleId, cancellationToken);
+        if (result is null)
+        {
+            return NotFound(new { success = false, error = new { code = "MODULE_NOT_FOUND", message = $"Module '{moduleId}' not found." } });
+        }
+
+        if (!result.Success)
+        {
+            _logger.LogWarning("Data store credential rotation for module {ModuleId} failed by admin request", SanitizeForLog(moduleId));
+            return BadRequest(new { success = false, error = new { code = "MODULE_DATASTORE_OPERATION_FAILED", message = result.Error } });
+        }
+
+        await _auditLogger.LogAsync(new AuditEntry
+        {
+            Caller = BuildCaller(),
+            ModuleId = "dotnetcloud.core",
+            Action = AuditAction.Update,
+            EntityType = "ModuleDataStore",
+            EntityId = Guid.CreateVersion7(),
+            Description = $"module-datastore-credentials-rotated:{SanitizeForLog(moduleId)}",
+        });
+        _logger.LogInformation("Data store credentials for module {ModuleId} rotated by admin", SanitizeForLog(moduleId));
+        return Ok(new { success = true, data = result });
+    }
+
+    /// <summary>
+    /// Drops the module schema and database principal. Irreversible; all module data is destroyed.
+    /// </summary>
+    /// <param name="moduleId">The module identifier.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The destruction outcome.</returns>
+    [HttpDelete("modules/{moduleId}/datastore")]
+    public async Task<IActionResult> DestroyModuleDataStoreAsync(string moduleId, CancellationToken cancellationToken)
+    {
+        var result = await _moduleService.DestroyDataStoreAsync(moduleId, cancellationToken);
+        if (result is null)
+        {
+            return NotFound(new { success = false, error = new { code = "MODULE_NOT_FOUND", message = $"Module '{moduleId}' not found." } });
+        }
+
+        if (!result.Success)
+        {
+            _logger.LogWarning("Data store destruction for module {ModuleId} failed by admin request", SanitizeForLog(moduleId));
+            return BadRequest(new { success = false, error = new { code = "MODULE_DATASTORE_OPERATION_FAILED", message = result.Error } });
+        }
+
+        await _auditLogger.LogAsync(new AuditEntry
+        {
+            Caller = BuildCaller(),
+            ModuleId = "dotnetcloud.core",
+            Action = AuditAction.Delete,
+            EntityType = "ModuleDataStore",
+            EntityId = Guid.CreateVersion7(),
+            Description = $"module-datastore-destroyed:{SanitizeForLog(moduleId)}",
+        });
+        _logger.LogInformation("Data store for module {ModuleId} destroyed by admin", SanitizeForLog(moduleId));
+        return Ok(new { success = true, data = result });
+    }
+
+    /// <summary>
+    /// Gets the resource quota override and the effective quota of a module.
+    /// </summary>
+    /// <param name="moduleId">The module identifier.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The quota state, including the effective values applied by the supervisor.</returns>
+    [HttpGet("modules/{moduleId}/quota")]
+    public async Task<IActionResult> GetModuleQuotaAsync(string moduleId, CancellationToken cancellationToken)
+    {
+        var quota = await _moduleService.GetQuotaAsync(moduleId, cancellationToken);
+        if (quota is null)
+        {
+            return NotFound(new { success = false, error = new { code = "MODULE_NOT_FOUND", message = $"Module '{moduleId}' not found." } });
+        }
+
+        return Ok(new { success = true, data = quota });
+    }
+
+    /// <summary>
+    /// Stores an admin resource-quota override for a module (F10).
+    /// </summary>
+    /// <param name="moduleId">The module identifier.</param>
+    /// <param name="dto">The replacement override values; null or zero clears a dimension.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The stored quota and the effective values after policy clamping.</returns>
+    [HttpPut("modules/{moduleId}/quota")]
+    public async Task<IActionResult> UpdateModuleQuotaAsync(
+        string moduleId, [FromBody] UpdateModuleQuotaDto dto, CancellationToken cancellationToken)
+    {
+        if (!TryGetUserId(out var adminUserId))
+        {
+            return Unauthorized(new { success = false, error = new { code = "INVALID_TOKEN", message = "Invalid token claims" } });
+        }
+
+        var result = await _moduleService.UpdateQuotaAsync(moduleId, dto, adminUserId, cancellationToken);
+        if (result is null)
+        {
+            return NotFound(new { success = false, error = new { code = "MODULE_NOT_FOUND", message = $"Module '{moduleId}' not found." } });
+        }
+
+        if (!result.Success)
+        {
+            return BadRequest(new { success = false, error = new { code = "MODULE_QUOTA_INVALID", message = result.Error } });
+        }
+
+        await _auditLogger.LogAsync(new AuditEntry
+        {
+            Caller = BuildCaller(),
+            ModuleId = "dotnetcloud.core",
+            Action = AuditAction.Update,
+            EntityType = "ModuleQuota",
+            EntityId = Guid.CreateVersion7(),
+            Description = $"module-quota-changed:{SanitizeForLog(moduleId)}",
+        });
+        _logger.LogInformation("Resource quota for module {ModuleId} updated by admin", SanitizeForLog(moduleId));
+        return Ok(new { success = true, data = result.Quota });
+    }
+
     private static string SanitizeForLog(string? value)
     {
         if (string.IsNullOrEmpty(value))

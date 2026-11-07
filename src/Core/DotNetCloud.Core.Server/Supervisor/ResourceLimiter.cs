@@ -56,14 +56,23 @@ internal sealed partial class ResourceLimiter : IDisposable
     }
 
     /// <summary>
-    /// Applies memory and CPU limits to a module process.
+    /// Applies memory, CPU and process-count limits to a module process.
     /// </summary>
     /// <param name="moduleId">The module identifier (used for cgroup/job naming).</param>
     /// <param name="process">The process to limit.</param>
     /// <param name="memoryLimitBytes">Maximum memory in bytes, or null for no limit.</param>
     /// <param name="cpuPercent">CPU limit as percentage (0-100), or null for no limit.</param>
+    /// <param name="pidsLimit">
+    /// Maximum number of tasks (threads/processes) in the module cgroup, or null for no limit.
+    /// Ignored on Windows, where the job object uses an active-process limit of the same value.
+    /// </param>
     /// <returns>True if limits were applied; false if unsupported or failed.</returns>
-    public bool ApplyLimits(string moduleId, Process process, long? memoryLimitBytes, int? cpuPercent)
+    public bool ApplyLimits(
+        string moduleId,
+        Process process,
+        long? memoryLimitBytes,
+        int? cpuPercent,
+        int? pidsLimit = null)
     {
         ArgumentNullException.ThrowIfNull(moduleId);
 
@@ -73,7 +82,7 @@ internal sealed partial class ResourceLimiter : IDisposable
             return false;
         }
 
-        if (!memoryLimitBytes.HasValue && !cpuPercent.HasValue)
+        if (!memoryLimitBytes.HasValue && !cpuPercent.HasValue && !pidsLimit.HasValue)
         {
             _logger.LogDebug("No resource limits configured for module {ModuleId}", SanitizeForLog(moduleId));
             return true;
@@ -81,12 +90,12 @@ internal sealed partial class ResourceLimiter : IDisposable
 
         if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
         {
-            return ApplyLinuxCgroupLimits(moduleId, process, memoryLimitBytes, cpuPercent);
+            return ApplyLinuxCgroupLimits(moduleId, process, memoryLimitBytes, cpuPercent, pidsLimit);
         }
 
         if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
         {
-            return ApplyWindowsJobObjectLimits(moduleId, process, memoryLimitBytes, cpuPercent);
+            return ApplyWindowsJobObjectLimits(moduleId, process, memoryLimitBytes, cpuPercent, pidsLimit);
         }
 
         _logger.LogWarning("Resource limits not supported on platform {OS}", RuntimeInformation.OSDescription);
@@ -113,7 +122,8 @@ internal sealed partial class ResourceLimiter : IDisposable
     // ──────────────────── Linux cgroups v2 ────────────────────
 
     [SupportedOSPlatform("linux")]
-    private bool ApplyLinuxCgroupLimits(string moduleId, Process process, long? memoryLimitBytes, int? cpuPercent)
+    private bool ApplyLinuxCgroupLimits(
+        string moduleId, Process process, long? memoryLimitBytes, int? cpuPercent, int? pidsLimit)
     {
         var cgroupPath = GetCgroupPath(moduleId);
         var parentPath = Path.GetDirectoryName(cgroupPath)!;
@@ -165,6 +175,17 @@ internal sealed partial class ResourceLimiter : IDisposable
                 _logger.LogInformation(
                     "Set CPU limit for module {ModuleId} (PID {ProcessId}): {CpuPercent}",
                     SanitizeForLog(moduleId), process.Id, cpuPercent.Value);
+            }
+
+            // Apply process/thread limit: write to pids.max. This is the fork-bomb guard: a
+            // runaway module cannot exhaust the host's process table.
+            if (pidsLimit.HasValue)
+            {
+                var pidsMaxPath = Path.Combine(cgroupPath, "pids.max");
+                File.WriteAllText(pidsMaxPath, pidsLimit.Value.ToString());
+                _logger.LogInformation(
+                    "Set task limit for module {ModuleId} (PID {ProcessId}): {Pids}",
+                    SanitizeForLog(moduleId), process.Id, pidsLimit.Value);
             }
 
             // Assign process to cgroup by writing PID to cgroup.procs
@@ -251,12 +272,14 @@ internal sealed partial class ResourceLimiter : IDisposable
             {
                 var subtreePath = Path.Combine(ancestor, "cgroup.subtree_control");
                 var enabled = File.ReadAllText(subtreePath).Trim();
-                var toAdd = new List<string>(2);
+                var toAdd = new List<string>(3);
 
                 if (!enabled.Contains("cpu"))
                     toAdd.Add("cpu");
                 if (!enabled.Contains("memory"))
                     toAdd.Add("memory");
+                if (!enabled.Contains("pids"))
+                    toAdd.Add("pids");
 
                 if (toAdd.Count > 0)
                 {
@@ -273,7 +296,8 @@ internal sealed partial class ResourceLimiter : IDisposable
     // ──────────────────── Windows Job Objects ────────────────────
 
     [SupportedOSPlatform("windows")]
-    private bool ApplyWindowsJobObjectLimits(string moduleId, Process process, long? memoryLimitBytes, int? cpuPercent)
+    private bool ApplyWindowsJobObjectLimits(
+        string moduleId, Process process, long? memoryLimitBytes, int? cpuPercent, int? pidsLimit)
     {
         try
         {
@@ -290,6 +314,17 @@ internal sealed partial class ResourceLimiter : IDisposable
 
             // Configure limits
             var extendedLimit = new NativeMethods.JOBOBJECT_EXTENDED_LIMIT_INFORMATION();
+
+            if (pidsLimit is > 0)
+            {
+                // Active-process limit is the Windows equivalent of cgroup pids.max.
+                extendedLimit.BasicLimitInformation.LimitFlags |= NativeMethods.JOB_OBJECT_LIMIT_ACTIVE_PROCESS;
+                extendedLimit.BasicLimitInformation.ActiveProcessLimit = (uint)pidsLimit.Value;
+
+                _logger.LogInformation(
+                    "Set Job Object active-process limit for module {ModuleId} (PID {ProcessId}): {Pids}",
+                    SanitizeForLog(moduleId), process.Id, pidsLimit.Value);
+            }
 
             if (memoryLimitBytes.HasValue)
             {
@@ -459,6 +494,7 @@ internal sealed partial class ResourceLimiter : IDisposable
     private static partial class NativeMethods
     {
         public const uint JOB_OBJECT_LIMIT_PROCESS_MEMORY = 0x00000100;
+        public const uint JOB_OBJECT_LIMIT_ACTIVE_PROCESS = 0x00000008;
         public const uint JOB_OBJECT_CPU_RATE_CONTROL_ENABLE = 0x1;
         public const uint JOB_OBJECT_CPU_RATE_CONTROL_HARD_CAP = 0x4;
 

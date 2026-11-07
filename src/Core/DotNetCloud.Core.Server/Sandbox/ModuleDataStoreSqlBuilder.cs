@@ -145,19 +145,52 @@ internal sealed class ModuleDataStoreSqlBuilder
 
     /// <summary>Statements that rotate the module principal's password.</summary>
     /// <param name="password">The new password.</param>
-    public IReadOnlyList<string> RotateStatements(string password)
+    /// <param name="connectionLimit">
+    /// Optional new connection limit for PostgreSQL; SQL Server contained users have no login-level cap.
+    /// </param>
+    public IReadOnlyList<string> RotateStatements(string password, int? connectionLimit = null)
     {
         var literal = ModuleDataStoreNaming.EscapeLiteral(password);
 
-        return _provider == DatabaseProvider.SqlServer
-            ?
+        if (_provider == DatabaseProvider.SqlServer)
+        {
+            // SQL Server contained users cannot be rate-limited at the login level; the
+            // connection cap is enforced by the pool size in the scoped connection string.
+            return
             [
                 $"ALTER USER {ModuleDataStoreNaming.QuoteSqlServer(_principal)} WITH PASSWORD = {literal};",
+            ];
+        }
+
+        var role = ModuleDataStoreNaming.QuotePostgreSql(_principal);
+        return connectionLimit is > 0
+            ?
+            [
+                $"ALTER ROLE {role} WITH PASSWORD {literal} CONNECTION LIMIT {connectionLimit.Value};",
             ]
             :
             [
-                $"ALTER ROLE {ModuleDataStoreNaming.QuotePostgreSql(_principal)} WITH PASSWORD {literal};",
+                $"ALTER ROLE {role} WITH PASSWORD {literal};",
             ];
+    }
+
+    /// <summary>
+    /// Statements that update the module principal's concurrent-connection cap without changing
+    /// its password.
+    /// </summary>
+    /// <param name="connectionLimit">The new connection limit; values below 1 produce no statements.</param>
+    /// <returns>The statements to execute. SQL Server has no login-level cap, so it returns none.</returns>
+    public IReadOnlyList<string> UpdateConnectionLimitStatements(int connectionLimit)
+    {
+        if (connectionLimit <= 0 || _provider == DatabaseProvider.SqlServer)
+        {
+            return [];
+        }
+
+        return
+        [
+            $"ALTER ROLE {ModuleDataStoreNaming.QuotePostgreSql(_principal)} CONNECTION LIMIT {connectionLimit};",
+        ];
     }
 
     /// <summary>

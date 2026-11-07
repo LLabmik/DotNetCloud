@@ -61,4 +61,61 @@ public interface IAdminModuleService
     /// <param name="capabilityName">The capability name to revoke.</param>
     /// <returns><see langword="true"/> if the grant was found and removed; otherwise <see langword="false"/>.</returns>
     Task<bool> RevokeCapabilityAsync(string moduleId, string capabilityName);
+
+    /// <summary>
+    /// Gets the isolated data store of a module.
+    /// </summary>
+    /// <param name="moduleId">The module identifier.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The data-store state, or <see langword="null"/> when the module is not installed.</returns>
+    Task<ModuleDataStoreDto?> GetDataStoreAsync(string moduleId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Provisions (or repairs) the schema and database principal for an isolated module.
+    /// </summary>
+    /// <param name="moduleId">The module identifier.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The operation outcome, or <see langword="null"/> when the module is not installed.</returns>
+    Task<ModuleDataStoreOperationResultDto?> ProvisionDataStoreAsync(
+        string moduleId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Rotates the module principal's password and re-encrypts the stored connection string.
+    /// </summary>
+    /// <param name="moduleId">The module identifier.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The operation outcome, or <see langword="null"/> when the module is not installed.</returns>
+    Task<ModuleDataStoreOperationResultDto?> RotateDataStoreCredentialsAsync(
+        string moduleId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Drops the module schema and database principal. Irreversible; destroys all module data.
+    /// </summary>
+    /// <param name="moduleId">The module identifier.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The operation outcome, or <see langword="null"/> when the module is not installed.</returns>
+    Task<ModuleDataStoreOperationResultDto?> DestroyDataStoreAsync(
+        string moduleId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Gets the resource quota override and the effective quota for a module.
+    /// </summary>
+    /// <param name="moduleId">The module identifier.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The quota state, or <see langword="null"/> when the module is not installed.</returns>
+    Task<ModuleQuotaDto?> GetQuotaAsync(string moduleId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Stores an admin quota override for a module. Null or zero values clear the override.
+    /// </summary>
+    /// <param name="moduleId">The module identifier.</param>
+    /// <param name="dto">The replacement override values.</param>
+    /// <param name="updatedByUserId">The administrator making the change.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The outcome, or <see langword="null"/> when the module is not installed.</returns>
+    Task<ModuleQuotaOperationResultDto?> UpdateQuotaAsync(
+        string moduleId,
+        UpdateModuleQuotaDto dto,
+        Guid updatedByUserId,
+        CancellationToken cancellationToken = default);
 }

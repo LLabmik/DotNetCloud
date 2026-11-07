@@ -4,6 +4,7 @@ using DotNetCloud.Core.Server.Grpc.Configuration;
 using DotNetCloud.Core.Server.Grpc.Interceptors;
 using DotNetCloud.Core.Server.Grpc.Services;
 using DotNetCloud.Core.Server.ModuleLoading;
+using DotNetCloud.Core.Server.Quotas;
 using DotNetCloud.Core.Server.Sandbox;
 using DotNetCloud.Core.Server.Services;
 using DotNetCloud.Core.Server.Supervisor;
@@ -53,6 +54,11 @@ internal static class SupervisorServiceExtensions
         services.AddSingleton<GrpcChannelManager>();
         services.AddSingleton<IModuleGrpcChannelProvider>(sp => sp.GetRequiredService<GrpcChannelManager>());
         services.AddSingleton<ResourceLimiter>();
+
+        // Per-module resource quota policy (Modules:Quotas) and the single resolver used by the
+        // supervisor, the provisioning service and the admin surface.
+        services.AddOptions<ModuleQuotasOptions>().BindConfiguration(ModuleQuotasOptions.SectionName);
+        services.AddSingleton<ModuleQuotaResolver>();
 
         // Per-module credentials minted by the supervisor at launch and required on every
         // capability call (binds module-id to a secret only the core hands out).

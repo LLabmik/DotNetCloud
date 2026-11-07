@@ -516,7 +516,7 @@ Deleting an account must delete that user's data everywhere, including module sc
 
 ### Phase A1 — Isolation foundation
 
-**Status:** 🔄 In progress (started 2026-11-06 — data model, manifest v2, settings plane, registry upsert, trust-tier gating, DB-principal provisioning, supervisor env split and the Example host are complete; admin/CLI surface, quotas, storage namespacing, the adoption service and live provisioning integration tests remain)
+**Status:** 🔄 In progress (started 2026-11-06 — data model, manifest v2, settings plane, registry upsert, trust-tier gating, DB-principal provisioning, supervisor env split, the Example host, the admin/CLI data-store surface and the kernel/connection quota plane are complete; rate limiters, usage measurement with suspension, storage namespacing, the adoption service and live provisioning integration tests remain)
 **Effort:** Large (~2–3 weeks; +2–4 days for the newly identified prerequisites below)
 **Blocks:** everything else in Track A and B3.
 
@@ -534,10 +534,17 @@ Deleting an account must delete that user's data everywhere, including module sc
 - ✓ Sanitized `module.json` writer + module host template update. `ModuleSandboxLayout` writes `<dataDir>/modules/<id>/{config,data,run}` with owner-only permissions and a non-secret `module.json` (id, version, dataStore, databaseProvider, endpoints). Example host now binds `DOTNETCLOUD_GRPC_ENDPOINT`, configures its own DataProtection key ring, reads the sandbox connection string and module settings client.
 - ✓ DataProtection key ring no longer shared with sandboxed modules: their hosts receive no core config/data directory, and the Example host persists a private ring under its module data directory with its own application name.
 - ✓ `DatabaseSetupHelper` and `BackupCommands` now create the app role with `CREATEROLE` (alongside `CREATEDB`). ☐ Setup-wizard prerequisite checks with exact remediation output (the server-side preflight exists in the provisioning service).
-- ☐ Admin + CLI plumbing: data-store status, provision, rotate credentials, destroy (new `datastore` command group; the CLI currently has none).
+- ✓ Admin + CLI plumbing: data-store status, provision, rotate credentials, destroy. `dotnetcloud datastore status|provision|rotate|reset-credentials|destroy` (`DataStoreCommands`, sharing the server DataProtection key ring so `reset-credentials` recovers a restored key ring) and admin API `GET modules/{id}/datastore`, `POST modules/{id}/datastore/provision|rotate`, `DELETE modules/{id}/datastore` with audit entries. The effective connection limit comes from `ModuleQuotaResolver` (admin override, then `Modules:Quotas` policy).
 - ✓ Secret-handling rules for provisioning: generated passwords use 32 CSPRNG bytes; they are stored only as DataProtection ciphertext; engine errors are redacted (`password=***`) and truncated before reaching `ModuleDataStore.LastError`; `module.json` has no secret keys.
 - ✓ Identifier safety: schema/principal names derived from validated module IDs with a mandatory hash suffix, capped below 63 characters, quoted for each engine; hostile-ID and quoting tests; passwords are escaped literals (generated base64 contains no quote characters).
-- ☐ Per-module resource quotas (F10, §4.11 — **first-release requirement**): `ModuleQuota` entity + admin API; cgroup `memory.max`/`cpu.max`/`pids.max` in `ResourceLimiter` (today only memory, `cpuPercent` null); PG `CONNECTION LIMIT` + `Maximum Pool Size` in the scoped connection string; identity-keyed request/event/notification/audit limits; DB/data-dir size measurement with `QuotaExceeded` suspension. Tests for every hard limit and the suspension path.
+- 🔄 Per-module resource quotas (F10, §4.11 — **first-release requirement**):
+  - ✓ `Modules:Quotas` policy (`ModuleQuotasOptions`) + single `ModuleQuotaResolver` applying `min(manifest request, admin override, policy ceiling)` with defaults when neither request nor override exists; supervisor default memory acts as a default, not a cap
+  - ✓ Admin API `GET modules/{id}/quota`, `PUT modules/{id}/quota` (null/0 clears a dimension, negative rejected, audit `module-quota-changed`), returning both the stored override and the clamped effective values
+  - ✓ cgroup `memory.max`, `cpu.max` and `pids.max` in `ResourceLimiter` (Windows: process-memory, CPU rate and active-process limits); pids ceiling applied to every module
+  - ✓ PG `CONNECTION LIMIT` from the effective quota at provision/rotate, `Maximum Pool Size` in the scoped connection string (both providers), and a limit refresh on re-provision so quota changes take effect without a credential rotation
+  - ☐ Identity-keyed request/event/notification/audit rate limiters
+  - ☐ DB/data-dir size measurement with `QuotaExceeded` suspension and start refusal
+  - ✓ Tests: resolver min/default/ceiling matrix, admin quota validation/clearing/clamping, rotation and connection-limit SQL for both engines
 - ☐ Storage namespacing (F5): `IStorageProvider` enforces a per-module container/prefix and, for user-owned data, the acting user; cross-namespace paths are rejected and tested.
 - ✓ Add the new/changed projects to `DotNetCloud.sln` **and** `DotNetCloud.CI.slnf` (both are explicit lists — no wildcard discovery). No new projects were required for this slice.
 - 🔄 Tests: provisioning SQL generation, prereq detection, config split, supervisor launches with sandbox env (unit + integration on both providers); secret-scan assertions for `LastError`/logs. Done so far: manifest v2 validation, settings store + RPC namespacing/validation, capability tier/catalog, path containment.

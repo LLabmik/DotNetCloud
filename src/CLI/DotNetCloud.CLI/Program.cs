@@ -64,6 +64,9 @@ public static class Program
         // Module management
         rootCommand.Subcommands.Add(ModuleCommands.Create());
 
+        // Module data-store lifecycle (isolated schemas / principals)
+        rootCommand.Subcommands.Add(DataStoreCommands.Create());
+
         // Component management
         rootCommand.Subcommands.Add(ComponentCommands.Create());
 

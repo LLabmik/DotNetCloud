@@ -103,6 +103,56 @@ public class ModuleDataStoreSqlBuilderTests
     }
 
     [TestMethod]
+    public void PostgreSqlRotateStatements_IncludeNewConnectionLimit()
+    {
+        ModuleDataStoreNaming.TryCreate("org.example.customapp", out var schema, out var principal, out _);
+        var builder = ModuleDataStoreSqlBuilder.Create(DatabaseProvider.PostgreSQL, PgConnectionString, schema, principal);
+
+        var sql = string.Join("\n", builder.RotateStatements("n3w", connectionLimit: 6));
+
+        StringAssert.Contains(sql, $"ALTER ROLE \"{principal}\" WITH PASSWORD 'n3w' CONNECTION LIMIT 6;");
+    }
+
+    [TestMethod]
+    public void SqlServerRotateStatements_HaveNoLoginLevelConnectionLimit()
+    {
+        ModuleDataStoreNaming.TryCreate("org.example.customapp", out var schema, out var principal, out _);
+        var builder = ModuleDataStoreSqlBuilder.Create(DatabaseProvider.SqlServer, SqlConnectionString, schema, principal);
+
+        var sql = string.Join("\n", builder.RotateStatements("n3w", connectionLimit: 6));
+
+        StringAssert.Contains(sql, "WITH PASSWORD = 'n3w'");
+        Assert.IsFalse(sql.Contains("CONNECTION LIMIT", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [TestMethod]
+    public void UpdateConnectionLimitStatements_EmitsAlterRoleForPostgreSqlOnly()
+    {
+        ModuleDataStoreNaming.TryCreate("org.example.customapp", out var schema, out var principal, out _);
+
+        var postgres = ModuleDataStoreSqlBuilder
+            .Create(DatabaseProvider.PostgreSQL, PgConnectionString, schema, principal)
+            .UpdateConnectionLimitStatements(4);
+        var sqlServer = ModuleDataStoreSqlBuilder
+            .Create(DatabaseProvider.SqlServer, SqlConnectionString, schema, principal)
+            .UpdateConnectionLimitStatements(4);
+
+        Assert.AreEqual(1, postgres.Count);
+        StringAssert.Contains(postgres[0], $"ALTER ROLE \"{principal}\" CONNECTION LIMIT 4;");
+        Assert.AreEqual(0, sqlServer.Count, "SQL Server contained users have no login-level cap");
+    }
+
+    [TestMethod]
+    public void UpdateConnectionLimitStatements_IgnoresNonPositiveLimits()
+    {
+        ModuleDataStoreNaming.TryCreate("org.example.customapp", out var schema, out var principal, out _);
+        var builder = ModuleDataStoreSqlBuilder.Create(DatabaseProvider.PostgreSQL, PgConnectionString, schema, principal);
+
+        Assert.AreEqual(0, builder.UpdateConnectionLimitStatements(0).Count);
+        Assert.AreEqual(0, builder.UpdateConnectionLimitStatements(-1).Count);
+    }
+
+    [TestMethod]
     public void SqlServerScopedConnectionString_UsesContainedUserAndPoolLimit()
     {
         ModuleDataStoreNaming.TryCreate("org.example.customapp", out var schema, out var principal, out _);

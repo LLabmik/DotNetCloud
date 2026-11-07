@@ -38,6 +38,7 @@ internal sealed class ProcessSupervisor : BackgroundService, IProcessSupervisor
     private readonly ModuleAssertionKeyRing _assertions;
     private readonly IModuleDataStoreProvisioningService _dataStoreProvisioning;
     private readonly CoreDatabaseOptions _database;
+    private readonly Quotas.ModuleQuotaResolver _quotas;
     private readonly ConcurrentDictionary<string, ModuleProcessHandle> _modules = new();
     private readonly SemaphoreSlim _startStopLock = new(1, 1);
 
@@ -53,7 +54,8 @@ internal sealed class ProcessSupervisor : BackgroundService, IProcessSupervisor
         ModuleCredentialStore credentials,
         ModuleAssertionKeyRing assertions,
         IModuleDataStoreProvisioningService dataStoreProvisioning,
-        CoreDatabaseOptions database)
+        CoreDatabaseOptions database,
+        Quotas.ModuleQuotaResolver quotas)
     {
         _logger = logger;
         _options = options.Value;
@@ -67,6 +69,7 @@ internal sealed class ProcessSupervisor : BackgroundService, IProcessSupervisor
         _assertions = assertions;
         _dataStoreProvisioning = dataStoreProvisioning;
         _database = database;
+        _quotas = quotas;
     }
 
     // ---- IProcessSupervisor ----
@@ -270,6 +273,11 @@ internal sealed class ProcessSupervisor : BackgroundService, IProcessSupervisor
             return;
         }
 
+        // Resource quotas are resolved before anything is provisioned or spawned: the database
+        // connection limit feeds principal creation, and memory/CPU/pids feed the cgroup/job.
+        // The manifest only requests; policy and the admin override may lower it.
+        var quota = await _quotas.ResolveAsync(moduleId, BuildQuotaRequest(manifest), cancellationToken);
+
         // Sandboxed modules own a scoped database principal. Provision it before the host starts so
         // the process never launches without the store it was promised.
         string? moduleConnectionString = null;
@@ -279,7 +287,7 @@ internal sealed class ProcessSupervisor : BackgroundService, IProcessSupervisor
             if (manifest.EffectiveDataStoreMode == ModuleDataStoreMode.Isolated)
             {
                 var provisioned = await _dataStoreProvisioning.EnsureProvisionedAsync(
-                    moduleId, cancellationToken: cancellationToken);
+                    moduleId, quota.ConnectionLimit, cancellationToken);
 
                 if (!provisioned.Success)
                 {
@@ -309,7 +317,7 @@ internal sealed class ProcessSupervisor : BackgroundService, IProcessSupervisor
         }
 
         var restartPolicy = ParseRestartPolicy(manifest.RestartPolicy);
-        var memoryLimitMb = manifest.EffectiveMemoryLimitMb ?? _options.DefaultMemoryLimitMb;
+        var memoryLimitMb = quota.MemoryLimitMb ?? 0;
         var grpcEndpoint = BuildGrpcEndpoint(moduleId);
 
         var handle = new ModuleProcessHandle
@@ -341,10 +349,11 @@ internal sealed class ProcessSupervisor : BackgroundService, IProcessSupervisor
         handle.SetProcess(process);
         _modules[moduleId] = handle;
 
-        if (_options.EnableResourceLimits && memoryLimitMb > 0)
+        if (_options.EnableResourceLimits)
         {
-            var limitBytes = (long)memoryLimitMb * 1024 * 1024;
-            var applied = _resourceLimiter.ApplyLimits(moduleId, process, limitBytes, cpuPercent: null);
+            var limitBytes = memoryLimitMb > 0 ? (long)memoryLimitMb * 1024 * 1024 : (long?)null;
+            var applied = _resourceLimiter.ApplyLimits(
+                moduleId, process, limitBytes, quota.CpuPercent, quota.PidsLimit);
             if (!applied)
             {
                 _logger.LogWarning("Could not apply resource limits for module {ModuleId}", SanitizeForLog(moduleId));
@@ -795,6 +804,18 @@ internal sealed class ProcessSupervisor : BackgroundService, IProcessSupervisor
     /// </summary>
     private static bool IsSandboxed(ModuleManifestData manifest) =>
         manifest.ManifestVersion >= 2 && !RequiredModules.IsRequired(manifest.Id);
+
+    /// <summary>
+    /// Maps a manifest's resource requests onto a quota request. Values are requests only; the
+    /// resolver applies the admin override and policy ceiling with <c>min()</c>.
+    /// </summary>
+    private static Quotas.ModuleQuotaRequest BuildQuotaRequest(ModuleManifestData manifest) =>
+        new(
+            MemoryLimitMb: manifest.EffectiveMemoryLimitMb,
+            CpuPercent: manifest.Resources?.CpuPercent,
+            DataDirMb: manifest.Resources?.DataDirMb,
+            DatabaseMb: manifest.Resources?.DatabaseMb,
+            ConnectionLimit: manifest.Resources?.ConnectionLimit);
 
     /// <summary>
     /// Records a module that was refused before a process was spawned, so the admin surface can

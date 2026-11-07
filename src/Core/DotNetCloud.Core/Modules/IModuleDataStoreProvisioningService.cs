@@ -50,22 +50,28 @@ public interface IModuleDataStoreProvisioningService
     /// Creates the schema and principal for a module, or refreshes an existing store.
     /// </summary>
     /// <param name="moduleId">The module id.</param>
-    /// <param name="connectionLimit">Maximum concurrent connections for the module.</param>
+    /// <param name="connectionLimit">
+    /// Maximum concurrent connections for the module, or <see langword="null"/> to resolve the
+    /// effective quota (admin override, then <c>Modules:Quotas</c> policy).
+    /// </param>
     /// <param name="cancellationToken">Cancellation token.</param>
     Task<ModuleDataStoreProvisioningResult> EnsureProvisionedAsync(
         string moduleId,
-        int connectionLimit = 10,
+        int? connectionLimit = null,
         CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Replaces the module principal's password and re-encrypts the stored connection string.
     /// </summary>
     /// <param name="moduleId">The module id.</param>
-    /// <param name="connectionLimit">Maximum concurrent connections for the module.</param>
+    /// <param name="connectionLimit">
+    /// Maximum concurrent connections for the module, or <see langword="null"/> to resolve the
+    /// effective quota (admin override, then <c>Modules:Quotas</c> policy).
+    /// </param>
     /// <param name="cancellationToken">Cancellation token.</param>
     Task<ModuleDataStoreProvisioningResult> RotateCredentialsAsync(
         string moduleId,
-        int connectionLimit = 10,
+        int? connectionLimit = null,
         CancellationToken cancellationToken = default);
 
     /// <summary>

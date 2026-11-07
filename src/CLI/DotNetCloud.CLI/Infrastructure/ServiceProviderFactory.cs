@@ -2,6 +2,9 @@ using DotNetCloud.Core.Data.Context;
 using DotNetCloud.Core.Data.Extensions;
 using DotNetCloud.Core.Data.Naming;
 using DotNetCloud.Core.Modules;
+using DotNetCloud.Core.Modules.Supervisor;
+using DotNetCloud.Core.Server.Quotas;
+using DotNetCloud.Core.Server.Sandbox;
 using DotNetCloud.Core.Server.Services;
 using DotNetCloud.Modules.AI.Data;
 using DotNetCloud.Modules.Bookmarks.Data;
@@ -18,6 +21,7 @@ using DotNetCloud.Modules.Video.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.AspNetCore.DataProtection;
 
 namespace DotNetCloud.CLI.Infrastructure;
 
@@ -110,6 +114,66 @@ internal static class ServiceProviderFactory
         Environment.SetEnvironmentVariable("DOTNETCLOUD_DATA_DIR", dataDirectory);
 
         services.AddDefaultContentCliServices(dataDirectory);
+
+        return services.BuildServiceProvider();
+    }
+
+    /// <summary>
+    /// Creates a service provider for the <c>datastore</c> commands: the core database context plus
+    /// the module data-store provisioning service.
+    /// </summary>
+    /// <remarks>
+    /// Module connection strings are encrypted with the server's DataProtection key ring, so this
+    /// factory reuses the same application name and the persisted key directory. Using a private key
+    /// ring here would make every stored credential unreadable and strand the running server.
+    /// </remarks>
+    /// <returns>A configured <see cref="ServiceProvider"/>, or <see langword="null"/> if no configuration exists.</returns>
+    public static ServiceProvider? CreateForDataStore()
+    {
+        if (!CliConfiguration.ConfigExists())
+        {
+            ConsoleOutput.WriteError("DotNetCloud is not configured. Run 'dotnetcloud setup' first.");
+            return null;
+        }
+
+        var config = CliConfiguration.Load();
+        if (string.IsNullOrWhiteSpace(config.ConnectionString))
+        {
+            ConsoleOutput.WriteError("No database connection string configured. Run 'dotnetcloud setup' first.");
+            return null;
+        }
+
+        if (!CliConfiguration.TryResolveDatabaseProvider(config.Database.Provider, out var provider) &&
+            !CliConfiguration.TryResolveDatabaseProvider(config.DatabaseProvider, out provider))
+        {
+            ConsoleOutput.WriteError(
+                "No valid database provider configured. Run 'dotnetcloud setup' to set Database:Provider.");
+            return null;
+        }
+
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddDotNetCloudDbContext(config.ConnectionString, provider);
+
+        var dataDirectory = Environment.GetEnvironmentVariable("DOTNETCLOUD_DATA_DIR");
+        if (string.IsNullOrWhiteSpace(dataDirectory))
+            dataDirectory = config.DataDirectory;
+
+        var keyRingPath = Path.Combine(dataDirectory, "data-protection-keys");
+        Directory.CreateDirectory(keyRingPath);
+        services.AddDataProtection()
+            .SetApplicationName("DotNetCloud")
+            .PersistKeysToFileSystem(new DirectoryInfo(keyRingPath));
+
+        services.AddSingleton(new CoreDatabaseOptions(config.ConnectionString, provider));
+
+        // The effective connection limit is supplied by the quota resolver (admin override, then
+        // the Modules:Quotas policy defaults), so the CLI always matches the server.
+        services.AddOptions<ModuleQuotasOptions>();
+        services.AddOptions<ProcessSupervisorOptions>();
+        services.AddSingleton<ModuleQuotaResolver>();
+
+        services.AddScoped<IModuleDataStoreProvisioningService, ModuleDataStoreProvisioningService>();
 
         return services.BuildServiceProvider();
     }

@@ -16,6 +16,7 @@ public class CommandStructureTests
         root.Subcommands.Add(ServiceCommands.CreateStatus());
         root.Subcommands.Add(ServiceCommands.CreateRestart());
         root.Subcommands.Add(ModuleCommands.Create());
+        root.Subcommands.Add(DataStoreCommands.Create());
         root.Subcommands.Add(ComponentCommands.Create());
         root.Subcommands.Add(LogCommands.Create());
         root.Subcommands.Add(BackupCommands.Create());
@@ -30,6 +31,7 @@ public class CommandStructureTests
         CollectionAssert.Contains(names, "status");
         CollectionAssert.Contains(names, "restart");
         CollectionAssert.Contains(names, "module");
+        CollectionAssert.Contains(names, "datastore");
         CollectionAssert.Contains(names, "component");
         CollectionAssert.Contains(names, "logs");
         CollectionAssert.Contains(names, "backup");

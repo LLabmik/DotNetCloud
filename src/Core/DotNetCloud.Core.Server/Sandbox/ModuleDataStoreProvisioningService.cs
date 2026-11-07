@@ -1,10 +1,12 @@
 using System.Data.Common;
 using System.Security.Cryptography;
 using System.Text.RegularExpressions;
+using DotNetCloud.Core;
 using DotNetCloud.Core.Data.Context;
 using DotNetCloud.Core.Data.Entities.Modules;
 using DotNetCloud.Core.Data.Naming;
 using DotNetCloud.Core.Modules;
+using DotNetCloud.Core.Server.Quotas;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -39,22 +41,26 @@ public sealed class ModuleDataStoreProvisioningService : IModuleDataStoreProvisi
 
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly CoreDatabaseOptions _database;
+    private readonly ModuleQuotaResolver _quotas;
     private readonly IDataProtector _protector;
     private readonly ILogger<ModuleDataStoreProvisioningService> _logger;
 
     /// <summary>Initializes a new instance of the <see cref="ModuleDataStoreProvisioningService"/> class.</summary>
     /// <param name="scopeFactory">Scope factory for the core database context.</param>
     /// <param name="database">The core database the module stores live in.</param>
+    /// <param name="quotas">Resolves the effective connection limit when the caller does not supply one.</param>
     /// <param name="dataProtection">DataProtection provider used to encrypt module connection strings.</param>
     /// <param name="logger">Logger.</param>
     public ModuleDataStoreProvisioningService(
         IServiceScopeFactory scopeFactory,
         CoreDatabaseOptions database,
+        ModuleQuotaResolver quotas,
         IDataProtectionProvider dataProtection,
         ILogger<ModuleDataStoreProvisioningService> logger)
     {
         _scopeFactory = scopeFactory;
         _database = database;
+        _quotas = quotas;
         _protector = dataProtection.CreateProtector(ProtectorPurpose);
         _logger = logger;
     }
@@ -84,7 +90,7 @@ public sealed class ModuleDataStoreProvisioningService : IModuleDataStoreProvisi
     /// <inheritdoc />
     public async Task<ModuleDataStoreProvisioningResult> EnsureProvisionedAsync(
         string moduleId,
-        int connectionLimit = 10,
+        int? connectionLimit = null,
         CancellationToken cancellationToken = default)
     {
         if (!ModuleDataStoreNaming.TryCreate(moduleId, out var schema, out var principal, out var namingError))
@@ -92,9 +98,11 @@ public sealed class ModuleDataStoreProvisioningService : IModuleDataStoreProvisi
             return ModuleDataStoreProvisioningResult.Failed(namingError ?? "Invalid module id.");
         }
 
+        var limit = connectionLimit ?? await ResolveConnectionLimitAsync(moduleId, cancellationToken);
         var existing = await GetStoreAsync(moduleId, cancellationToken);
         if (existing is { Status: ModuleDataStoreStatus.Active } && !string.IsNullOrEmpty(existing.EncryptedConnectionString))
         {
+            await RefreshConnectionLimitAsync(existing, limit, cancellationToken);
             return new ModuleDataStoreProvisioningResult(true, existing.SchemaName, existing.PrincipalName, null);
         }
 
@@ -115,10 +123,10 @@ public sealed class ModuleDataStoreProvisioningService : IModuleDataStoreProvisi
             var builder = ModuleDataStoreSqlBuilder.Create(
                 _database.Provider, _database.ConnectionString, schema, principal);
 
-            await ExecuteAsync(builder.ProvisionStatements(password, connectionLimit), cancellationToken);
+            await ExecuteAsync(builder.ProvisionStatements(password, limit), cancellationToken);
 
             var scopedConnectionString = builder.BuildScopedConnectionString(
-                _database.ConnectionString, password, connectionLimit);
+                _database.ConnectionString, password, limit);
 
             await SaveStoreAsync(
                 moduleId, schema, principal, Encrypt(moduleId, scopedConnectionString),
@@ -148,7 +156,7 @@ public sealed class ModuleDataStoreProvisioningService : IModuleDataStoreProvisi
     /// <inheritdoc />
     public async Task<ModuleDataStoreProvisioningResult> RotateCredentialsAsync(
         string moduleId,
-        int connectionLimit = 10,
+        int? connectionLimit = null,
         CancellationToken cancellationToken = default)
     {
         var store = await GetStoreAsync(moduleId, cancellationToken);
@@ -158,6 +166,7 @@ public sealed class ModuleDataStoreProvisioningService : IModuleDataStoreProvisi
                 "The module has no provisioned data store; provision it first.");
         }
 
+        var limit = connectionLimit ?? await ResolveConnectionLimitAsync(moduleId, cancellationToken);
         var password = GeneratePassword();
 
         try
@@ -165,10 +174,10 @@ public sealed class ModuleDataStoreProvisioningService : IModuleDataStoreProvisi
             var builder = ModuleDataStoreSqlBuilder.Create(
                 _database.Provider, _database.ConnectionString, store.SchemaName, store.PrincipalName);
 
-            await ExecuteAsync(builder.RotateStatements(password), cancellationToken);
+            await ExecuteAsync(builder.RotateStatements(password, limit), cancellationToken);
 
             var scopedConnectionString = builder.BuildScopedConnectionString(
-                _database.ConnectionString, password, connectionLimit);
+                _database.ConnectionString, password, limit);
 
             store.EncryptedConnectionString = Encrypt(moduleId, scopedConnectionString);
             store.Status = ModuleDataStoreStatus.Active;
@@ -320,10 +329,76 @@ public sealed class ModuleDataStoreProvisioningService : IModuleDataStoreProvisi
         }
     }
 
+    /// <summary>
+    /// Re-applies a changed connection limit to an already-provisioned store without rotating the
+    /// password: the engine-side cap is updated when the provider supports one (PostgreSQL), and the
+    /// pool size in the stored connection string is rewritten for both providers.
+    /// </summary>
+    /// <remarks>
+    /// A store encrypted with a different DataProtection key ring cannot be refreshed; the caller
+    /// then falls through to full re-provisioning (which mints a new password) or the operator uses
+    /// <c>datastore reset-credentials</c>.
+    /// </remarks>
+    private async Task RefreshConnectionLimitAsync(
+        ModuleDataStore store, int connectionLimit, CancellationToken cancellationToken)
+    {
+        string current;
+        try
+        {
+            current = Decrypt(store.ModuleId, store.EncryptedConnectionString!);
+        }
+        catch (CryptographicException)
+        {
+            return;
+        }
+
+        var updated = ApplyPoolSize(current, connectionLimit);
+        if (string.Equals(current, updated, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        var builder = ModuleDataStoreSqlBuilder.Create(
+            _database.Provider, _database.ConnectionString, store.SchemaName, store.PrincipalName);
+
+        await ExecuteAsync(builder.UpdateConnectionLimitStatements(connectionLimit), cancellationToken);
+
+        store.EncryptedConnectionString = Encrypt(store.ModuleId, updated);
+        store.UpdatedAtUtc = DateTime.UtcNow;
+        await SaveStoreRowAsync(store, cancellationToken);
+
+        _logger.LogInformation(
+            "Updated the connection limit for module {ModuleId} to {Limit}",
+            LogSanitizer.Sanitize(store.ModuleId), connectionLimit);
+    }
+
+    private string ApplyPoolSize(string connectionString, int connectionLimit)
+    {
+        if (_database.Provider == DatabaseProvider.SqlServer)
+        {
+            var sqlBuilder = new Microsoft.Data.SqlClient.SqlConnectionStringBuilder(connectionString)
+            {
+                MaxPoolSize = connectionLimit,
+            };
+            return sqlBuilder.ConnectionString;
+        }
+
+        var npgsqlBuilder = new Npgsql.NpgsqlConnectionStringBuilder(connectionString)
+        {
+            MaxPoolSize = connectionLimit,
+        };
+        return npgsqlBuilder.ConnectionString;
+    }
+
+    private async Task<int> ResolveConnectionLimitAsync(string moduleId, CancellationToken cancellationToken)
+    {
+        var effective = await _quotas.ResolveAsync(moduleId, new ModuleQuotaRequest(), cancellationToken);
+        return effective.ConnectionLimit;
+    }
+
     private DbConnection CreateConnection() => _database.Provider == DatabaseProvider.SqlServer
         ? new Microsoft.Data.SqlClient.SqlConnection(_database.ConnectionString)
         : new Npgsql.NpgsqlConnection(_database.ConnectionString);
-
     private async Task ExecuteAsync(IReadOnlyList<string> statements, CancellationToken cancellationToken)
     {
         await using var connection = CreateConnection();
