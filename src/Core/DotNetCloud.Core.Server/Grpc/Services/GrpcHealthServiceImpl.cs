@@ -22,7 +22,7 @@ namespace DotNetCloud.Core.Server.Grpc.Services;
 /// Modules connect to this service to access platform capabilities such as
 /// user directory, notifications, event bus, and settings.
 /// </summary>
-internal sealed class CoreCapabilitiesServiceImpl : CoreCapabilities.CoreCapabilitiesBase
+internal class CoreCapabilitiesServiceImpl : CoreCapabilities.CoreCapabilitiesBase
 {
     private readonly ILogger<CoreCapabilitiesServiceImpl> _logger;
     private readonly IServiceProvider _serviceProvider;

@@ -1005,6 +1005,7 @@ public class Program
                 grpcApp.UseEndpoints(endpoints =>
                 {
                     endpoints.MapGrpcService<CoreCapabilitiesServiceImpl>();
+                    endpoints.MapGrpcService<ModuleApiV1Service>();
                     endpoints.MapGrpcService<TokenIntrospectionServiceImpl>();
                     endpoints.MapGrpcService<FilesUploadStreamService>();
                 });

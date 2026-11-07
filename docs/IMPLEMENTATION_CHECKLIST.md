@@ -3452,7 +3452,7 @@ Plan: `docs/THIRD_PARTY_MODULE_SANDBOX_AND_STORE_PLAN.md` (phase A0). Branch `fe
   - ✓ D2 transport-identity rename: `dnc-module-id` / `dnc-module-token` / `dnc-user-assertion` headers and `DOTNETCLOUD_MODULE_TOKEN` env var, cut over in one release (single source: `ModuleIdentityMetadata`); credential-store/supervisor terminology moved from secret to token; `CROSS_MODULE_TRUST.md`/`SECURITY_MODEL.md` updated
   - ✓ Drift guard: producer↔consumer tests prove `ModuleIdentityMetadata.Create` output is accepted by `AuthenticationInterceptor` and `ModulePeerAuthenticationInterceptor`
   - ✓ `module_api.proto` (`dotnetcloud.moduleapi.v1`, 17 RPCs) with identity-free requests (reserved caller slot, no `module_id`, empty `user_id` = acting user) and descriptor-level contract tests
-  - ☐ Legacy `module_capabilities` mapped onto the same implementation (now unblocked by the shared catalog)
+  - ✓ Legacy `module_capabilities` mapped onto `module_api` via `ModuleApiV1Service` (delegates to the legacy handlers; minimal profile without email; `ReportHealth` registry; consent RPCs `Unimplemented` until A3)
   - ✓ `ModuleAccessEvaluator` + shared public `CapabilityCatalog` in `DotNetCloud.Core`: fully-qualified RPC mapping for both services, explicit self-service allow-list, fail-closed on unmapped module RPCs, 60 s grant cache invalidated on admin grant/revoke, `ModuleCapabilityDenied` audit on denials; `ModuleAccessInterceptor` replaces `CapabilityGrantInterceptor`
   - ☐ `ModuleCredentialService` audit record (issue/rotate/revoke, hint only)
   - ☐ Authorization invariants F4/F5/F6/F7/F15

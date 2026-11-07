@@ -103,6 +103,11 @@ internal static class SupervisorServiceExtensions
 
         // Register gRPC services
         services.AddSingleton<CoreCapabilitiesServiceImpl>();
+
+        // Canonical module API: adapts every RPC onto the legacy capability handlers so both
+        // surfaces share one code path and one grant check.
+        services.AddSingleton<ModuleHealthRegistry>();
+        services.AddSingleton<ModuleApiV1Service>();
         services.AddSingleton<TokenIntrospectionServiceImpl>();
 
         // Register process supervisor as both IProcessSupervisor and IHostedService
@@ -160,6 +165,7 @@ internal static class SupervisorServiceExtensions
     public static WebApplication MapModuleGrpcServices(this WebApplication app)
     {
         app.MapGrpcService<CoreCapabilitiesServiceImpl>();
+        app.MapGrpcService<ModuleApiV1Service>();
         app.MapGrpcService<TokenIntrospectionServiceImpl>();
         return app;
     }
