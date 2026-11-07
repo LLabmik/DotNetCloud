@@ -123,4 +123,22 @@ public partial class ModuleList : ComponentBase
         "UpdateAvailable" => "warning",
         _ => "muted"
     };
+
+    private static string GetTrustClass(string trustTier) => trustTier switch
+    {
+        "Required" => "muted",
+        "Bundled" => "success",
+        "Store" => "warning",
+        _ => "muted"
+    };
+
+    private static string GetSandboxClass(string sandboxStatus) => sandboxStatus switch
+    {
+        "Active" => "success",
+        "LegacyOverride" => "warning",
+        "PendingProvisioning" => "warning",
+        "QuotaExceeded" => "danger",
+        "Error" => "danger",
+        _ => "muted"
+    };
 }

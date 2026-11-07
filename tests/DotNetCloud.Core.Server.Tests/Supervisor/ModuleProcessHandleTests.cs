@@ -63,6 +63,28 @@ public class ModuleProcessHandleTests
     }
 
     [TestMethod]
+    public void RecordHealthFailure_IncrementsConsecutiveFailures()
+    {
+        using var handle = CreateHandle();
+
+        Assert.AreEqual(1, handle.RecordHealthFailure());
+        Assert.AreEqual(2, handle.RecordHealthFailure());
+        Assert.AreEqual(2, handle.ConsecutiveHealthFailures);
+    }
+
+    [TestMethod]
+    public void RecordHealthCheck_ResetsConsecutiveFailures()
+    {
+        using var handle = CreateHandle();
+        handle.RecordHealthFailure();
+        handle.RecordHealthFailure();
+
+        handle.RecordHealthCheck();
+
+        Assert.AreEqual(0, handle.ConsecutiveHealthFailures);
+    }
+
+    [TestMethod]
     public void WhenCreatedThenTotalRestartsIsZero()
     {
         using var handle = CreateHandle();

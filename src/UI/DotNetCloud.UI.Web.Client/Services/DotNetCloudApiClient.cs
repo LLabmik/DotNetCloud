@@ -353,6 +353,194 @@ public sealed class DotNetCloudApiClient
         return response.IsSuccessStatusCode;
     }
 
+    /// <summary>Gets the isolated data store of a module (admin only).</summary>
+    public async Task<ModuleDataStoreDto?> GetModuleDataStoreAsync(string moduleId, CancellationToken ct = default)
+    {
+        try
+        {
+            var envelope = await _http.GetFromJsonAsync<ApiEnvelope<ModuleDataStoreDto>>(
+                $"api/v1/core/admin/modules/{Uri.EscapeDataString(moduleId)}/datastore", ct);
+            return envelope?.Data;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    /// <summary>Provisions (or repairs) a module's isolated data store (admin only).</summary>
+    public async Task<ModuleDataStoreOperationResultDto?> ProvisionModuleDataStoreAsync(
+        string moduleId, CancellationToken ct = default)
+    {
+        var response = await _http.PostAsync(
+            $"api/v1/core/admin/modules/{Uri.EscapeDataString(moduleId)}/datastore/provision", null, ct);
+        return await ReadDataStoreResultAsync(response, ct);
+    }
+
+    /// <summary>Rotates a module's database principal password (admin only).</summary>
+    public async Task<ModuleDataStoreOperationResultDto?> RotateModuleDataStoreCredentialsAsync(
+        string moduleId, CancellationToken ct = default)
+    {
+        var response = await _http.PostAsync(
+            $"api/v1/core/admin/modules/{Uri.EscapeDataString(moduleId)}/datastore/rotate", null, ct);
+        return await ReadDataStoreResultAsync(response, ct);
+    }
+
+    /// <summary>Drops a module's isolated schema and principal (admin only, irreversible).</summary>
+    public async Task<ModuleDataStoreOperationResultDto?> DestroyModuleDataStoreAsync(
+        string moduleId, CancellationToken ct = default)
+    {
+        var response = await _http.DeleteAsync(
+            $"api/v1/core/admin/modules/{Uri.EscapeDataString(moduleId)}/datastore", ct);
+        return await ReadDataStoreResultAsync(response, ct);
+    }
+
+    private async Task<ModuleDataStoreOperationResultDto?> ReadDataStoreResultAsync(
+        HttpResponseMessage response, CancellationToken ct)
+    {
+        try
+        {
+            if (response.IsSuccessStatusCode)
+            {
+                var ok = await response.Content.ReadFromJsonAsync<ApiEnvelope<ModuleDataStoreOperationResultDto>>(JsonOptions, ct);
+                return ok?.Data;
+            }
+
+            var failure = await response.Content.ReadFromJsonAsync<ApiEnvelope<ModuleDataStoreOperationResultDto>>(JsonOptions, ct);
+            return failure?.Data ?? new ModuleDataStoreOperationResultDto
+            {
+                Success = false,
+                Error = failure?.Error?.Message ?? $"Request failed with status {(int)response.StatusCode}.",
+            };
+        }
+        catch
+        {
+            return new ModuleDataStoreOperationResultDto
+            {
+                Success = false,
+                Error = "The server returned an unreadable response.",
+            };
+        }
+    }
+
+    /// <summary>Gets a module's quota override and the effective limits (admin only).</summary>
+    public async Task<ModuleQuotaDto?> GetModuleQuotaAsync(string moduleId, CancellationToken ct = default)
+    {
+        try
+        {
+            var envelope = await _http.GetFromJsonAsync<ApiEnvelope<ModuleQuotaDto>>(
+                $"api/v1/core/admin/modules/{Uri.EscapeDataString(moduleId)}/quota", ct);
+            return envelope?.Data;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    /// <summary>Stores a module quota override (admin only). Null/zero clears a dimension.</summary>
+    public async Task<ModuleQuotaDto?> UpdateModuleQuotaAsync(
+        string moduleId, UpdateModuleQuotaDto dto, CancellationToken ct = default)
+    {
+        var response = await _http.PutAsJsonAsync(
+            $"api/v1/core/admin/modules/{Uri.EscapeDataString(moduleId)}/quota", dto, ct);
+        if (!response.IsSuccessStatusCode)
+        {
+            return null;
+        }
+
+        var envelope = await response.Content.ReadFromJsonAsync<ApiEnvelope<ModuleQuotaDto>>(JsonOptions, ct);
+        return envelope?.Data;
+    }
+
+    /// <summary>Gets a module's launch-credential lifecycle record (admin only).</summary>
+    public async Task<ModuleCredentialDto?> GetModuleCredentialAsync(string moduleId, CancellationToken ct = default)
+    {
+        try
+        {
+            var envelope = await _http.GetFromJsonAsync<ApiEnvelope<ModuleCredentialDto>>(
+                $"api/v1/core/admin/modules/{Uri.EscapeDataString(moduleId)}/credential", ct);
+            return envelope?.Data;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    /// <summary>Rotates a module's launch credential, restarting it when running (admin only).</summary>
+    public async Task<ModuleCredentialDto?> RotateModuleCredentialAsync(string moduleId, CancellationToken ct = default)
+    {
+        var response = await _http.PostAsync(
+            $"api/v1/core/admin/modules/{Uri.EscapeDataString(moduleId)}/credential/rotate", null, ct);
+        return await ReadCredentialAsync(response, ct);
+    }
+
+    /// <summary>Revokes a module's launch credential (admin only).</summary>
+    public async Task<ModuleCredentialDto?> RevokeModuleCredentialAsync(string moduleId, CancellationToken ct = default)
+    {
+        var response = await _http.PostAsync(
+            $"api/v1/core/admin/modules/{Uri.EscapeDataString(moduleId)}/credential/revoke", null, ct);
+        return await ReadCredentialAsync(response, ct);
+    }
+
+    private static async Task<ModuleCredentialDto?> ReadCredentialAsync(
+        HttpResponseMessage response, CancellationToken ct)
+    {
+        if (!response.IsSuccessStatusCode)
+        {
+            return null;
+        }
+
+        var envelope = await response.Content.ReadFromJsonAsync<ApiEnvelope<ModuleCredentialDto>>(JsonOptions, ct);
+        return envelope?.Data;
+    }
+
+    /// <summary>Uninstalls a module, optionally destroying its data and removing its files (admin only).</summary>
+    public async Task<ModuleUninstallResultDto?> UninstallModuleAsync(
+        string moduleId, bool destroyData, bool removeFiles = true, CancellationToken ct = default)
+    {
+        var response = await _http.PostAsJsonAsync(
+            $"api/v1/core/admin/modules/{Uri.EscapeDataString(moduleId)}/uninstall",
+            new UninstallModuleDto { DestroyData = destroyData, RemoveFiles = removeFiles },
+            ct);
+
+        try
+        {
+            var envelope = await response.Content.ReadFromJsonAsync<ApiEnvelope<ModuleUninstallResultDto>>(JsonOptions, ct);
+            if (envelope?.Data is not null)
+            {
+                return envelope.Data;
+            }
+
+            if (envelope?.Error?.Message is { } message)
+            {
+                return new ModuleUninstallResultDto { Success = false, ModuleId = moduleId, Error = message };
+            }
+
+            return null;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    /// <summary>Lists data stores retained as orphaned after "uninstall, keep data" (admin only).</summary>
+    public async Task<IReadOnlyList<ModuleDataStoreDto>> ListOrphanedDataStoresAsync(CancellationToken ct = default)
+    {
+        try
+        {
+            var envelope = await _http.GetFromJsonAsync<ApiEnvelope<IReadOnlyList<ModuleDataStoreDto>>>(
+                "api/v1/core/admin/datastores/orphaned", ct);
+            return envelope?.Data ?? [];
+        }
+        catch
+        {
+            return [];
+        }
+    }
+
     // -----------------------------------------------------------------------
     // Consent ("Connected apps") and account erasure
     // -----------------------------------------------------------------------
@@ -1320,6 +1508,13 @@ public sealed class DotNetCloudApiClient
     {
         public bool Success { get; set; }
         public T? Data { get; set; }
+        public ApiEnvelopeError? Error { get; set; }
+    }
+
+    internal sealed class ApiEnvelopeError
+    {
+        public string? Code { get; set; }
+        public string? Message { get; set; }
     }
 
     // -----------------------------------------------------------------------

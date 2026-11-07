@@ -124,9 +124,60 @@ internal sealed class ModuleDiscoveryService
         return TryDiscoverModule(moduleDir);
     }
 
-    private DiscoveredModule? TryDiscoverModule(string moduleDir)
+    /// <summary>
+    /// Deletes a module's installation directory (uninstall).
+    /// </summary>
+    /// <param name="moduleId">The module identifier, which is also the directory name.</param>
+    /// <returns><see langword="true"/> when a directory existed and was deleted.</returns>
+    /// <remarks>
+    /// The path is resolved through <see cref="DiscoverModule(string)"/>, so the same traversal guard
+    /// that protects discovery also protects deletion: a module id may never resolve outside the
+    /// modules root, and the root itself is never deleted.
+    /// </remarks>
+    public bool RemoveModuleDirectory(string moduleId)
     {
-        var dirName = Path.GetFileName(moduleDir);
+        ArgumentException.ThrowIfNullOrWhiteSpace(moduleId);
+
+        var discovered = DiscoverModule(moduleId);
+        if (discovered is null)
+        {
+            return false;
+        }
+
+        var modulesRoot = Path.GetFullPath(GetModulesDirectory());
+        var moduleDirectory = Path.GetFullPath(discovered.ModuleDirectory);
+
+        // Strong containment guard (CodeQL-recognised): the relative path must not be rooted, must
+        // not be the root itself, and its first segment must not be "..".
+        var relative = Path.GetRelativePath(modulesRoot, moduleDirectory);
+        var firstSegment = relative.Split([Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar])[0];
+        if (string.Equals(relative, ".", StringComparison.Ordinal)
+            || Path.IsPathRooted(relative)
+            || string.Equals(firstSegment, "..", StringComparison.Ordinal))
+        {
+            _logger.LogWarning(
+                "Refusing to delete {Path}: it is not inside the modules directory {Root}",
+                moduleDirectory, modulesRoot);
+            return false;
+        }
+
+        try
+        {
+            Directory.Delete(moduleDirectory, recursive: true);
+            _logger.LogInformation(
+                "Deleted module directory for {ModuleId} at {Path}", moduleId, moduleDirectory);
+            return true;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            _logger.LogError(
+                ex, "Could not delete the module directory for {ModuleId} at {Path}", moduleId, moduleDirectory);
+            return false;
+        }
+    }
+
+    private DiscoveredModule? TryDiscoverModule(string moduleDir)
+    {        var dirName = Path.GetFileName(moduleDir);
         var moduleId = dirName;
 
         // Look for executable matching directory name

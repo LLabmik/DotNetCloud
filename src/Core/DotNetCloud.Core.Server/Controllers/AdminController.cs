@@ -7,6 +7,7 @@ using DotNetCloud.Core.DTOs;
 using DotNetCloud.Core.Grpc.Lifecycle;
 using HealthStatusGrpc = DotNetCloud.Core.Grpc.Lifecycle.HealthStatus;
 using HealthStatusCore = Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus;
+using DotNetCloud.Core.Modules;
 using DotNetCloud.Core.Modules.Supervisor;
 using DotNetCloud.Core.Services;
 using DotNetCloud.Core.Server.Services;
@@ -206,7 +207,7 @@ public class AdminController : ControllerBase
         {
             Caller = BuildCaller(),
             ModuleId = "dotnetcloud.core",
-            Action = AuditAction.Update,
+            Action = AuditAction.ModuleUpdated,
             EntityType = "Module",
             EntityId = Guid.CreateVersion7(),
             Description = $"module-started:{SanitizeForLog(moduleId)}",
@@ -237,7 +238,7 @@ public class AdminController : ControllerBase
             {
                 Caller = BuildCaller(),
                 ModuleId = "dotnetcloud.core",
-                Action = AuditAction.Update,
+                Action = AuditAction.ModuleUpdated,
                 EntityType = "Module",
                 EntityId = Guid.CreateVersion7(),
                 Description = $"module-stopped:{SanitizeForLog(moduleId)}",
@@ -271,7 +272,7 @@ public class AdminController : ControllerBase
         {
             Caller = BuildCaller(),
             ModuleId = "dotnetcloud.core",
-            Action = AuditAction.Update,
+            Action = AuditAction.ModuleUpdated,
             EntityType = "Module",
             EntityId = Guid.CreateVersion7(),
             Description = $"module-restarted:{SanitizeForLog(moduleId)}",
@@ -317,6 +318,7 @@ public class AdminController : ControllerBase
         if (!result.Success)
         {
             _logger.LogWarning("Data store provisioning for module {ModuleId} failed by admin request", SanitizeForLog(moduleId));
+            await AuditDataStoreErrorAsync("provision", moduleId, result.Error);
             return BadRequest(new { success = false, error = new { code = "MODULE_DATASTORE_OPERATION_FAILED", message = result.Error } });
         }
 
@@ -324,7 +326,7 @@ public class AdminController : ControllerBase
         {
             Caller = BuildCaller(),
             ModuleId = "dotnetcloud.core",
-            Action = AuditAction.Create,
+            Action = AuditAction.ModuleDataStoreProvisioned,
             EntityType = "ModuleDataStore",
             EntityId = Guid.CreateVersion7(),
             Description = $"module-datastore-provisioned:{SanitizeForLog(moduleId)}",
@@ -351,6 +353,7 @@ public class AdminController : ControllerBase
         if (!result.Success)
         {
             _logger.LogWarning("Data store credential rotation for module {ModuleId} failed by admin request", SanitizeForLog(moduleId));
+            await AuditDataStoreErrorAsync("rotate", moduleId, result.Error);
             return BadRequest(new { success = false, error = new { code = "MODULE_DATASTORE_OPERATION_FAILED", message = result.Error } });
         }
 
@@ -358,7 +361,7 @@ public class AdminController : ControllerBase
         {
             Caller = BuildCaller(),
             ModuleId = "dotnetcloud.core",
-            Action = AuditAction.Update,
+            Action = AuditAction.ModuleDataStoreProvisioned,
             EntityType = "ModuleDataStore",
             EntityId = Guid.CreateVersion7(),
             Description = $"module-datastore-credentials-rotated:{SanitizeForLog(moduleId)}",
@@ -385,6 +388,7 @@ public class AdminController : ControllerBase
         if (!result.Success)
         {
             _logger.LogWarning("Data store destruction for module {ModuleId} failed by admin request", SanitizeForLog(moduleId));
+            await AuditDataStoreErrorAsync("destroy", moduleId, result.Error);
             return BadRequest(new { success = false, error = new { code = "MODULE_DATASTORE_OPERATION_FAILED", message = result.Error } });
         }
 
@@ -392,7 +396,7 @@ public class AdminController : ControllerBase
         {
             Caller = BuildCaller(),
             ModuleId = "dotnetcloud.core",
-            Action = AuditAction.Delete,
+            Action = AuditAction.ModuleDataStoreDestroyed,
             EntityType = "ModuleDataStore",
             EntityId = Guid.CreateVersion7(),
             Description = $"module-datastore-destroyed:{SanitizeForLog(moduleId)}",
@@ -544,6 +548,151 @@ public class AdminController : ControllerBase
             capability, moduleId);
         return Ok(new { success = true, message = $"Capability '{capability}' revoked from module '{moduleId}'." });
     }
+
+    // ---------------------------------------------------------------------------
+    // Module lifecycle: uninstall, launch credentials, orphaned data stores
+    // ---------------------------------------------------------------------------
+
+    /// <summary>
+    /// Uninstall a module.
+    /// </summary>
+    /// <param name="moduleId">The module identifier.</param>
+    /// <param name="dto">Whether to destroy the module's data and remove its binaries.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The uninstall outcome, including whether the data store was destroyed or kept.</returns>
+    [HttpPost("modules/{moduleId}/uninstall")]
+    public async Task<IActionResult> UninstallModuleAsync(
+        string moduleId, [FromBody] UninstallModuleDto dto, CancellationToken cancellationToken)
+    {
+        if (!TryGetUserId(out var adminUserId))
+        {
+            return Unauthorized(new { success = false, error = new { code = "INVALID_TOKEN", message = "Invalid token claims" } });
+        }
+
+        var result = await _moduleService.UninstallModuleAsync(moduleId, dto, adminUserId, cancellationToken);
+        if (result is null)
+        {
+            return NotFound(new { success = false, error = new { code = "MODULE_NOT_FOUND", message = $"Module '{moduleId}' not found." } });
+        }
+
+        if (!result.Success)
+        {
+            var code = RequiredModules.IsRequired(moduleId) ? "MODULE_REQUIRED" : "MODULE_UNINSTALL_FAILED";
+            return BadRequest(new { success = false, error = new { code, message = result.Error } });
+        }
+
+        await _auditLogger.LogAsync(new AuditEntry
+        {
+            Caller = BuildCaller(),
+            ModuleId = "dotnetcloud.core",
+            Action = AuditAction.ModuleUninstalled,
+            EntityType = "Module",
+            EntityId = Guid.CreateVersion7(),
+            Description = result.DataStoreDestroyed
+                ? $"module-uninstalled:data-destroyed:{SanitizeForLog(moduleId)}"
+                : $"module-uninstalled:data-kept:{SanitizeForLog(moduleId)}",
+        });
+        _logger.LogInformation(
+            "Module {ModuleId} uninstalled by admin (dataDestroyed={DataDestroyed})",
+            SanitizeForLog(moduleId), result.DataStoreDestroyed);
+        return Ok(new { success = true, data = result });
+    }
+
+    /// <summary>
+    /// Gets the non-secret lifecycle record of a module's launch credential.
+    /// </summary>
+    /// <param name="moduleId">The module identifier.</param>
+    /// <returns>The credential record (never the token itself).</returns>
+    [HttpGet("modules/{moduleId}/credential")]
+    public async Task<IActionResult> GetModuleCredentialAsync(string moduleId)
+    {
+        var credential = await _moduleService.GetCredentialAsync(moduleId);
+        if (credential is null)
+        {
+            return NotFound(new { success = false, error = new { code = "MODULE_NOT_FOUND", message = $"Module '{moduleId}' not found." } });
+        }
+
+        return Ok(new { success = true, data = credential });
+    }
+
+    /// <summary>
+    /// Rotates a module's launch credential, restarting the module when it is running.
+    /// </summary>
+    /// <param name="moduleId">The module identifier.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The new credential record.</returns>
+    [HttpPost("modules/{moduleId}/credential/rotate")]
+    public async Task<IActionResult> RotateModuleCredentialAsync(string moduleId, CancellationToken cancellationToken)
+    {
+        var credential = await _moduleService.RotateCredentialAsync(moduleId, cancellationToken);
+        if (credential is null)
+        {
+            return NotFound(new { success = false, error = new { code = "MODULE_NOT_FOUND", message = $"Module '{moduleId}' not found." } });
+        }
+
+        await _auditLogger.LogAsync(new AuditEntry
+        {
+            Caller = BuildCaller(),
+            ModuleId = "dotnetcloud.core",
+            Action = AuditAction.ModuleCredentialRotated,
+            EntityType = "ModuleCredential",
+            EntityId = Guid.CreateVersion7(),
+            Description = $"module-credential-rotated:{SanitizeForLog(moduleId)}",
+        });
+        _logger.LogInformation("Launch credential for module {ModuleId} rotated by admin", SanitizeForLog(moduleId));
+        return Ok(new { success = true, data = credential });
+    }
+
+    /// <summary>
+    /// Revokes a module's launch credential. The running process is rejected until it restarts.
+    /// </summary>
+    /// <param name="moduleId">The module identifier.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The revoked credential record.</returns>
+    [HttpPost("modules/{moduleId}/credential/revoke")]
+    public async Task<IActionResult> RevokeModuleCredentialAsync(string moduleId, CancellationToken cancellationToken)
+    {
+        var credential = await _moduleService.RevokeCredentialAsync(moduleId, cancellationToken);
+        if (credential is null)
+        {
+            return NotFound(new { success = false, error = new { code = "MODULE_NOT_FOUND", message = $"Module '{moduleId}' not found." } });
+        }
+
+        await _auditLogger.LogAsync(new AuditEntry
+        {
+            Caller = BuildCaller(),
+            ModuleId = "dotnetcloud.core",
+            Action = AuditAction.ModuleCredentialRotated,
+            EntityType = "ModuleCredential",
+            EntityId = Guid.CreateVersion7(),
+            Description = $"module-credential-revoked:{SanitizeForLog(moduleId)}",
+        });
+        _logger.LogWarning("Launch credential for module {ModuleId} revoked by admin", SanitizeForLog(moduleId));
+        return Ok(new { success = true, data = credential });
+    }
+
+    /// <summary>
+    /// Lists data stores retained as orphaned after modules were uninstalled with "keep data".
+    /// </summary>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The orphaned stores an administrator can inspect and drop.</returns>
+    [HttpGet("datastores/orphaned")]
+    public async Task<IActionResult> ListOrphanedDataStoresAsync(CancellationToken cancellationToken)
+    {
+        var stores = await _moduleService.ListOrphanedDataStoresAsync(cancellationToken);
+        return Ok(new { success = true, data = stores });
+    }
+
+    private Task AuditDataStoreErrorAsync(string operation, string moduleId, string? error) =>
+        _auditLogger.LogAsync(new AuditEntry
+        {
+            Caller = BuildCaller(),
+            ModuleId = "dotnetcloud.core",
+            Action = AuditAction.ModuleDataStoreError,
+            EntityType = "ModuleDataStore",
+            EntityId = Guid.CreateVersion7(),
+            Description = $"module-datastore-{operation}-failed:{SanitizeForLog(moduleId)}:{SanitizeForLog(error)}",
+        });
 
     // ---------------------------------------------------------------------------
     // Backup & Restore

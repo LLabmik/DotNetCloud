@@ -5,8 +5,10 @@ using DotNetCloud.Core.DTOs;
 using DotNetCloud.Core.Modules;
 using DotNetCloud.Core.Modules.Supervisor;
 using DotNetCloud.Core.Server.Grpc.ModuleAccess;
+using DotNetCloud.Core.Server.ModuleLoading;
 using DotNetCloud.Core.Server.Quotas;
 using DotNetCloud.Core.Server.Sandbox;
+using DotNetCloud.Core.Server.Supervisor;
 using DotNetCloud.Core.Services;
 using Microsoft.EntityFrameworkCore;
 
@@ -24,6 +26,8 @@ internal sealed class AdminModuleService : IAdminModuleService
     private readonly ModuleQuotaResolver _quotas;
     private readonly ModuleQuotaCache _quotaCache;
     private readonly IModuleAccessEvaluator _accessEvaluator;
+    private readonly ModuleDiscoveryService _discovery;
+    private readonly ModuleCredentialStore _credentials;
     private readonly ILogger<AdminModuleService> _logger;
 
     /// <summary>
@@ -36,6 +40,8 @@ internal sealed class AdminModuleService : IAdminModuleService
         ModuleQuotaResolver quotas,
         ModuleQuotaCache quotaCache,
         IModuleAccessEvaluator accessEvaluator,
+        ModuleDiscoveryService discovery,
+        ModuleCredentialStore credentials,
         ILogger<AdminModuleService> logger)
     {
         _dbContext = dbContext;
@@ -44,6 +50,8 @@ internal sealed class AdminModuleService : IAdminModuleService
         _quotas = quotas;
         _quotaCache = quotaCache;
         _accessEvaluator = accessEvaluator;
+        _discovery = discovery;
+        _credentials = credentials;
         _logger = logger;
     }
 
@@ -535,6 +543,224 @@ internal sealed class AdminModuleService : IAdminModuleService
         };
     }
 
+    /// <inheritdoc/>
+    public async Task<ModuleUninstallResultDto?> UninstallModuleAsync(
+        string moduleId,
+        UninstallModuleDto dto,
+        Guid uninstalledByUserId,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(moduleId);
+        ArgumentNullException.ThrowIfNull(dto);
+
+        var module = await _dbContext.InstalledModules
+            .AsTracking()
+            .FirstOrDefaultAsync(m => m.ModuleId == moduleId, cancellationToken);
+
+        if (module is null)
+        {
+            return null;
+        }
+
+        if (module.IsRequired || RequiredModules.IsRequired(moduleId))
+        {
+            return Failed(moduleId, $"Module '{moduleId}' is architecturally required and cannot be uninstalled.");
+        }
+
+        var result = new ModuleUninstallResultDto { Success = true, ModuleId = moduleId };
+
+        // 1. Stop the process. A stop failure must not strand the installation record, so it is
+        //    logged and the uninstall continues.
+        try
+        {
+            await _processSupervisor.StopModuleAsync(moduleId, cancellationToken);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _logger.LogWarning(
+                "Stopping module {ModuleId} during uninstall failed: {Error}",
+                LogSanitizer.Sanitize(moduleId), ex.Message);
+        }
+
+        // 2. The launch credential dies with the module; any lingering process can no longer call core.
+        _credentials.Revoke(moduleId);
+
+        // 3. Data store: destroy, or keep it as Orphaned for the admin cleanup list.
+        var store = await _dbContext.ModuleDataStores
+            .AsTracking()
+            .FirstOrDefaultAsync(d => d.ModuleId == moduleId, cancellationToken);
+
+        if (store is not null)
+        {
+            if (dto.DestroyData)
+            {
+                try
+                {
+                    await _dataStores.DestroyAsync(moduleId, cancellationToken);
+                    result.DataStoreDestroyed = true;
+                }
+                catch (Exception ex) when (ex is not OperationCanceledException)
+                {
+                    var error = ModuleDataStoreProvisioningService.SanitizeError(ex.Message);
+                    _logger.LogError(
+                        "Destroying the data store for module {ModuleId} during uninstall failed: {Error}",
+                        LogSanitizer.Sanitize(moduleId), error);
+
+                    // Keep the installation intact so the operator can retry instead of ending up
+                    // with a half-uninstalled module and an unmanaged schema.
+                    return Failed(moduleId, error);
+                }
+            }
+            else
+            {
+                store.Status = ModuleDataStoreStatus.Orphaned;
+                store.EncryptedConnectionString = null;
+                store.UpdatedAtUtc = DateTime.UtcNow;
+                await _dbContext.SaveChangesAsync(cancellationToken);
+                result.DataStoreRetained = true;
+            }
+        }
+
+        // 4. Count the consent grants the cascade is about to remove (reported back to the caller).
+        result.ConsentsRevoked = await _dbContext.ModuleUserConsents
+            .AsNoTracking()
+            .CountAsync(c => c.ModuleId == moduleId, cancellationToken);
+
+        // 5. Binaries. Path containment and the id check live in the discovery service.
+        if (dto.RemoveFiles)
+        {
+            result.FilesRemoved = _discovery.RemoveModuleDirectory(moduleId);
+        }
+
+        // 6. Installation record. Capability grants, quotas, settings and consents cascade.
+        _dbContext.InstalledModules.Remove(module);
+        await _dbContext.SaveChangesAsync(cancellationToken);
+
+        _accessEvaluator.Invalidate(moduleId);
+        _quotaCache.Invalidate(moduleId);
+
+        _logger.LogInformation(
+            "Module {ModuleId} uninstalled by user {UserId} (dataDestroyed={DataDestroyed}, dataRetained={DataRetained}, filesRemoved={FilesRemoved})",
+            LogSanitizer.Sanitize(moduleId), uninstalledByUserId,
+            result.DataStoreDestroyed, result.DataStoreRetained, result.FilesRemoved);
+
+        return result;
+    }
+
+    /// <inheritdoc/>
+    public async Task<ModuleCredentialDto?> GetCredentialAsync(string moduleId)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(moduleId);
+
+        var installed = await _dbContext.InstalledModules
+            .AsNoTracking()
+            .AnyAsync(m => m.ModuleId == moduleId);
+
+        return installed ? MapCredential(moduleId) : null;
+    }
+
+    /// <inheritdoc/>
+    public async Task<ModuleCredentialDto?> RotateCredentialAsync(
+        string moduleId, CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(moduleId);
+
+        var installed = await _dbContext.InstalledModules
+            .AsNoTracking()
+            .AnyAsync(m => m.ModuleId == moduleId, cancellationToken);
+
+        if (!installed)
+        {
+            return null;
+        }
+
+        // Mark the rotation, then hand the module a brand-new secret by restarting it. The restart's
+        // fresh issue preserves the rotated-at stamp but replaces the token, so the old value is dead.
+        _credentials.Rotate(moduleId);
+
+        if (_processSupervisor.IsModuleRunning(moduleId))
+        {
+            await _processSupervisor.RestartModuleAsync(moduleId, cancellationToken);
+        }
+
+        _logger.LogInformation(
+            "Launch credential for module {ModuleId} rotated by admin", LogSanitizer.Sanitize(moduleId));
+
+        return MapCredential(moduleId);
+    }
+
+    /// <inheritdoc/>
+    public async Task<ModuleCredentialDto?> RevokeCredentialAsync(
+        string moduleId, CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(moduleId);
+
+        var installed = await _dbContext.InstalledModules
+            .AsNoTracking()
+            .AnyAsync(m => m.ModuleId == moduleId, cancellationToken);
+
+        if (!installed)
+        {
+            return null;
+        }
+
+        _credentials.Revoke(moduleId);
+
+        _logger.LogWarning(
+            "Launch credential for module {ModuleId} revoked by admin; the running process must be restarted",
+            LogSanitizer.Sanitize(moduleId));
+
+        return MapCredential(moduleId);
+    }
+
+    /// <inheritdoc/>
+    public async Task<IReadOnlyList<ModuleDataStoreDto>> ListOrphanedDataStoresAsync(
+        CancellationToken cancellationToken = default)
+    {
+        var stores = await _dbContext.ModuleDataStores
+            .AsNoTracking()
+            .Where(d => d.Status == ModuleDataStoreStatus.Orphaned)
+            .OrderBy(d => d.ModuleId)
+            .ToListAsync(cancellationToken);
+
+        return stores.Select(store => new ModuleDataStoreDto
+        {
+            ModuleId = store.ModuleId,
+            DataStoreMode = nameof(ModuleDataStoreMode.Isolated),
+            Provisioned = true,
+            Provider = store.Provider,
+            SchemaName = store.SchemaName,
+            PrincipalName = store.PrincipalName,
+            Status = store.Status.ToString(),
+            LastError = store.LastError,
+            CreatedAtUtc = store.CreatedAtUtc,
+            UpdatedAtUtc = store.UpdatedAtUtc,
+            CredentialsReadable = false,
+        }).ToList().AsReadOnly();
+    }
+
+    private ModuleCredentialDto MapCredential(string moduleId)
+    {
+        var status = _credentials.GetStatus(moduleId);
+
+        return new ModuleCredentialDto
+        {
+            ModuleId = moduleId,
+            Active = status?.IsActive ?? false,
+            Hint = status?.Hint,
+            IssuedAtUtc = status?.IssuedAtUtc,
+            RotatedAtUtc = status?.RotatedAtUtc,
+            RevokedAtUtc = status?.RevokedAtUtc,
+        };
+    }
+
+    private static ModuleUninstallResultDto Failed(string moduleId, string error) => new()
+    {
+        Success = false,
+        ModuleId = moduleId,
+        Error = error,
+    };
+
     private static int? NormalizeQuotaValue(int? value) => value is > 0 ? value : null;
 
     private static string? FirstInvalidQuotaValue(UpdateModuleQuotaDto dto)
@@ -596,6 +822,7 @@ internal sealed class AdminModuleService : IAdminModuleService
             InstalledAt = entity.InstalledAt,
             IsRequired = entity.IsRequired,
             TrustTier = entity.TrustTier.ToString(),
+            PublisherId = entity.PublisherId,
             DataStoreMode = entity.DataStoreMode.ToString(),
             SandboxStatus = entity.SandboxStatus.ToString(),
             GrantedCapabilities = entity.CapabilityGrants?

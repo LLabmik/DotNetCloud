@@ -817,6 +817,7 @@ public class Program
                     sp.GetRequiredService<IProcessSupervisor>(),
                     sp.GetRequiredService<Supervisor.GrpcChannelManager>(),
                     sp.GetRequiredService<DatabaseConnectivityState>(),
+                    sp.GetRequiredService<IServiceScopeFactory>(),
                     sp.GetRequiredService<ILogger<ModulesAggregateHealthCheck>>()),
                 failureStatus: Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus.Unhealthy,
                 tags: ["module"]));

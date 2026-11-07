@@ -27,6 +27,13 @@ internal sealed class ModuleProcessHandle : IDisposable
     public long TotalRestarts { get; private set; }
     public string? LastError { get; private set; }
 
+    /// <summary>
+    /// Number of consecutive failed health probes. Drives
+    /// <see cref="ProcessSupervisorOptions.UnhealthyThreshold"/>: reaching it restarts the module
+    /// instead of leaving it stuck in <see cref="ModuleProcessStatus.Degraded"/> forever.
+    /// </summary>
+    public int ConsecutiveHealthFailures { get; private set; }
+
     public int? ProcessId
     {
         get
@@ -136,11 +143,24 @@ internal sealed class ModuleProcessHandle : IDisposable
         lock (_lock)
         {
             LastHealthCheckAt = DateTime.UtcNow;
+            ConsecutiveHealthFailures = 0;
 
             if (Status == ModuleProcessStatus.Degraded)
             {
                 Status = ModuleProcessStatus.Running;
             }
+        }
+    }
+
+    /// <summary>
+    /// Records a failed probe and returns the new consecutive-failure count.
+    /// </summary>
+    /// <returns>The number of consecutive failures, including this one.</returns>
+    public int RecordHealthFailure()
+    {
+        lock (_lock)
+        {
+            return ++ConsecutiveHealthFailures;
         }
     }
 
@@ -177,6 +197,7 @@ internal sealed class ModuleProcessHandle : IDisposable
                 StartedAt = StartedAt,
                 LastHealthCheckAt = LastHealthCheckAt,
                 ConsecutiveRestarts = ConsecutiveRestarts,
+                ConsecutiveHealthFailures = ConsecutiveHealthFailures,
                 MaxRestartAttempts = MaxRestartAttempts,
                 TotalRestarts = TotalRestarts,
                 MemoryUsageBytes = MemoryUsageBytes,

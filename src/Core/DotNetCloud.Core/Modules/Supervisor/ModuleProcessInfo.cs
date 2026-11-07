@@ -68,6 +68,12 @@ public sealed record ModuleProcessInfo
     public int ConsecutiveRestarts { get; init; }
 
     /// <summary>
+    /// The number of consecutive failed health probes. When this reaches
+    /// <c>ProcessSupervisor:UnhealthyThreshold</c> the supervisor restarts the module.
+    /// </summary>
+    public int ConsecutiveHealthFailures { get; init; }
+
+    /// <summary>
     /// The maximum number of restart attempts before giving up (alert-only mode).
     /// </summary>
     public int MaxRestartAttempts { get; init; } = 5;

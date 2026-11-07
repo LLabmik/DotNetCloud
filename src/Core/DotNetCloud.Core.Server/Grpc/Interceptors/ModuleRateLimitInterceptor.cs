@@ -1,7 +1,10 @@
 using DotNetCloud.Core;
+using DotNetCloud.Core.Authorization;
+using DotNetCloud.Core.Capabilities;
 using DotNetCloud.Core.Server.Quotas;
 using Grpc.Core;
 using Grpc.Core.Interceptors;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
 namespace DotNetCloud.Core.Server.Grpc.Interceptors;
@@ -18,8 +21,8 @@ namespace DotNetCloud.Core.Server.Grpc.Interceptors;
 /// </para>
 /// <para>
 /// A rejected call throws <see cref="StatusCode.ResourceExhausted"/> with the stable
-/// <c>MODULE_RATE_LIMITED</c> code. Rejections are logged once per window per module and category —
-/// never audited — so a runaway module cannot amplify load through the audit path.
+/// <c>MODULE_RATE_LIMITED</c> code. Rejections are logged and audited once per window per module
+/// and category — never per call — so a runaway module cannot amplify load through the audit path.
 /// </para>
 /// </remarks>
 internal sealed class ModuleRateLimitInterceptor : Interceptor
@@ -104,7 +107,7 @@ internal sealed class ModuleRateLimitInterceptor : Interceptor
 
         if (quota.RequestsPerMinute is int requestLimit)
         {
-            Enforce(moduleId, ModuleRateLimitKind.Request, requestLimit, "requests", context);
+            await EnforceAsync(moduleId, ModuleRateLimitKind.Request, requestLimit, "requests", context);
         }
 
         if (MethodRateKinds.TryGetValue(GetMethodName(context.Method), out var kind))
@@ -118,12 +121,12 @@ internal sealed class ModuleRateLimitInterceptor : Interceptor
 
             if (limit is int categoryLimit)
             {
-                Enforce(moduleId, kind, categoryLimit, kind.ToString().ToLowerInvariant(), context);
+                await EnforceAsync(moduleId, kind, categoryLimit, kind.ToString().ToLowerInvariant(), context);
             }
         }
     }
 
-    private void Enforce(
+    private async Task EnforceAsync(
         string moduleId,
         ModuleRateLimitKind kind,
         int limitPerMinute,
@@ -141,11 +144,49 @@ internal sealed class ModuleRateLimitInterceptor : Interceptor
             _logger.LogWarning(
                 "Module {ModuleId} exceeded its {Category} quota ({Limit}/min) on {Method}",
                 LogSanitizer.Sanitize(moduleId), category, limitPerMinute, context.Method);
+
+            await AuditRateLimitAsync(moduleId, category, limitPerMinute, context);
         }
 
         throw new RpcException(new Status(
             StatusCode.ResourceExhausted,
             $"MODULE_RATE_LIMITED: the module exceeded its {category} quota ({limitPerMinute}/minute)."));
+    }
+
+    /// <summary>
+    /// Records the first rejection of a window. Best effort: the audit failure must never replace
+    /// the rate-limit error the module needs to see.
+    /// </summary>
+    private async Task AuditRateLimitAsync(
+        string moduleId, string category, int limitPerMinute, ServerCallContext context)
+    {
+        try
+        {
+            var services = context.GetHttpContext()?.RequestServices;
+            var auditLogger = services?.GetService<IAuditLogger>();
+            if (auditLogger is null)
+            {
+                return;
+            }
+
+            await auditLogger.LogAsync(
+                new AuditEntry
+                {
+                    Caller = CallerContext.CreateSystemContext(),
+                    ModuleId = "dotnetcloud.core",
+                    Action = AuditAction.ModuleRateLimited,
+                    EntityType = "Module",
+                    EntityId = Guid.CreateVersion7(),
+                    Description = $"module-rate-limited:{moduleId}:{category}:{limitPerMinute}/min",
+                },
+                context.CancellationToken);
+        }
+        catch (Exception ex)
+        {
+            // Swallowed on purpose: auditing must never change the outcome of a rejected call.
+            _logger.LogDebug(
+                ex, "Could not audit the rate-limit rejection for module {ModuleId}", LogSanitizer.Sanitize(moduleId));
+        }
     }
 
     private static string GetMethodName(string method)

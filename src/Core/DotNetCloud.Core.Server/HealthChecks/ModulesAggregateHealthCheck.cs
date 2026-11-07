@@ -1,7 +1,10 @@
+using DotNetCloud.Core.Data.Context;
 using DotNetCloud.Core.Grpc.Lifecycle;
 using DotNetCloud.Core.Modules.Supervisor;
 using DotNetCloud.Core.Server.Services;
 using DotNetCloud.Core.Server.Supervisor;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Logging;
 using HealthStatusGrpc = DotNetCloud.Core.Grpc.Lifecycle.HealthStatus;
@@ -27,6 +30,7 @@ internal sealed class ModulesAggregateHealthCheck : IHealthCheck
     private readonly IProcessSupervisor _supervisor;
     private readonly GrpcChannelManager _channelManager;
     private readonly DatabaseConnectivityState _dbState;
+    private readonly IServiceScopeFactory _scopeFactory;
     private readonly ILogger<ModulesAggregateHealthCheck> _logger;
 
     /// <summary>
@@ -35,16 +39,19 @@ internal sealed class ModulesAggregateHealthCheck : IHealthCheck
     /// <param name="supervisor">The process supervisor providing module process information.</param>
     /// <param name="channelManager">The gRPC channel manager for module communication.</param>
     /// <param name="dbState">Cached database availability (drives the 503 gate and database health entry).</param>
+    /// <param name="scopeFactory">Creates the scope used to read sandbox state from the database.</param>
     /// <param name="logger">Logger instance.</param>
     internal ModulesAggregateHealthCheck(
         IProcessSupervisor supervisor,
         GrpcChannelManager channelManager,
         DatabaseConnectivityState dbState,
+        IServiceScopeFactory scopeFactory,
         ILogger<ModulesAggregateHealthCheck> logger)
     {
         _supervisor = supervisor ?? throw new ArgumentNullException(nameof(supervisor));
         _channelManager = channelManager ?? throw new ArgumentNullException(nameof(channelManager));
         _dbState = dbState ?? throw new ArgumentNullException(nameof(dbState));
+        _scopeFactory = scopeFactory ?? throw new ArgumentNullException(nameof(scopeFactory));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
@@ -67,9 +74,12 @@ internal sealed class ModulesAggregateHealthCheck : IHealthCheck
         var entries = new Dictionary<string, object>();
         var overallStatus = HealthStatusCore.Healthy;
         var descriptions = new List<string>();
+        var sandbox = await GetSandboxStatesAsync(cancellationToken);
 
         foreach (var result in results)
         {
+            sandbox.TryGetValue(result.ModuleId, out var state);
+
             entries[result.ModuleId] = new
             {
                 status = result.Status.ToString(),
@@ -77,6 +87,9 @@ internal sealed class ModulesAggregateHealthCheck : IHealthCheck
                 moduleName = result.ModuleName,
                 version = result.Version,
                 processStatus = result.ProcessStatus.ToString(),
+                sandboxStatus = state?.SandboxStatus,
+                trustTier = state?.TrustTier,
+                dataStoreMode = state?.DataStoreMode,
             };
 
             if (result.Status == HealthStatusCore.Unhealthy)
@@ -205,6 +218,44 @@ internal sealed class ModulesAggregateHealthCheck : IHealthCheck
             };
         }
     }
+
+    /// <summary>
+    /// Reads each installed module's sandbox state so <c>/health/ready</c> explains why a module is
+    /// not running (pending provisioning, provisioning error, quota suspension or legacy override).
+    /// </summary>
+    private async Task<IReadOnlyDictionary<string, SandboxState>> GetSandboxStatesAsync(
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            using var scope = _scopeFactory.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<CoreDbContext>();
+
+            var rows = await db.InstalledModules
+                .AsNoTracking()
+                .Select(m => new
+                {
+                    m.ModuleId,
+                    SandboxStatus = m.SandboxStatus.ToString(),
+                    TrustTier = m.TrustTier.ToString(),
+                    DataStoreMode = m.DataStoreMode.ToString(),
+                })
+                .ToListAsync(cancellationToken);
+
+            return rows.ToDictionary(
+                row => row.ModuleId,
+                row => new SandboxState(row.SandboxStatus, row.TrustTier, row.DataStoreMode),
+                StringComparer.OrdinalIgnoreCase);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            // The sandbox columns are informational; never fail the probe because they are missing.
+            _logger.LogDebug(ex, "Could not read module sandbox state for the health payload");
+            return new Dictionary<string, SandboxState>(StringComparer.OrdinalIgnoreCase);
+        }
+    }
+
+    private sealed record SandboxState(string SandboxStatus, string TrustTier, string DataStoreMode);
 
     /// <summary>
     /// Internal result record for a single module's health check.

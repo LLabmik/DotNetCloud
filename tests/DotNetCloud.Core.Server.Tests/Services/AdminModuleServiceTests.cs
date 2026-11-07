@@ -5,8 +5,10 @@ using DotNetCloud.Core.DTOs;
 using DotNetCloud.Core.Modules;
 using DotNetCloud.Core.Modules.Supervisor;
 using DotNetCloud.Core.Server.Grpc.ModuleAccess;
+using DotNetCloud.Core.Server.ModuleLoading;
 using DotNetCloud.Core.Server.Quotas;
 using DotNetCloud.Core.Server.Services;
+using DotNetCloud.Core.Server.Supervisor;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -60,9 +62,19 @@ public class AdminModuleServiceTests
     private static AdminModuleService CreateService(
         CoreDbContext db,
         IProcessSupervisor supervisor,
-        IModuleDataStoreProvisioningService? dataStores = null)
+        IModuleDataStoreProvisioningService? dataStores = null,
+        ModuleCredentialStore? credentials = null,
+        string? modulesDirectory = null)
     {
         var quotas = CreateQuotaResolver(db);
+
+        var discovery = new ModuleDiscoveryService(
+            NullLogger<ModuleDiscoveryService>.Instance,
+            Options.Create(new ProcessSupervisorOptions
+            {
+                ModulesDirectory = modulesDirectory
+                    ?? Path.Combine(Path.GetTempPath(), "dnc-modules-" + Guid.NewGuid().ToString("N")),
+            }));
 
         return new(
             db,
@@ -71,6 +83,8 @@ public class AdminModuleServiceTests
             quotas,
             new ModuleQuotaCache(quotas, TimeProvider.System),
             Mock.Of<IModuleAccessEvaluator>(),
+            discovery,
+            credentials ?? new ModuleCredentialStore(),
             NullLogger<AdminModuleService>.Instance);
     }
 
@@ -508,5 +522,276 @@ public class AdminModuleServiceTests
         Assert.IsNull(result.Quota!.MemoryLimitMb);
         Assert.IsNull(result.Quota.ConnectionLimit);
         Assert.AreEqual(10, result.Quota.EffectiveConnectionLimit);
+    }
+
+    // -----------------------------------------------------------------------
+    // Uninstall (keep vs destroy)
+    // -----------------------------------------------------------------------
+
+    [TestMethod]
+    public async Task UninstallModuleAsync_RequiredModule_ReturnsFailureAndKeepsInstallation()
+    {
+        using var db = CreateContext();
+        SeedModule(db, "Enabled", isRequired: true);
+
+        var supervisor = CreateSupervisor();
+        var service = CreateService(db, supervisor.Object);
+
+        var result = await service.UninstallModuleAsync(
+            ModuleId, new UninstallModuleDto { DestroyData = true }, Guid.CreateVersion7(), CancellationToken.None);
+
+        Assert.IsNotNull(result);
+        Assert.IsFalse(result!.Success);
+        StringAssert.Contains(result.Error, "required");
+
+        supervisor.Verify(s => s.StopModuleAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+
+        using var verify = CreateContext();
+        Assert.IsTrue(await verify.InstalledModules.AnyAsync(m => m.ModuleId == ModuleId));
+    }
+
+    [TestMethod]
+    public async Task UninstallModuleAsync_MissingModule_ReturnsNull()
+    {
+        using var db = CreateContext();
+        var service = CreateService(db, CreateSupervisor().Object);
+
+        var result = await service.UninstallModuleAsync(
+            ModuleId, new UninstallModuleDto(), Guid.CreateVersion7(), CancellationToken.None);
+
+        Assert.IsNull(result);
+    }
+
+    [TestMethod]
+    public async Task UninstallModuleAsync_KeepData_MarksStoreOrphanedAndDeletesInstallation()
+    {
+        using var db = CreateContext();
+        SeedModule(db, "Enabled", dataStoreMode: ModuleDataStoreMode.Isolated);
+        SeedStore(db, ModuleDataStoreStatus.Active);
+
+        var dataStores = new Mock<IModuleDataStoreProvisioningService>();
+        var supervisor = CreateSupervisor();
+        var service = CreateService(db, supervisor.Object, dataStores.Object);
+
+        var result = await service.UninstallModuleAsync(
+            ModuleId,
+            new UninstallModuleDto { DestroyData = false, RemoveFiles = false },
+            Guid.CreateVersion7(),
+            CancellationToken.None);
+
+        Assert.IsNotNull(result);
+        Assert.IsTrue(result!.Success, result.Error);
+        Assert.IsTrue(result.DataStoreRetained);
+        Assert.IsFalse(result.DataStoreDestroyed);
+        Assert.IsFalse(result.FilesRemoved);
+
+        dataStores.Verify(
+            d => d.DestroyAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+        supervisor.Verify(s => s.StopModuleAsync(ModuleId, It.IsAny<CancellationToken>()), Times.Once);
+
+        using var verify = CreateContext();
+        Assert.IsFalse(await verify.InstalledModules.AnyAsync(m => m.ModuleId == ModuleId));
+
+        var store = await verify.ModuleDataStores.FirstOrDefaultAsync(d => d.ModuleId == ModuleId);
+        Assert.IsNotNull(store, "the store row must survive 'keep data'");
+        Assert.AreEqual(ModuleDataStoreStatus.Orphaned, store!.Status);
+        Assert.IsNull(store.EncryptedConnectionString);
+    }
+
+    [TestMethod]
+    public async Task UninstallModuleAsync_DestroyData_DropsStoreAndDeletesInstallation()
+    {
+        using var db = CreateContext();
+        SeedModule(db, "Enabled", dataStoreMode: ModuleDataStoreMode.Isolated);
+        SeedStore(db, ModuleDataStoreStatus.Active);
+
+        var dataStores = new Mock<IModuleDataStoreProvisioningService>();
+        dataStores
+            .Setup(d => d.DestroyAsync(ModuleId, It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+
+        var service = CreateService(db, CreateSupervisor().Object, dataStores.Object);
+
+        var result = await service.UninstallModuleAsync(
+            ModuleId,
+            new UninstallModuleDto { DestroyData = true, RemoveFiles = false },
+            Guid.CreateVersion7(),
+            CancellationToken.None);
+
+        Assert.IsNotNull(result);
+        Assert.IsTrue(result!.Success, result.Error);
+        Assert.IsTrue(result.DataStoreDestroyed);
+        Assert.IsFalse(result.DataStoreRetained);
+
+        dataStores.Verify(d => d.DestroyAsync(ModuleId, It.IsAny<CancellationToken>()), Times.Once);
+
+        using var verify = CreateContext();
+        Assert.IsFalse(await verify.InstalledModules.AnyAsync(m => m.ModuleId == ModuleId));
+    }
+
+    [TestMethod]
+    public async Task UninstallModuleAsync_DestroyFails_KeepsInstallationForRetry()
+    {
+        using var db = CreateContext();
+        SeedModule(db, "Enabled", dataStoreMode: ModuleDataStoreMode.Isolated);
+        SeedStore(db, ModuleDataStoreStatus.Active);
+
+        var dataStores = new Mock<IModuleDataStoreProvisioningService>();
+        dataStores
+            .Setup(d => d.DestroyAsync(ModuleId, It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new InvalidOperationException("password=secret could not drop schema"));
+
+        var service = CreateService(db, CreateSupervisor().Object, dataStores.Object);
+
+        var result = await service.UninstallModuleAsync(
+            ModuleId,
+            new UninstallModuleDto { DestroyData = true, RemoveFiles = false },
+            Guid.CreateVersion7(),
+            CancellationToken.None);
+
+        Assert.IsNotNull(result);
+        Assert.IsFalse(result!.Success);
+        Assert.IsFalse(result.Error!.Contains("secret", StringComparison.OrdinalIgnoreCase),
+            "the sanitized error must not leak credentials");
+
+        using var verify = CreateContext();
+        Assert.IsTrue(await verify.InstalledModules.AnyAsync(m => m.ModuleId == ModuleId));
+    }
+
+    [TestMethod]
+    public async Task UninstallModuleAsync_RemovesModuleDirectoryInsideRoot()
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"dnc-uninstall-{Guid.NewGuid():N}");
+        var modulesRoot = Path.Combine(root, "modules");
+        var moduleDirectory = Path.Combine(modulesRoot, ModuleId);
+        Directory.CreateDirectory(moduleDirectory);
+        File.WriteAllText(Path.Combine(moduleDirectory, $"{ModuleId}.dll"), "fake");
+
+        try
+        {
+            using var db = CreateContext();
+            SeedModule(db, "Enabled");
+
+            var service = CreateService(db, CreateSupervisor().Object, modulesDirectory: modulesRoot);
+
+            var result = await service.UninstallModuleAsync(
+                ModuleId,
+                new UninstallModuleDto { DestroyData = false, RemoveFiles = true },
+                Guid.CreateVersion7(),
+                CancellationToken.None);
+
+            Assert.IsNotNull(result);
+            Assert.IsTrue(result!.Success, result.Error);
+            Assert.IsTrue(result.FilesRemoved);
+            Assert.IsFalse(Directory.Exists(moduleDirectory));
+            Assert.IsTrue(Directory.Exists(modulesRoot), "the modules root itself must never be deleted");
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+            {
+                Directory.Delete(root, recursive: true);
+            }
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // Launch credential
+    // -----------------------------------------------------------------------
+
+    [TestMethod]
+    public async Task GetCredentialAsync_NotInstalled_ReturnsNull()
+    {
+        using var db = CreateContext();
+        var service = CreateService(db, CreateSupervisor().Object);
+
+        Assert.IsNull(await service.GetCredentialAsync(ModuleId));
+    }
+
+    [TestMethod]
+    public async Task RotateCredentialAsync_NotRunning_RecordsRotation()
+    {
+        using var db = CreateContext();
+        SeedModule(db, "Disabled");
+
+        var credentials = new ModuleCredentialStore();
+        var supervisor = CreateSupervisor();
+        supervisor.Setup(s => s.IsModuleRunning(ModuleId)).Returns(false);
+
+        var service = CreateService(db, supervisor.Object, credentials: credentials);
+
+        var result = await service.RotateCredentialAsync(ModuleId, CancellationToken.None);
+
+        Assert.IsNotNull(result);
+        Assert.IsTrue(result!.Active);
+        Assert.IsNotNull(result.RotatedAtUtc);
+        supervisor.Verify(
+            s => s.RestartModuleAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [TestMethod]
+    public async Task RotateCredentialAsync_Running_RestartsModuleToApplyNewSecret()
+    {
+        using var db = CreateContext();
+        SeedModule(db, "Enabled");
+
+        var supervisor = CreateSupervisor();
+        supervisor.Setup(s => s.IsModuleRunning(ModuleId)).Returns(true);
+        supervisor
+            .Setup(s => s.RestartModuleAsync(ModuleId, It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+
+        var service = CreateService(db, supervisor.Object);
+
+        var result = await service.RotateCredentialAsync(ModuleId, CancellationToken.None);
+
+        Assert.IsNotNull(result);
+        supervisor.Verify(s => s.RestartModuleAsync(ModuleId, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [TestMethod]
+    public async Task RevokeCredentialAsync_ReturnsRevokedRecord()
+    {
+        using var db = CreateContext();
+        SeedModule(db, "Enabled");
+
+        var credentials = new ModuleCredentialStore();
+        credentials.Issue(ModuleId);
+
+        var service = CreateService(db, CreateSupervisor().Object, credentials: credentials);
+
+        var result = await service.RevokeCredentialAsync(ModuleId, CancellationToken.None);
+
+        Assert.IsNotNull(result);
+        Assert.IsFalse(result!.Active);
+        Assert.IsNotNull(result.RevokedAtUtc);
+        Assert.IsFalse(credentials.HasCredential(ModuleId));
+    }
+
+    [TestMethod]
+    public async Task ListOrphanedDataStoresAsync_ReturnsOnlyOrphanedStores()
+    {
+        using var db = CreateContext();
+        SeedModule(db, "Enabled", dataStoreMode: ModuleDataStoreMode.Isolated);
+        SeedStore(db, ModuleDataStoreStatus.Orphaned);
+        db.ModuleDataStores.Add(new ModuleDataStore
+        {
+            ModuleId = "vendor.active",
+            Provider = "PostgreSQL",
+            SchemaName = "dnc_active_abc12345",
+            PrincipalName = "dnc_mod_active_abc12345",
+            Status = ModuleDataStoreStatus.Active,
+            CreatedAtUtc = DateTime.UtcNow,
+            UpdatedAtUtc = DateTime.UtcNow,
+        });
+        db.SaveChanges();
+
+        var service = CreateService(db, CreateSupervisor().Object);
+
+        var result = await service.ListOrphanedDataStoresAsync(CancellationToken.None);
+
+        Assert.AreEqual(1, result.Count);
+        Assert.AreEqual(ModuleId, result[0].ModuleId);
+        Assert.AreEqual("Orphaned", result[0].Status);
     }
 }

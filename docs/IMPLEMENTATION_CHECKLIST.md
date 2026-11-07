@@ -3491,7 +3491,20 @@ Plan: `docs/THIRD_PARTY_MODULE_SANDBOX_AND_STORE_PLAN.md` (phase A0). Branch `fe
   - ✓ `ModuleAppProtocol`/`ModuleAppUrls` shared contract (message types, URL shapes, entry-path and external-URL validation)
   - ✓ Core CSP gained `frame-src 'self'`
   - ✓ Incidental fix: `ModuleUserConsent` had two cascading FKs from `Users` (SQL Server multiple-cascade-path); `GrantedByUserId` is now a plain indexed audit column and both migrations were regenerated
-- ☐ Phases A6 / B1–B5 / C / D per the plan
+- ✓ Phase A6 — lifecycle, ops, audit
+  - ✓ `ModuleDetail.razor` sections: trust tier, publisher, sandbox status, data-store state + provision/rotate/destroy, launch credential + rotate/revoke, quota editor with effective values, outstanding erasure rows, uninstall panel (keep-vs-destroy, remove-files)
+  - ✓ `ModuleList.razor` trust/sandbox columns; new `/admin/erasure` queue page (force-complete) + admin nav entry
+  - ✓ Admin API: `POST modules/{id}/uninstall`, `GET modules/{id}/credential`, `POST modules/{id}/credential/rotate|revoke`, `GET datastores/orphaned`
+  - ✓ Uninstall flow: stop → revoke credential → destroy or orphan the data store → cascade consents/quotas/settings → remove binaries (containment-checked) → delete installation; a failed drop aborts and keeps the installation
+  - ✓ `ModuleDataStore` FK removed so a kept store can outlive the module (`AddModuleDataStoreOrphanSupport`, PostgreSQL + SQL Server); `Orphaned` rows listed for cleanup
+  - ✓ `AuditAction`: `ModuleInstalled`, `ModuleUpdated`, `ModuleUninstalled`, `ModuleCredentialRotated`, `ModuleDataStoreProvisioned|Destroyed|Error`, `ModuleRateLimited`, `ModulePackageVerificationFailed`, `ModuleLegacyAccessUsed` — wired on the admin/CLI paths and the rate limiter
+  - ✓ `AuditTextSanitizer` strips control characters/newlines and caps module-supplied fields (F14); first rate-limit rejection per window is audited
+  - ✓ `ProcessSupervisorOptions.UnhealthyThreshold` honoured (consecutive failures → force-kill → restart policy); `Disabled` modules skipped at startup; `Disabled`/`Enabled`/`RestartPending` reconciled every 30 s
+  - ✓ `/health/ready` module rows report `sandboxStatus`, `trustTier`, `dataStoreMode`
+  - ✓ Backup/restore tests prove `<dataDir>/modules/*/data` + the DataProtection key ring are archived and restored; credential-reset recovery documented
+  - ✓ CLI: manifest-backed `module install`, `module uninstall --destroy-data|--keep-files`, `module restart` via `RestartPending`, `start|stop` applied by the supervisor
+  - ✓ Tests: uninstall matrix (keep/destroy/rollback/files), credential rotate/revoke, orphan list, audit sanitizer, backup+restore round-trip, health-failure counter, CLI option structure
+- ☐ Phases B1–B5 / C / D per the plan
 
 ---
 

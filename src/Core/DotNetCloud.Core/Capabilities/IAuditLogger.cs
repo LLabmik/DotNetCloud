@@ -101,6 +101,57 @@ public enum AuditAction
     Import,
 
     /// <summary>
+    /// A module was registered/installed (admin action or startup discovery).
+    /// </summary>
+    ModuleInstalled,
+
+    /// <summary>
+    /// An installed module changed version or was enabled/disabled/restarted by an operator.
+    /// </summary>
+    ModuleUpdated,
+
+    /// <summary>
+    /// A module was uninstalled. The description records whether its data was destroyed or kept.
+    /// </summary>
+    ModuleUninstalled,
+
+    /// <summary>
+    /// A module's launch credential was rotated or revoked.
+    /// </summary>
+    ModuleCredentialRotated,
+
+    /// <summary>
+    /// A module's isolated schema and principal were provisioned (or adopted).
+    /// </summary>
+    ModuleDataStoreProvisioned,
+
+    /// <summary>
+    /// A module's isolated schema and principal were dropped.
+    /// </summary>
+    ModuleDataStoreDestroyed,
+
+    /// <summary>
+    /// A module data-store operation failed. The description carries the sanitized reason.
+    /// </summary>
+    ModuleDataStoreError,
+
+    /// <summary>
+    /// A module exceeded one of its rate limits. Emitted at most once per window per module
+    /// and category so a runaway module cannot amplify load through the audit path.
+    /// </summary>
+    ModuleRateLimited,
+
+    /// <summary>
+    /// A module package failed signature, hash or archive-structure verification.
+    /// </summary>
+    ModulePackageVerificationFailed,
+
+    /// <summary>
+    /// A module ran under the transitional <c>Modules:AllowLegacyAccess</c> override.
+    /// </summary>
+    ModuleLegacyAccessUsed,
+
+    /// <summary>
     /// A module's call was denied by capability enforcement (missing grant, unmapped RPC or
     /// forbidden capability).
     /// </summary>

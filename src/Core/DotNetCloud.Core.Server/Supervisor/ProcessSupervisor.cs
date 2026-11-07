@@ -45,6 +45,11 @@ internal sealed class ProcessSupervisor : BackgroundService, IProcessSupervisor
     private readonly ConcurrentDictionary<string, ModuleProcessHandle> _modules = new();
     private readonly SemaphoreSlim _startStopLock = new(1, 1);
 
+    /// <summary>How often database-requested lifecycle changes are reconciled against live processes.</summary>
+    private static readonly TimeSpan StatusReconcileInterval = TimeSpan.FromSeconds(30);
+
+    private DateTime _lastStatusReconcileUtc = DateTime.MinValue;
+
     public ProcessSupervisor(
         ILogger<ProcessSupervisor> logger,
         IOptions<ProcessSupervisorOptions> options,
@@ -98,6 +103,19 @@ internal sealed class ProcessSupervisor : BackgroundService, IProcessSupervisor
             _logger.LogInformation("Starting {Count} discovered modules", discovered.Count);
 
             await SyncDiscoveredModulesToDatabaseAsync(discovered, cancellationToken);
+
+            // A module the operator disabled (admin API or `dotnetcloud module stop`) must stay down
+            // across restarts instead of silently coming back with the core.
+            var disabled = await GetDisabledModuleIdsAsync(cancellationToken);
+            if (disabled.Count > 0)
+            {
+                discovered = discovered
+                    .Where(module => !disabled.Contains(module.ModuleId))
+                    .ToList();
+                _logger.LogInformation(
+                    "Skipping {Count} disabled module(s) at startup: {Modules}",
+                    disabled.Count, string.Join(", ", disabled));
+            }
 
             // Ensure every module's database schema exists BEFORE its host process is spawned.
             // On a fresh database the InstalledModules table is empty when core startup runs, so
@@ -659,9 +677,80 @@ internal sealed class ProcessSupervisor : BackgroundService, IProcessSupervisor
 
                 await CheckModuleHealthAsync(moduleId, handle, stoppingToken);
             }
+
+            await ReconcileRequestedOperationsAsync(stoppingToken);
         }
 
         _logger.LogInformation("Health monitor stopped");
+    }
+
+    /// <summary>
+    /// Applies lifecycle changes requested through the database (CLI <c>module start|stop|restart</c>)
+    /// to the live processes. Throttled so the query never runs on every probe tick.
+    /// </summary>
+    private async Task ReconcileRequestedOperationsAsync(CancellationToken cancellationToken)
+    {
+        if (DateTime.UtcNow - _lastStatusReconcileUtc < StatusReconcileInterval)
+        {
+            return;
+        }
+
+        _lastStatusReconcileUtc = DateTime.UtcNow;
+
+        var statuses = await GetInstalledModuleStatusesAsync(cancellationToken);
+        if (statuses.Count == 0)
+        {
+            return;
+        }
+
+        foreach (var (moduleId, status) in statuses)
+        {
+            if (cancellationToken.IsCancellationRequested)
+            {
+                return;
+            }
+
+            var running = _modules.TryGetValue(moduleId, out var handle) && handle.IsRunning;
+
+            if (string.Equals(status, ModuleInstallStatus.RestartPending, StringComparison.OrdinalIgnoreCase))
+            {
+                await SetInstalledModuleStatusAsync(moduleId, ModuleInstallStatus.Enabled, cancellationToken);
+                _logger.LogInformation(
+                    "Applying a requested restart for module {ModuleId}", SanitizeForLog(moduleId));
+                await RestartModuleAsync(moduleId, cancellationToken);
+                continue;
+            }
+
+            if (string.Equals(status, ModuleInstallStatus.Disabled, StringComparison.OrdinalIgnoreCase))
+            {
+                if (running && !RequiredModules.IsRequired(moduleId))
+                {
+                    _logger.LogInformation(
+                        "Stopping module {ModuleId} because its database status is Disabled",
+                        SanitizeForLog(moduleId));
+                    await StopModuleCoreAsync(moduleId, cancellationToken);
+                }
+
+                continue;
+            }
+
+            // Only an explicitly Enabled module is started, and never one the supervisor gave up on
+            // (Failed) — that would fight the alert-only terminal state and restart forever.
+            if (string.Equals(status, ModuleInstallStatus.Enabled, StringComparison.OrdinalIgnoreCase)
+                && !running
+                && (!_modules.TryGetValue(moduleId, out var existing)
+                    || existing.Status is ModuleProcessStatus.Stopped or ModuleProcessStatus.Stopping))
+            {
+                var discovered = _discoveryService.DiscoverModule(moduleId);
+                if (discovered is not null)
+                {
+                    _logger.LogInformation(
+                        "Starting module {ModuleId} because its database status is Enabled",
+                        SanitizeForLog(moduleId));
+                    await StartModuleCoreAsync(discovered, cancellationToken);
+                }
+            }
+        }
     }
 
     private async Task CheckModuleHealthAsync(
@@ -701,7 +790,24 @@ internal sealed class ProcessSupervisor : BackgroundService, IProcessSupervisor
         }
         else
         {
-            _logger.LogWarning("Health check failed for module {ModuleId}", moduleId);
+            var failures = handle.RecordHealthFailure();
+            _logger.LogWarning(
+                "Health check failed for module {ModuleId} ({Failures}/{Threshold})",
+                moduleId, failures, _options.UnhealthyThreshold);
+
+            // Without this, a module that fails every probe is marked Degraded and never restarted.
+            if (_options.UnhealthyThreshold > 0
+                && failures >= _options.UnhealthyThreshold
+                && handle.IsRunning)
+            {
+                _logger.LogError(
+                    "Module {ModuleId} failed {Failures} consecutive health checks; restarting it",
+                    moduleId, failures);
+
+                ForceKillProcess(handle);
+                await HandleCrashedModuleAsync(moduleId, handle, cancellationToken);
+                return;
+            }
 
             if (handle.Status != ModuleProcessStatus.Degraded)
             {
@@ -946,7 +1052,7 @@ internal sealed class ProcessSupervisor : BackgroundService, IProcessSupervisor
                     {
                         Caller = DotNetCloud.Core.Authorization.CallerContext.CreateSystemContext(),
                         ModuleId = "dotnetcloud.core",
-                        Action = DotNetCloud.Core.Capabilities.AuditAction.Update,
+                        Action = DotNetCloud.Core.Capabilities.AuditAction.ModuleLegacyAccessUsed,
                         EntityType = "Module",
                         EntityId = Guid.CreateVersion7(),
                         Description = $"module-legacy-access-used:{moduleId}",
@@ -1022,6 +1128,74 @@ internal sealed class ProcessSupervisor : BackgroundService, IProcessSupervisor
             _logger.LogWarning(
                 ex, "Could not read the sandbox status for module {ModuleId}", SanitizeForLog(moduleId));
             return null;
+        }
+    }
+
+    /// <summary>
+    /// Returns the ids of installed modules whose persisted status says they must not run.
+    /// </summary>
+    private async Task<IReadOnlyCollection<string>> GetDisabledModuleIdsAsync(CancellationToken cancellationToken)
+    {
+        var statuses = await GetInstalledModuleStatusesAsync(cancellationToken);
+        return statuses
+            .Where(pair => string.Equals(pair.Value, ModuleInstallStatus.Disabled, StringComparison.OrdinalIgnoreCase))
+            .Select(pair => pair.Key)
+            .ToList();
+    }
+
+    /// <summary>
+    /// Reads every installed module's persisted status. Failures degrade to an empty set: a database
+    /// hiccup must not stop the supervisor, and the next reconcile pass retries.
+    /// </summary>
+    private async Task<IReadOnlyDictionary<string, string>> GetInstalledModuleStatusesAsync(
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            using var scope = _scopeFactory.CreateScope();
+            var dbContext = scope.ServiceProvider.GetRequiredService<CoreDbContext>();
+
+            return await dbContext.InstalledModules
+                .AsNoTracking()
+                .Select(m => new { m.ModuleId, m.Status })
+                .ToDictionaryAsync(m => m.ModuleId, m => m.Status, StringComparer.OrdinalIgnoreCase, cancellationToken);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _logger.LogDebug(ex, "Could not read installed module statuses");
+            return new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        }
+    }
+
+    /// <summary>
+    /// Persists a module's lifecycle status (e.g. clearing <c>RestartPending</c> after honouring it).
+    /// </summary>
+    private async Task SetInstalledModuleStatusAsync(
+        string moduleId, string status, CancellationToken cancellationToken)
+    {
+        try
+        {
+            using var scope = _scopeFactory.CreateScope();
+            var dbContext = scope.ServiceProvider.GetRequiredService<CoreDbContext>();
+
+            var row = await dbContext.InstalledModules
+                .AsTracking()
+                .FirstOrDefaultAsync(m => m.ModuleId == moduleId, cancellationToken);
+
+            if (row is null || string.Equals(row.Status, status, StringComparison.Ordinal))
+            {
+                return;
+            }
+
+            row.Status = status;
+            row.UpdatedAt = DateTime.UtcNow;
+            await dbContext.SaveChangesAsync(cancellationToken);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _logger.LogWarning(
+                ex, "Could not persist status {Status} for module {ModuleId}",
+                status, SanitizeForLog(moduleId));
         }
     }
 

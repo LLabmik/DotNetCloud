@@ -36,6 +36,11 @@ public class ModuleDto
     public string TrustTier { get; set; } = null!;
 
     /// <summary>
+    /// Gets or sets the publisher id from the signed manifest, when the module declares one.
+    /// </summary>
+    public string? PublisherId { get; set; }
+
+    /// <summary>
     /// Gets or sets the manifest data-store mode (<c>None</c> or <c>Isolated</c>).
     /// </summary>
     public string DataStoreMode { get; set; } = null!;
@@ -182,6 +187,80 @@ public class ModuleDataStoreOperationResultDto
 
     /// <summary>Gets or sets a sanitized failure reason; never contains a secret.</summary>
     public string? Error { get; set; }
+}
+
+/// <summary>
+/// Data transfer object describing a module's launch credential.
+/// </summary>
+/// <remarks>
+/// The credential is a per-launch secret minted by the supervisor (decision D1): it is never
+/// persisted and never returned by any surface. Only the non-secret lifecycle record — a short
+/// correlation hint and the issue/rotate/revoke timestamps — is exposed.
+/// </remarks>
+public class ModuleCredentialDto
+{
+    /// <summary>Gets or sets the module identifier.</summary>
+    public string ModuleId { get; set; } = null!;
+
+    /// <summary>Gets or sets whether a usable credential currently exists for a launched process.</summary>
+    public bool Active { get; set; }
+
+    /// <summary>Gets or sets the first characters of the token, for log correlation only.</summary>
+    public string? Hint { get; set; }
+
+    /// <summary>Gets or sets when a credential was first issued for the module.</summary>
+    public DateTimeOffset? IssuedAtUtc { get; set; }
+
+    /// <summary>Gets or sets when the token was last rotated.</summary>
+    public DateTimeOffset? RotatedAtUtc { get; set; }
+
+    /// <summary>Gets or sets when the token was revoked, if it currently is.</summary>
+    public DateTimeOffset? RevokedAtUtc { get; set; }
+}
+
+/// <summary>
+/// Request body for uninstalling a module.
+/// </summary>
+public class UninstallModuleDto
+{
+    /// <summary>
+    /// Gets or sets whether the module's isolated data store (schema and principal) is dropped.
+    /// When <see langword="false"/> the store is retained as <c>Orphaned</c> for manual cleanup.
+    /// </summary>
+    public bool DestroyData { get; set; }
+
+    /// <summary>
+    /// Gets or sets whether the module's binaries are deleted from the modules directory.
+    /// Defaults to <see langword="true"/>; a package-managed deployment may keep them.
+    /// </summary>
+    public bool RemoveFiles { get; set; } = true;
+}
+
+/// <summary>
+/// Result of an uninstall operation.
+/// </summary>
+public class ModuleUninstallResultDto
+{
+    /// <summary>Gets or sets whether the module was uninstalled.</summary>
+    public bool Success { get; set; }
+
+    /// <summary>Gets or sets the module identifier.</summary>
+    public string ModuleId { get; set; } = null!;
+
+    /// <summary>Gets or sets a sanitized failure reason.</summary>
+    public string? Error { get; set; }
+
+    /// <summary>Gets or sets whether the isolated data store was dropped.</summary>
+    public bool DataStoreDestroyed { get; set; }
+
+    /// <summary>Gets or sets whether the isolated data store was retained as <c>Orphaned</c>.</summary>
+    public bool DataStoreRetained { get; set; }
+
+    /// <summary>Gets or sets whether the module binaries were removed from disk.</summary>
+    public bool FilesRemoved { get; set; }
+
+    /// <summary>Gets or sets how many user consent grants were revoked.</summary>
+    public int ConsentsRevoked { get; set; }
 }
 
 /// <summary>

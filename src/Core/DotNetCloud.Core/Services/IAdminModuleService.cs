@@ -118,4 +118,51 @@ public interface IAdminModuleService
         UpdateModuleQuotaDto dto,
         Guid updatedByUserId,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Uninstalls a module: stops it, revokes its launch credential, optionally drops or orphans its
+    /// isolated data store, optionally removes its binaries, and deletes the installation record.
+    /// </summary>
+    /// <param name="moduleId">The module identifier.</param>
+    /// <param name="dto">Whether to destroy the module's data and remove its files.</param>
+    /// <param name="uninstalledByUserId">The administrator performing the uninstall.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The outcome, or <see langword="null"/> when the module is not installed.</returns>
+    Task<ModuleUninstallResultDto?> UninstallModuleAsync(
+        string moduleId,
+        UninstallModuleDto dto,
+        Guid uninstalledByUserId,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Gets the non-secret lifecycle record of a module's launch credential.
+    /// </summary>
+    /// <param name="moduleId">The module identifier.</param>
+    /// <returns>The credential record, or <see langword="null"/> when the module is not installed.</returns>
+    Task<ModuleCredentialDto?> GetCredentialAsync(string moduleId);
+
+    /// <summary>
+    /// Rotates a module's launch credential. A running module is restarted so it receives the new
+    /// secret; the previous credential stops working immediately.
+    /// </summary>
+    /// <param name="moduleId">The module identifier.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The new credential record, or <see langword="null"/> when the module is not installed.</returns>
+    Task<ModuleCredentialDto?> RotateCredentialAsync(string moduleId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Revokes a module's launch credential. Every in-flight call from the running process is
+    /// rejected until the module is restarted (which mints a new secret).
+    /// </summary>
+    /// <param name="moduleId">The module identifier.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The revoked credential record, or <see langword="null"/> when the module is not installed.</returns>
+    Task<ModuleCredentialDto?> RevokeCredentialAsync(string moduleId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Lists data stores retained as <c>Orphaned</c> after a module was uninstalled with "keep data".
+    /// </summary>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The orphaned stores an administrator can inspect and drop.</returns>
+    Task<IReadOnlyList<ModuleDataStoreDto>> ListOrphanedDataStoresAsync(CancellationToken cancellationToken = default);
 }

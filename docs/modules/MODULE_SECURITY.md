@@ -417,7 +417,78 @@ tracked with the store client (Track B).
 
 ---
 
-## 11. What this model does not cover
+## 11. Lifecycle operations (uninstall, credentials, audit)
+
+### 11.1 Uninstall and data retention
+
+Uninstalling is an operator action (`POST /api/v1/core/admin/modules/{id}/uninstall`,
+`dotnetcloud module uninstall`) and runs in a fixed order:
+
+1. Stop the module process.
+2. Revoke its launch credential, so a lingering process can no longer call the core.
+3. Drop the isolated data store **or** retain it as `Orphaned`.
+4. Delete the installation row; capability grants, quotas, settings and consent records cascade.
+5. Remove the module binaries (path-checked against the modules root; `--keep-files` skips it).
+
+**A failed drop aborts the uninstall.** The installation row stays, so the operator can stop the
+module and retry instead of being left with an unmanaged schema and no record of it.
+
+Retaining data marks `ModuleDataStore.Status = Orphaned` and clears the encrypted connection string
+(the schema and principal stay, still owned by the module principal). Orphaned stores are listed by
+`GET /api/v1/core/admin/datastores/orphaned` and `dotnetcloud datastore status`, and are dropped with
+`dotnetcloud datastore destroy <id>`. There is deliberately **no foreign key** from
+`ModuleDataStore` to `InstalledModule`: a cascade would delete the row that records the retained data.
+
+### 11.2 Launch credentials
+
+A module credential is a 32-byte secret minted by the supervisor on every launch and required on
+every capability call (A2). It is never persisted and never leaves the core:
+
+- `GET modules/{id}/credential` returns only `Active`, a four-character hint and the
+  issue/rotate/revoke timestamps.
+- **Rotate** marks the rotation and restarts the module, which mints a new secret; the old value stops
+  working immediately.
+- **Revoke** invalidates the current secret. The running process is rejected on every call until it is
+  restarted (which mints a fresh credential).
+
+A core restart re-issues fresh credentials to every module it spawns, so revocation survives only as
+long as the process it targeted.
+
+### 11.3 Audit integrity (F14)
+
+Every audit field that originates from a module is untrusted. `AuditLogService` runs it through
+`AuditTextSanitizer`, which removes C0/C1 control characters (including CR/LF, so a module cannot
+forge a log record) and caps `ModuleId` at 200, `EntityType` at 100 and `Description` at 1000
+characters.
+
+Module audit writes are rate-limited per minute (`AuditEntriesPerMinute`). The **first** rejection in
+each window is audited as `ModuleRateLimited`; subsequent rejections in the same window are not, so a
+runaway module cannot amplify load through the audit path.
+
+Operator actions are audited with dedicated actions (`ModuleInstalled`, `ModuleUpdated`,
+`ModuleUninstalled`, `ModuleCredentialRotated`, `ModuleDataStoreProvisioned|Destroyed|Error`,
+`ModuleLegacyAccessUsed`). The idempotent startup registry reconciliation is not audited: it runs on
+every boot and would bury operator actions in noise.
+
+### 11.4 Health and supervision
+
+`/health/ready` reports one row per supervised module, including `sandboxStatus`, `trustTier` and
+`dataStoreMode`, so a module that is not running can be explained without opening the admin UI. A
+module that fails `ProcessSupervisor:UnhealthyThreshold` consecutive probes is force-killed and handed
+to its restart policy rather than lingering in `Degraded`.
+
+### 11.5 Backup and restore
+
+Sandboxed module data lives in `<dataDir>/modules/<id>/data` and the connection strings are encrypted
+with the key ring in `<dataDir>/data-protection-keys`. Both are inside the configured data directory,
+so a full backup includes them. Restoring an archive without the key ring leaves the stored module
+connection strings undecryptable; the recovery path is
+`dotnetcloud datastore reset-credentials <id>`, which regenerates the principal password and
+re-encrypts the connection string with the current key ring.
+
+---
+
+## 12. What this model does not cover
 
 - **Scope enforcement inside a module.** Consent governs what the core hands to a module. A module
   that has `files:read` still decides what it does with the bytes; store review and the audit log are

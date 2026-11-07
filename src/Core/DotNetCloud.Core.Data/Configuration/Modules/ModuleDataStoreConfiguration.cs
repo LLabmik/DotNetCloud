@@ -57,10 +57,10 @@ public class ModuleDataStoreConfiguration : IEntityTypeConfiguration<ModuleDataS
         builder.HasIndex(d => d.Status)
             .HasDatabaseName("ix_module_data_stores_status");
 
-        builder.HasOne(d => d.Module)
-            .WithOne()
-            .HasForeignKey<ModuleDataStore>(d => d.ModuleId)
-            .OnDelete(DeleteBehavior.Cascade)
-            .HasConstraintName("fk_module_data_stores_module_id");
+        // No FK to InstalledModule: "uninstall, keep data" deletes the installation row and leaves
+        // this row behind as Orphaned. A cascade delete would destroy data the admin chose to keep.
+        builder.HasIndex(d => d.ModuleId)
+            .IsUnique()
+            .HasDatabaseName("ix_module_data_stores_module_id");
     }
 }

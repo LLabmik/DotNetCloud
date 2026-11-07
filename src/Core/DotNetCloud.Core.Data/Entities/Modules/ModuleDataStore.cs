@@ -14,6 +14,12 @@ namespace DotNetCloud.Core.Data.Entities.Modules;
 /// Modules that declare <c>dataStore: "none"</c> have no row here; they persist through
 /// <see cref="ModuleSetting"/>.
 /// </para>
+/// <para>
+/// There is deliberately <b>no foreign key</b> to <see cref="InstalledModule"/>: uninstalling a
+/// module with "keep data" deletes the installation row but retains this row with
+/// <see cref="ModuleDataStoreStatus.Orphaned"/> so an administrator can see and drop the leftover
+/// schema. A cascade would silently destroy the data the operator chose to keep.
+/// </para>
 /// </remarks>
 public class ModuleDataStore
 {
@@ -43,7 +49,4 @@ public class ModuleDataStore
 
     /// <summary>When the row last changed.</summary>
     public DateTime UpdatedAtUtc { get; set; }
-
-    /// <summary>Navigation to the owning module.</summary>
-    public virtual InstalledModule? Module { get; set; }
 }

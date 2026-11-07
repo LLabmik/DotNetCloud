@@ -809,6 +809,10 @@ namespace DotNetCloud.Core.Data.SqlServer.Migrations
 
                     b.HasKey("ModuleId");
 
+                    b.HasIndex("ModuleId")
+                        .IsUnique()
+                        .HasDatabaseName("ix_module_data_stores_module_id");
+
                     b.HasIndex("Status")
                         .HasDatabaseName("ix_module_data_stores_status");
 
@@ -1920,18 +1924,6 @@ namespace DotNetCloud.Core.Data.SqlServer.Migrations
                         .HasConstraintName("fk_module_capability_grants_module_id");
 
                     b.Navigation("GrantedByUser");
-
-                    b.Navigation("Module");
-                });
-
-            modelBuilder.Entity("DotNetCloud.Core.Data.Entities.Modules.ModuleDataStore", b =>
-                {
-                    b.HasOne("DotNetCloud.Core.Data.Entities.Modules.InstalledModule", "Module")
-                        .WithOne()
-                        .HasForeignKey("DotNetCloud.Core.Data.Entities.Modules.ModuleDataStore", "ModuleId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired()
-                        .HasConstraintName("fk_module_data_stores_module_id");
 
                     b.Navigation("Module");
                 });

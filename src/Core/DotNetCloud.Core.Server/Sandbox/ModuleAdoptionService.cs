@@ -234,7 +234,7 @@ internal sealed class ModuleAdoptionService
                 {
                     Caller = CallerContext.CreateSystemContext(),
                     ModuleId = "dotnetcloud.core",
-                    Action = AuditAction.Update,
+                    Action = AuditAction.ModuleLegacyAccessUsed,
                     EntityType = "Module",
                     EntityId = Guid.CreateVersion7(),
                     Description = $"module-legacy-access-used:{moduleId}",
