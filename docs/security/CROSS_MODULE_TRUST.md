@@ -93,7 +93,7 @@ While every module runs under the same OS user as the core, this is an **API, co
 
 | Area                     | Policy                                                                                                                         |
 | ------------------------ | ------------------------------------------------------------------------------------------------------------------------------ |
-| Module data directory    | Modules currently share `DOTNETCLOUD_DATA_DIR`; per-module `<dataDir>/modules/<id>/{config,data,run}` (0700) lands in phase A1 |
+| Module data directory    | Sandboxed modules (manifest v2, non-required) get `<dataDir>/modules/<id>/{config,data,run}` (0700) and never see `DOTNETCLOUD_CONFIG_DIR`/`DOTNETCLOUD_DATA_DIR`; v1 modules keep the shared directories only while `ProcessSupervisor:AllowLegacyAccess` is on |
 | Cross-module file access | Prohibited — modules must use gRPC to request file data                                                                        |
 | Temporary files          | Cleaned up in `finally` blocks and on process exit                                                                             |
 | Avatar storage           | Centralized in Core server, not per-module                                                                                     |
