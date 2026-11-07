@@ -1781,6 +1781,25 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 
 ---
 
+### Step: third-party-module-sandbox-a2-2026-11-07 - Module Sandbox A2 (module API v1, slice 1 — identity rename)
+
+**Status:** 🔄 In progress
+**Duration:** ongoing
+**Description:** Phase A2 of `docs/THIRD_PARTY_MODULE_SANDBOX_AND_STORE_PLAN.md`. This slice lands the D2 transport-identity rename (locked decision, one-release cut-over); the `module_api.proto` surface, credential service, `ModuleAccessEvaluator`, REST facade and SDK remain.
+
+**Deliverables:**
+
+- ✓ `ModuleIdentityMetadata` now exposes `dnc-module-id` / `dnc-module-token` / `dnc-user-assertion` and `DOTNETCLOUD_MODULE_TOKEN` (`DOTNETCLOUD_ASSERTION_PUBLIC_KEY` unchanged); the constant names moved from `ModuleSecret*` to `ModuleToken*` so the code matches the wire contract
+- ✓ Consumers updated in the same change: `AuthenticationInterceptor`, `ModulePeerAuthenticationInterceptor`, `GrpcChannelManager`, `ProcessSupervisor` (env injection now uses the constant), `ModuleCredentialStore` (`TryGetToken`, token terminology). No host or `ModuleApiProxyTransformer` edits were needed — they consume the shared constants
+- ✓ Drift guard tests: metadata produced by `ModuleIdentityMetadata.Create` is accepted by both the core module interceptor and the module-side peer interceptor, so a one-sided header rename fails the suite; plus `ModuleIdentityMetadataTests` for the producer contract
+- ✓ `docs/security/CROSS_MODULE_TRUST.md` and `docs/security/SECURITY_MODEL.md` updated to the new names (no stale `module-secret` claims remain in current docs)
+
+**Dependencies:** `third-party-module-sandbox-a1-2026-11-06`
+**Blocking Issues:** None
+**Notes:** `dotnet build DotNetCloud.CI.slnf` succeeded (only the two pre-existing `DbInitializerTests` nullable warnings). `DotNetCloud.Core.Server.Tests` 1121 passed / 0 failed / 2 skipped; `DotNetCloud.Modules.Files.Tests` 1009 passed. A tautological constant-pin test was replaced with behaviour tests after MSTEST0032 flagged it — the wire names are asserted as literals on production output, per the repo's test-tautology policy. Not committed.
+
+---
+
 ## Phase 2: Chat & Notifications & Android
 
 **STATUS:** ✅ COMPLETED (13/13 sub-phases)

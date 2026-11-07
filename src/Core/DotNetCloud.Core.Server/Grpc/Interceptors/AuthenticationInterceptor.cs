@@ -87,25 +87,25 @@ internal sealed class AuthenticationInterceptor : Interceptor
         }
 
         var moduleId = context.RequestHeaders.Get(ModuleIdentityMetadata.ModuleIdHeader)?.Value;
-        var secret = context.RequestHeaders.Get(ModuleIdentityMetadata.ModuleSecretHeader)?.Value;
+        var token = context.RequestHeaders.Get(ModuleIdentityMetadata.ModuleTokenHeader)?.Value;
 
         if (string.IsNullOrEmpty(moduleId))
         {
-            _logger.LogWarning("gRPC call rejected: missing module-id metadata from {Peer}", context.Peer);
-            throw new RpcException(new Status(StatusCode.Unauthenticated, "Missing module-id metadata header"));
+            _logger.LogWarning("gRPC call rejected: missing dnc-module-id metadata from {Peer}", context.Peer);
+            throw new RpcException(new Status(StatusCode.Unauthenticated, "Missing dnc-module-id metadata header"));
         }
 
-        if (string.IsNullOrEmpty(secret))
+        if (string.IsNullOrEmpty(token))
         {
             _logger.LogWarning(
-                "gRPC call rejected: missing module-secret metadata from {Peer} (module-id {ModuleId})",
+                "gRPC call rejected: missing dnc-module-token metadata from {Peer} (dnc-module-id {ModuleId})",
                 context.Peer, moduleId);
             throw new RpcException(new Status(
                 StatusCode.Unauthenticated,
-                "Missing module-secret metadata header"));
+                "Missing dnc-module-token metadata header"));
         }
 
-        if (!_credentials.Validate(moduleId, secret))
+        if (!_credentials.Validate(moduleId, token))
         {
             _logger.LogWarning(
                 "gRPC call rejected: invalid module credential for {ModuleId} from {Peer}",
@@ -114,7 +114,7 @@ internal sealed class AuthenticationInterceptor : Interceptor
         }
 
         // Store the verified module identity for downstream use. Everything after this point
-        // may trust "ModuleId" because it was proven by the supervisor-issued secret.
+        // may trust "ModuleId" because it was proven by the supervisor-issued token.
         context.UserState["ModuleId"] = moduleId;
 
         _logger.LogDebug("Authenticated gRPC call from module {ModuleId}", moduleId);

@@ -45,9 +45,9 @@ DotNetCloud uses a **module-isolated architecture** where each feature module ru
 
 - Cleartext HTTP/2 (h2c) on a loopback TCP port assigned per module by `ProcessSupervisor`
 - Per-module socket/named-pipe transport with 0600 / ACL permissions is **planned (phase A4)**, not deployed
-- The supervisor mints a fresh 32-byte secret for each module launch (`DOTNETCLOUD_MODULE_SECRET`); module→core calls carry `module-id` + `module-secret` and are validated in constant time
+- The supervisor mints a fresh 32-byte token for each module launch (`DOTNETCLOUD_MODULE_TOKEN`); module→core calls carry `dnc-module-id` + `dnc-module-token` and are validated in constant time
 - Core→module calls are authenticated by `ModulePeerAuthenticationInterceptor` and fail closed when the supervisor did not launch the host
-- End-user identity is only ever carried in a core-signed, short-lived `caller-user-assertion`; modules cannot assert `CallerType.System` or supply their own roles
+- End-user identity is only ever carried in a core-signed, short-lived `dnc-user-assertion`; modules cannot assert `CallerType.System` or supply their own roles
 - `CapabilityGrantInterceptor` enforces the module's `ModuleCapabilityGrants` on every mapped RPC
 - Modules cannot call each other: there is no module-to-module channel
 

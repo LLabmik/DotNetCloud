@@ -1,3 +1,4 @@
+using DotNetCloud.Core.Grpc;
 using DotNetCloud.Core.Grpc.Capabilities;
 using DotNetCloud.Modules.Files.Data.Services;
 using Grpc.Core;
@@ -116,7 +117,7 @@ public class GrpcUserDirectoryTests
         Assert.AreEqual("Ada Lovelace", names[userId]);
         client.Verify(c => c.GetUserAsync(
             It.Is<GetUserRequest>(r => r.UserId == userId.ToString()),
-            It.Is<Metadata>(m => m.GetValue("module-id") == TestModuleId),
+            It.Is<Metadata>(m => m.GetValue(ModuleIdentityMetadata.ModuleIdHeader) == TestModuleId),
             It.IsAny<DateTime?>(),
             It.IsAny<CancellationToken>()), Times.Once);
     }
@@ -195,7 +196,7 @@ public class GrpcUserDirectoryTests
         Assert.AreEqual(userId, found);
         client.Verify(c => c.SearchUsersAsync(
             It.IsAny<SearchUsersRequest>(),
-            It.Is<Metadata>(m => m.GetValue("module-id") == TestModuleId),
+            It.Is<Metadata>(m => m.GetValue(ModuleIdentityMetadata.ModuleIdHeader) == TestModuleId),
             It.IsAny<DateTime?>(),
             It.IsAny<CancellationToken>()), Times.Once);
     }

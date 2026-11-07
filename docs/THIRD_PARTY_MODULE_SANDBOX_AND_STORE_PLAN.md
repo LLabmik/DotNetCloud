@@ -596,14 +596,14 @@ Per-module directories: `<dataDir>/modules/<moduleId>/{config,data,run}` created
 
 ### Phase A2 — Module API v1 (auth, enforcement, SDK)
 
-**Status:** ☐ Not started
+**Status:** 🔄 In progress (started 2026-11-07 — the D2 transport-identity rename is complete; the `module_api.proto` surface, the credential service, `ModuleAccessEvaluator`, the REST facade and the SDK remain)
 **Effort:** Large (~2–3 weeks)
 **Depends on:** A1 (entities/ids); can start the proto/SDK work in parallel with A1's tail.
 
 **Deliverables**
 
 - ☐ `src/Core/DotNetCloud.Core.Grpc/Protos/module_api.proto` — `dotnetcloud.moduleapi.v1` service: lifecycle, directories (user/group/team), notifications, events, settings, audit, search submit, realtime broadcast, consent query. Legacy `module_capabilities.proto` mapped to the same implementation.
-- ☐ Rename the transport identity per D2 (`dnc-module-id` / `dnc-module-token` / `dnc-user-assertion`; env `DOTNETCLOUD_MODULE_TOKEN`) across `ModuleIdentityMetadata`, all 14 hosts, `GrpcChannelManager`, `ModuleApiProxyTransformer`, `ModulePeerAuthenticationInterceptor` and the existing tests, in one release. Keep the credential **ephemeral** per D1.
+- ✓ Rename the transport identity per D2 (`dnc-module-id` / `dnc-module-token` / `dnc-user-assertion`; env `DOTNETCLOUD_MODULE_TOKEN`) in one release across `ModuleIdentityMetadata`, `AuthenticationInterceptor`, `ModulePeerAuthenticationInterceptor`, `GrpcChannelManager`, `ProcessSupervisor`, `ModuleCredentialStore` and the tests. The 14 hosts and `ModuleApiProxyTransformer` needed no edits because they consume the shared constants (env variable read directly only in the supervisor). Drift guard: `Authenticate_MetadataBuiltByModuleIdentityMetadata_IsAccepted` and `ModulePeerAuthentication_MetadataBuiltByModuleIdentityMetadata_IsAccepted` prove producer↔consumer agreement in both directions. `CROSS_MODULE_TRUST.md`/`SECURITY_MODEL.md` updated. Keep the credential **ephemeral** per D1.
 - ☐ `ModuleCredentialService`: issuance (32 random bytes, Base64), audit record (issued-at, rotated-at, revoked-at, hint — never the secret), rotate, revoke; mandatory on every module→core call (required modules included). **No persistence and no `ModuleCredential` table** (D1).
 - ☐ Rewritten `AuthenticationInterceptor` + REST middleware: constant-time comparison (already present — keep), `UserState` population, clear `Unauthenticated` failures, audit on failures (new).
 - ☐ `ModuleAccessEvaluator` with per-RPC capability mapping sourced from a shared `CapabilityCatalog` (`DotNetCloud.Core`), grant cache with invalidation hooks on grant/revoke, audit on denials. Replaces `CapabilityGrantInterceptor` and closes the A0 map gaps structurally.

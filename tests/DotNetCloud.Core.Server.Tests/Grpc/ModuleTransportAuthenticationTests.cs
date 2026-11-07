@@ -27,7 +27,7 @@ public class ModuleTransportAuthenticationTests
     public async Task Authenticate_MissingModuleId_ThrowsUnauthenticated()
     {
         var interceptor = CreateAuthenticationInterceptor(out _);
-        var context = CreateContext(new Metadata { { ModuleIdentityMetadata.ModuleSecretHeader, "secret" } });
+        var context = CreateContext(new Metadata { { ModuleIdentityMetadata.ModuleTokenHeader, "token" } });
 
         var ex = await Assert.ThrowsExactlyAsync<RpcException>(
             () => interceptor.UnaryServerHandler("request", context, (_, _) => Task.FromResult("ok")));
@@ -36,7 +36,7 @@ public class ModuleTransportAuthenticationTests
     }
 
     [TestMethod]
-    public async Task Authenticate_MissingSecret_ThrowsUnauthenticated()
+    public async Task Authenticate_MissingToken_ThrowsUnauthenticated()
     {
         var interceptor = CreateAuthenticationInterceptor(out _);
         var context = CreateContext(new Metadata { { ModuleIdentityMetadata.ModuleIdHeader, ModuleId } });
@@ -48,15 +48,15 @@ public class ModuleTransportAuthenticationTests
     }
 
     [TestMethod]
-    public async Task Authenticate_SecretForAnotherModule_ThrowsUnauthenticated()
+    public async Task Authenticate_TokenForAnotherModule_ThrowsUnauthenticated()
     {
         var interceptor = CreateAuthenticationInterceptor(out var store);
-        var foreignSecret = store.Issue("dotnetcloud.chat");
+        var foreignToken = store.Issue("dotnetcloud.chat");
 
         var context = CreateContext(new Metadata
         {
             { ModuleIdentityMetadata.ModuleIdHeader, ModuleId },
-            { ModuleIdentityMetadata.ModuleSecretHeader, foreignSecret },
+            { ModuleIdentityMetadata.ModuleTokenHeader, foreignToken },
         });
 
         var ex = await Assert.ThrowsExactlyAsync<RpcException>(
@@ -69,13 +69,13 @@ public class ModuleTransportAuthenticationTests
     public async Task Authenticate_RevokedCredential_ThrowsUnauthenticated()
     {
         var interceptor = CreateAuthenticationInterceptor(out var store);
-        var secret = store.Issue(ModuleId);
+        var token = store.Issue(ModuleId);
         store.Revoke(ModuleId);
 
         var context = CreateContext(new Metadata
         {
             { ModuleIdentityMetadata.ModuleIdHeader, ModuleId },
-            { ModuleIdentityMetadata.ModuleSecretHeader, secret },
+            { ModuleIdentityMetadata.ModuleTokenHeader, token },
         });
 
         var ex = await Assert.ThrowsExactlyAsync<RpcException>(
@@ -88,12 +88,12 @@ public class ModuleTransportAuthenticationTests
     public async Task Authenticate_ValidCredential_ContinuesAndRecordsModuleId()
     {
         var interceptor = CreateAuthenticationInterceptor(out var store);
-        var secret = store.Issue(ModuleId);
+        var token = store.Issue(ModuleId);
 
         var context = CreateContext(new Metadata
         {
             { ModuleIdentityMetadata.ModuleIdHeader, ModuleId },
-            { ModuleIdentityMetadata.ModuleSecretHeader, secret },
+            { ModuleIdentityMetadata.ModuleTokenHeader, token },
         });
 
         var result = await interceptor.UnaryServerHandler("request", context, (_, _) => Task.FromResult("ok"));
@@ -241,6 +241,63 @@ public class ModuleTransportAuthenticationTests
             .GetAwaiter().GetResult();
 
         Assert.AreEqual(StatusCode.Unauthenticated, ex.StatusCode);
+    }
+
+    [TestMethod]
+    [DoNotParallelize]
+    public async Task Authenticate_MetadataBuiltByModuleIdentityMetadata_IsAccepted()
+    {
+        // Guards against header/env drift between the producer used by every module host and the
+        // core's consumer: renaming one side without the other must fail this test.
+        var interceptor = CreateAuthenticationInterceptor(out var store);
+        var token = store.Issue(ModuleId);
+        var previous = Environment.GetEnvironmentVariable(ModuleIdentityMetadata.ModuleTokenEnvironmentVariable);
+
+        try
+        {
+            Environment.SetEnvironmentVariable(ModuleIdentityMetadata.ModuleTokenEnvironmentVariable, token);
+
+            var context = CreateContext(ModuleIdentityMetadata.Create(ModuleId));
+
+            var result = await interceptor.UnaryServerHandler(
+                "request", context, (_, _) => Task.FromResult("ok"));
+
+            Assert.AreEqual("ok", result);
+            Assert.AreEqual(ModuleId, context.UserState["ModuleId"]);
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable(
+                ModuleIdentityMetadata.ModuleTokenEnvironmentVariable, previous);
+        }
+    }
+
+    [TestMethod]
+    [DoNotParallelize]
+    public async Task ModulePeerAuthentication_MetadataBuiltByModuleIdentityMetadata_IsAccepted()
+    {
+        // The core→module direction reads the same token variable; both sides must agree on it.
+        var previous = Environment.GetEnvironmentVariable(ModuleIdentityMetadata.ModuleTokenEnvironmentVariable);
+
+        try
+        {
+            Environment.SetEnvironmentVariable(
+                ModuleIdentityMetadata.ModuleTokenEnvironmentVariable, "peer-token");
+
+            var interceptor = new ModulePeerAuthenticationInterceptor(
+                NullLogger<ModulePeerAuthenticationInterceptor>.Instance);
+            var context = CreateContext(ModuleIdentityMetadata.Create(ModuleId));
+
+            var result = await interceptor.UnaryServerHandler(
+                "request", context, (_, _) => Task.FromResult("ok"));
+
+            Assert.AreEqual("ok", result);
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable(
+                ModuleIdentityMetadata.ModuleTokenEnvironmentVariable, previous);
+        }
     }
 
     [TestMethod]

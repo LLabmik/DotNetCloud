@@ -8,11 +8,11 @@ namespace DotNetCloud.Core.Grpc;
 /// <remarks>
 /// <para>
 /// A module identifier on its own is not proof of identity — any process that can reach the
-/// core's loopback gRPC listener could present an arbitrary <c>module-id</c>. The process
-/// supervisor therefore mints a unique per-module secret when it launches a module host and
-/// hands it over in the <see cref="ModuleSecretEnvironmentVariable"/> environment variable.
-/// The module must echo that secret back in <see cref="ModuleSecretHeader"/> on every call to
-/// the core, and the core rejects any call whose secret does not match the one it issued.
+/// core's loopback gRPC listener could present an arbitrary <c>dnc-module-id</c>. The process
+/// supervisor therefore mints a unique per-module token when it launches a module host and
+/// hands it over in the <see cref="ModuleTokenEnvironmentVariable"/> environment variable.
+/// The module must echo that token back in <see cref="ModuleTokenHeader"/> on every call to
+/// the core, and the core rejects any call whose token does not match the one it issued.
 /// </para>
 /// <para>
 /// Module hosts should always build their outbound metadata with <see cref="Create"/> so the
@@ -22,20 +22,20 @@ namespace DotNetCloud.Core.Grpc;
 public static class ModuleIdentityMetadata
 {
     /// <summary>The metadata key carrying the module identifier.</summary>
-    public const string ModuleIdHeader = "module-id";
+    public const string ModuleIdHeader = "dnc-module-id";
 
-    /// <summary>The metadata key carrying the supervisor-issued module secret.</summary>
-    public const string ModuleSecretHeader = "module-secret";
+    /// <summary>The metadata key carrying the supervisor-issued module token.</summary>
+    public const string ModuleTokenHeader = "dnc-module-token";
 
     /// <summary>
-    /// The environment variable the process supervisor uses to hand a module host its secret.
+    /// The environment variable the process supervisor uses to hand a module host its token.
     /// </summary>
-    public const string ModuleSecretEnvironmentVariable = "DOTNETCLOUD_MODULE_SECRET";
+    public const string ModuleTokenEnvironmentVariable = "DOTNETCLOUD_MODULE_TOKEN";
 
     /// <summary>
     /// The metadata key carrying a core-signed assertion of the end user a module is acting for.
     /// </summary>
-    public const string UserAssertionHeader = "caller-user-assertion";
+    public const string UserAssertionHeader = "dnc-user-assertion";
 
     /// <summary>
     /// The environment variable carrying the core's public assertion-signing key, so a module can
@@ -45,7 +45,7 @@ public static class ModuleIdentityMetadata
 
     /// <summary>
     /// Creates the metadata for a core call originating from <paramref name="moduleId"/>,
-    /// including the supervisor-issued secret when one is present in the environment.
+    /// including the supervisor-issued token when one is present in the environment.
     /// </summary>
     /// <param name="moduleId">The module identifier reported to the core.</param>
     /// <param name="userAssertion">
@@ -58,10 +58,10 @@ public static class ModuleIdentityMetadata
 
         var metadata = new Metadata { { ModuleIdHeader, moduleId } };
 
-        var secret = Environment.GetEnvironmentVariable(ModuleSecretEnvironmentVariable);
-        if (!string.IsNullOrEmpty(secret))
+        var token = Environment.GetEnvironmentVariable(ModuleTokenEnvironmentVariable);
+        if (!string.IsNullOrEmpty(token))
         {
-            metadata.Add(ModuleSecretHeader, secret);
+            metadata.Add(ModuleTokenHeader, token);
         }
 
         if (!string.IsNullOrEmpty(userAssertion))

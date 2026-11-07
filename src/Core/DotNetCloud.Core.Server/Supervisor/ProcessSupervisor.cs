@@ -5,6 +5,7 @@ using DotNetCloud.Core.Capabilities;
 using DotNetCloud.Core.Data.Context;
 using DotNetCloud.Core.Data.Entities.Modules;
 using DotNetCloud.Core.Data.Services;
+using DotNetCloud.Core.Grpc;
 using DotNetCloud.Core.Grpc.Lifecycle;
 using DotNetCloud.Core;
 using DotNetCloud.Core.Modules;
@@ -361,10 +362,10 @@ internal sealed class ProcessSupervisor : BackgroundService, IProcessSupervisor
 
         // Mint a fresh credential for this launch. The module echoes it on every capability call,
         // so a process that did not come from this supervisor cannot impersonate the module.
-        var moduleSecret = _credentials.Issue(moduleId);
+        var moduleToken = _credentials.Issue(moduleId);
 
         var process = SpawnModuleProcess(
-            discovered, manifest, grpcEndpoint, moduleSecret, moduleConnectionString, sandboxSchema, useLegacyLayout);
+            discovered, manifest, grpcEndpoint, moduleToken, moduleConnectionString, sandboxSchema, useLegacyLayout);
         if (process is null)
         {
             _credentials.Revoke(moduleId);
@@ -457,7 +458,7 @@ internal sealed class ProcessSupervisor : BackgroundService, IProcessSupervisor
         DiscoveredModule discovered,
         ModuleManifestData manifest,
         string grpcEndpoint,
-        string moduleSecret,
+        string moduleToken,
         string? moduleConnectionString,
         string? sandboxSchema,
         bool useLegacyLayout)
@@ -513,7 +514,7 @@ internal sealed class ProcessSupervisor : BackgroundService, IProcessSupervisor
             }
 
             startInfo.Environment["DOTNETCLOUD_MODULE_ID"] = discovered.ModuleId;
-            startInfo.Environment["DOTNETCLOUD_MODULE_SECRET"] = moduleSecret;
+            startInfo.Environment[ModuleIdentityMetadata.ModuleTokenEnvironmentVariable] = moduleToken;
             // Public half only: a module can verify a user assertion but cannot mint one.
             startInfo.Environment["DOTNETCLOUD_ASSERTION_PUBLIC_KEY"] = _assertions.PublicKeyBase64;
             startInfo.Environment["DOTNETCLOUD_GRPC_ENDPOINT"] = ForceHttpForInternalGrpc(grpcEndpoint);

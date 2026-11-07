@@ -3448,7 +3448,15 @@ Plan: `docs/THIRD_PARTY_MODULE_SANDBOX_AND_STORE_PLAN.md` (phase A0). Branch `fe
   - ✓ Resource quotas (F10): policy + resolver, admin `GET/PUT modules/{id}/quota`, cgroup memory/cpu/pids, PG `CONNECTION LIMIT` + pool size, identity-keyed request/event/notification/audit limiters, and measured DB/data-dir usage with `QuotaExceeded` suspension + start refusal
   - ✓ Storage namespacing (F5): `IStorageProvider` namespaced contract + `ModuleStorageNamespace` (module/user segment from verified identity, traversal/rooted/encoding rejection, containment re-check, 30 tests)
   - ✓ Adoption/legacy-override service (§9): preflight report, in-place schema/object ownership transfer incl. `__EFMigrationsHistory`, startup migration service ordered before the supervisor, bundled-only audited `LegacyOverride`, `datastore preflight` CLI
-- ☐ Phases A2–A6 / B1–B5 / C / D per the plan
+- 🔄 Phase A2 — module API v1 (in progress)
+  - ✓ D2 transport-identity rename: `dnc-module-id` / `dnc-module-token` / `dnc-user-assertion` headers and `DOTNETCLOUD_MODULE_TOKEN` env var, cut over in one release (single source: `ModuleIdentityMetadata`); credential-store/supervisor terminology moved from secret to token; `CROSS_MODULE_TRUST.md`/`SECURITY_MODEL.md` updated
+  - ✓ Drift guard: producer↔consumer tests prove `ModuleIdentityMetadata.Create` output is accepted by `AuthenticationInterceptor` and `ModulePeerAuthenticationInterceptor`
+  - ☐ `module_api.proto` (`dotnetcloud.moduleapi.v1`) + legacy mapping
+  - ☐ `ModuleCredentialService` audit record (issue/rotate/revoke, hint only)
+  - ☐ `ModuleAccessEvaluator` replacing `CapabilityGrantInterceptor`; authorization invariants F4/F5/F6/F7/F15
+  - ☐ Audience/scope-bound `dnc-user-assertion`, event & audit authenticity, internal REST facade `/internal/moduleapi/v1/*`
+  - ☐ `DotNetCloud.Modules.Sdk` + Example module on the SDK
+- ☐ Phases A3–A6 / B1–B5 / C / D per the plan
 
 ---
 

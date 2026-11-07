@@ -72,13 +72,13 @@ internal sealed class GrpcChannelManager : IModuleGrpcChannelProvider, IDisposab
     private GrpcChannel CreateChannel(string moduleId, string endpoint)
     {
         // All internal gRPC is cleartext HTTP/2 over TCP — never use TLS. The module host still
-        // authenticates us: it presents this same supervisor-issued secret on every call and
+        // authenticates us: it presents this same supervisor-issued token on every call and
         // rejects anything that does not match, so a stray local process cannot pose as the core.
         var callCredentials = CallCredentials.FromInterceptor((_, metadata) =>
         {
-            if (_credentials.TryGetSecret(moduleId, out var secret))
+            if (_credentials.TryGetToken(moduleId, out var token))
             {
-                metadata.Add(ModuleIdentityMetadata.ModuleSecretHeader, secret);
+                metadata.Add(ModuleIdentityMetadata.ModuleTokenHeader, token);
             }
 
             return Task.CompletedTask;

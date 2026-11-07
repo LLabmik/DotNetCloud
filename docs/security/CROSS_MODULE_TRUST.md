@@ -10,10 +10,10 @@ DotNetCloud uses a **module-isolated architecture**: each module runs in its own
 
 **What ships today (v0.7.0):** the module↔core gRPC channel is cleartext HTTP/2 (h2c) over a **loopback TCP port** that the supervisor assigns per module. Identity is enforced per launch:
 
-- The `ProcessSupervisor` mints a 32-byte CSPRNG secret for each module start (`ModuleCredentialStore`) and passes it in `DOTNETCLOUD_MODULE_SECRET`.
-- Every module→core call carries `module-id` + `module-secret` metadata; `AuthenticationInterceptor` compares the secret in constant time and rejects anything else with `Unauthenticated`.
-- Core→module calls are authenticated by `ModulePeerAuthenticationInterceptor` using the same secret (presented by `GrpcChannelManager`), and fail closed when the supervisor did not launch the host.
-- A module never asserts an end-user identity itself: the core mints a short-lived ECDSA P-256 `caller-user-assertion` for the acting user, scoped to that module, and `CallerContextInterceptor` re-validates it and re-resolves roles from the identity store.
+- The `ProcessSupervisor` mints a 32-byte CSPRNG token for each module start (`ModuleCredentialStore`) and passes it in `DOTNETCLOUD_MODULE_TOKEN`.
+- Every module→core call carries `dnc-module-id` + `dnc-module-token` metadata; `AuthenticationInterceptor` compares the token in constant time and rejects anything else with `Unauthenticated`.
+- Core→module calls are authenticated by `ModulePeerAuthenticationInterceptor` using the same token (presented by `GrpcChannelManager`), and fail closed when the supervisor did not launch the host.
+- A module never asserts an end-user identity itself: the core mints a short-lived ECDSA P-256 `dnc-user-assertion` for the acting user, scoped to that module, and `CallerContextInterceptor` re-validates it and re-resolves roles from the identity store.
 
 **Per-module Unix sockets (0600) / ACL'd Named Pipes are *planned*, not implemented** (phase A4 of `docs/THIRD_PARTY_MODULE_SANDBOX_AND_STORE_PLAN.md`). Until then, any process running as the core service account can reach the loopback listener — the credential, not the transport, is the API-layer identity control. See [Trust-boundary limitations](#trust-boundary-limitations) below.
 
@@ -65,9 +65,9 @@ All event subscriptions follow a **need-to-receive** principle:
 | Property                  | Setting (v0.7.0)                                                                        |
 | ------------------------- | --------------------------------------------------------------------------------------- |
 | **Transport**             | Loopback TCP, cleartext HTTP/2 (h2c); per-module sockets/pipes planned (phase A4)        |
-| **Module authentication** | Per-launch secret (`module-id` + `module-secret`), constant-time compare, rotates on start |
-| **Core authentication**   | `ModulePeerAuthenticationInterceptor` verifies the same secret on core→module calls      |
-| **User identity**         | Core-signed `caller-user-assertion` (ECDSA P-256, short-lived, module-scoped)             |
+| **Module authentication** | Per-launch token (`dnc-module-id` + `dnc-module-token`), constant-time compare, rotates on start |
+| **Core authentication**   | `ModulePeerAuthenticationInterceptor` verifies the same token on core→module calls      |
+| **User identity**         | Core-signed `dnc-user-assertion` (ECDSA P-256, short-lived, module-scoped)                |
 | **Authorization**         | `CapabilityGrantInterceptor` enforces `ModuleCapabilityGrants` per RPC                    |
 | **Max message size**      | 16 MB receive/send on the module listener                                                |
 | **Detailed errors**       | Disabled outside Development                                                              |

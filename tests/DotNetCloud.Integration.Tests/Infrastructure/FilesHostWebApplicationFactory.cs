@@ -35,7 +35,7 @@ internal sealed class FilesHostWebApplicationFactory : WebApplicationFactory<Fil
     /// supervisor mints this per launch; the test host has no supervisor, so it is fixed here and
     /// presented by the test clients — there is deliberately no server-side bypass.
     /// </summary>
-    public const string TestModuleSecret = "integration-test-module-secret";
+    public const string TestModuleToken = "integration-test-module-token";
 
     private readonly string _databaseName = $"FilesHostInt_{Guid.CreateVersion7():N}";
 
@@ -53,8 +53,8 @@ internal sealed class FilesHostWebApplicationFactory : WebApplicationFactory<Fil
         // The module peer-authentication interceptor reads its credential from this variable and
         // fails closed without it.
         Environment.SetEnvironmentVariable(
-            ModuleIdentityMetadata.ModuleSecretEnvironmentVariable,
-            TestModuleSecret);
+            ModuleIdentityMetadata.ModuleTokenEnvironmentVariable,
+            TestModuleToken);
     }
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
@@ -167,7 +167,7 @@ internal sealed class FilesHostWebApplicationFactory : WebApplicationFactory<Fil
     {
         var client = CreateDefaultClient();
         client.DefaultRequestHeaders.Add("x-test-user-id", authenticatedUserId.ToString());
-        client.DefaultRequestHeaders.Add(ModuleIdentityMetadata.ModuleSecretHeader, TestModuleSecret);
+        client.DefaultRequestHeaders.Add(ModuleIdentityMetadata.ModuleTokenHeader, TestModuleToken);
 
         var channel = GrpcChannel.ForAddress(client.BaseAddress!, new GrpcChannelOptions
         {

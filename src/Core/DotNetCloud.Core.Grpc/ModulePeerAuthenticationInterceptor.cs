@@ -15,18 +15,18 @@ namespace DotNetCloud.Core.Grpc;
 /// <para>
 /// Module host gRPC services act on the user id supplied in the request payload, so an anonymous
 /// listener let any local process read or write another user's data by simply naming them. This
-/// interceptor closes that: the core presents the module's own supervisor-issued secret on every
+/// interceptor closes that: the core presents the module's own supervisor-issued token on every
 /// call, and anything else is rejected before a request reaches a service implementation.
 /// </para>
 /// <para>
-/// The secret is read from <see cref="ModuleIdentityMetadata.ModuleSecretEnvironmentVariable"/>,
-/// which only the supervisor sets. A host that was started outside the supervisor has no secret
+/// The token is read from <see cref="ModuleIdentityMetadata.ModuleTokenEnvironmentVariable"/>,
+/// which only the supervisor sets. A host that was started outside the supervisor has no token
 /// and therefore fails closed — that is intentional; a bypass flag would defeat the control.
 /// </para>
 /// </remarks>
 public sealed class ModulePeerAuthenticationInterceptor : Interceptor
 {
-    private readonly byte[]? _expectedSecret;
+    private readonly byte[]? _expectedToken;
     private readonly ILogger<ModulePeerAuthenticationInterceptor> _logger;
 
     /// <summary>
@@ -38,12 +38,12 @@ public sealed class ModulePeerAuthenticationInterceptor : Interceptor
     {
         _logger = logger;
 
-        var secret = Environment.GetEnvironmentVariable(
-            ModuleIdentityMetadata.ModuleSecretEnvironmentVariable);
+        var token = Environment.GetEnvironmentVariable(
+            ModuleIdentityMetadata.ModuleTokenEnvironmentVariable);
 
-        _expectedSecret = string.IsNullOrEmpty(secret)
+        _expectedToken = string.IsNullOrEmpty(token)
             ? null
-            : Encoding.UTF8.GetBytes(secret);
+            : Encoding.UTF8.GetBytes(token);
     }
 
     /// <inheritdoc />
@@ -90,19 +90,19 @@ public sealed class ModulePeerAuthenticationInterceptor : Interceptor
 
     private void Authenticate(ServerCallContext context)
     {
-        if (_expectedSecret is null)
+        if (_expectedToken is null)
         {
             _logger.LogError(
                 "Rejecting gRPC call to {Method}: {Variable} is not set, so this host was not " +
                 "launched by the process supervisor and cannot authenticate its peer",
-                context.Method, ModuleIdentityMetadata.ModuleSecretEnvironmentVariable);
+                context.Method, ModuleIdentityMetadata.ModuleTokenEnvironmentVariable);
 
             throw new RpcException(new Status(
                 StatusCode.Unauthenticated,
                 "Module host is missing its supervisor-issued credential"));
         }
 
-        var presented = context.RequestHeaders.Get(ModuleIdentityMetadata.ModuleSecretHeader)?.Value;
+        var presented = context.RequestHeaders.Get(ModuleIdentityMetadata.ModuleTokenHeader)?.Value;
 
         if (string.IsNullOrEmpty(presented))
         {
@@ -112,12 +112,12 @@ public sealed class ModulePeerAuthenticationInterceptor : Interceptor
 
             throw new RpcException(new Status(
                 StatusCode.Unauthenticated,
-                "Missing module-secret metadata header"));
+                "Missing dnc-module-token metadata header"));
         }
 
         var actual = Encoding.UTF8.GetBytes(presented);
-        if (actual.Length != _expectedSecret.Length
-            || !CryptographicOperations.FixedTimeEquals(actual, _expectedSecret))
+        if (actual.Length != _expectedToken.Length
+            || !CryptographicOperations.FixedTimeEquals(actual, _expectedToken))
         {
             _logger.LogWarning(
                 "Rejecting gRPC call to {Method} with an invalid module credential from {Peer}",
