@@ -15,7 +15,7 @@ DotNetCloud uses a **module-isolated architecture**: each module runs in its own
 - Core→module calls are authenticated by `ModulePeerAuthenticationInterceptor` using the same token (presented by `GrpcChannelManager`), and fail closed when the supervisor did not launch the host.
 - A module never asserts an end-user identity itself: the core mints a short-lived ECDSA P-256 `dnc-user-assertion` for the acting user, scoped to that module, and `CallerContextInterceptor` re-validates it and re-resolves roles from the identity store.
 
-**Per-module Unix sockets (0600) / ACL'd Named Pipes are *planned*, not implemented** (phase A4 of `docs/THIRD_PARTY_MODULE_SANDBOX_AND_STORE_PLAN.md`). Until then, any process running as the core service account can reach the loopback listener — the credential, not the transport, is the API-layer identity control. See [Trust-boundary limitations](#trust-boundary-limitations) below.
+**Per-module Unix sockets (0600) / ACL'd Named Pipes are _planned_, not implemented** (phase A4 of `docs/THIRD_PARTY_MODULE_SANDBOX_AND_STORE_PLAN.md`). Until then, any process running as the core service account can reach the loopback listener — the credential, not the transport, is the API-layer identity control. See [Trust-boundary limitations](#trust-boundary-limitations) below.
 
 ---
 
@@ -62,16 +62,16 @@ All event subscriptions follow a **need-to-receive** principle:
 
 ## gRPC Security Model
 
-| Property                  | Setting (v0.7.0)                                                                        |
-| ------------------------- | --------------------------------------------------------------------------------------- |
-| **Transport**             | Loopback TCP, cleartext HTTP/2 (h2c); per-module sockets/pipes planned (phase A4)        |
+| Property                  | Setting (v0.7.0)                                                                                 |
+| ------------------------- | ------------------------------------------------------------------------------------------------ |
+| **Transport**             | Loopback TCP, cleartext HTTP/2 (h2c); per-module sockets/pipes planned (phase A4)                |
 | **Module authentication** | Per-launch token (`dnc-module-id` + `dnc-module-token`), constant-time compare, rotates on start |
-| **Core authentication**   | `ModulePeerAuthenticationInterceptor` verifies the same token on core→module calls      |
-| **User identity**         | Core-signed `dnc-user-assertion` (ECDSA P-256, short-lived, module-scoped)                |
-| **Authorization**         | `CapabilityGrantInterceptor` enforces `ModuleCapabilityGrants` per RPC                    |
-| **Max message size**      | 16 MB receive/send on the module listener                                                |
-| **Detailed errors**       | Disabled outside Development                                                              |
-| **Reflection**            | Disabled in production                                                                   |
+| **Core authentication**   | `ModulePeerAuthenticationInterceptor` verifies the same token on core→module calls               |
+| **User identity**         | Core-signed `dnc-user-assertion` (ECDSA P-256, short-lived, module-scoped)                       |
+| **Authorization**         | `CapabilityGrantInterceptor` enforces `ModuleCapabilityGrants` per RPC                           |
+| **Max message size**      | 16 MB receive/send on the module listener                                                        |
+| **Detailed errors**       | Disabled outside Development                                                                     |
+| **Reflection**            | Disabled in production                                                                           |
 
 ### CallerContext Propagation
 
@@ -91,9 +91,9 @@ While every module runs under the same OS user as the core, this is an **API, co
 
 ## File System Isolation
 
-| Area                     | Policy                                                                                                     |
-| ------------------------ | ---------------------------------------------------------------------------------------------------------- |
+| Area                     | Policy                                                                                                                         |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------ |
 | Module data directory    | Modules currently share `DOTNETCLOUD_DATA_DIR`; per-module `<dataDir>/modules/<id>/{config,data,run}` (0700) lands in phase A1 |
-| Cross-module file access | Prohibited — modules must use gRPC to request file data                                                     |
-| Temporary files          | Cleaned up in `finally` blocks and on process exit                                                          |
-| Avatar storage           | Centralized in Core server, not per-module                                                                  |
+| Cross-module file access | Prohibited — modules must use gRPC to request file data                                                                        |
+| Temporary files          | Cleaned up in `finally` blocks and on process exit                                                                             |
+| Avatar storage           | Centralized in Core server, not per-module                                                                                     |

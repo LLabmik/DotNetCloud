@@ -1,0 +1,391 @@
+syntax = "proto3";
+
+option csharp_namespace = "DotNetCloud.Core.Grpc.ModuleApi.V1";
+
+package dotnetcloud.moduleapi.v1;
+
+// ModuleApi v1 — the canonical module -> core contract.
+//
+// Identity is never carried in a message field.
+//   * The core authenticates every call with the `dnc-module-id` + `dnc-module-token` metadata the
+//     process supervisor issued at launch (see ModuleIdentityMetadata).
+//   * The acting end user comes from the core-signed `dnc-user-assertion`, never from a request
+//     field. User ids that appear below are *targets* (a user being looked up); an empty target
+//     means "the acting user".
+//
+// Every request message therefore reserves field 1 and the name `caller` (the legacy
+// CallerContextMessage slot) so a future edit cannot reintroduce a caller-supplied identity that
+// code might trust by mistake.
+//
+// Every RPC maps to exactly one capability. The core enforces the admin-granted capability and,
+// for personal data, the per-user consent (module, user, scope): a granted capability means "may
+// call the API", never "may read every user's data".
+//
+// The legacy `dotnetcloud.capabilities` service keeps working for required modules and is mapped
+// onto the same implementation; new modules use this surface.
+service ModuleApi {
+  // --- Lifecycle ------------------------------------------------------------------------------
+
+  // Reports module health/readiness to the core. Feeds the core's readiness aggregation; a module
+  // that stops reporting is treated as unhealthy by the supervisor independently.
+  rpc ReportHealth (ReportHealthRequest) returns (ReportHealthResponse);
+
+  // --- Directories (IUserDirectory / IGroupDirectory / ITeamDirectory) ------------------------
+
+  // Looks up a user's profile. Email is only populated when the acting module holds a per-target
+  // consent for `profile`, so this cannot be used as a PII enumeration endpoint.
+  rpc GetUser (GetUserRequest) returns (GetUserResponse);
+
+  // Searches users. Same minimal-profile rule as GetUser.
+  rpc SearchUsers (SearchUsersRequest) returns (SearchUsersResponse);
+
+  // Returns the acting user's context (id, display name, locale, timezone, roles).
+  rpc GetCurrentUserContext (GetCurrentUserContextRequest) returns (GetCurrentUserContextResponse);
+
+  // Gets basic group information by id.
+  rpc GetGroup (GetGroupRequest) returns (GetGroupResponse);
+
+  // Lists the groups a user belongs to (empty target = acting user).
+  rpc GetGroupsForUser (GetGroupsForUserRequest) returns (GetGroupsForUserResponse);
+
+  // Gets basic team information by id.
+  rpc GetTeam (GetTeamRequest) returns (GetTeamResponse);
+
+  // Lists the teams a user belongs to (empty target = acting user).
+  rpc GetTeamsForUser (GetTeamsForUserRequest) returns (GetTeamsForUserResponse);
+
+  // --- Notifications (INotificationService) ---------------------------------------------------
+
+  // Sends a notification. The core attributes the notification to the authenticated module and
+  // its publisher, escapes and length-limits module-supplied text, and rate-limits per module.
+  rpc SendNotification (SendNotificationRequest) returns (SendNotificationResponse);
+
+  // --- Events (IEventBus) ---------------------------------------------------------------------
+
+  // Publishes a platform event. The event type must be declared in the module's manifest
+  // `events.publishes`; the core stamps the origin module. Undeclared types are rejected and
+  // audited.
+  rpc PublishEvent (PublishEventRequest) returns (PublishEventResponse);
+
+  // --- Settings (IModuleSettings) -------------------------------------------------------------
+
+  // Reads a setting in the authenticated module's namespace.
+  rpc GetSetting (GetSettingRequest) returns (GetSettingResponse);
+
+  // Writes a setting in the authenticated module's namespace.
+  rpc SetSetting (SetSettingRequest) returns (SetSettingResponse);
+
+  // --- Audit (IAuditLogger) -------------------------------------------------------------------
+
+  // Records an audit entry. The entry is attributed to the authenticated module identity.
+  rpc LogAudit (LogAuditRequest) returns (LogAuditResponse);
+
+  // --- Search (ISearchProvider) ---------------------------------------------------------------
+
+  // Submits a real-time search-index change for the authenticated module's own entities.
+  rpc SubmitSearchIndex (SubmitSearchIndexRequest) returns (SubmitSearchIndexResponse);
+
+  // --- Realtime (IRealtimeBroadcaster) --------------------------------------------------------
+
+  // Broadcasts a realtime event. The event name must be declared by the module before the core
+  // delivers it; payload size and rate are limited per module.
+  rpc BroadcastRealtimeEvent (BroadcastRealtimeEventRequest) returns (BroadcastRealtimeEventResponse);
+
+  // --- Consent --------------------------------------------------------------------------------
+
+  // Checks whether the (module, user, scope) consents exist. Used by modules to degrade
+  // gracefully instead of failing a user-facing call.
+  rpc CheckUserConsent (CheckUserConsentRequest) returns (CheckUserConsentResponse);
+
+  // Lists the scopes the acting user has granted this module (empty target = acting user).
+  rpc GetGrantedScopes (GetGrantedScopesRequest) returns (GetGrantedScopesResponse);
+}
+
+// --- Lifecycle --------------------------------------------------------------------------------
+
+message ReportHealthRequest {
+  reserved 1;
+  reserved "caller";
+
+  // "healthy", "degraded" or "unhealthy".
+  string status = 2;
+  // Optional short reason; control characters are stripped and the value is length-capped.
+  string detail = 3;
+  // Number of operations the module is currently executing (informational).
+  int32 active_operations = 4;
+}
+
+message ReportHealthResponse {
+  // Always returned, even when the report itself is discarded.
+  bool acknowledged = 1;
+}
+
+// --- Directories ------------------------------------------------------------------------------
+
+message GetUserRequest {
+  reserved 1;
+  reserved "caller";
+
+  string user_id = 2;
+}
+
+message GetUserResponse {
+  bool found = 1;
+  ModuleUserProfile user = 2;
+}
+
+// Minimal profile by design: choose fields only, no email/phone unless a per-target consent or an
+// admin grant allows the extra detail. Modules have no use for a user's address book.
+message ModuleUserProfile {
+  string id = 1;
+  string display_name = 2;
+  string avatar_url = 3;
+  bool is_active = 4;
+  // Empty unless the acting module holds a `profile` consent for this target user.
+  string email = 5;
+}
+
+message SearchUsersRequest {
+  reserved 1;
+  reserved "caller";
+
+  string query = 2;
+  // Server caps this; a request above the cap is clamped, not rejected.
+  int32 max_results = 3;
+}
+
+message SearchUsersResponse {
+  repeated ModuleUserProfile users = 1;
+}
+
+message GetCurrentUserContextRequest {
+  reserved 1;
+  reserved "caller";
+}
+
+message GetCurrentUserContextResponse {
+  string user_id = 1;
+  string display_name = 2;
+  string email = 3;
+  string locale = 4;
+  string timezone = 5;
+  repeated string roles = 6;
+}
+
+message GetGroupRequest {
+  reserved 1;
+  reserved "caller";
+
+  string group_id = 2;
+}
+
+message GetGroupResponse {
+  bool found = 1;
+  ModuleGroup group = 2;
+}
+
+message ModuleGroup {
+  string id = 1;
+  string organization_id = 2;
+  string name = 3;
+  string description = 4;
+  bool is_all_users_group = 5;
+  int32 member_count = 6;
+  string created_at = 7;
+}
+
+message GetGroupsForUserRequest {
+  reserved 1;
+  reserved "caller";
+
+  // Empty = the acting user from the user assertion. A non-empty value for another user requires
+  // the corresponding consent and is rejected otherwise.
+  string user_id = 2;
+}
+
+message GetGroupsForUserResponse {
+  repeated ModuleGroup groups = 1;
+}
+
+message GetTeamRequest {
+  reserved 1;
+  reserved "caller";
+
+  string team_id = 2;
+}
+
+message GetTeamResponse {
+  bool found = 1;
+  ModuleTeam team = 2;
+}
+
+message ModuleTeam {
+  string id = 1;
+  string organization_id = 2;
+  string name = 3;
+  string description = 4;
+  int32 member_count = 5;
+  string created_at = 6;
+}
+
+message GetTeamsForUserRequest {
+  reserved 1;
+  reserved "caller";
+
+  // Empty = the acting user from the user assertion.
+  string user_id = 2;
+}
+
+message GetTeamsForUserResponse {
+  repeated ModuleTeam teams = 1;
+}
+
+// --- Notifications ----------------------------------------------------------------------------
+
+message SendNotificationRequest {
+  reserved 1;
+  reserved "caller";
+
+  repeated string recipient_user_ids = 2;
+  // Rendered inside core chrome: escaped, length-capped and never treated as markup.
+  string title = 3;
+  string body = 4;
+  // Coarse category so users can filter ("chat", "files", "calendar", ...).
+  string category = 5;
+  // In-app deep link. Must resolve inside the product; arbitrary URLs are stripped by the core.
+  string link = 6;
+}
+
+message SendNotificationResponse {
+  bool success = 1;
+  int32 delivered_count = 2;
+}
+
+// --- Events -----------------------------------------------------------------------------------
+
+message PublishEventRequest {
+  // Field 1 was a caller the module filled in itself; it stays reserved so it cannot come back
+  // and be trusted by mistake.
+  reserved 1;
+  reserved "caller";
+
+  // Platform event type name. Must be declared in the module manifest's published events.
+  string event_type = 2;
+  // Event payload serialized as JSON.
+  string payload_json = 3;
+}
+
+message PublishEventResponse {
+  bool success = 1;
+  // Set when success is false: why the core refused the event.
+  string error = 2;
+}
+
+// --- Settings ---------------------------------------------------------------------------------
+
+message GetSettingRequest {
+  reserved 1;
+  reserved "caller";
+
+  // Namespace comes from the authenticated module id, never from the request.
+  string key = 2;
+}
+
+message GetSettingResponse {
+  bool found = 1;
+  string value = 2;
+}
+
+message SetSettingRequest {
+  reserved 1;
+  reserved "caller";
+
+  string key = 2;
+  string value = 3;
+}
+
+message SetSettingResponse {
+  bool success = 1;
+}
+
+// --- Audit ------------------------------------------------------------------------------------
+
+message LogAuditRequest {
+  reserved 1;
+  reserved "caller";
+
+  // DotNetCloud.Core.Capabilities.AuditAction enum value.
+  int32 action = 2;
+  string entity_type = 3;
+  string entity_id = 4;
+  string description = 5;
+}
+
+message LogAuditResponse {
+  bool success = 1;
+}
+
+// --- Search -----------------------------------------------------------------------------------
+
+message SubmitSearchIndexRequest {
+  reserved 1;
+  reserved "caller";
+
+  // Entity id that changed (GUID string); ownership is checked against the authenticated module.
+  string entity_id = 2;
+  // DotNetCloud.Core.Events.Search.SearchIndexAction: 0 = Index, 1 = Remove.
+  int32 action = 3;
+}
+
+message SubmitSearchIndexResponse {
+  bool success = 1;
+}
+
+// --- Realtime ---------------------------------------------------------------------------------
+
+message BroadcastRealtimeEventRequest {
+  reserved 1;
+  reserved "caller";
+
+  // SignalR group name (e.g. "chat-channel-{channelId}").
+  string group = 2;
+  // Event name; must be one the module declared before the core delivers it.
+  string event_name = 3;
+  // Serialized JSON payload; size-limited per module.
+  string payload_json = 4;
+  // If set, delivers only to this user (per-user delivery).
+  string target_user_id = 5;
+}
+
+message BroadcastRealtimeEventResponse {
+  bool success = 1;
+}
+
+// --- Consent ----------------------------------------------------------------------------------
+
+message CheckUserConsentRequest {
+  reserved 1;
+  reserved "caller";
+
+  // Empty = the acting user from the user assertion.
+  string user_id = 2;
+  repeated string scopes = 3;
+}
+
+message CheckUserConsentResponse {
+  bool granted = 1;
+  // Scopes that are missing, so the module can request exactly those.
+  repeated string missing_scopes = 2;
+}
+
+message GetGrantedScopesRequest {
+  reserved 1;
+  reserved "caller";
+
+  // Empty = the acting user from the user assertion.
+  string user_id = 2;
+}
+
+message GetGrantedScopesResponse {
+  repeated string scopes = 1;
+}

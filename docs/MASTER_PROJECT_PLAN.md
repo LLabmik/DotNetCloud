@@ -1793,10 +1793,13 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 - ✓ Consumers updated in the same change: `AuthenticationInterceptor`, `ModulePeerAuthenticationInterceptor`, `GrpcChannelManager`, `ProcessSupervisor` (env injection now uses the constant), `ModuleCredentialStore` (`TryGetToken`, token terminology). No host or `ModuleApiProxyTransformer` edits were needed — they consume the shared constants
 - ✓ Drift guard tests: metadata produced by `ModuleIdentityMetadata.Create` is accepted by both the core module interceptor and the module-side peer interceptor, so a one-sided header rename fails the suite; plus `ModuleIdentityMetadataTests` for the producer contract
 - ✓ `docs/security/CROSS_MODULE_TRUST.md` and `docs/security/SECURITY_MODEL.md` updated to the new names (no stale `module-secret` claims remain in current docs)
+- ✓ `src/Core/DotNetCloud.Core.Grpc/Protos/module_api.proto` — canonical `dotnetcloud.moduleapi.v1` service (17 RPCs) registered in `DotNetCloud.Core.Grpc.csproj`; identity-free requests (field 1 + `caller` reserved in every request, no `module_id`, empty `user_id` = acting user)
+- ✓ `ModuleApiContractTests` — descriptor-level guards for the RPC set, the reserved caller slot, the absent `module_id`, and the empty-target contract (5 tests)
+- ☐ Legacy `module_capabilities.proto` mapped onto `module_api` (blocked on the evaluator: `CapabilityGrantInterceptor` maps by simple method name, so `ReportHealth`/`GetCurrentUserContext`/`CheckUserConsent`/`GetGrantedScopes` would be denied until the shared catalog covers both services)
 
 **Dependencies:** `third-party-module-sandbox-a1-2026-11-06`
 **Blocking Issues:** None
-**Notes:** `dotnet build DotNetCloud.CI.slnf` succeeded (only the two pre-existing `DbInitializerTests` nullable warnings). `DotNetCloud.Core.Server.Tests` 1121 passed / 0 failed / 2 skipped; `DotNetCloud.Modules.Files.Tests` 1009 passed. A tautological constant-pin test was replaced with behaviour tests after MSTEST0032 flagged it — the wire names are asserted as literals on production output, per the repo's test-tautology policy. Not committed.
+**Notes:** `dotnet build DotNetCloud.CI.slnf` succeeded (only the two pre-existing `DbInitializerTests` nullable warnings), and `module_api.proto` compiles clean through `Grpc.Tools`. `DotNetCloud.Core.Server.Tests` 1126 passed / 0 failed / 2 skipped; `DotNetCloud.Modules.Files.Tests` 1009 passed. A tautological constant-pin test was replaced with behaviour tests after MSTEST0032 flagged it — the wire names are asserted as literals on production output, per the repo's test-tautology policy. Next: `ModuleAccessEvaluator` + `CapabilityCatalog` coverage for the new surface, which unblocks the legacy→`module_api` adapter. Not committed.
 
 ---
 

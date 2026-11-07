@@ -3451,7 +3451,8 @@ Plan: `docs/THIRD_PARTY_MODULE_SANDBOX_AND_STORE_PLAN.md` (phase A0). Branch `fe
 - 🔄 Phase A2 — module API v1 (in progress)
   - ✓ D2 transport-identity rename: `dnc-module-id` / `dnc-module-token` / `dnc-user-assertion` headers and `DOTNETCLOUD_MODULE_TOKEN` env var, cut over in one release (single source: `ModuleIdentityMetadata`); credential-store/supervisor terminology moved from secret to token; `CROSS_MODULE_TRUST.md`/`SECURITY_MODEL.md` updated
   - ✓ Drift guard: producer↔consumer tests prove `ModuleIdentityMetadata.Create` output is accepted by `AuthenticationInterceptor` and `ModulePeerAuthenticationInterceptor`
-  - ☐ `module_api.proto` (`dotnetcloud.moduleapi.v1`) + legacy mapping
+  - ✓ `module_api.proto` (`dotnetcloud.moduleapi.v1`, 17 RPCs) with identity-free requests (reserved caller slot, no `module_id`, empty `user_id` = acting user) and descriptor-level contract tests
+  - ☐ Legacy `module_capabilities` mapped onto the same implementation (must land with the evaluator — new RPC names are unmapped by the current simple-name resolver)
   - ☐ `ModuleCredentialService` audit record (issue/rotate/revoke, hint only)
   - ☐ `ModuleAccessEvaluator` replacing `CapabilityGrantInterceptor`; authorization invariants F4/F5/F6/F7/F15
   - ☐ Audience/scope-bound `dnc-user-assertion`, event & audit authenticity, internal REST facade `/internal/moduleapi/v1/*`
