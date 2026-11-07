@@ -3454,7 +3454,7 @@ Plan: `docs/THIRD_PARTY_MODULE_SANDBOX_AND_STORE_PLAN.md` (phase A0). Branch `fe
   - ✓ `module_api.proto` (`dotnetcloud.moduleapi.v1`, 17 RPCs) with identity-free requests (reserved caller slot, no `module_id`, empty `user_id` = acting user) and descriptor-level contract tests
   - ✓ Legacy `module_capabilities` mapped onto `module_api` via `ModuleApiV1Service` (delegates to the legacy handlers; minimal profile without email; `ReportHealth` registry; consent RPCs `Unimplemented` until A3)
   - ✓ `ModuleAccessEvaluator` + shared public `CapabilityCatalog` in `DotNetCloud.Core`: fully-qualified RPC mapping for both services, explicit self-service allow-list, fail-closed on unmapped module RPCs, 60 s grant cache invalidated on admin grant/revoke, `ModuleCapabilityDenied` audit on denials; `ModuleAccessInterceptor` replaces `CapabilityGrantInterceptor`
-  - ☐ `ModuleCredentialService` audit record (issue/rotate/revoke, hint only)
+  - ✓ Credential lifecycle (D1): `ModuleCredentialStore` issue/`Rotate`/`Revoke` plus a non-secret `ModuleCredentialStatus` (hint + issued/rotated/revoked timestamps), no table and no token in logs
   - ☐ Authorization invariants F4/F5/F6/F7/F15
   - ☐ Audience/scope-bound `dnc-user-assertion`, event & audit authenticity, internal REST facade `/internal/moduleapi/v1/*`
   - ☐ `DotNetCloud.Modules.Sdk` + Example module on the SDK
