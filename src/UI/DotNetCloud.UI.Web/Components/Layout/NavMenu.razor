@@ -226,7 +226,7 @@
                         <li class="nav-item nav-item-has-external">
                             <NavLink href="@item.Href" Match="NavLinkMatch.Prefix" class="nav-link" title="@item.Label"
                                      aria-label="@item.Label">
-                                <span class="nav-icon">@item.Icon</span>
+                                <MaterialIcon Icon="@item.Icon" CssClass="nav-icon" />
                                 @if (!Collapsed)
                                 {
                                     <span class="nav-text">@item.Label</span>
@@ -311,7 +311,7 @@
                     <li class="nav-item nav-item-has-external">
                         <NavLink href="@item.Href" Match="NavLinkMatch.Prefix" class="nav-link" title="@item.Label"
                                  aria-label="@item.Label">
-                            <span class="nav-icon">@item.Icon</span>
+                            <MaterialIcon Icon="@item.Icon" CssClass="nav-icon" />
                             @if (!Collapsed)
                             {
                                 <span class="nav-text">@item.Label</span>

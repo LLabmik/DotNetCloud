@@ -930,7 +930,8 @@ namespace DotNetCloud.Core.Data.SqlServer.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("GrantedByUserId");
+                    b.HasIndex("GrantedByUserId")
+                        .HasDatabaseName("ix_module_user_consents_granted_by_user_id");
 
                     b.HasIndex("ModuleId")
                         .HasDatabaseName("ix_module_user_consents_module_id");
@@ -1961,12 +1962,6 @@ namespace DotNetCloud.Core.Data.SqlServer.Migrations
 
             modelBuilder.Entity("DotNetCloud.Core.Data.Entities.Modules.ModuleUserConsent", b =>
                 {
-                    b.HasOne("DotNetCloud.Core.Data.Entities.Identity.ApplicationUser", "GrantedByUser")
-                        .WithMany()
-                        .HasForeignKey("GrantedByUserId")
-                        .OnDelete(DeleteBehavior.SetNull)
-                        .HasConstraintName("fk_module_user_consents_granted_by_user_id");
-
                     b.HasOne("DotNetCloud.Core.Data.Entities.Modules.InstalledModule", "Module")
                         .WithMany("UserConsents")
                         .HasForeignKey("ModuleId")
@@ -1980,8 +1975,6 @@ namespace DotNetCloud.Core.Data.SqlServer.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired()
                         .HasConstraintName("fk_module_user_consents_user_id");
-
-                    b.Navigation("GrantedByUser");
 
                     b.Navigation("Module");
 

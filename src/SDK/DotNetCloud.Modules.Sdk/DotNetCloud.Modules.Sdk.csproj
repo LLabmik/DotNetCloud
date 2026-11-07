@@ -24,4 +24,19 @@
     <InternalsVisibleTo Include="DotNetCloud.Modules.Sdk.Tests" />
   </ItemGroup>
 
+  <!--
+    The module-side bridge for the core's iframe UI plane (phase A5). It is a plain static asset,
+    not an npm build: a module host copies it into its own wwwroot and loads it from the page the
+    core frames. Shipped as package content so an SDK consumer gets it without a NuGet dependency.
+  -->
+  <ItemGroup>
+    <Content Include="wwwroot\dncModuleBridge.js">
+      <Pack>true</Pack>
+      <PackagePath>contentFiles/any/any/wwwroot/dncModuleBridge.js</PackagePath>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <!-- Also embedded so the protocol drift test can read the shipped bytes without a path guess. -->
+    <EmbeddedResource Include="wwwroot\dncModuleBridge.js" />
+  </ItemGroup>
+
 </Project>

@@ -1,0 +1,18 @@
+@page "/modules/{ModuleId}"
+@page "/modules/{ModuleId}/{**CatchAll}"
+@rendermode InteractiveServer
+@attribute [Authorize]
+
+<PageTitle>@_pageTitle - DotNetCloud</PageTitle>
+
+@if (_app is null)
+{
+    <div class="module-app-missing">
+        <MaterialIcon Icon="widgets" Size="MaterialIconSize.Xl" />
+        <p>This app is not installed, or it does not provide a web interface.</p>
+    </div>
+}
+else
+{
+    <ModuleAppHost ModuleId="@_app.ModuleId" Title="@_app.Title" Path="@_path" />
+}

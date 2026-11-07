@@ -47,6 +47,12 @@ public class ModuleUserConsent
     /// The administrator who granted the consent on the user's behalf, or <see langword="null"/>
     /// when the user granted it themselves.
     /// </summary>
+    /// <remarks>
+    /// Deliberately a plain audit column with no foreign key. SQL Server rejects a table that has
+    /// two cascading actions from the same principal (<c>Users</c>), so a second FK here would make
+    /// the migration fail with "may cause cycles or multiple cascade paths". The value is only
+    /// informational; it may therefore reference a user who has since been deleted.
+    /// </remarks>
     public Guid? GrantedByUserId { get; set; }
 
     /// <summary>Navigation to the installed module.</summary>
@@ -54,9 +60,6 @@ public class ModuleUserConsent
 
     /// <summary>Navigation to the consenting user.</summary>
     public virtual ApplicationUser? User { get; set; }
-
-    /// <summary>Navigation to the administrator who granted on the user's behalf, if any.</summary>
-    public virtual ApplicationUser? GrantedByUser { get; set; }
 
     /// <summary>Determines whether the consent is still valid at the given instant.</summary>
     /// <param name="utcNow">The current UTC time.</param>

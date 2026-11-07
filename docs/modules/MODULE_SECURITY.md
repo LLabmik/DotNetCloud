@@ -352,7 +352,72 @@ processes owned by the same service. Identity is carried by the per-launch **mod
 
 ---
 
-## 10. What this model does not cover
+## 10. Module UI plane (`/apps/{moduleId}/**`)
+
+A non-required module may serve its own web UI from its own process. The core reverse-proxies it at
+`/apps/{moduleId}/**` and frames it; the shell page that hosts the frame lives at
+`/modules/{moduleId}` so the user keeps the core chrome.
+
+### 10.1 What the proxy guarantees
+
+| Control | Enforced by |
+| ------- | ----------- |
+| Only signed-in users | 401 from the proxy handler (never a login redirect — this endpoint is loaded by an iframe) |
+| Only modules that declared `ui.type = "iframe"` | 404 otherwise, so the core origin never becomes a passthrough to an arbitrary module HTTP surface |
+| Module must be running | 503 |
+| Per-module request budget | `ModuleRateLimitKind.Ui` (separate counter from capability calls) → 429 + `Retry-After` |
+| The browser's core session never reaches the module | `Cookie`, `Authorization`, `dnc-user-assertion`, `dnc-module-token` and `dnc-module-id` are stripped before forwarding |
+| The module cannot set cookies on the core origin | `Set-Cookie` stripped from every proxied response |
+| The module cannot relax framing | The module's `Content-Security-Policy`/`X-Frame-Options` are **replaced** with `frame-ancestors 'self'; base-uri 'none'; object-src 'none'; form-action 'self'` |
+| Response hygiene | `X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer`, `Cache-Control: no-store` for HTML documents |
+| Bounded responses | 32 MiB body cap; a larger response is aborted as a proxy error |
+| Route safety | The `dncmoduleid` constraint only matches reverse-DNS ids, so `/apps/files` and friends stay with the shell |
+
+The user identity reaches the module exactly as it does for the REST API plane: a core-signed
+`dnc-user-assertion` whose audience is that module, valid for 60 seconds, with the operation set to
+`ui`. A module cannot mint one and cannot replay one against another module.
+
+### 10.2 The iframe itself
+
+`ModuleAppHost` frames the module with `sandbox="allow-scripts allow-forms allow-popups"` — deliberately
+**without** `allow-same-origin`. The document therefore has an opaque origin:
+
+- It cannot read core cookies, `localStorage`, the DOM, or core storage.
+- It cannot read the response of anything it fetches from the core.
+- Every message it sends reports `event.origin === "null"`, so **origin checks are useless**. Both
+  sides authenticate the peer by identity: the host requires `event.source === iframe.contentWindow`
+  for that specific frame, and `dncModuleBridge.js` requires `event.source === window.parent`. Message
+  types are additionally restricted per direction, the payload is capped at 8 KiB, and unknown types
+  are dropped.
+- `dnc:notify` is rate-limited to 5 per minute (bridge *and* core), `dnc:openExternal` accepts
+  `https:` only and opens with `noopener,noreferrer`, and `dnc:navigate` accepts module-relative paths
+  only.
+
+### 10.3 CSRF position (F2)
+
+The sandbox is not a network boundary: an opaque-origin document can still *send* requests to the core
+origin, it just cannot read the responses. Two controls apply:
+
+1. The core's session cookie is `SameSite=Lax`, `HttpOnly`, `Secure`. Requests from an opaque-origin
+   frame are cross-site, so the cookie is not attached to them at all.
+2. The proxy strips the cookie before forwarding, so a module backend never holds a core session even
+   when the request carried one.
+
+What is **not** covered: a module's own server-side code, once it holds a scoped assertion, can call
+the core API as that user for the scopes it has consented to. That is the consent model, not a UI
+hole. Moving the plane to a dedicated `apps.<host>` origin would add browser-level origin separation
+on top; it remains a public-store launch gate (§13 of the sandbox plan).
+
+### 10.4 Consent from a framed UI
+
+`dnc:requestConsent` does **not** start an OIDC flow yet. The core renders a banner listing the
+requested scopes in plain language and links the user to `/connected-apps`, where the actual grant
+lives. The OIDC-popup upgrade needs module-side PKCE clients and a redirect-URI contract, and is
+tracked with the store client (Track B).
+
+---
+
+## 11. What this model does not cover
 
 - **Scope enforcement inside a module.** Consent governs what the core hands to a module. A module
   that has `files:read` still decides what it does with the bytes; store review and the audit log are

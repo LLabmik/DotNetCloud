@@ -3480,7 +3480,18 @@ Plan: `docs/THIRD_PARTY_MODULE_SANDBOX_AND_STORE_PLAN.md` (phase A0). Branch `fe
   - ✓ `ModulePeerAuthenticationInterceptor` retained on every transport (transport-agnostic, fails closed without the supervisor-issued credential)
   - ✓ Tests: endpoint parsing/formatting, transport-selection matrix, allocator layout + fallback, socket permissions/cleanup, live gRPC over Unix socket, credential rejection over socket, TCP fallback round-trip
   - ✓ `docs/modules/MODULE_SECURITY.md` §9: transport matrix, `Modules:Transport` reference, what the transport does/does not protect, Docker/deployment guidance
-- ☐ Phases A5–A6 / B1–B5 / C / D per the plan
+- ✓ Phase A5 — iframe UI plane
+  - ✓ `ModuleAppRegistrationHostedService` reads `ui.type = "iframe"` from enabled, non-required v2 manifests and registers a `ModuleAppDescriptor` + nav items; required modules keep the static Blazor path
+  - ✓ Emoji nav literals replaced with Material icon names (`ModuleIconProvider` is the single mapping point) and `NavMenu` renders `<MaterialIcon>`
+  - ✓ `/apps/{moduleId}/{**catch-all}` proxy: auth-only (401), 503 when stopped, 404 without a declared UI, per-module UI rate limit (429), `Set-Cookie`/`Server`/`X-Powered-By` stripping, `frame-ancestors 'self'` + `nosniff` + `no-referrer`, `no-store` for HTML, 32 MiB response cap, `dnc-user-assertion` with the module audience
+  - ✓ `dncmoduleid` route constraint keeps `/apps/files`, `/apps/chat`, … out of the proxy
+  - ✓ `ModuleAppHost` (sandboxed iframe, no `allow-same-origin`), `ModuleAppPage` shell route at `/modules/{moduleId}`, loading/stopped/failed states, theme + locale propagation, core-rendered consent banner
+  - ✓ Widget plane first pass: nullable `WidgetDescriptor.ComponentType`, `RegisterIframeWidget`, `ModuleWidgetFrame` with the height contract
+  - ✓ SDK `dncModuleBridge.js` (identity-bound parent validation, direction-scoped allow-list, notify rate limit) + C#↔JS protocol drift test
+  - ✓ `ModuleAppProtocol`/`ModuleAppUrls` shared contract (message types, URL shapes, entry-path and external-URL validation)
+  - ✓ Core CSP gained `frame-src 'self'`
+  - ✓ Incidental fix: `ModuleUserConsent` had two cascading FKs from `Users` (SQL Server multiple-cascade-path); `GrantedByUserId` is now a plain indexed audit column and both migrations were regenerated
+- ☐ Phases A6 / B1–B5 / C / D per the plan
 
 ---
 

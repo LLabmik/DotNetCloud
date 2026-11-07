@@ -579,7 +579,11 @@ public class Program
         builder.Services.AddHttpContextAccessor();
         builder.Services.AddSingleton<ModuleUiRegistry>();
         builder.Services.AddSingleton<WidgetUiRegistry>();
-        builder.Services.AddScoped<DotNetCloud.UI.Web.Services.HomeWidgetLayoutService>();
+
+        // Route constraint for the module UI plane: /apps/{moduleId} only matches reverse-DNS module
+        // ids, so the shell's first-party pages (/apps/files, /apps/chat, ...) are never captured.
+        builder.Services.Configure<Microsoft.AspNetCore.Routing.RouteOptions>(options =>
+            options.ConstraintMap[Proxy.ModuleAppProxy.ModuleIdConstraint] = typeof(Proxy.ModuleIdRouteConstraint));        builder.Services.AddScoped<DotNetCloud.UI.Web.Services.HomeWidgetLayoutService>();
         builder.Services.AddScoped<DotNetCloud.UI.Shared.Services.BrowserTimeProvider>();
         builder.Services.AddScoped<ToastService>();
         // Shared share-recipient search (users + the caller's teams) used by the
@@ -847,6 +851,8 @@ public class Program
 
         builder.Services.AddHostedService<ModuleUiRegistrationHostedService>();
         builder.Services.AddHostedService<WidgetUiRegistrationHostedService>();
+        // Manifest-declared (iframe) module UIs. Required modules keep the static path above.
+        builder.Services.AddHostedService<ModuleAppRegistrationHostedService>();
         builder.Services.AddHostedService<NotificationEventSubscriber>();
         builder.Services.AddHostedService<SearchEventSubscriber>();
         // Hosted service backed by the concrete singleton registered above (keeps it resolvable).
@@ -1071,6 +1077,11 @@ public class Program
 
         // Proxy module REST API calls (music, video, notes, wopi) to running module hosts.
         MapModuleApiProxies(app);
+
+        // Module UI plane: reverse-proxy /apps/{moduleId}/** to the module's own host so its UI can
+        // be framed by ModuleAppHost. Registered before MapRazorComponents so the shell's catch-all
+        // route does not swallow it.
+        Proxy.ModuleAppProxy.MapModuleAppProxies(app);
 
         // Internal JSON facade for module backends without a gRPC client. Same credential, caller
         // assertion, rate limits and capability evaluation as the gRPC listener.

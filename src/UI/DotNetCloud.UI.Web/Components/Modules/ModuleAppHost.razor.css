@@ -1,0 +1,135 @@
+.module-app-host {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-height: 420px;
+  height: calc(100vh - 120px);
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--color-surface, #fff);
+}
+
+.module-app-frame {
+  flex: 1 1 auto;
+  width: 100%;
+  min-height: 0;
+  border: 0;
+  background: transparent;
+}
+
+.module-app-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 32px;
+  text-align: center;
+  color: var(--color-text-muted, #5f6368);
+  background: var(--color-surface, #fff);
+}
+
+.module-app-overlay--busy {
+  background: var(--color-surface, #fff);
+}
+
+.module-app-overlay-title {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--color-text, #202124);
+}
+
+.module-app-overlay-text {
+  margin: 0;
+  max-width: 32rem;
+  font-size: 0.9rem;
+}
+
+.module-app-spinner {
+  width: 32px;
+  height: 32px;
+  border: 3px solid var(--color-border, #dadce0);
+  border-top-color: var(--color-primary, #1a73e8);
+  border-radius: 50%;
+  animation: module-app-spin 0.9s linear infinite;
+}
+
+@keyframes module-app-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.module-app-retry {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border: 1px solid var(--color-border, #dadce0);
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.module-app-retry:hover {
+  background: var(--color-surface-hover, rgba(0, 0, 0, 0.04));
+}
+
+.module-app-consent {
+  position: absolute;
+  left: 16px;
+  right: 16px;
+  bottom: 16px;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px 16px;
+  border: 1px solid var(--color-border, #dadce0);
+  border-left: 4px solid var(--color-primary, #1a73e8);
+  border-radius: 8px;
+  background: var(--color-surface, #fff);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.12);
+}
+
+.module-app-consent-body {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.module-app-consent-title {
+  margin: 0 0 4px;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.module-app-consent-scopes {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 0.85rem;
+}
+
+.module-app-consent-review {
+  align-self: center;
+  white-space: nowrap;
+  font-weight: 600;
+}
+
+.module-app-consent-dismiss {
+  display: inline-flex;
+  padding: 4px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+
+@media (max-width: 768px) {
+  .module-app-host {
+    height: calc(100vh - 88px);
+  }
+}

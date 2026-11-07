@@ -65,10 +65,12 @@ public class ModuleUserConsentConfiguration : IEntityTypeConfiguration<ModuleUse
             .OnDelete(DeleteBehavior.Cascade)
             .HasConstraintName("fk_module_user_consents_user_id");
 
-        builder.HasOne(c => c.GrantedByUser)
-            .WithMany()
-            .HasForeignKey(c => c.GrantedByUserId)
-            .OnDelete(DeleteBehavior.SetNull)
-            .HasConstraintName("fk_module_user_consents_granted_by_user_id");
+        // GrantedByUserId is intentionally NOT a foreign key. This table already cascades from
+        // Users.UserId, and SQL Server rejects a second cascading action (CASCADE or SET NULL)
+        // from the same principal with "may cause cycles or multiple cascade paths" — the A3
+        // migration failed to apply on SQL Server for exactly that reason. The column is audit
+        // metadata only, so a dangling id after a user deletion is acceptable.
+        builder.HasIndex(c => c.GrantedByUserId)
+            .HasDatabaseName("ix_module_user_consents_granted_by_user_id");
     }
 }

@@ -1,0 +1,246 @@
+// Module UI plane host bridge (phase A5).
+//
+// The shell renders a module's own UI inside a sandboxed iframe WITHOUT `allow-same-origin`, so the
+// frame has an opaque origin and every message it sends reports `event.origin === "null"`. Origin
+// checks are therefore useless: the peer is authenticated by identity (`event.source` must be the
+// exact frame this bridge was mounted on) plus a direction-scoped type allow-list.
+//
+// Mirrors DotNetCloud.Core.Modules.Ui.ModuleAppProtocol. A test asserts the two stay in sync.
+(function () {
+  'use strict';
+
+  var FROM_FRAME = [
+    'dnc:ready',
+    'dnc:navigate',
+    'dnc:resize',
+    'dnc:title',
+    'dnc:openExternal',
+    'dnc:requestConsent',
+    'dnc:notify'
+  ];
+
+  var MAX_MESSAGE_BYTES = 8 * 1024;
+  var MAX_TITLE = 200;
+  var MAX_NOTIFY_BODY = 500;
+  var MAX_SCOPES = 32;
+  var MIN_HEIGHT = 200;
+  var MAX_HEIGHT = 20000;
+  var NOTIFY_PER_MINUTE = 5;
+
+  function currentTheme() {
+    var theme = document.documentElement.getAttribute('data-theme');
+    return theme === 'dark' ? 'dark' : 'light';
+  }
+
+  function currentLocale() {
+    return document.documentElement.getAttribute('lang') || 'en';
+  }
+
+  function clampHeight(value) {
+    var height = Number(value);
+    if (!isFinite(height)) {
+      return MIN_HEIGHT;
+    }
+    return Math.max(MIN_HEIGHT, Math.min(MAX_HEIGHT, Math.round(height)));
+  }
+
+  window.dotnetcloudModuleApp = {
+    /**
+     * Mounts a host bridge on an iframe element.
+     * @param {HTMLIFrameElement} frame the sandboxed module frame
+     * @param {object} dotNetRef DotNetObjectReference to the host component
+     * @param {object} options { moduleId, title, role: 'app' | 'widget', handshakeTimeoutMs }
+     * @returns {object} handle with refresh/navigate/openExternal/sendConsentResult/dispose
+     */
+    mount: function (frame, dotNetRef, options) {
+      if (!frame || !dotNetRef) {
+        return { dispose: function () { } };
+      }
+
+      options = options || {};
+      var role = options.role === 'widget' ? 'widget' : 'app';
+      var notifyTimestamps = [];
+      var disposed = false;
+      var handshakeTimer = null;
+      var ready = false;
+
+      function post(message) {
+        try {
+          if (frame.contentWindow) {
+            // targetOrigin must be '*' for an opaque-origin frame. The payload carries no
+            // secrets (theme, locale, title and a consent result), and frame-ancestors 'self'
+            // means the only possible ancestor is the core itself.
+            frame.contentWindow.postMessage(message, '*');
+          }
+        } catch (e) {
+          // Frame torn down between render and post; nothing to do.
+        }
+      }
+
+      function sendInit() {
+        post({
+          type: 'dnc:init',
+          role: role,
+          moduleId: options.moduleId || '',
+          theme: currentTheme(),
+          locale: currentLocale(),
+          title: options.title || ''
+        });
+      }
+
+      function clearHandshake() {
+        if (handshakeTimer !== null) {
+          window.clearTimeout(handshakeTimer);
+          handshakeTimer = null;
+        }
+      }
+
+      function onLoad() {
+        if (disposed) {
+          return;
+        }
+        sendInit();
+
+        if (!ready && handshakeTimer === null) {
+          handshakeTimer = window.setTimeout(function () {
+            handshakeTimer = null;
+            if (!disposed && !ready) {
+              dotNetRef.invokeMethodAsync('OnHandshakeTimeout');
+            }
+          }, options.handshakeTimeoutMs || 10000);
+        }
+      }
+
+      function onError() {
+        if (!disposed) {
+          dotNetRef.invokeMethodAsync('OnLoadError');
+        }
+      }
+
+      function onMessage(event) {
+        if (disposed) {
+          return;
+        }
+
+        // Identity check — the only usable peer authentication for an opaque-origin frame.
+        if (event.source !== frame.contentWindow) {
+          return;
+        }
+
+        var data = event.data;
+        if (!data || typeof data !== 'object' || typeof data.type !== 'string') {
+          return;
+        }
+
+        if (FROM_FRAME.indexOf(data.type) < 0) {
+          return; // unknown / host-only type: drop it
+        }
+
+        var serialized;
+        try {
+          serialized = JSON.stringify(data);
+        } catch (e) {
+          return;
+        }
+
+        if (!serialized || serialized.length > MAX_MESSAGE_BYTES) {
+          return;
+        }
+
+        switch (data.type) {
+          case 'dnc:ready':
+            ready = true;
+            clearHandshake();
+            dotNetRef.invokeMethodAsync('OnReady');
+            break;
+
+          case 'dnc:resize':
+            dotNetRef.invokeMethodAsync('OnResize', clampHeight(data.height));
+            break;
+
+          case 'dnc:title':
+            if (typeof data.title === 'string' && data.title.length > 0) {
+              dotNetRef.invokeMethodAsync('OnTitle', data.title.slice(0, MAX_TITLE));
+            }
+            break;
+
+          case 'dnc:navigate':
+            if (typeof data.path === 'string') {
+              dotNetRef.invokeMethodAsync('OnNavigate', data.path.slice(0, 2048));
+            }
+            break;
+
+          case 'dnc:openExternal':
+            if (typeof data.url === 'string') {
+              // Re-validated in C#; the host calls back into openExternal below.
+              dotNetRef.invokeMethodAsync('OnOpenExternal', data.url.slice(0, 2048));
+            }
+            break;
+
+          case 'dnc:requestConsent':
+            var scopes = Array.isArray(data.scopes)
+              ? data.scopes.filter(function (s) { return typeof s === 'string' && s.length <= 128; }).slice(0, MAX_SCOPES)
+              : [];
+            dotNetRef.invokeMethodAsync('OnRequestConsent', scopes);
+            break;
+
+          case 'dnc:notify':
+            var cutoff = Date.now() - 60000;
+            notifyTimestamps = notifyTimestamps.filter(function (ts) { return ts > cutoff; });
+            if (notifyTimestamps.length >= NOTIFY_PER_MINUTE) {
+              return;
+            }
+            if (typeof data.message === 'string' && data.message.length > 0) {
+              notifyTimestamps.push(Date.now());
+              dotNetRef.invokeMethodAsync('OnNotify', data.message.slice(0, MAX_NOTIFY_BODY));
+            }
+            break;
+        }
+      }
+
+      frame.addEventListener('load', onLoad);
+      frame.addEventListener('error', onError);
+      window.addEventListener('message', onMessage);
+
+      return {
+        refresh: function () {
+          post({ type: 'dnc:theme', theme: currentTheme(), locale: currentLocale() });
+        },
+
+        navigate: function (path) {
+          if (typeof path === 'string' && path.length > 0 && path.charAt(0) === '/') {
+            frame.src = path;
+          }
+        },
+
+        openExternal: function (url) {
+          var parsed;
+          try {
+            parsed = new URL(url);
+          } catch (e) {
+            return false;
+          }
+
+          if (parsed.protocol !== 'https:') {
+            return false;
+          }
+
+          window.open(parsed.href, '_blank', 'noopener,noreferrer');
+          return true;
+        },
+
+        sendConsentResult: function (scope, granted) {
+          post({ type: 'dnc:consentResult', scope: String(scope), granted: granted === true });
+        },
+
+        dispose: function () {
+          disposed = true;
+          clearHandshake();
+          frame.removeEventListener('load', onLoad);
+          frame.removeEventListener('error', onError);
+          window.removeEventListener('message', onMessage);
+        }
+      };
+    }
+  };
+})();

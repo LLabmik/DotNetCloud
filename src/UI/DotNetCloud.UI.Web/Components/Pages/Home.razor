@@ -113,8 +113,17 @@
                     {
                         <WidgetCard ModuleId="@slot.Descriptor.ModuleId" Title="@slot.Descriptor.Title"
                                     Icon="@slot.Descriptor.Icon" Href="@slot.Descriptor.Href">
-                            <DynamicComponent @key="slot.ModuleId + ':' + _widgetRefreshToken"
-                                              Type="@slot.Descriptor.ComponentType" />
+                            @if (slot.Descriptor.ComponentType is { } widgetComponent)
+                            {
+                                <DynamicComponent @key="slot.ModuleId + ':' + _widgetRefreshToken"
+                                                  Type="@widgetComponent" />
+                            }
+                            else if (slot.Descriptor.IsIframe)
+                            {
+                                <ModuleWidgetFrame ModuleId="@slot.Descriptor.ModuleId"
+                                                   Title="@slot.Descriptor.Title"
+                                                   Path="@slot.Descriptor.IframePath" />
+                            }
                         </WidgetCard>
                     }
                 </div>

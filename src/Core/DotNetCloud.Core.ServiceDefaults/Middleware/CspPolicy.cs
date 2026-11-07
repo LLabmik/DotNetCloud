@@ -51,6 +51,9 @@ public static class CspPolicy
         "object-src 'none'; " +
         "base-uri 'self'; " +
         "form-action 'self'; " +
+        // The module UI plane frames module apps served through the core origin (/apps/{moduleId}/**)
+        // and the Collabora editor; without an explicit frame-src both fall back to default-src.
+        "frame-src 'self'; " +
         "frame-ancestors 'self'; " +
         "upgrade-insecure-requests;";
 

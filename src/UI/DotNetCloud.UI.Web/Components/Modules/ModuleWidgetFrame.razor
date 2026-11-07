@@ -1,0 +1,19 @@
+@namespace DotNetCloud.UI.Web.Components.Modules
+
+<div class="module-widget-frame" style="--module-widget-height: @(_height)px">
+    <iframe @ref="_frame"
+            src="@Source"
+            class="module-widget-iframe"
+            title="@Title"
+            sandbox="allow-scripts allow-forms"
+            referrerpolicy="no-referrer"
+            loading="lazy"></iframe>
+
+    @if (_failed)
+    {
+        <div class="module-widget-fallback" role="status">
+            <MaterialIcon Icon="widgets" Size="MaterialIconSize.Sm" />
+            <span>@Title is unavailable</span>
+        </div>
+    }
+</div>

@@ -6,7 +6,7 @@ using Microsoft.EntityFrameworkCore.Migrations;
 namespace DotNetCloud.Core.Data.Migrations
 {
     /// <inheritdoc />
-    public partial class AddModuleUserConsent_SqlServer : Migration
+    public partial class AddModuleUserConsent : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
@@ -15,23 +15,17 @@ namespace DotNetCloud.Core.Data.Migrations
                 name: "ModuleUserConsents",
                 columns: table => new
                 {
-                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false, defaultValueSql: "NEWSEQUENTIALID()"),
-                    ModuleId = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: false),
-                    UserId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    Scope = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: false),
-                    GrantedAtUtc = table.Column<DateTime>(type: "datetime2", nullable: false, defaultValueSql: "CURRENT_TIMESTAMP"),
-                    ExpiresAtUtc = table.Column<DateTime>(type: "datetime2", nullable: true),
-                    GrantedByUserId = table.Column<Guid>(type: "uniqueidentifier", nullable: true)
+                    Id = table.Column<Guid>(type: "uuid", nullable: false),
+                    ModuleId = table.Column<string>(type: "character varying(200)", maxLength: 200, nullable: false),
+                    UserId = table.Column<Guid>(type: "uuid", nullable: false),
+                    Scope = table.Column<string>(type: "character varying(100)", maxLength: 100, nullable: false),
+                    GrantedAtUtc = table.Column<DateTime>(type: "timestamp with time zone", nullable: false, defaultValueSql: "CURRENT_TIMESTAMP"),
+                    ExpiresAtUtc = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
+                    GrantedByUserId = table.Column<Guid>(type: "uuid", nullable: true)
                 },
                 constraints: table =>
                 {
                     table.PrimaryKey("PK_ModuleUserConsents", x => x.Id);
-                    table.ForeignKey(
-                        name: "fk_module_user_consents_granted_by_user_id",
-                        column: x => x.GrantedByUserId,
-                        principalTable: "AspNetUsers",
-                        principalColumn: "Id",
-                        onDelete: ReferentialAction.SetNull);
                     table.ForeignKey(
                         name: "fk_module_user_consents_module_id",
                         column: x => x.ModuleId,
@@ -47,6 +41,11 @@ namespace DotNetCloud.Core.Data.Migrations
                 });
 
             migrationBuilder.CreateIndex(
+                name: "ix_module_user_consents_granted_by_user_id",
+                table: "ModuleUserConsents",
+                column: "GrantedByUserId");
+
+            migrationBuilder.CreateIndex(
                 name: "ix_module_user_consents_module_id",
                 table: "ModuleUserConsents",
                 column: "ModuleId");
@@ -55,11 +54,6 @@ namespace DotNetCloud.Core.Data.Migrations
                 name: "ix_module_user_consents_user_id",
                 table: "ModuleUserConsents",
                 column: "UserId");
-
-            migrationBuilder.CreateIndex(
-                name: "IX_ModuleUserConsents_GrantedByUserId",
-                table: "ModuleUserConsents",
-                column: "GrantedByUserId");
 
             migrationBuilder.CreateIndex(
                 name: "uq_module_user_consents_module_id_user_id_scope",

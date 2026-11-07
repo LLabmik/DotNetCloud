@@ -16,6 +16,12 @@ internal enum ModuleRateLimitKind
 
     /// <summary>Audit entries (<c>LogAudit</c>).</summary>
     Audit,
+
+    /// <summary>
+    /// Requests through the module UI plane (<c>/apps/{moduleId}/**</c>). Counted separately from
+    /// <see cref="Request"/> so a busy iframe cannot starve a module's capability budget.
+    /// </summary>
+    Ui,
 }
 
 /// <summary>Outcome of a rate-limit acquire attempt.</summary>
