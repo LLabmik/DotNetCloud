@@ -3,6 +3,9 @@ using DotNetCloud.Core.Grpc;
 using DotNetCloud.Modules.Example;
 using DotNetCloud.Modules.Example.Data;
 using DotNetCloud.Modules.Example.Host.Services;
+using DotNetCloud.Modules.Sdk;
+using DotNetCloud.Modules.Sdk.Api;
+using DotNetCloud.Modules.Sdk.Testing;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
 using Microsoft.EntityFrameworkCore;
@@ -61,8 +64,12 @@ public static partial class Program
 
         // Register EF Core with the configured database provider (no in-memory fallback).
         // Sandboxed hosts get a scoped connection string from the supervisor and the engine name
-        // from module.json; legacy hosts read both from config.json.
-        var sandboxConnectionString = Environment.GetEnvironmentVariable("DOTNETCLOUD_MODULE_DB_CONNECTION_STRING");
+        // from module.json; legacy hosts read both from config.json. ModuleEnvironment is the SDK
+        // contract for the supervisor-provided values.
+        ModuleEnvironment.TryFromEnvironment(out var moduleEnvironment);
+
+        var sandboxConnectionString = moduleEnvironment?.DatabaseConnectionString
+            ?? Environment.GetEnvironmentVariable("DOTNETCLOUD_MODULE_DB_CONNECTION_STRING");
         var connectionString = !string.IsNullOrEmpty(sandboxConnectionString)
             ? sandboxConnectionString
             : builder.Configuration["connectionString"]
@@ -115,10 +122,18 @@ public static partial class Program
             }
         });
 
-        // Register the gRPC-backed audit logger (SOC 2 CC4) and module settings — both route to
-        // Core.Server over the authenticated module channel.
-        builder.Services.AddAuditLogger();
-        builder.Services.AddModuleSettingsClient();
+        // Core API access goes through the SDK: one client, one credential, the canonical
+        // module_api surface. When the host was not launched by the supervisor (local development)
+        // the in-memory harness keeps the module runnable without a core process.
+        if (moduleEnvironment is not null)
+        {
+            builder.Services.AddSingleton(moduleEnvironment);
+            builder.Services.AddSingleton<IDncModuleApi>(_ => new DncModuleApiClient(moduleEnvironment));
+        }
+        else
+        {
+            builder.Services.AddSingleton<IDncModuleApi, InMemoryDncModuleApi>();
+        }
 
         // gRPC + health checks
         builder.Services.AddGrpc(options =>

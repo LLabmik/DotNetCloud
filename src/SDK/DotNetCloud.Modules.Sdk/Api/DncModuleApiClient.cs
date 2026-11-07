@@ -1,0 +1,204 @@
+using DotNetCloud.Core.Capabilities;
+using DotNetCloud.Core.Grpc;
+using Grpc.Core;
+using Grpc.Net.Client;
+using ModuleApiV1 = global::DotNetCloud.Core.Grpc.ModuleApi.V1;
+
+namespace DotNetCloud.Modules.Sdk.Api;
+
+/// <summary>
+/// gRPC implementation of <see cref="IDncModuleApi"/> for the canonical
+/// <c>dotnetcloud.moduleapi.v1.ModuleApi</c> service.
+/// </summary>
+/// <remarks>
+/// Every call carries the supervisor-issued module credential through
+/// <see cref="ModuleIdentityMetadata.Create(string, string?)"/>, which also attaches the ambient
+/// end-user assertion for the request being served. There is deliberately no way to pass a caller or
+/// module identity as an argument: the core ignores anything a payload claims.
+/// </remarks>
+public sealed class DncModuleApiClient : IDncModuleApi, IDisposable
+{
+    private readonly GrpcChannel _channel;
+    private readonly ModuleApiV1.ModuleApi.ModuleApiClient _client;
+    private readonly ModuleEnvironment _environment;
+    private bool _disposed;
+
+    /// <summary>Initializes a new instance of the <see cref="DncModuleApiClient"/> class.</summary>
+    /// <param name="environment">The module's runtime environment.</param>
+    /// <param name="channel">Optional pre-built channel (tests, custom transports).</param>
+    public DncModuleApiClient(ModuleEnvironment environment, GrpcChannel? channel = null)
+    {
+        ArgumentNullException.ThrowIfNull(environment);
+
+        _environment = environment;
+        _channel = channel ?? GrpcChannel.ForAddress(environment.CoreEndpoint);
+        _client = new ModuleApiV1.ModuleApi.ModuleApiClient(_channel);
+    }
+
+    /// <summary>
+    /// Creates a client from the environment the supervisor provides.
+    /// </summary>
+    /// <returns>The client.</returns>
+    public static DncModuleApiClient CreateFromEnvironment() =>
+        new(ModuleEnvironment.FromEnvironment());
+
+    /// <inheritdoc />
+    public async Task<DncCurrentUser> GetCurrentUserAsync(CancellationToken cancellationToken = default)
+    {
+        var response = await _client.GetCurrentUserContextAsync(
+            new ModuleApiV1.GetCurrentUserContextRequest(),
+            Metadata(),
+            cancellationToken: cancellationToken);
+
+        return new DncCurrentUser(
+            response.UserId,
+            response.DisplayName,
+            response.Email,
+            response.Locale,
+            response.Timezone,
+            response.Roles.ToArray());
+    }
+
+    /// <inheritdoc />
+    public async Task<DncModuleUser?> GetUserAsync(string userId, CancellationToken cancellationToken = default)
+    {
+        var response = await _client.GetUserAsync(
+            new ModuleApiV1.GetUserRequest { UserId = userId },
+            Metadata(),
+            cancellationToken: cancellationToken);
+
+        return response.Found && response.User is not null ? ToUser(response.User) : null;
+    }
+
+    /// <inheritdoc />
+    public async Task<IReadOnlyList<DncModuleUser>> SearchUsersAsync(
+        string query,
+        int maxResults = 20,
+        CancellationToken cancellationToken = default)
+    {
+        var response = await _client.SearchUsersAsync(
+            new ModuleApiV1.SearchUsersRequest { Query = query, MaxResults = maxResults },
+            Metadata(),
+            cancellationToken: cancellationToken);
+
+        return response.Users.Select(ToUser).ToArray();
+    }
+
+    /// <inheritdoc />
+    public async Task<int> SendNotificationAsync(
+        DncNotification notification,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(notification);
+
+        var request = new ModuleApiV1.SendNotificationRequest
+        {
+            Title = notification.Title,
+            Body = notification.Body ?? string.Empty,
+            Category = notification.Category ?? string.Empty,
+            Link = notification.Link ?? string.Empty,
+        };
+        request.RecipientUserIds.AddRange(notification.RecipientUserIds);
+
+        var response = await _client.SendNotificationAsync(
+            request, Metadata(), cancellationToken: cancellationToken);
+
+        return response.DeliveredCount;
+    }
+
+    /// <inheritdoc />
+    public async Task<bool> PublishEventAsync(
+        string eventType,
+        string payloadJson,
+        CancellationToken cancellationToken = default)
+    {
+        var response = await _client.PublishEventAsync(
+            new ModuleApiV1.PublishEventRequest { EventType = eventType, PayloadJson = payloadJson },
+            Metadata(),
+            cancellationToken: cancellationToken);
+
+        return response.Success;
+    }
+
+    /// <inheritdoc />
+    public async Task<bool> SubmitSearchIndexAsync(
+        string entityId,
+        bool remove = false,
+        CancellationToken cancellationToken = default)
+    {
+        var response = await _client.SubmitSearchIndexAsync(
+            new ModuleApiV1.SubmitSearchIndexRequest { EntityId = entityId, Action = remove ? 1 : 0 },
+            Metadata(),
+            cancellationToken: cancellationToken);
+
+        return response.Success;
+    }
+
+    /// <inheritdoc />
+    public async Task<string?> GetSettingAsync(string key, CancellationToken cancellationToken = default)
+    {
+        var response = await _client.GetSettingAsync(
+            new ModuleApiV1.GetSettingRequest { Key = key },
+            Metadata(),
+            cancellationToken: cancellationToken);
+
+        return response.Found ? response.Value : null;
+    }
+
+    /// <inheritdoc />
+    public async Task<bool> SetSettingAsync(
+        string key,
+        string value,
+        CancellationToken cancellationToken = default)
+    {
+        var response = await _client.SetSettingAsync(
+            new ModuleApiV1.SetSettingRequest { Key = key, Value = value },
+            Metadata(),
+            cancellationToken: cancellationToken);
+
+        return response.Success;
+    }
+
+    /// <inheritdoc />
+    public async Task<bool> LogAuditAsync(
+        AuditAction action,
+        string entityType,
+        Guid entityId,
+        string? description = null,
+        CancellationToken cancellationToken = default)
+    {
+        var response = await _client.LogAuditAsync(
+            new ModuleApiV1.LogAuditRequest
+            {
+                Action = (int)action,
+                EntityType = entityType,
+                EntityId = entityId.ToString(),
+                Description = description ?? string.Empty,
+            },
+            Metadata(),
+            cancellationToken: cancellationToken);
+
+        return response.Success;
+    }
+
+    /// <inheritdoc />
+    public void Dispose()
+    {
+        if (_disposed)
+        {
+            return;
+        }
+
+        _channel.Dispose();
+        _disposed = true;
+    }
+
+    private Metadata Metadata() => _environment.CreateMetadata();
+
+    private static DncModuleUser ToUser(ModuleApiV1.ModuleUserProfile user) => new(
+        user.Id,
+        user.DisplayName,
+        user.AvatarUrl,
+        user.IsActive,
+        user.Email);
+}

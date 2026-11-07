@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>DotNetCloud.Modules.Sdk</RootNamespace>
+    <AssemblyName>DotNetCloud.Modules.Sdk</AssemblyName>
+
+    <!-- Published to GitHub Packages (see .github/workflows/publish-module-sdk.yml). -->
+    <IsPackable>true</IsPackable>
+    <PackageId>DotNetCloud.Modules.Sdk</PackageId>
+    <Title>DotNetCloud Module SDK</Title>
+    <Description>Build process-isolated DotNetCloud modules: manifest v2 model, credential-authenticated core API clients (gRPC and REST), lifecycle base and an in-memory test harness.</Description>
+    <PackageTags>dotnetcloud;module;plugin;sdk;grpc</PackageTags>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\Core\DotNetCloud.Core\DotNetCloud.Core.csproj" />
+    <ProjectReference Include="..\..\Core\DotNetCloud.Core.Grpc\DotNetCloud.Core.Grpc.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="DotNetCloud.Modules.Sdk.Tests" />
+  </ItemGroup>
+
+</Project>
