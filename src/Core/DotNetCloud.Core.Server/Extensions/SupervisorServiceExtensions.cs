@@ -2,6 +2,7 @@ using DotNetCloud.Core.Modules;
 using DotNetCloud.Core.Modules.Supervisor;
 using DotNetCloud.Core.Server.Grpc.Configuration;
 using DotNetCloud.Core.Server.Grpc.Interceptors;
+using DotNetCloud.Core.Server.Grpc.ModuleAccess;
 using DotNetCloud.Core.Server.Grpc.Services;
 using DotNetCloud.Core.Server.ModuleLoading;
 using DotNetCloud.Core.Server.Quotas;
@@ -91,7 +92,11 @@ internal static class SupervisorServiceExtensions
         services.AddSingleton<ICallerIdentityResolver, CallerIdentityResolver>();
         services.AddSingleton<AuthenticationInterceptor>();
         services.AddSingleton<CallerContextInterceptor>();
-        services.AddSingleton<CapabilityGrantInterceptor>();
+
+        // Access evaluation owns the grant/capability decision; the interceptor is a thin adapter
+        // so the internal REST facade can reuse the same policy.
+        services.AddSingleton<IModuleAccessEvaluator, ModuleAccessEvaluator>();
+        services.AddSingleton<ModuleAccessInterceptor>();
         services.AddSingleton<TracingInterceptor>();
         services.AddSingleton<ErrorHandlingInterceptor>();
         services.AddSingleton<LoggingInterceptor>();
@@ -123,7 +128,7 @@ internal static class SupervisorServiceExtensions
             options.Interceptors.Add<AuthenticationInterceptor>();
             options.Interceptors.Add<CallerContextInterceptor>();
             options.Interceptors.Add<ModuleRateLimitInterceptor>();
-            options.Interceptors.Add<CapabilityGrantInterceptor>();
+            options.Interceptors.Add<ModuleAccessInterceptor>();
             options.Interceptors.Add<TracingInterceptor>();
             options.Interceptors.Add<ErrorHandlingInterceptor>();
         });

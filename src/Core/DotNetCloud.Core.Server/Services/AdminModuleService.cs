@@ -4,6 +4,7 @@ using DotNetCloud.Core.Data.Entities.Modules;
 using DotNetCloud.Core.DTOs;
 using DotNetCloud.Core.Modules;
 using DotNetCloud.Core.Modules.Supervisor;
+using DotNetCloud.Core.Server.Grpc.ModuleAccess;
 using DotNetCloud.Core.Server.Quotas;
 using DotNetCloud.Core.Server.Sandbox;
 using DotNetCloud.Core.Services;
@@ -22,6 +23,7 @@ internal sealed class AdminModuleService : IAdminModuleService
     private readonly IModuleDataStoreProvisioningService _dataStores;
     private readonly ModuleQuotaResolver _quotas;
     private readonly ModuleQuotaCache _quotaCache;
+    private readonly IModuleAccessEvaluator _accessEvaluator;
     private readonly ILogger<AdminModuleService> _logger;
 
     /// <summary>
@@ -33,6 +35,7 @@ internal sealed class AdminModuleService : IAdminModuleService
         IModuleDataStoreProvisioningService dataStores,
         ModuleQuotaResolver quotas,
         ModuleQuotaCache quotaCache,
+        IModuleAccessEvaluator accessEvaluator,
         ILogger<AdminModuleService> logger)
     {
         _dbContext = dbContext;
@@ -40,6 +43,7 @@ internal sealed class AdminModuleService : IAdminModuleService
         _dataStores = dataStores;
         _quotas = quotas;
         _quotaCache = quotaCache;
+        _accessEvaluator = accessEvaluator;
         _logger = logger;
     }
 
@@ -179,6 +183,9 @@ internal sealed class AdminModuleService : IAdminModuleService
         _dbContext.ModuleCapabilityGrants.Add(grant);
         await _dbContext.SaveChangesAsync();
 
+        // Enforcement caches the module's grant set; a grant must apply on the next call.
+        _accessEvaluator.Invalidate(moduleId);
+
         _logger.LogInformation("Granted capability {Capability} to module {ModuleId} by user {UserId}",
             LogSanitizer.Sanitize(capabilityName), LogSanitizer.Sanitize(moduleId), grantedByUserId);
 
@@ -201,6 +208,9 @@ internal sealed class AdminModuleService : IAdminModuleService
 
         _dbContext.ModuleCapabilityGrants.Remove(grant);
         await _dbContext.SaveChangesAsync();
+
+        // Revocation must take effect immediately, not after the cache TTL expires.
+        _accessEvaluator.Invalidate(moduleId);
 
         _logger.LogInformation("Revoked capability {Capability} from module {ModuleId}",
             capabilityName, moduleId);

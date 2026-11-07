@@ -661,6 +661,13 @@ When the user says the keyword **"remember"**, it means this information should 
 
 Applies to all backup operations (DB dumps, file storage, config archives).
 
+### Shell Quoting (MANDATORY)
+
+- ❌ Never put `!` in a terminal command — bash history expansion aborts it with
+  `bash: !: event not found` (e.g. `grep -E "Passed!|Failed!"`).
+- ✅ Use single quotes and match words only: `grep -E 'Passed|Failed|error'`.
+- Applies to any literal containing `!`, including passwords passed to `psql`/`sqlcmd`.
+
 ### Mediator Command Execution Rule (MANDATORY)
 
 When the assistant needs the mediator to run a command:

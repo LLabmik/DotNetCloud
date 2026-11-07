@@ -68,7 +68,7 @@ All event subscriptions follow a **need-to-receive** principle:
 | **Module authentication** | Per-launch token (`dnc-module-id` + `dnc-module-token`), constant-time compare, rotates on start |
 | **Core authentication**   | `ModulePeerAuthenticationInterceptor` verifies the same token on core→module calls               |
 | **User identity**         | Core-signed `dnc-user-assertion` (ECDSA P-256, short-lived, module-scoped)                       |
-| **Authorization**         | `CapabilityGrantInterceptor` enforces `ModuleCapabilityGrants` per RPC                           |
+| **Authorization**         | `ModuleAccessInterceptor` -> `ModuleAccessEvaluator` enforces `ModuleCapabilityGrants` per RPC (60 s cache, invalidated on grant/revoke, denials audited) |
 | **Max message size**      | 16 MB receive/send on the module listener                                                        |
 | **Detailed errors**       | Disabled outside Development                                                                     |
 | **Reflection**            | Disabled in production                                                                           |

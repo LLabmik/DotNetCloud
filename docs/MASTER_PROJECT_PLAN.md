@@ -1781,11 +1781,11 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 
 ---
 
-### Step: third-party-module-sandbox-a2-2026-11-07 - Module Sandbox A2 (module API v1, slice 1 — identity rename)
+### Step: third-party-module-sandbox-a2-2026-11-07 - Module Sandbox A2 (module API v1, slice 1 — identity rename + contract + enforcement)
 
 **Status:** 🔄 In progress
 **Duration:** ongoing
-**Description:** Phase A2 of `docs/THIRD_PARTY_MODULE_SANDBOX_AND_STORE_PLAN.md`. This slice lands the D2 transport-identity rename (locked decision, one-release cut-over); the `module_api.proto` surface, credential service, `ModuleAccessEvaluator`, REST facade and SDK remain.
+**Description:** Phase A2 of `docs/THIRD_PARTY_MODULE_SANDBOX_AND_STORE_PLAN.md`. This step lands the D2 transport-identity rename, the canonical `module_api` contract and the evaluator-based enforcement swap; the credential service, legacy adapter, REST facade and SDK remain.
 
 **Deliverables:**
 
@@ -1795,11 +1795,15 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 - ✓ `docs/security/CROSS_MODULE_TRUST.md` and `docs/security/SECURITY_MODEL.md` updated to the new names (no stale `module-secret` claims remain in current docs)
 - ✓ `src/Core/DotNetCloud.Core.Grpc/Protos/module_api.proto` — canonical `dotnetcloud.moduleapi.v1` service (17 RPCs) registered in `DotNetCloud.Core.Grpc.csproj`; identity-free requests (field 1 + `caller` reserved in every request, no `module_id`, empty `user_id` = acting user)
 - ✓ `ModuleApiContractTests` — descriptor-level guards for the RPC set, the reserved caller slot, the absent `module_id`, and the empty-target contract (5 tests)
-- ☐ Legacy `module_capabilities.proto` mapped onto `module_api` (blocked on the evaluator: `CapabilityGrantInterceptor` maps by simple method name, so `ReportHealth`/`GetCurrentUserContext`/`CheckUserConsent`/`GetGrantedScopes` would be denied until the shared catalog covers both services)
+- ☐ Legacy `module_capabilities.proto` mapped onto `module_api` (now unblocked — the shared catalog covers both services by fully-qualified method)
+- ✓ `CapabilityCatalog` moved to `DotNetCloud.Core` and made public: tier model plus a fully-qualified method → capability map for both the legacy and canonical services, with an explicit self-service allow-list (`ReportHealth`, `CheckUserConsent`, `GetGrantedScopes`) and helpers (`IsModuleFacingRpc`, `IsKnownRpc`, `GetKnownRpcs`)
+- ✓ `ModuleAccessEvaluator` (public contract, cached grants for 60 s) replaces the in-interceptor policy: public/self-service allow, unknown or forbidden capability denies, unmapped module-facing RPCs fail closed, grant-store failure denies, `Invalidate` called from `AdminModuleService` grant/revoke
+- ✓ `ModuleAccessInterceptor` replaces `CapabilityGrantInterceptor` (deleted): `PERMISSION_DENIED` + `error-code: CAPABILITY_NOT_GRANTED`, `ModuleCapabilityDenied` audit entry (audit failure cannot flip the outcome), `AuditAction.ModuleCapabilityDenied` added
+- ✓ Tests: `ModuleAccessEvaluatorTests` (12), `ModuleAccessInterceptorTests` (5), `ModuleRpcCapabilityMappingTests` (10 — reflects both service descriptors so a new RPC without a mapping fails), `CapabilityCatalogTests` relocated to `DotNetCloud.Core.Tests`
 
 **Dependencies:** `third-party-module-sandbox-a1-2026-11-06`
 **Blocking Issues:** None
-**Notes:** `dotnet build DotNetCloud.CI.slnf` succeeded (only the two pre-existing `DbInitializerTests` nullable warnings), and `module_api.proto` compiles clean through `Grpc.Tools`. `DotNetCloud.Core.Server.Tests` 1126 passed / 0 failed / 2 skipped; `DotNetCloud.Modules.Files.Tests` 1009 passed. A tautological constant-pin test was replaced with behaviour tests after MSTEST0032 flagged it — the wire names are asserted as literals on production output, per the repo's test-tautology policy. Next: `ModuleAccessEvaluator` + `CapabilityCatalog` coverage for the new surface, which unblocks the legacy→`module_api` adapter. Not committed.
+**Notes:** `dotnet build DotNetCloud.CI.slnf` succeeded (only the two pre-existing `DbInitializerTests` nullable warnings), and `module_api.proto` compiles clean through `Grpc.Tools`. `DotNetCloud.Core.Server.Tests` 1123 passed / 0 failed / 2 skipped; `DotNetCloud.Core.Tests` catalog tests 31 passed; `DotNetCloud.Modules.Files.Tests` 1009 passed. A tautological constant-pin test was replaced with behaviour tests after MSTEST0032 flagged it — wire names are asserted as literals on production output, per the repo's test-tautology policy. Implementation note: the evaluator contract is `public` because Moq cannot proxy an internal interface without `InternalsVisibleTo("DynamicProxyGenAssembly2")`. Next: the legacy→`module_api` adapter, then `ModuleCredentialService`. Not committed.
 
 ---
 

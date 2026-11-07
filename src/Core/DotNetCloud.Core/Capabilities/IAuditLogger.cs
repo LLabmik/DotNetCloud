@@ -98,5 +98,11 @@ public enum AuditAction
     Export,
 
     /// <summary>Entity imported.</summary>
-    Import
+    Import,
+
+    /// <summary>
+    /// A module's call was denied by capability enforcement (missing grant, unmapped RPC or
+    /// forbidden capability).
+    /// </summary>
+    ModuleCapabilityDenied
 }

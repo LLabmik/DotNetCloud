@@ -48,7 +48,7 @@ DotNetCloud uses a **module-isolated architecture** where each feature module ru
 - The supervisor mints a fresh 32-byte token for each module launch (`DOTNETCLOUD_MODULE_TOKEN`); module→core calls carry `dnc-module-id` + `dnc-module-token` and are validated in constant time
 - Core→module calls are authenticated by `ModulePeerAuthenticationInterceptor` and fail closed when the supervisor did not launch the host
 - End-user identity is only ever carried in a core-signed, short-lived `dnc-user-assertion`; modules cannot assert `CallerType.System` or supply their own roles
-- `CapabilityGrantInterceptor` enforces the module's `ModuleCapabilityGrants` on every mapped RPC
+- `ModuleAccessInterceptor` delegates to `ModuleAccessEvaluator`, which enforces the module's `ModuleCapabilityGrants` on every mapped RPC from a shared `CapabilityCatalog`; unmapped module-facing RPCs fail closed and denials are audited (`ModuleCapabilityDenied`)
 - Modules cannot call each other: there is no module-to-module channel
 
 ### Boundary 3a: Same-OS-user limitation

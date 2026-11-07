@@ -4,6 +4,7 @@ using DotNetCloud.Core.Data.Naming;
 using DotNetCloud.Core.DTOs;
 using DotNetCloud.Core.Modules;
 using DotNetCloud.Core.Modules.Supervisor;
+using DotNetCloud.Core.Server.Grpc.ModuleAccess;
 using DotNetCloud.Core.Server.Quotas;
 using DotNetCloud.Core.Server.Services;
 using Microsoft.EntityFrameworkCore;
@@ -69,6 +70,7 @@ public class AdminModuleServiceTests
             dataStores ?? Mock.Of<IModuleDataStoreProvisioningService>(),
             quotas,
             new ModuleQuotaCache(quotas, TimeProvider.System),
+            Mock.Of<IModuleAccessEvaluator>(),
             NullLogger<AdminModuleService>.Instance);
     }
 
