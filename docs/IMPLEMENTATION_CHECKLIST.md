@@ -3441,7 +3441,9 @@ Plan: `docs/THIRD_PARTY_MODULE_SANDBOX_AND_STORE_PLAN.md` (phase A0). Branch `fe
   - ✓ Supervisor env split + per-module `{config,data,run}` directories + sanitized `module.json`; legacy v1 modules gated by `ProcessSupervisor:AllowLegacyAccess`
   - ✓ Example host binds `DOTNETCLOUD_GRPC_ENDPOINT`, uses a private DataProtection ring and reads the sandbox connection string / module settings client
   - ✓ Setup/restore create the PostgreSQL app role with `CREATEROLE`
+  - ✓ Setup wizard reports module data-store prerequisites after migrations with the exact remediation statement (actual role/database name), before any module can be held in `SandboxStatus = Error`
   - ✓ Live provisioning/adoption integration tests on PostgreSQL and SQL Server (own-schema DDL allowed, sibling/core schema denied, adoption ownership incl. `__EFMigrationsHistory`, destroy, prerequisites)
+  - ✓ Launch-environment split extracted to `ModuleLaunchEnvironment` with unit tests (sandbox vs legacy directories, connection-string presence, override refusal)
   - ✓ Admin/CLI `datastore` commands (status/provision/rotate/destroy, credential reset) and admin API (`GET/POST/DELETE admin/modules/{id}/datastore*`)
   - ✓ Resource quotas (F10): policy + resolver, admin `GET/PUT modules/{id}/quota`, cgroup memory/cpu/pids, PG `CONNECTION LIMIT` + pool size, identity-keyed request/event/notification/audit limiters, and measured DB/data-dir usage with `QuotaExceeded` suspension + start refusal
   - ✓ Storage namespacing (F5): `IStorageProvider` namespaced contract + `ModuleStorageNamespace` (module/user segment from verified identity, traversal/rooted/encoding rejection, containment re-check, 30 tests)

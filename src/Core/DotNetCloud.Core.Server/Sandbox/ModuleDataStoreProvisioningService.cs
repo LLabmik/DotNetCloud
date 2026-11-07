@@ -319,6 +319,9 @@ public sealed class ModuleDataStoreProvisioningService : IModuleDataStoreProvisi
     private async Task<ModuleDataStorePrerequisiteResult> CheckPostgreSqlPrerequisitesAsync(
         DbConnection connection, CancellationToken cancellationToken)
     {
+        // Resolve the actual login role so the remediation statement can be pasted verbatim.
+        var roleName = await ExecuteScalarAsync(connection, "SELECT current_user", cancellationToken) as string;
+
         var canCreateRoles = await ExecuteScalarAsync(
             connection, "SELECT rolcreaterole FROM pg_roles WHERE rolname = current_user", cancellationToken);
 
@@ -328,9 +331,7 @@ public sealed class ModuleDataStoreProvisioningService : IModuleDataStoreProvisi
                 ? ModuleDataStorePrerequisiteResult.Satisfied
                 : new ModuleDataStorePrerequisiteResult(false,
                 [
-                    "The DotNetCloud database role lacks CREATEROLE, so module database principals cannot be provisioned. " +
-                    "Run the following as a PostgreSQL superuser, then restart the server: " +
-                    "ALTER ROLE <dotnetcloud-role> CREATEROLE;",
+                    DescribePostgreSqlRolePrerequisite(roleName),
                 ]);
         }
 
@@ -366,12 +367,12 @@ public sealed class ModuleDataStoreProvisioningService : IModuleDataStoreProvisi
             return ModuleDataStorePrerequisiteResult.Satisfied;
         }
 
+        var databaseName =
+            new Microsoft.Data.SqlClient.SqlConnectionStringBuilder(_database.ConnectionString).InitialCatalog;
+
         // db_owner may switch the database to partial containment itself; try before failing.
         try
         {
-            var databaseName = new Microsoft.Data.SqlClient.SqlConnectionStringBuilder(_database.ConnectionString)
-                .InitialCatalog;
-
             await ExecuteAsync(
                 [$"ALTER DATABASE {ModuleDataStoreNaming.QuoteSqlServer(databaseName)} SET CONTAINMENT = PARTIAL;"],
                 cancellationToken);
@@ -382,9 +383,7 @@ public sealed class ModuleDataStoreProvisioningService : IModuleDataStoreProvisi
         {
             return new ModuleDataStorePrerequisiteResult(false,
             [
-                "The DotNetCloud database is not partially contained and could not be converted automatically. " +
-                "Run the following as a database owner, then restart the server: " +
-                "ALTER DATABASE [dotnetcloud] SET CONTAINMENT = PARTIAL;",
+                DescribeSqlServerContainmentPrerequisite(databaseName),
                 $"Engine error: {SanitizeError(ex.Message)}",
             ]);
         }
@@ -542,6 +541,38 @@ public sealed class ModuleDataStoreProvisioningService : IModuleDataStoreProvisi
 
     private static string GeneratePassword() =>
         Convert.ToBase64String(RandomNumberGenerator.GetBytes(32));
+
+    /// <summary>
+    /// Builds the PostgreSQL <c>CREATEROLE</c> remediation text, naming the effective login role so
+    /// the statement can be pasted verbatim (an existing install created before the setup wizard
+    /// granted <c>CREATEROLE</c> must run it once).
+    /// </summary>
+    /// <param name="roleName">The role reported by <c>current_user</c>, when known.</param>
+    internal static string DescribePostgreSqlRolePrerequisite(string? roleName)
+    {
+        var statement = string.IsNullOrWhiteSpace(roleName)
+            ? "ALTER ROLE <dotnetcloud-role> CREATEROLE;"
+            : $"ALTER ROLE {ModuleDataStoreNaming.QuotePostgreSql(roleName)} CREATEROLE;";
+
+        return "The DotNetCloud database role lacks CREATEROLE, so module database principals cannot be " +
+               "provisioned. Run the following as a PostgreSQL superuser, then restart the server: " +
+               statement;
+    }
+
+    /// <summary>
+    /// Builds the SQL Server partial-containment remediation text for the given database.
+    /// </summary>
+    /// <param name="databaseName">The database reported by <c>DB_NAME()</c>.</param>
+    internal static string DescribeSqlServerContainmentPrerequisite(string databaseName)
+    {
+        var quoted = string.IsNullOrWhiteSpace(databaseName)
+            ? "[dotnetcloud]"
+            : ModuleDataStoreNaming.QuoteSqlServer(databaseName);
+
+        return "The DotNetCloud database is not partially contained and could not be converted automatically. " +
+               "Run the following as a database owner, then restart the server: " +
+               $"ALTER DATABASE {quoted} SET CONTAINMENT = PARTIAL;";
+    }
 
     /// <summary>
     /// Removes credential-looking text from an engine error before it becomes admin-visible.

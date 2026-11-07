@@ -292,8 +292,8 @@ internal sealed class ProcessSupervisor : BackgroundService, IProcessSupervisor
         // the process never launches without the store it was promised.
         string? moduleConnectionString = null;
         string? sandboxSchema = null;
-        var useLegacyLayout = !IsSandboxed(manifest);
-        if (IsSandboxed(manifest))
+        var useLegacyLayout = !ModuleLaunchEnvironment.IsSandboxed(manifest);
+        if (ModuleLaunchEnvironment.IsSandboxed(manifest))
         {
             if (manifest.EffectiveDataStoreMode == ModuleDataStoreMode.Isolated)
             {
@@ -519,12 +519,26 @@ internal sealed class ProcessSupervisor : BackgroundService, IProcessSupervisor
             startInfo.Environment["DOTNETCLOUD_GRPC_ENDPOINT"] = ForceHttpForInternalGrpc(grpcEndpoint);
             startInfo.Environment["DOTNETCLOUD_CORE_ENDPOINT"] = ForceHttpForInternalGrpc(BuildCoreEndpoint());
 
-            if (IsSandboxed(manifest) && !useLegacyLayout)
+            var launchEnvironment = ModuleLaunchEnvironment.Resolve(
+                manifest,
+                _options,
+                discovered.ModuleId,
+                GetDataRootDirectory(),
+                moduleConnectionString,
+                useLegacyLayout,
+                Environment.GetEnvironmentVariable(ModuleLaunchEnvironment.LegacyConfigDirectoryVariable),
+                Environment.GetEnvironmentVariable(ModuleLaunchEnvironment.LegacyDataDirectoryVariable));
+
+            foreach (var (name, value) in launchEnvironment.Variables)
+            {
+                startInfo.Environment[name] = value;
+            }
+
+            if (launchEnvironment.Layout is { } layout)
             {
                 // Sandboxed modules never see the core config directory or data directory: those
                 // carry the core connection string, TLS material and the WOPI signing key. They get
                 // a private directory tree containing only non-secret topology.
-                var layout = ModuleSandboxLayout.Create(GetDataRootDirectory(), discovered.ModuleId);
                 layout.EnsureCreated();
                 layout.WriteModuleJson(
                     manifest.Version,
@@ -533,24 +547,12 @@ internal sealed class ProcessSupervisor : BackgroundService, IProcessSupervisor
                     sandboxSchema,
                     ForceHttpForInternalGrpc(BuildCoreEndpoint()),
                     ForceHttpForInternalGrpc(grpcEndpoint));
-
-                startInfo.Environment["DOTNETCLOUD_MODULE_CONFIG_DIR"] = layout.ConfigDirectory;
-                startInfo.Environment["DOTNETCLOUD_MODULE_DATA_DIR"] = layout.DataDirectory;
-
-                if (!string.IsNullOrEmpty(moduleConnectionString))
-                {
-                    startInfo.Environment["DOTNETCLOUD_MODULE_DB_CONNECTION_STRING"] = moduleConnectionString;
-                }
             }
-            else if (_options.AllowLegacyAccess)
+            else if (launchEnvironment.LegacyDirectoriesRefused)
             {
                 // Transition only: product-shipped v1 modules still load the shared config.json and
-                // data directory while they are migrated to the sandboxed model (Track C).
-                ForwardEnvVar(startInfo, "DOTNETCLOUD_CONFIG_DIR");
-                ForwardEnvVar(startInfo, "DOTNETCLOUD_DATA_DIR");
-            }
-            else
-            {
+                // data directory while they are migrated to the sandboxed model (Track C). With the
+                // override disabled they run without either directory rather than with core secrets.
                 _logger.LogError(
                     "Module {ModuleId} is not sandboxed and legacy access is disabled; refusing to forward the core config/data directories",
                     SanitizeForLog(discovered.ModuleId));
@@ -591,15 +593,6 @@ internal sealed class ProcessSupervisor : BackgroundService, IProcessSupervisor
     private static string SanitizeForLog(string value)
     {
         return LogSanitizer.Sanitize(value);
-    }
-
-    /// <summary>Copies an environment variable from the current process to the child
-    /// process if it is set.</summary>
-    private static void ForwardEnvVar(ProcessStartInfo startInfo, string name)
-    {
-        var value = Environment.GetEnvironmentVariable(name);
-        if (!string.IsNullOrEmpty(value))
-            startInfo.Environment[name] = value;
     }
 
     // ---- Health Monitoring ----
@@ -830,9 +823,6 @@ internal sealed class ProcessSupervisor : BackgroundService, IProcessSupervisor
     /// <summary>
     /// Whether a module runs in the sandboxed model: a version 2 manifest on a non-required module.
     /// </summary>
-    private static bool IsSandboxed(ModuleManifestData manifest) =>
-        manifest.ManifestVersion >= 2 && !RequiredModules.IsRequired(manifest.Id);
-
     /// <summary>
     /// Maps a manifest's resource requests onto a quota request. Values are requests only; the
     /// resolver applies the admin override and policy ceiling with <c>min()</c>.

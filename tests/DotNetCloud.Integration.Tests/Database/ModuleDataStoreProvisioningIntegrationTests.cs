@@ -179,11 +179,12 @@ public class ModuleDataStoreProvisioningIntegrationTests
     }
 
     private static (string Schema, string Principal) NamesFor(string moduleId)
-    {        Assert.IsTrue(ModuleDataStoreNaming.TryCreate(moduleId, out var schema, out var principal, out var error), error);
+    {
+        Assert.IsTrue(ModuleDataStoreNaming.TryCreate(moduleId, out var schema, out var principal, out var error), error);
         return (schema, principal);
     }
 
-    private static string Quote(string identifier) =>        s_provider == DatabaseProvider.SqlServer
+    private static string Quote(string identifier) => s_provider == DatabaseProvider.SqlServer
             ? $"[{identifier}]"
             : $"\"{identifier}\"";
 

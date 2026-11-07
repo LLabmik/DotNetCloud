@@ -71,7 +71,8 @@ internal static class DataStoreCommands
     }
 
     private static Command CreateProvision()
-    {        var moduleArg = CreateModuleArgument("The module ID to provision");
+    {
+        var moduleArg = CreateModuleArgument("The module ID to provision");
         var limitOption = CreateConnectionLimitOption();
         var command = new Command("provision", "Provision the schema and database principal for an isolated module")
         {

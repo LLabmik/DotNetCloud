@@ -4,7 +4,9 @@ using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 using DotNetCloud.CLI.Infrastructure;
+using DotNetCloud.Core.Data.Context;
 using DotNetCloud.Core.Data.Naming;
+using DotNetCloud.Core.Modules;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -789,6 +791,12 @@ internal static class SetupCommand
             ConsoleOutput.WriteWarning("Database migration step reported errors. The server will retry migrations on startup.");
         }
 
+        // Isolated module data stores need engine-level privileges (PostgreSQL CREATEROLE /
+        // SQL Server partial containment). Report any gap now, with the exact remediation
+        // statement, instead of letting the first non-required module fail with
+        // ModuleDataStore.Status = Error after the service starts.
+        await ReportDataStorePrerequisitesAsync();
+
         // Start the service
         Console.WriteLine();
         var serviceStarted = false;
@@ -873,6 +881,71 @@ internal static class SetupCommand
         }
 
         return 0;
+    }
+
+    /// <summary>
+    /// Checks the engine prerequisites for sandboxed module data stores and prints the exact
+    /// remediation statement when one is missing.
+    /// </summary>
+    /// <remarks>
+    /// Setup must stay successful even when the check cannot run (for example a database that is
+    /// reachable but reports an unexpected engine version); the server re-checks at provisioning
+    /// time and records <c>ModuleDataStore.Status = Error</c> with the same text.
+    /// </remarks>
+    /// <returns>A task that completes when the report has been written.</returns>
+    internal static async Task ReportDataStorePrerequisitesAsync()
+    {
+        await using var provider = ServiceProviderFactory.CreateForDataStore();
+        if (provider is null)
+        {
+            return;
+        }
+
+        try
+        {
+            using var scope = provider.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<CoreDbContext>();
+
+            var nonRequiredModules = await db.InstalledModules
+                .AsNoTracking()
+                .CountAsync(m => !m.IsRequired);
+
+            if (nonRequiredModules == 0)
+            {
+                return;
+            }
+
+            var provisioning = scope.ServiceProvider.GetRequiredService<IModuleDataStoreProvisioningService>();
+            var prerequisites = await provisioning.CheckPrerequisitesAsync();
+
+            if (prerequisites.IsSatisfied)
+            {
+                ConsoleOutput.WriteSuccess(
+                    "Module data-store provisioning prerequisites satisfied (isolated module schemas can be created).");
+                return;
+            }
+
+            ConsoleOutput.WriteWarning(
+                "Module data-store provisioning prerequisites are NOT satisfied. Non-required modules " +
+                "stay stopped until this is fixed:");
+
+            foreach (var error in prerequisites.Errors)
+            {
+                ConsoleOutput.WriteWarning(error);
+            }
+
+            ConsoleOutput.WriteInfo("Re-check with: dotnetcloud datastore preflight");
+        }
+        catch (Exception ex)
+        {
+            // The message can echo parts of the connection string; mask any credential segment.
+            var detail = string.IsNullOrWhiteSpace(ex.Message)
+                ? ex.GetType().Name
+                : MaskConnectionString(ex.Message);
+
+            ConsoleOutput.WriteWarning($"Could not check module data-store prerequisites: {detail}");
+            ConsoleOutput.WriteInfo("The server re-checks during module provisioning. Check later with: dotnetcloud datastore preflight");
+        }
     }
 
     /// <summary>
