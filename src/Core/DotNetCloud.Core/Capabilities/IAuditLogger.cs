@@ -114,5 +114,10 @@ public enum AuditAction
     /// <summary>
     /// A module's user-scoped call named a different user than the authenticated caller.
     /// </summary>
-    ModuleIdentityMismatch
+    ModuleIdentityMismatch,
+
+    /// <summary>
+    /// A module tried to raise an event (platform or real-time) its manifest does not declare.
+    /// </summary>
+    ModuleEventRejected
 }

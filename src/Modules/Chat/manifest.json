@@ -15,6 +15,21 @@
         "MessageSentEvent",
         "ChannelCreatedEvent"
     ],
+    "realtimeEvents": [
+        "NewMessage",
+        "MessageEdited",
+        "MessageDeleted",
+        "TypingIndicator",
+        "ReactionUpdated",
+        "ChannelUpdated",
+        "MemberJoined",
+        "MemberLeft",
+        "PresenceChanged",
+        "HostTransferred",
+        "AnnouncementCreated",
+        "UrgentAnnouncement",
+        "TracksActivityNotification"
+    ],
     "subscribedEvents": [],
     "minCoreVersion": "0.7.0"
 }

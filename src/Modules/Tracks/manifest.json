@@ -9,10 +9,27 @@
         "IUserDirectory",
         "ICurrentUserContext",
         "IAuditLogger",
-        "IOrganizationDirectory"
+        "IOrganizationDirectory",
+        "IRealtimeBroadcaster"
     ],
     "publishedEvents": [
         "WorkItemCreatedEvent"
+    ],
+    "realtimeEvents": [
+        "TracksWorkItemAction",
+        "TracksSwimlaneAction",
+        "TracksCommentAction",
+        "TracksSprintAction",
+        "TracksActivity",
+        "TracksProductMemberAction",
+        "TracksTeamAction",
+        "TracksReviewItemChanged",
+        "TracksReviewSessionState",
+        "TracksPokerVoteStatus",
+        "TracksReviewPokerState",
+        "TracksReviewParticipantChanged",
+        "TracksSprintDiscussionMessage",
+        "TracksReviewDiscussionMessage"
     ],
     "subscribedEvents": [],
     "minCoreVersion": "0.7.0"

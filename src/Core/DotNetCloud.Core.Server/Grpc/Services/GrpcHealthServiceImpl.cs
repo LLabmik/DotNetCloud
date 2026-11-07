@@ -9,6 +9,7 @@ using DotNetCloud.Core.Grpc.Capabilities;
 using DotNetCloud.Core.Modules;
 using DotNetCloud.Core.Modules.Supervisor;
 using DotNetCloud.Core.Server.Grpc.ModuleAccess;
+using DotNetCloud.Core.Server.ModuleLoading;
 using DotNetCloud.Core.Server.RealTime;
 using DotNetCloud.Core.Server.Services;
 using DotNetCloud.Modules.Chat.DTOs;
@@ -712,6 +713,12 @@ internal class CoreCapabilitiesServiceImpl : CoreCapabilities.CoreCapabilitiesBa
     /// Called by process-isolated module hosts to push events (new messages,
     /// typing indicators, etc.) through Core.Server's SignalR infrastructure.
     /// </summary>
+    /// <remarks>
+    /// When a module's manifest declares a real-time event vocabulary, the name must be in it — a
+    /// module that can broadcast any name can drive UI surfaces it does not own (a fake
+    /// <c>NewMessage</c> in a chat channel, for instance). Modules that declare nothing keep the
+    /// previous behaviour while the vocabulary is rolled out across the in-repo manifests.
+    /// </remarks>
     public override async Task<BroadcastRealtimeEventResponse> BroadcastRealtimeEvent(
         BroadcastRealtimeEventRequest request, ServerCallContext context)
     {
@@ -719,6 +726,8 @@ internal class CoreCapabilitiesServiceImpl : CoreCapabilities.CoreCapabilitiesBa
         _logger.LogDebug(
             "BroadcastRealtimeEvent: group={Group}, event={Event} from module {ModuleId}",
             request.Group, request.EventName, moduleId);
+
+        await EnforceDeclaredRealtimeAsync(context, moduleId, request.EventName);
 
         try
         {
@@ -970,6 +979,81 @@ internal class CoreCapabilitiesServiceImpl : CoreCapabilities.CoreCapabilitiesBa
                 "Failed to forward {Event} to IChatMessageNotifier from module {ModuleId}",
                 request.EventName, moduleId);
         }
+    }
+
+    /// <summary>
+    /// Rejects a real-time event the calling module did not declare in its manifest.
+    /// </summary>
+    /// <remarks>
+    /// An empty declaration means the vocabulary has not been added to that module's manifest yet;
+    /// those modules keep working unchanged. Once declared, the list is enforced exactly.
+    /// </remarks>
+    private async Task EnforceDeclaredRealtimeAsync(
+        ServerCallContext context,
+        string moduleId,
+        string? eventName)
+    {
+        var registry = _serviceProvider.GetService<IModuleManifestRegistry>();
+        var declared = registry?.GetRealtimeEvents(moduleId);
+
+        if (declared is null)
+        {
+            // The supervisor records every manifest it reads before launching a host, so an
+            // unrecorded module did not come through a supervised launch. Fail closed.
+            _logger.LogWarning(
+                "BroadcastRealtimeEvent rejected: no manifest is recorded for module {ModuleId}",
+                LogSanitizer.Sanitize(moduleId));
+
+            throw new RpcException(
+                new Status(
+                    StatusCode.PermissionDenied,
+                    "[MODULE_EVENT_REJECTED] No manifest is recorded for this module."),
+                new Metadata { { "error-code", ErrorCodes.ModuleEventRejected } });
+        }
+
+        if (declared.Count == 0
+            || (!string.IsNullOrEmpty(eventName)
+                && declared.Contains(eventName, StringComparer.OrdinalIgnoreCase)))
+        {
+            // An empty declaration means the vocabulary has not been added to that module's
+            // manifest yet; it keeps working unchanged.
+            return;
+        }
+
+        _logger.LogWarning(
+            "BroadcastRealtimeEvent rejected for module {ModuleId}: {EventName} is not declared in the manifest",
+            LogSanitizer.Sanitize(moduleId),
+            LogSanitizer.Sanitize(eventName ?? string.Empty));
+
+        try
+        {
+            using var scope = _serviceProvider.CreateScope();
+            var auditLogger = scope.ServiceProvider.GetRequiredService<IAuditLogger>();
+
+            await auditLogger.LogAsync(
+                new AuditEntry
+                {
+                    Caller = CallerSubjectGuard.GetCaller(context) ?? CallerContext.CreateSystemContext(),
+                    ModuleId = moduleId,
+                    Action = AuditAction.ModuleEventRejected,
+                    EntityType = "ModuleEvent",
+                    EntityId = Guid.Empty,
+                    Description =
+                        $"Real-time event '{LogSanitizer.Sanitize(eventName ?? string.Empty)}' is not " +
+                        "declared in the module manifest.",
+                },
+                context.CancellationToken);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _logger.LogWarning(ex, "Could not record the rejected-event audit entry for module {ModuleId}", moduleId);
+        }
+
+        throw new RpcException(
+            new Status(
+                StatusCode.PermissionDenied,
+                "[MODULE_EVENT_REJECTED] The real-time event name is not declared in the module manifest."),
+            new Metadata { { "error-code", ErrorCodes.ModuleEventRejected } });
     }
 
     private static string GetModuleId(ServerCallContext context)

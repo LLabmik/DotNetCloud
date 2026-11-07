@@ -114,6 +114,10 @@ internal static class SupervisorServiceExtensions
         services.AddSingleton<ModuleApiV1Service>();
         services.AddSingleton<TokenIntrospectionServiceImpl>();
 
+        // Internal JSON facade for module backends without a gRPC client. It reuses the same
+        // interceptors (credential, caller context, rate limit, capability) as the gRPC listener.
+        services.AddSingleton<Rest.ModuleRestApiService>();
+
         // Register process supervisor as both IProcessSupervisor and IHostedService
         services.AddSingleton<ProcessSupervisor>();
         services.AddSingleton<IProcessSupervisor>(sp => sp.GetRequiredService<ProcessSupervisor>());

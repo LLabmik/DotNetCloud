@@ -53,6 +53,9 @@ internal sealed record ModuleManifestData
     /// <summary>Event declarations (v2 field).</summary>
     public ManifestEvents? Events { get; init; }
 
+    /// <summary>Real-time (SignalR) event names the module may broadcast (v1 field).</summary>
+    public IReadOnlyList<string> RealtimeEvents { get; init; } = [];
+
     /// <summary>OIDC scopes the module needs per-user consent for (v2).</summary>
     public IReadOnlyList<string> UserConsentScopes { get; init; } = [];
 
@@ -98,6 +101,13 @@ internal sealed record ModuleManifestData
     public IReadOnlyList<string> EffectiveSubscribedEvents =>
         ManifestVersion >= 2 && Events is not null ? Events.Subscribes : SubscribedEvents;
 
+    /// <summary>
+    /// Real-time event names the module may broadcast. Empty means "not declared", which the core
+    /// treats as unenforced for backwards compatibility while the vocabulary is rolled out.
+    /// </summary>
+    public IReadOnlyList<string> EffectiveRealtimeEvents =>
+        ManifestVersion >= 2 && Events is not null ? Events.Realtime : RealtimeEvents;
+
     /// <summary>Resolved data-store mode.</summary>
     public ModuleDataStoreMode EffectiveDataStoreMode =>
         string.Equals(DataStore, "isolated", StringComparison.OrdinalIgnoreCase)
@@ -129,6 +139,9 @@ internal sealed record ManifestEvents
 
     /// <summary>Event types the module subscribes to.</summary>
     public IReadOnlyList<string> Subscribes { get; init; } = [];
+
+    /// <summary>Real-time (SignalR) event names the module may broadcast.</summary>
+    public IReadOnlyList<string> Realtime { get; init; } = [];
 }
 
 /// <summary>Module UI descriptor from a v2 manifest.</summary>

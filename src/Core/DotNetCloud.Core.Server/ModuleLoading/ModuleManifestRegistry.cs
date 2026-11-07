@@ -31,12 +31,24 @@ internal interface IModuleManifestRegistry
     /// <param name="moduleId">The module id.</param>
     /// <returns>The declared event names, or <see langword="null"/> when the module is unknown.</returns>
     IReadOnlyCollection<string>? GetPublishedEvents(string moduleId);
+
+    /// <summary>
+    /// Gets the real-time event names a module declared it may broadcast.
+    /// </summary>
+    /// <param name="moduleId">The module id.</param>
+    /// <returns>
+    /// The declared names (possibly empty), or <see langword="null"/> when the module is unknown.
+    /// </returns>
+    IReadOnlyCollection<string>? GetRealtimeEvents(string moduleId);
 }
 
 /// <inheritdoc />
 internal sealed class ModuleManifestRegistry : IModuleManifestRegistry
 {
     private readonly ConcurrentDictionary<string, IReadOnlyCollection<string>> _publishedEvents =
+        new(StringComparer.OrdinalIgnoreCase);
+
+    private readonly ConcurrentDictionary<string, IReadOnlyCollection<string>> _realtimeEvents =
         new(StringComparer.OrdinalIgnoreCase);
 
     /// <inheritdoc />
@@ -49,18 +61,8 @@ internal sealed class ModuleManifestRegistry : IModuleManifestRegistry
             return;
         }
 
-        var declared = manifest.EffectivePublishedEvents;
-
-        // Case-insensitive de-duplication: the event-type check is ordinal-ignore-case, so
-        // "FileUploadedEvent" and "fileuploadedevent" in one manifest must not double-count.
-        var normalized = declared is null
-            ? []
-            : declared
-                .Where(name => !string.IsNullOrWhiteSpace(name))
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-                .ToArray();
-
-        _publishedEvents[moduleId] = normalized;
+        _publishedEvents[moduleId] = Normalize(manifest.EffectivePublishedEvents);
+        _realtimeEvents[moduleId] = Normalize(manifest.EffectiveRealtimeEvents);
     }
 
     /// <inheritdoc />
@@ -68,4 +70,18 @@ internal sealed class ModuleManifestRegistry : IModuleManifestRegistry
         !string.IsNullOrWhiteSpace(moduleId) && _publishedEvents.TryGetValue(moduleId, out var declared)
             ? declared
             : null;
+
+    /// <inheritdoc />
+    public IReadOnlyCollection<string>? GetRealtimeEvents(string moduleId) =>
+        !string.IsNullOrWhiteSpace(moduleId) && _realtimeEvents.TryGetValue(moduleId, out var declared)
+            ? declared
+            : null;
+
+    private static IReadOnlyCollection<string> Normalize(IReadOnlyList<string>? declared) =>
+        declared is null
+            ? []
+            : declared
+                .Where(name => !string.IsNullOrWhiteSpace(name))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToArray();
 }

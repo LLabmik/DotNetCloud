@@ -1062,6 +1062,10 @@ public class Program
         // Proxy module REST API calls (music, video, notes, wopi) to running module hosts.
         MapModuleApiProxies(app);
 
+        // Internal JSON facade for module backends without a gRPC client. Same credential, caller
+        // assertion, rate limits and capability evaluation as the gRPC listener.
+        app.MapModuleApiRestEndpoints();
+
         // Map API controllers
         app.MapControllers();
 

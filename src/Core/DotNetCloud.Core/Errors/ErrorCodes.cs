@@ -129,6 +129,11 @@ public static class ErrorCodes
     /// </summary>
     public const string ModuleInvalidRequest = "MODULE_INVALID_REQUEST";
 
+    /// <summary>
+    /// Error code returned when a module tries to raise an event its manifest does not declare.
+    /// </summary>
+    public const string ModuleEventRejected = "MODULE_EVENT_REJECTED";
+
     // Events
     /// <summary>Error code for event bus error.</summary>
     public const string EventBusError = "EVENT_BUS_ERROR";
