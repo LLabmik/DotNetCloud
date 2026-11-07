@@ -1769,7 +1769,8 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 - ✓ Fixed `LogAudit` attribution (verified module id, not the payload) and made `AuditLoggerGrpcClient` present the supervisor-issued credential
 - ✓ Admin/CLI data-store surface: `dotnetcloud datastore status|provision|rotate|reset-credentials|destroy` (shares the server DataProtection key ring for credential recovery) and admin API `GET/POST/DELETE admin/modules/{id}/datastore*` with audit entries
 - ✓ Resource quotas (F10): `Modules:Quotas` policy + `ModuleQuotaResolver` (`min(request, override, ceiling)`), admin `GET/PUT modules/{id}/quota` with audit, cgroup `memory.max`/`cpu.max`/`pids.max`, PG `CONNECTION LIMIT` + `Maximum Pool Size` with refresh on re-provision, identity-keyed request/event/notification/audit limiters over a cached quota, and measured DB/data-dir usage with `QuotaExceeded` suspension and start refusal
-- ☐ Storage namespacing, adoption service, live provisioning integration tests
+- ✓ Storage namespacing (F5): `IStorageProvider` is a real namespaced contract (`StorageScope.Module`/`User`, `StorageObjectInfo`) and `ModuleStorageNamespace` stamps the verified module/user segments, rejects traversal, rooted paths, backslashes, control characters, invalid containers and non-Guid users, then re-checks containment
+- ☐ Adoption/legacy-override service, live provisioning integration tests
 
 **Dependencies:** `third-party-module-sandbox-a0-2026-11-06`
 **Blocking Issues:** None

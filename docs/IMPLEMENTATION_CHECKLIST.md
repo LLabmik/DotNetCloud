@@ -3444,7 +3444,7 @@ Plan: `docs/THIRD_PARTY_MODULE_SANDBOX_AND_STORE_PLAN.md` (phase A0). Branch `fe
   - ☐ Live provisioning integration tests on PostgreSQL and SQL Server
   - ✓ Admin/CLI `datastore` commands (status/provision/rotate/destroy, credential reset) and admin API (`GET/POST/DELETE admin/modules/{id}/datastore*`)
   - ✓ Resource quotas (F10): policy + resolver, admin `GET/PUT modules/{id}/quota`, cgroup memory/cpu/pids, PG `CONNECTION LIMIT` + pool size, identity-keyed request/event/notification/audit limiters, and measured DB/data-dir usage with `QuotaExceeded` suspension + start refusal
-  - ☐ Storage namespacing (`IStorageProvider`)
+  - ✓ Storage namespacing (F5): `IStorageProvider` namespaced contract + `ModuleStorageNamespace` (module/user segment from verified identity, traversal/rooted/encoding rejection, containment re-check, 30 tests)
   - ☐ Adoption/legacy-override migration service
 - ☐ Phases A2–A6 / B1–B5 / C / D per the plan
 
