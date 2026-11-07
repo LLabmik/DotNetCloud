@@ -314,7 +314,8 @@ public class ModuleQuotaOperationResultDto
 /// Data transfer object for module capability grant information.
 /// </summary>
 public class ModuleCapabilityGrantDto
-{    /// <summary>
+{
+    /// <summary>
     /// Gets or sets the module ID.
     /// </summary>
     public string ModuleId { get; set; } = null!;

@@ -516,7 +516,7 @@ Deleting an account must delete that user's data everywhere, including module sc
 
 ### Phase A1 — Isolation foundation
 
-**Status:** 🔄 In progress (started 2026-11-06 — data model, manifest v2, settings plane, registry upsert, trust-tier gating, DB-principal provisioning, supervisor env split, the Example host, the admin/CLI data-store surface and the kernel/connection quota plane are complete; rate limiters, usage measurement with suspension, storage namespacing, the adoption service and live provisioning integration tests remain)
+**Status:** 🔄 In progress (started 2026-11-06 — data model, manifest v2, settings plane, registry upsert, trust-tier gating, DB-principal provisioning, supervisor env split, the Example host, the admin/CLI data-store surface and the full F10 quota plane are complete; storage namespacing, the adoption service and live provisioning integration tests remain)
 **Effort:** Large (~2–3 weeks; +2–4 days for the newly identified prerequisites below)
 **Blocks:** everything else in Track A and B3.
 
@@ -542,9 +542,9 @@ Deleting an account must delete that user's data everywhere, including module sc
   - ✓ Admin API `GET modules/{id}/quota`, `PUT modules/{id}/quota` (null/0 clears a dimension, negative rejected, audit `module-quota-changed`), returning both the stored override and the clamped effective values
   - ✓ cgroup `memory.max`, `cpu.max` and `pids.max` in `ResourceLimiter` (Windows: process-memory, CPU rate and active-process limits); pids ceiling applied to every module
   - ✓ PG `CONNECTION LIMIT` from the effective quota at provision/rotate, `Maximum Pool Size` in the scoped connection string (both providers), and a limit refresh on re-provision so quota changes take effect without a credential rotation
-  - ☐ Identity-keyed request/event/notification/audit rate limiters
-  - ☐ DB/data-dir size measurement with `QuotaExceeded` suspension and start refusal
-  - ✓ Tests: resolver min/default/ceiling matrix, admin quota validation/clearing/clamping, rotation and connection-limit SQL for both engines
+  - ✓ Identity-keyed request/event/notification/audit limiters (`ModuleRateLimitInterceptor` + fixed one-minute windows in `ModuleRateLimiter`); effective quotas come from a 60 s `ModuleQuotaCache` so the hot path never queries the database; rejections return `MODULE_RATE_LIMITED`/`ResourceExhausted`, are logged once per window and are never audited
+  - ✓ DB/data-dir size measurement with `QuotaExceeded` suspension and start refusal: `ModuleUsageMonitor` measures PostgreSQL schema bytes / SQL Server reserved pages and the private data directory every `Modules:Quotas:UsageCheckIntervalMinutes` (default 5), stops an over-quota module, audits `module-quota-exceeded`, and the supervisor refuses to start it until usage falls below 90% of the limit or the quota is raised; failed measurements are treated as unknown
+  - ✓ Tests: resolver min/default/ceiling matrix, admin quota validation/clearing/clamping, rotation and connection-limit SQL for both engines, rate-limit windows and interceptor enforcement, usage-limit arithmetic, suspension/resume and start refusal
 - ☐ Storage namespacing (F5): `IStorageProvider` enforces a per-module container/prefix and, for user-owned data, the acting user; cross-namespace paths are rejected and tested.
 - ✓ Add the new/changed projects to `DotNetCloud.sln` **and** `DotNetCloud.CI.slnf` (both are explicit lists — no wildcard discovery). No new projects were required for this slice.
 - 🔄 Tests: provisioning SQL generation, prereq detection, config split, supervisor launches with sandbox env (unit + integration on both providers); secret-scan assertions for `LastError`/logs. Done so far: manifest v2 validation, settings store + RPC namespacing/validation, capability tier/catalog, path containment.

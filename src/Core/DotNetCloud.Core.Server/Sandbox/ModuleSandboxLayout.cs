@@ -50,6 +50,17 @@ internal sealed class ModuleSandboxLayout
     public string ModuleJsonPath => Path.Combine(ConfigDirectory, "module.json");
 
     /// <summary>
+    /// Resolves the data root module directories are created under: <c>DOTNETCLOUD_DATA_DIR</c>
+    /// when set by the host/unit, otherwise the application base directory.
+    /// </summary>
+    /// <returns>The absolute data root.</returns>
+    public static string GetDataRoot()
+    {
+        var configured = Environment.GetEnvironmentVariable("DOTNETCLOUD_DATA_DIR");
+        return string.IsNullOrWhiteSpace(configured) ? AppContext.BaseDirectory : configured;
+    }
+
+    /// <summary>
     /// Creates the layout for a module under <paramref name="dataRoot"/>.
     /// </summary>
     /// <param name="dataRoot">The server data directory.</param>

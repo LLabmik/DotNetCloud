@@ -51,4 +51,10 @@ public sealed class ModuleQuotasOptions
 
     /// <summary>Gets or sets the maximum audit entries per minute any module may write. Null means unbounded.</summary>
     public int? MaxAuditEntriesPerMinute { get; set; } = 600;
+
+    /// <summary>
+    /// Gets or sets how often the usage monitor measures database and data-directory sizes, in
+    /// minutes. The default is 5; values below 1 are clamped to 1.
+    /// </summary>
+    public int UsageCheckIntervalMinutes { get; set; } = 5;
 }

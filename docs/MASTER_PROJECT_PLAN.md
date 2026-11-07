@@ -1768,12 +1768,12 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 - ✓ `DatabaseSetupHelper`/`BackupCommands` create the PostgreSQL app role with `CREATEROLE`
 - ✓ Fixed `LogAudit` attribution (verified module id, not the payload) and made `AuditLoggerGrpcClient` present the supervisor-issued credential
 - ✓ Admin/CLI data-store surface: `dotnetcloud datastore status|provision|rotate|reset-credentials|destroy` (shares the server DataProtection key ring for credential recovery) and admin API `GET/POST/DELETE admin/modules/{id}/datastore*` with audit entries
-- 🔄 Resource quotas (F10): `Modules:Quotas` policy + `ModuleQuotaResolver` (`min(request, override, ceiling)`), admin `GET/PUT modules/{id}/quota` with audit, cgroup `memory.max`/`cpu.max`/`pids.max`, PG `CONNECTION LIMIT` + `Maximum Pool Size` with refresh on re-provision
-- ☐ Rate limiters (request/event/notification/audit), measured DB/data-dir usage with `QuotaExceeded` suspension, storage namespacing, adoption service, live provisioning integration tests
+- ✓ Resource quotas (F10): `Modules:Quotas` policy + `ModuleQuotaResolver` (`min(request, override, ceiling)`), admin `GET/PUT modules/{id}/quota` with audit, cgroup `memory.max`/`cpu.max`/`pids.max`, PG `CONNECTION LIMIT` + `Maximum Pool Size` with refresh on re-provision, identity-keyed request/event/notification/audit limiters over a cached quota, and measured DB/data-dir usage with `QuotaExceeded` suspension and start refusal
+- ☐ Storage namespacing, adoption service, live provisioning integration tests
 
 **Dependencies:** `third-party-module-sandbox-a0-2026-11-06`
 **Blocking Issues:** None
-**Notes:** CI build clean; full suite green apart from the two pre-existing `sqlcmd`-dependent backup integration tests. New tests: manifest v2 validation (strict/lenient, erasure, UI, resources, required-module rules), settings store round-trip/namespacing/limits, settings RPC module-namespace enforcement, data-store admin operations (provision/rotate/destroy, quota-driven connection limits, sandbox status transitions, redacted engine errors), CLI command structure, quota resolution (`min()` matrix, defaults, policy ceilings), admin quota validation/clearing/clamping, connection-limit SQL for both engines.
+**Notes:** CI build clean; full suite green apart from the two pre-existing `sqlcmd`-dependent backup integration tests. New tests: manifest v2 validation (strict/lenient, erasure, UI, resources, required-module rules), settings store round-trip/namespacing/limits, settings RPC module-namespace enforcement, data-store admin operations (provision/rotate/destroy, quota-driven connection limits, sandbox status transitions, redacted engine errors), CLI command structure, quota resolution (`min()` matrix, defaults, policy ceilings), admin quota validation/clearing/clamping, connection-limit SQL for both engines, rate-limit windows and interceptor enforcement, usage-limit arithmetic, and usage-monitor suspension/resume.
 
 ---
 

@@ -278,6 +278,16 @@ internal sealed class ProcessSupervisor : BackgroundService, IProcessSupervisor
         // The manifest only requests; policy and the admin override may lower it.
         var quota = await _quotas.ResolveAsync(moduleId, BuildQuotaRequest(manifest), cancellationToken);
 
+        // A module suspended for exceeding a measured quota stays down until its usage drops or an
+        // admin raises the quota; starting it would immediately re-exceed the limit.
+        if (await GetSandboxStatusAsync(moduleId, cancellationToken) == ModuleSandboxStatus.QuotaExceeded)
+        {
+            const string overQuota = "Module data usage is over its quota; raise the quota or remove data before starting it.";
+            _logger.LogWarning("Module {ModuleId} cannot start: {Reason}", SanitizeForLog(moduleId), overQuota);
+            RecordRejectedStart(discovered, manifest, overQuota);
+            return;
+        }
+
         // Sandboxed modules own a scoped database principal. Provision it before the host starts so
         // the process never launches without the store it was promised.
         string? moduleConnectionString = null;
@@ -851,6 +861,7 @@ internal sealed class ProcessSupervisor : BackgroundService, IProcessSupervisor
             var dbContext = scope.ServiceProvider.GetRequiredService<CoreDbContext>();
 
             var row = await dbContext.InstalledModules
+                .AsTracking()
                 .FirstOrDefaultAsync(m => m.ModuleId == moduleId, cancellationToken);
 
             if (row is null || row.SandboxStatus == status)
@@ -871,10 +882,32 @@ internal sealed class ProcessSupervisor : BackgroundService, IProcessSupervisor
     /// <summary>
     /// Resolves the server data directory used for per-module sandbox directories.
     /// </summary>
-    private static string GetDataRootDirectory()
+    private static string GetDataRootDirectory() => ModuleSandboxLayout.GetDataRoot();
+
+    /// <summary>
+    /// Reads the persisted sandbox state for a module so starts can be refused while it is
+    /// suspended for exceeding a measured quota.
+    /// </summary>
+    private async Task<ModuleSandboxStatus?> GetSandboxStatusAsync(
+        string moduleId, CancellationToken cancellationToken)
     {
-        var configured = Environment.GetEnvironmentVariable("DOTNETCLOUD_DATA_DIR");
-        return string.IsNullOrWhiteSpace(configured) ? AppContext.BaseDirectory : configured;
+        try
+        {
+            using var scope = _scopeFactory.CreateScope();
+            var dbContext = scope.ServiceProvider.GetRequiredService<CoreDbContext>();
+
+            var row = await dbContext.InstalledModules
+                .AsNoTracking()
+                .FirstOrDefaultAsync(m => m.ModuleId == moduleId, cancellationToken);
+
+            return row?.SandboxStatus;
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _logger.LogWarning(
+                ex, "Could not read the sandbox status for module {ModuleId}", SanitizeForLog(moduleId));
+            return null;
+        }
     }
 
     private ModuleManifestData LoadManifest(DiscoveredModule discovered)

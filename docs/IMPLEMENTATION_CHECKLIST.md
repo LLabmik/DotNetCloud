@@ -3443,7 +3443,7 @@ Plan: `docs/THIRD_PARTY_MODULE_SANDBOX_AND_STORE_PLAN.md` (phase A0). Branch `fe
   - ✓ Setup/restore create the PostgreSQL app role with `CREATEROLE`
   - ☐ Live provisioning integration tests on PostgreSQL and SQL Server
   - ✓ Admin/CLI `datastore` commands (status/provision/rotate/destroy, credential reset) and admin API (`GET/POST/DELETE admin/modules/{id}/datastore*`)
-  - 🔄 Resource quotas (F10): policy + resolver, admin `GET/PUT modules/{id}/quota`, cgroup memory/cpu/pids, PG `CONNECTION LIMIT` + pool size — done; identity-keyed rate limiters and measured-usage suspension remain
+  - ✓ Resource quotas (F10): policy + resolver, admin `GET/PUT modules/{id}/quota`, cgroup memory/cpu/pids, PG `CONNECTION LIMIT` + pool size, identity-keyed request/event/notification/audit limiters, and measured DB/data-dir usage with `QuotaExceeded` suspension + start refusal
   - ☐ Storage namespacing (`IStorageProvider`)
   - ☐ Adoption/legacy-override migration service
 - ☐ Phases A2–A6 / B1–B5 / C / D per the plan

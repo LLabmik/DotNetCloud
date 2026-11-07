@@ -21,6 +21,7 @@ internal sealed class AdminModuleService : IAdminModuleService
     private readonly IProcessSupervisor _processSupervisor;
     private readonly IModuleDataStoreProvisioningService _dataStores;
     private readonly ModuleQuotaResolver _quotas;
+    private readonly ModuleQuotaCache _quotaCache;
     private readonly ILogger<AdminModuleService> _logger;
 
     /// <summary>
@@ -31,12 +32,14 @@ internal sealed class AdminModuleService : IAdminModuleService
         IProcessSupervisor processSupervisor,
         IModuleDataStoreProvisioningService dataStores,
         ModuleQuotaResolver quotas,
+        ModuleQuotaCache quotaCache,
         ILogger<AdminModuleService> logger)
     {
         _dbContext = dbContext;
         _processSupervisor = processSupervisor;
         _dataStores = dataStores;
         _quotas = quotas;
+        _quotaCache = quotaCache;
         _logger = logger;
     }
 
@@ -505,6 +508,9 @@ internal sealed class AdminModuleService : IAdminModuleService
         row.UpdatedByUserId = updatedByUserId == Guid.Empty ? null : updatedByUserId;
 
         await _dbContext.SaveChangesAsync(cancellationToken);
+
+        // Apply the new limits to the rate limiter immediately instead of waiting for the TTL.
+        _quotaCache.Invalidate(moduleId);
 
         var effective = await _quotas.ResolveAsync(moduleId, new ModuleQuotaRequest(), cancellationToken);
 

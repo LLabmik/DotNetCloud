@@ -59,13 +59,18 @@ public class AdminModuleServiceTests
     private static AdminModuleService CreateService(
         CoreDbContext db,
         IProcessSupervisor supervisor,
-        IModuleDataStoreProvisioningService? dataStores = null) =>
-        new(
+        IModuleDataStoreProvisioningService? dataStores = null)
+    {
+        var quotas = CreateQuotaResolver(db);
+
+        return new(
             db,
             supervisor,
             dataStores ?? Mock.Of<IModuleDataStoreProvisioningService>(),
-            CreateQuotaResolver(db),
+            quotas,
+            new ModuleQuotaCache(quotas, TimeProvider.System),
             NullLogger<AdminModuleService>.Instance);
+    }
 
     private static ModuleQuotaResolver CreateQuotaResolver(CoreDbContext db)
     {

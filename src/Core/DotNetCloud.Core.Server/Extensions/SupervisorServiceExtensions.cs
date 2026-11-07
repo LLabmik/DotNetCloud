@@ -10,6 +10,7 @@ using DotNetCloud.Core.Server.Services;
 using DotNetCloud.Core.Server.Supervisor;
 using DotNetCloud.Core.Services;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
 
 namespace DotNetCloud.Core.Server.Extensions;
@@ -60,6 +61,17 @@ internal static class SupervisorServiceExtensions
         services.AddOptions<ModuleQuotasOptions>().BindConfiguration(ModuleQuotasOptions.SectionName);
         services.AddSingleton<ModuleQuotaResolver>();
 
+        // Per-module API rate limits: quotas are cached (the hot path never hits the database) and
+        // consumed through fixed one-minute windows keyed by module id and category.
+        services.TryAddSingleton(TimeProvider.System);
+        services.AddSingleton<ModuleQuotaCache>();
+        services.AddSingleton<ModuleRateLimiter>();
+        services.AddSingleton<ModuleRateLimitInterceptor>();
+
+        // Measured data-store/data-directory usage with QuotaExceeded suspension (F10).
+        services.AddSingleton<ModuleUsageMeasurer>();
+        services.AddHostedService<ModuleUsageMonitor>();
+
         // Per-module credentials minted by the supervisor at launch and required on every
         // capability call (binds module-id to a secret only the core hands out).
         services.AddSingleton<ModuleCredentialStore>();
@@ -105,6 +117,7 @@ internal static class SupervisorServiceExtensions
             options.Interceptors.Add<LoggingInterceptor>();
             options.Interceptors.Add<AuthenticationInterceptor>();
             options.Interceptors.Add<CallerContextInterceptor>();
+            options.Interceptors.Add<ModuleRateLimitInterceptor>();
             options.Interceptors.Add<CapabilityGrantInterceptor>();
             options.Interceptors.Add<TracingInterceptor>();
             options.Interceptors.Add<ErrorHandlingInterceptor>();
