@@ -37,7 +37,9 @@ public partial class ModuleDetail : ComponentBase
 
     private bool _loading = true;
     private bool _actionInProgress;
+    private bool _consentActionInProgress;
     private ModuleDto? _module;
+    private ModuleConsentOverviewDto? _consent;
 
     protected override async Task OnInitializedAsync()
     {
@@ -51,6 +53,7 @@ public partial class ModuleDetail : ComponentBase
         try
         {
             _module = await Api.GetModuleAsync(ModuleId);
+            _consent = await Api.GetModuleConsentAsync(ModuleId);
         }
         catch
         {
@@ -59,6 +62,28 @@ public partial class ModuleDetail : ComponentBase
         finally
         {
             _loading = false;
+        }
+    }
+
+    private async Task RevokeConsentAsync(Guid userId)
+    {
+        _consentActionInProgress = true;
+
+        try
+        {
+            if (await Api.RevokeModuleConsentForUserAsync(ModuleId, userId))
+            {
+                Toast.ShowSuccess("Consent revoked for the user.");
+                _consent = await Api.GetModuleConsentAsync(ModuleId);
+            }
+            else
+            {
+                Toast.ShowError("Failed to revoke consent.");
+            }
+        }
+        finally
+        {
+            _consentActionInProgress = false;
         }
     }
 

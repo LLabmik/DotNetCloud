@@ -346,6 +346,7 @@ public class ModuleEventInboxTests
             NullLogger<CoreCapabilitiesServiceImpl>.Instance,
             provider,
             indexingService,
-            inbox);
+            inbox,
+            ConsentTestDoubles.NoConsent());
     }
 }

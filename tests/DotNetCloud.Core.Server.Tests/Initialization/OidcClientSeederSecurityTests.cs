@@ -107,6 +107,51 @@ public class OidcClientSeederSecurityTests
     }
 
     [TestMethod]
+    public async Task SeedAsync_FirstPartyClients_AreImplicitConsent()
+    {
+        // D3: the three first-party clients are shipped by the project and must not prompt. Only
+        // dnc-module-* clients are Explicit, so the consent page exists for third-party code only.
+        var (manager, descriptors) = SetupMockManager();
+        var config = BuildConfiguration(new Dictionary<string, string?>());
+        var seeder = new OidcClientSeeder(manager.Object, config, NullLogger<OidcClientSeeder>.Instance);
+
+        await seeder.SeedAsync();
+
+        foreach (var descriptor in descriptors)
+        {
+            Assert.AreEqual(
+                ConsentTypes.Implicit,
+                descriptor.ConsentType,
+                $"Client '{descriptor.ClientId}' is first-party and must not prompt for consent.");
+        }
+    }
+
+    [TestMethod]
+    public async Task SeedAsync_ClientScopes_ComeFromTheSharedCatalog()
+    {
+        var (manager, descriptors) = SetupMockManager();
+        var config = BuildConfiguration(new Dictionary<string, string?>());
+        var seeder = new OidcClientSeeder(manager.Object, config, NullLogger<OidcClientSeeder>.Instance);
+
+        await seeder.SeedAsync();
+
+        foreach (var descriptor in descriptors)
+        {
+            var scopePermissions = descriptor.Permissions
+                .Where(permission => permission.StartsWith(Permissions.Prefixes.Scope, StringComparison.Ordinal))
+                .Select(permission => permission[Permissions.Prefixes.Scope.Length..])
+                .ToArray();
+
+            foreach (var scope in scopePermissions)
+            {
+                Assert.IsTrue(
+                    DotNetCloud.Core.Modules.ModuleScopes.IsKnown(scope),
+                    $"Client '{descriptor.ClientId}' requests '{scope}', which is not in the scope catalog.");
+            }
+        }
+    }
+
+    [TestMethod]
     public async Task SeedAsync_AllClients_ArePublicType()
     {
         var (manager, descriptors) = SetupMockManager();

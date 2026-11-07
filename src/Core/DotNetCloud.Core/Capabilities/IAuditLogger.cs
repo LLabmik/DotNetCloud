@@ -119,5 +119,35 @@ public enum AuditAction
     /// <summary>
     /// A module tried to raise an event (platform or real-time) its manifest does not declare.
     /// </summary>
-    ModuleEventRejected
+    ModuleEventRejected,
+
+    /// <summary>
+    /// A user approved one or more scopes for a module.
+    /// </summary>
+    ModuleConsentGranted,
+
+    /// <summary>
+    /// A user (or an administrator on the user's behalf) revoked a consent grant.
+    /// </summary>
+    ModuleConsentRevoked,
+
+    /// <summary>
+    /// A user declined a consent prompt, so the module received no access.
+    /// </summary>
+    ModuleConsentDenied,
+
+    /// <summary>
+    /// A module acknowledged that it erased a deleted user's data.
+    /// </summary>
+    ModuleUserErasureAcknowledged,
+
+    /// <summary>
+    /// A module failed to erase a deleted user's data; the request stays pending and is retried.
+    /// </summary>
+    ModuleUserErasureFailed,
+
+    /// <summary>
+    /// An administrator force-completed a user-erasure request that had outstanding modules.
+    /// </summary>
+    ModuleUserErasureOverridden
 }

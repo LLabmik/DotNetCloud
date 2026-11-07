@@ -1,8 +1,8 @@
 # Third-Party Module Sandbox & Module Store — Implementation Plan
 
-> **Status:** Approved — ready for implementation · **security review applied 2026-09-15 (§2.1)** · **reconciled against current code 2026-11-06 (§0, §2.1)** · **all decisions D1–D6 locked 2026-11-06 (§14)** · **security verification 2026-11-06 (§15)** · **phase A0 implemented 2026-11-06 (§5)** · **phase A1 implemented 2026-11-06 (§5)** · **phase A2 implemented 2026-11-07 (§5)**
+> **Status:** Approved — ready for implementation · **security review applied 2026-09-15 (§2.1)** · **reconciled against current code 2026-11-06 (§0, §2.1)** · **all decisions D1–D6 locked 2026-11-06 (§14)** · **security verification 2026-11-06 (§15)** · **phase A0 implemented 2026-11-06 (§5)** · **phase A1 implemented 2026-11-06 (§5)** · **phase A2 implemented 2026-11-07 (§5)** · **phase A3 implemented 2026-11-07 (§5)**
 > **Branch:** `feature/third-party-modules` (the plan's original name `feature/third-party-module-support` was never created)
-> **Last Updated:** 2026-11-07 (phase A2 complete — enforcement, REST facade, SDK, Example reference module)
+> **Last Updated:** 2026-11-07 (phase A3 complete — scope catalog, consent plane, consent UI, erasure propagation)
 > **Code baseline:** version `0.7.0` (`Directory.Build.props`), .NET SDK `10.0.100` (`global.json`)
 > **Audience:** implementation agents (assumes knowledge of .NET 10 / EF Core / gRPC / Blazor, not of this repo's module history)
 
@@ -644,31 +644,35 @@ Per-module directories: `<dataDir>/modules/<moduleId>/{config,data,run}` created
 
 ### Phase A3 — User consent (hybrid authorization)
 
-**Status:** ☐ Not started
-**Effort:** Large (~2 weeks)
+**Status:** completed ✅ (2026-11-07)
+**Effort:** Large (~2 weeks) — delivered in one batch
 **Depends on:** A2 (credential auth for the consent RPCs); can proceed in parallel with A4.
 
 **Deliverables**
 
-- ☐ Scope catalog in `DotNetCloud.Core` (single source for core, SDK, docs): `profile`, `files:read|write`, `contacts:read|write`, `calendar:read|write`, `notes:read|write`, `mail:read|write`, `chat:read|write`, `tracks:read|write`, `photos:read|write`, `music:read|write`, `video:read|write`, `bookmarks:read|write`, `notifications:send`. Today only `files:read|write` and `bookmarks:read|write` exist, duplicated across three client seeders; this catalog replaces that duplication.
-- ☐ **Build the consent UI (net-new).** `/connect/authorize` (`OpenIddictEndpointsExtensions.cs:87–152`) authenticates and signs in immediately; `ConsentTypes.Explicit` is inert. Add a consent page/step rendered by core chrome. **D3 decided:** switch the three first-party clients (desktop, mobile, browser extension) to `ConsentTypes.Implicit` in `OidcClientSeeder` so no prompt appears for them; only module clients (`dnc-module-*`, `Explicit`) prompt.
-- ☐ `ModuleUserConsent` entity + `IModuleConsentService` (grant/revoke/expire/query; audit).
-- ☐ Consent enforcement decorators on user-scoped capability implementations (directory lookups that include email, and all module-scoped data RPCs); denial code `MODULE_CONSENT_REQUIRED` includes the scopes needed.
-- ☐ Module OIDC client registration at install (`dnc-module-<short>`) as a **public PKCE client** (no client secret; consent runs browser↔core); explicit consent; declared scopes.
-- ☐ Consent decision endpoints are POST-only, anti-forgery protected and non-frameable; add auto-approve/clickjack tests (F9).
-- ☐ Validate manifest `userConsentScopes` against the capability→scope map at install; reject unknown scopes (F18).
-- ☐ User-erasure propagation (F12, §4.12 — **first-release requirement**): `EraseUserData` RPC + SDK default implementation, `UserErasureRequest`/`ModuleUserErasure` tracking with retries and a 72-hour window, admin override with audit, consent-row deletion, and end-to-end tests proving no user rows remain in any module schema.
-- ☐ Permission mapping table: capability → required scopes for user data (documented in `docs/modules/MODULE_SECURITY.md`).
-- ☐ User UI: "Connected apps" page (list, scopes in plain language, revoke); consent prompt; admin module detail shows consent overview + revoke-on-behalf ability. `ModuleDetail.razor` lives in `src/UI/DotNetCloud.UI.Web.Client/Pages/Admin/`.
-- ☐ Module-facing RPCs: `CheckUserConsent(userId, scopes)` / `GetGrantedScopes(userId)` so modules can degrade gracefully.
-- ☐ Shared/team-data consent semantics decided + documented (§4.4) before Track C media migrations; consent-filtered event delivery implemented in the event path; consent prompts rendered by core chrome only (never a module frame).
-- ☐ Filter `TokenIntrospectionServiceImpl` scopes to the manifest's declared scopes ∩ user consent (it currently returns every scope on the token).
-- ☐ Tests: grant/revoke/expire paths, denial codes, OIDC consent round-trip (including the first-party clients staying non-interactive), update-with-new-scopes re-prompt, revoke invalidates in-flight usage on next call, consent-filtered event delivery, module frames cannot render a consent prompt.
+- ✓ **Scope catalog in `DotNetCloud.Core`** — `ModuleScopes` (24 consent scopes incl. `profile`, `notifications:send`, plus the standard OIDC scopes) with a plain-language description per scope, and `ModuleCapabilityScopes` (the capability → scope mapping: `IUserDirectory`/`ICurrentUserContext` → `profile`, `IStorageProvider` → `files:read`, `INotificationService` → `notifications:send`). It replaces the duplicated literals in `OidcClientSeeder` and `AuthServiceExtensions.RegisterScopes`, and is consumed by the seeder, module OIDC client registration, manifest validation (core **and** SDK), the consent prompt, "Connected apps", the admin overview and token-introspection filtering.
+- ✓ **Consent UI (net-new).** `GET /connect/consent` renders a core-chrome prompt (module name, one sentence per scope, Allow/Deny); `POST /connect/consent` records the decision. `/connect/authorize` now redirects to the prompt when an `Explicit` module client is missing consent and completes the request once it is granted; a denial returns `access_denied`. **D3 applied:** the desktop, mobile and browser-extension clients are `ConsentTypes.Implicit`, so their sign-in is unchanged; only `dnc-module-*` clients prompt.
+- ✓ **`ModuleUserConsent` entity** (+ configuration, both-provider migrations `AddModuleUserConsent`) and `IModuleConsentService` (`ModuleConsentService`): grant/revoke/revoke-all/per-module/per-user (erasure)/list-for-user/list-for-module/overview, with active-row expiry, a 30-second grant cache invalidated on every write, and generation counters so bulk revocation is immediate.
+- ✓ **Consent enforcement.** Hard denial (`MODULE_CONSENT_REQUIRED` + a `consent-scopes` trailer) on `GetTeamsForUser`/`GetGroupsForUser`; personal-data withholding on `SearchUsers` (email becomes empty without `profile` consent) and `IntrospectToken` (scopes narrowed to declared ∩ consented, `email` claim dropped). `SendNotification` filters recipients by `notifications:send` when the module declares it. Enforcement is narrowed to scopes the module declared, so required/bundled modules (which declare none) are unaffected — the same transitional shape A2 used for realtime events.
+- ✓ **Module OIDC client registration** (`dnc-module-<short>`, public PKCE, no secret, `Explicit`, module id in an application property), reconciled by `ModuleOidcClientProvisioningService` every 5 minutes and provisioned on demand from the authorize endpoint.
+- ✓ **Consent decisions are POST-only, anti-forgery protected and non-frameable (F9).** The POST carries only a prompt id bound to the signed-in user; client id, scopes and the redirect target live server-side (`ConsentRequestStore`, 10-minute TTL, single use, bounded). Responses set `frame-ancestors 'none'`, `X-Frame-Options: DENY`, `default-src 'none'; style-src 'unsafe-inline'; form-action 'self'` and `no-store`. Tests cover the auto-approve (missing token), clickjack (non-frameable headers), replay, cross-user and expiry paths.
+- ✓ **F18 manifest validation**: unknown scopes are rejected, an identity scope cannot be requested as consent, and — once a module declares any consent scope — every user-data capability it requests must be covered by a declared scope. Applied in `ModuleManifestLoader` and in the SDK's `ModuleManifestReader`.
+- ✓ **User-erasure propagation (F12).** `EraseUserData` RPC on `module_lifecycle.proto`, implemented once in `TrackedModuleLifecycleBase` and dispatched to an `IModuleUserErasureHandler` registered with `AddModuleUserErasureHandler<T>()` (a module with no handler answers `not_applicable`). `UserErasureService` creates the request from `UserDeletedEvent` (the event previously had **no live subscriber**, so module data survived every account deletion), deletes consent rows immediately, delivers through `IModuleErasureDispatcher`, retries every 5 minutes for 72 hours, and only reports `Completed` when every module acknowledged. Admin override is audited (`ModuleUserErasureOverridden`). Files registers the first real handler, reusing its existing per-user cleanup.
+- ✓ **Permission mapping table** documented in `docs/modules/MODULE_SECURITY.md`, together with the enforcement rules, the consent flow, and the shared/team-data consent decision (§4.4: consent is evaluated for the user the call acts for; an organizational share never substitutes for a user's consent).
+- ✓ **User UI**: `/connected-apps` (module, plain-language scopes, revoke) linked from the profile page; the admin module detail page gains a consent overview with per-scope user counts and revoke-on-behalf.
+- ✓ **Module-facing RPCs** `CheckUserConsent` / `GetGrantedScopes` implemented (they were `Unimplemented`), returning stored consent ∩ declared scopes and subject-bound like every other user-scoped RPC. The REST facade inherits them, and consent denials surface `details.consentScopes`.
+- ✓ **`TokenIntrospectionServiceImpl` scope filtering** to declared ∩ consented (with `email` gated on `profile` consent) — the A2 deferral is closed.
+- ✓ **Tests**: catalog invariants, request-store lifecycle, prompt rendering/encoding, endpoint POST-only/anti-forgery/replay/redirect, consent service grant/revoke/expire/list, policy narrowing, scope filtering, manifest F18 (core + SDK), seeder implicit-consent and catalog scopes, and the full erasure matrix (ack, failure+retry, 72-hour expiry, override, idempotency, consent deletion).
+
+**Deferrals / notes**
+
+- Consent-filtered **event delivery** now exists where events carry a recipient (notification fan-out). The core→module event relay still does not exist (see §4.3), so there is nothing else to filter yet; when the relay lands it must call `IModuleConsentPolicy` before delivering user-data events.
+- `GetUser` still returns no email at all. Adding it would require a new `IUserDirectory` method (breaking every module-side implementation), so the minimal profile stays minimal.
 
 **Implementation notes**
 
 1. Consent is per (module, user, scope) — a module still needs the admin's capability grant to reach the code path at all; consent decides _whose_ data it can touch.
-2. System-scope capabilities (`INotificationService`, `IEventBus`, settings, search submit, audit) never require user consent — they are admin-granted only.
+2. System-scope capabilities (`INotificationService` payload delivery, `IEventBus`, settings, search submit, audit) never require user consent — they are admin-granted only. `notifications:send` is the one consent-bearing scope on that surface because it is about the user's attention.
 3. Users with no consent who are targeted by a module call cause `MODULE_CONSENT_REQUIRED`; the module UI triggers `requestConsent` (A5) which launches the OIDC authorization flow.
 4. Consent records survive module updates; new scopes in a new version are simply not granted yet.
 

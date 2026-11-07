@@ -134,6 +134,19 @@ public static class ErrorCodes
     /// </summary>
     public const string ModuleEventRejected = "MODULE_EVENT_REJECTED";
 
+    /// <summary>
+    /// Error code returned when a module reaches for a user's personal data that the user has not
+    /// consented to. The denial carries the missing scopes so the module can request consent for
+    /// exactly those.
+    /// </summary>
+    public const string ModuleConsentRequired = "MODULE_CONSENT_REQUIRED";
+
+    /// <summary>
+    /// Error code returned when a module could not erase a deleted user's data inside its retry
+    /// window. The outstanding work is surfaced to administrators.
+    /// </summary>
+    public const string ModuleUserErasureFailed = "MODULE_USER_ERASURE_FAILED";
+
     // Events
     /// <summary>Error code for event bus error.</summary>
     public const string EventBusError = "EVENT_BUS_ERROR";

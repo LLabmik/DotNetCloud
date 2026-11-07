@@ -180,16 +180,18 @@ public class ModuleRestApiTests
     }
 
     [TestMethod]
-    public async Task ConsentEndpoints_NotYetImplemented_Return501()
+    public async Task ConsentEndpoints_WithoutConsent_ReturnEmptyScopeSet()
     {
         var harness = CreateHarness();
         var http = CreateAuthenticatedHttp(harness);
 
+        // The canonical surface now answers the consent queries instead of 501: a module with no
+        // declared scopes and no asserted user gets an empty (not unknown) answer.
         var (status, body) = await ExecuteAsync(
             await harness.Api.GetGrantedScopesAsync(http), http);
 
-        Assert.AreEqual(StatusCodes.Status501NotImplemented, status);
-        StringAssert.Contains(body, "NOT_IMPLEMENTED");
+        Assert.AreEqual(StatusCodes.Status200OK, status);
+        StringAssert.Contains(body, "\"scopes\"");
     }
 
     private sealed class Harness
@@ -227,11 +229,13 @@ public class ModuleRestApiTests
             new ModuleEventInbox(
                 Mock.Of<DotNetCloud.Core.Events.IEventBus>(),
                 Mock.Of<DotNetCloud.Core.Server.ModuleLoading.IModuleManifestRegistry>(),
-                NullLogger<ModuleEventInbox>.Instance));
+                NullLogger<ModuleEventInbox>.Instance),
+            ConsentTestDoubles.NoConsent());
 
         var api = new ModuleApiV1Service(
             legacy,
             new ModuleHealthRegistry(TimeProvider.System),
+            ConsentTestDoubles.NoConsent(),
             NullLogger<ModuleApiV1Service>.Instance);
 
         var evaluator = new Mock<IModuleAccessEvaluator>();

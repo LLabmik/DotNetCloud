@@ -1,5 +1,7 @@
 using Api = DotNetCloud.Core.Grpc.ModuleApi.V1;
 using Legacy = DotNetCloud.Core.Grpc.Capabilities;
+using DotNetCloud.Core.Modules;
+using DotNetCloud.Core.Server.Grpc.ModuleAccess;
 using Grpc.Core;
 using Microsoft.Extensions.Logging;
 
@@ -19,11 +21,11 @@ namespace DotNetCloud.Core.Server.Grpc.Services;
 /// <para>
 /// Differences from the legacy surface are intentional and narrow:
 /// <list type="bullet">
-/// <item><c>GetUser</c>/<c>SearchUsers</c> return a minimal profile — email is omitted until the
-/// per-user consent plane (phase A3) can authorise it.</item>
+/// <item><c>GetUser</c>/<c>SearchUsers</c> return a minimal profile — an email address is only
+/// included when the target user consented to the <c>profile</c> scope.</item>
 /// <item><c>ReportHealth</c> is new and recorded in <see cref="ModuleHealthRegistry"/>.</item>
-/// <item>The consent queries answer <see cref="StatusCode.Unimplemented"/> until A3 builds the
-/// consent store, so a module cannot mistake "not implemented" for "no consent granted".</item>
+/// <item><c>CheckUserConsent</c>/<c>GetGrantedScopes</c> report stored consent intersected with the
+/// scopes the module declared, so a module can request exactly what is missing.</item>
 /// </list>
 /// </para>
 /// </remarks>
@@ -31,19 +33,23 @@ internal sealed class ModuleApiV1Service : Api.ModuleApi.ModuleApiBase
 {
     private readonly CoreCapabilitiesServiceImpl _legacy;
     private readonly ModuleHealthRegistry _health;
+    private readonly ModuleConsentPolicy _consentPolicy;
     private readonly ILogger<ModuleApiV1Service> _logger;
 
     /// <summary>Initializes a new instance of the <see cref="ModuleApiV1Service"/> class.</summary>
     /// <param name="legacy">The legacy capability handlers every RPC delegates to.</param>
     /// <param name="health">Self-reported module health.</param>
+    /// <param name="consentPolicy">Consent policy used to read and narrow stored consent.</param>
     /// <param name="logger">Logger.</param>
     public ModuleApiV1Service(
         CoreCapabilitiesServiceImpl legacy,
         ModuleHealthRegistry health,
+        ModuleConsentPolicy consentPolicy,
         ILogger<ModuleApiV1Service> logger)
     {
         _legacy = legacy;
         _health = health;
+        _consentPolicy = consentPolicy;
         _logger = logger;
     }
 
@@ -88,8 +94,8 @@ internal sealed class ModuleApiV1Service : Api.ModuleApi.ModuleApiBase
                     DisplayName = legacy.User.DisplayName,
                     AvatarUrl = legacy.User.AvatarUrl,
                     IsActive = legacy.User.IsActive,
-                    // Email is withheld on the canonical surface until per-user consent (A3) exists.
-                    Email = string.Empty,
+                    // Gated by the caller's `profile` consent for this user in the legacy handler.
+                    Email = legacy.User.Email,
                 },
         };
     }
@@ -114,8 +120,8 @@ internal sealed class ModuleApiV1Service : Api.ModuleApi.ModuleApiBase
             DisplayName = user.DisplayName,
             AvatarUrl = user.AvatarUrl,
             IsActive = user.IsActive,
-            // Withheld until per-user consent (A3) — never turn this into a PII enumeration.
-            Email = string.Empty,
+            // Gated by the target user's `profile` consent (see CoreCapabilitiesServiceImpl.SearchUsers).
+            Email = user.Email,
         }));
 
         return response;
@@ -370,22 +376,87 @@ internal sealed class ModuleApiV1Service : Api.ModuleApi.ModuleApiBase
     }
 
     /// <inheritdoc />
-    public override Task<Api.CheckUserConsentResponse> CheckUserConsent(
+    public override async Task<Api.CheckUserConsentResponse> CheckUserConsent(
         Api.CheckUserConsentRequest request,
-        ServerCallContext context) =>
-        throw ConsentNotImplemented("CheckUserConsent");
+        ServerCallContext context)
+    {
+        var moduleId = GetModuleId(context);
+        var userId = ResolveConsentSubject(context, request.UserId);
+
+        var requested = request.Scopes
+            .Where(scope => !string.IsNullOrWhiteSpace(scope))
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+
+        var granted = await GetEffectiveScopesAsync(moduleId, userId, context.CancellationToken);
+        var grantedSet = new HashSet<string>(granted, StringComparer.Ordinal);
+
+        var response = new Api.CheckUserConsentResponse
+        {
+            Granted = requested.All(grantedSet.Contains),
+        };
+
+        response.MissingScopes.AddRange(requested.Where(scope => !grantedSet.Contains(scope)));
+
+        return response;
+    }
 
     /// <inheritdoc />
-    public override Task<Api.GetGrantedScopesResponse> GetGrantedScopes(
+    public override async Task<Api.GetGrantedScopesResponse> GetGrantedScopes(
         Api.GetGrantedScopesRequest request,
-        ServerCallContext context) =>
-        throw ConsentNotImplemented("GetGrantedScopes");
+        ServerCallContext context)
+    {
+        var moduleId = GetModuleId(context);
+        var userId = ResolveConsentSubject(context, request.UserId);
 
-    private static RpcException ConsentNotImplemented(string rpc) =>
-        new(new Status(
-            StatusCode.Unimplemented,
-            $"{rpc} is not available yet: per-user consent (phase A3) is not implemented. " +
-            "Treat the answer as unknown, not as 'no consent'."));
+        var response = new Api.GetGrantedScopesResponse();
+        response.Scopes.AddRange(await GetEffectiveScopesAsync(moduleId, userId, context.CancellationToken));
+
+        return response;
+    }
+
+    /// <summary>
+    /// Resolves the user a consent query is about, binding it to the verified caller identity.
+    /// </summary>
+    /// <param name="context">The gRPC call context.</param>
+    /// <param name="requestedUserId">The payload user id; empty means the acting user.</param>
+    /// <returns>The user id, or <see cref="Guid.Empty"/> when the call carries no user subject.</returns>
+    private static Guid ResolveConsentSubject(ServerCallContext context, string? requestedUserId)
+    {
+        var binding = CallerSubjectGuard.Bind(context, requestedUserId);
+        if (!binding.IsAllowed)
+        {
+            throw CallerSubjectGuard.CreateDeniedException(binding.Outcome);
+        }
+
+        return binding.UserId;
+    }
+
+    /// <summary>
+    /// Gets the scopes the module may actually use for a user: stored consent intersected with the
+    /// scopes the module declared. A scope the manifest does not declare can never be granted.
+    /// </summary>
+    /// <param name="moduleId">The authenticated module id.</param>
+    /// <param name="userId">The user id, or <see cref="Guid.Empty"/>.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The effective scopes, in catalog order.</returns>
+    private async Task<IReadOnlyList<string>> GetEffectiveScopesAsync(
+        string moduleId,
+        Guid userId,
+        CancellationToken cancellationToken)
+    {
+        if (userId == Guid.Empty)
+        {
+            return [];
+        }
+
+        var granted = await _consentPolicy.GetGrantedScopesAsync(moduleId, userId, cancellationToken);
+        var declared = _consentPolicy.GetDeclaredScopes(moduleId);
+
+        return declared is null
+            ? granted
+            : granted.Where(scope => declared.Contains(scope, StringComparer.Ordinal)).ToArray();
+    }
 
     /// <summary>
     /// Gets the verified module id. <c>AuthenticationInterceptor</c> runs before this service, so

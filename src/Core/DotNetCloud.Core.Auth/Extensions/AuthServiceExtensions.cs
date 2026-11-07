@@ -144,8 +144,9 @@ public static class AuthServiceExtensions
                 // PKCE required for public clients
                 options.RequireProofKeyForCodeExchange();
 
-                // Scopes
-                options.RegisterScopes("openid", "profile", "email", "offline_access", "files:read", "files:write", "bookmarks:read", "bookmarks:write");
+                // Scopes — the single catalog shared by the consent plane, the module clients and
+                // token-introspection filtering. Adding a scope happens in one place.
+                options.RegisterScopes([.. DotNetCloud.Core.Modules.ModuleScopes.RegisteredScopes]);
 
                 // Token lifetimes
                 options.SetAccessTokenLifetime(

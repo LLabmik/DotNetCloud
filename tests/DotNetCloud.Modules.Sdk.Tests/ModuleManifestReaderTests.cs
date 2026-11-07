@@ -22,7 +22,7 @@ public class ModuleManifestReaderTests
           "dataStore": "isolated",
           "handlesUserErasure": true,
           "capabilities": ["INotificationService"],
-          "userConsentScopes": ["files:read"],
+          "userConsentScopes": ["files:read", "notifications:send"],
           "events": { "publishes": ["ThingCreatedEvent"], "subscribes": [] },
           "ui": {
             "type": "iframe",
@@ -33,6 +33,32 @@ public class ModuleManifestReaderTests
           "restartPolicy": "backoff"
         }
         """;
+
+    [TestMethod]
+    public void Read_UnknownConsentScope_IsRejected()
+    {
+        var json = ValidManifest.Replace(
+            "\"userConsentScopes\": [\"files:read\", \"notifications:send\"]",
+            "\"userConsentScopes\": [\"files:read\", \"made-up:read\", \"notifications:send\"]");
+
+        var result = ModuleManifestReader.Read(json);
+
+        Assert.IsFalse(result.IsValid, "A scope the core cannot describe is a scope a user cannot approve.");
+        StringAssert.Contains(string.Join("; ", result.Errors), "made-up:read");
+    }
+
+    [TestMethod]
+    public void Read_UserDataCapabilityWithoutItsScope_IsRejected()
+    {
+        var json = ValidManifest.Replace(
+            "\"userConsentScopes\": [\"files:read\", \"notifications:send\"]",
+            "\"userConsentScopes\": [\"files:read\"]");
+
+        var result = ModuleManifestReader.Read(json);
+
+        Assert.IsFalse(result.IsValid);
+        StringAssert.Contains(string.Join("; ", result.Errors), "notifications:send");
+    }
 
     [TestMethod]
     public void Read_ValidManifest_ParsesEverySection()

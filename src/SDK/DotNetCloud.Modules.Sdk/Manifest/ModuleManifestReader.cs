@@ -1,6 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
+using DotNetCloud.Core.Modules;
 
 namespace DotNetCloud.Modules.Sdk.Manifest;
 
@@ -163,6 +164,28 @@ public static partial class ModuleManifestReader
             if (value is <= 0)
             {
                 errors.Add($"resources.{name} must be a positive number.");
+            }
+        }
+
+        if (manifest.UserConsentScopes.Count > 0)
+        {
+            foreach (var scope in ModuleScopes.FindUnknown(manifest.UserConsentScopes))
+            {
+                errors.Add($"Unknown userConsentScope '{scope}'.");
+            }
+
+            var declared = new HashSet<string>(manifest.UserConsentScopes, StringComparer.Ordinal);
+            foreach (var capability in manifest.Capabilities)
+            {
+                foreach (var required in ModuleCapabilityScopes.RequiredFor(capability))
+                {
+                    if (!declared.Contains(required))
+                    {
+                        errors.Add(
+                            $"Capability '{capability}' exposes personal data and requires " +
+                            $"userConsentScopes to include '{required}'.");
+                    }
+                }
             }
         }
 

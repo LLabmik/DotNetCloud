@@ -183,6 +183,9 @@ builder.Services.AddShareExpiryNotifications();
 // resolve a caller's team membership from Core.Server without a round trip per access query.
 builder.Services.AddGrpcTeamDirectory();
 
+// Account erasure (F12): the core calls EraseUserData on this host when a user is deleted.
+builder.Services.AddModuleUserErasureHandler<FilesUserErasureHandler>();
+
 // Media metadata extractors (EXIF for photos, tag readers for audio/video)
 builder.Services.AddMediaMetadataExtractors();
 

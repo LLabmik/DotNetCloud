@@ -242,10 +242,6 @@ internal sealed class ModuleManifestLoader
         "^[a-z][a-z0-9_]*$",
         RegexOptions.CultureInvariant | RegexOptions.Compiled);
 
-    private static readonly Regex ConsentScopePattern = new(
-        "^[a-z][a-z0-9-]*:(read|write)$",
-        RegexOptions.CultureInvariant | RegexOptions.Compiled);
-
     private readonly ILogger<ModuleManifestLoader> _logger;
 
     private static readonly JsonSerializerOptions LenientJsonOptions = new()
@@ -497,9 +493,38 @@ internal sealed class ModuleManifestLoader
 
         foreach (var scope in manifest.UserConsentScopes)
         {
-            if (!ConsentScopePattern.IsMatch(scope))
+            if (!ModuleScopes.IsKnown(scope))
             {
-                errors.Add($"Invalid userConsentScope '{scope}'. Expected '<resource>:read|write'.");
+                errors.Add(
+                    $"Unknown userConsentScope '{scope}'. Scopes must come from the core scope catalog " +
+                    $"({string.Join(", ", ModuleScopes.ConsentScopes.Select(definition => definition.Name))}).");
+                continue;
+            }
+
+            if (!ModuleScopes.IsConsentScope(scope))
+            {
+                errors.Add($"userConsentScope '{scope}' is an identity scope and cannot be requested as user consent.");
+            }
+        }
+
+        // F18: once a module opts into consent, its declaration must cover every user-data capability
+        // it requests. A module that asks for IUserDirectory but omits 'profile' would otherwise reach
+        // personal data through a scope nobody can consent to. Modules that declare no consent scopes
+        // at all are unaffected (the transitional rule that keeps required/bundled modules working).
+        if (manifest.UserConsentScopes.Count > 0)
+        {
+            var declared = new HashSet<string>(manifest.UserConsentScopes, StringComparer.Ordinal);
+            foreach (var capability in manifest.EffectiveCapabilities)
+            {
+                foreach (var requiredScope in ModuleCapabilityScopes.RequiredFor(capability))
+                {
+                    if (!declared.Contains(requiredScope))
+                    {
+                        errors.Add(
+                            $"Capability '{capability}' exposes personal data and requires " +
+                            $"userConsentScopes to include '{requiredScope}'.");
+                    }
+                }
             }
         }
 

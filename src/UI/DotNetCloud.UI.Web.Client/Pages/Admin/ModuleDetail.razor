@@ -96,6 +96,54 @@ else
             </div>
         }
 
+        @* Consent is per user: the admin grants the capability, each user decides whose data. *@
+        <div class="detail-section">
+            <h2>User Consent</h2>
+            @if (_consent is null || _consent.ConsentingUsers == 0)
+            {
+                <p class="text-muted">No user has approved this module yet.</p>
+            }
+            else
+            {
+                <p class="text-muted">
+                    @_consent.ConsentingUsers user(s) approved access. Revoking on a user's behalf
+                    stops future calls immediately.
+                </p>
+                <ul class="tag-list">
+                    @foreach (var scope in _consent.Scopes)
+                    {
+                        <li class="tag tag-granted">@scope.Scope &mdash; @scope.UserCount user(s)</li>
+                    }
+                </ul>
+
+                <table class="consent-user-table">
+                    <thead>
+                        <tr>
+                            <th>User</th>
+                            <th>Scopes</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var user in _consent.Users)
+                        {
+                            <tr>
+                                <td class="consent-user-id">@user.UserId</td>
+                                <td>@string.Join(", ", user.Scopes)</td>
+                                <td>
+                                    <button class="btn btn-sm btn-danger"
+                                            disabled="@_consentActionInProgress"
+                                            @onclick="() => RevokeConsentAsync(user.UserId)">
+                                        Revoke
+                                    </button>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+        </div>
+
         @if (_module.SubscribedEvents.Count > 0)
         {
             <div class="detail-section">

@@ -34,7 +34,8 @@ public class CoreCapabilitiesSendNotificationTests
             new ModuleEventInbox(
                 Mock.Of<DotNetCloud.Core.Events.IEventBus>(),
                 Mock.Of<DotNetCloud.Core.Server.ModuleLoading.IModuleManifestRegistry>(),
-                NullLogger<ModuleEventInbox>.Instance));
+                NullLogger<ModuleEventInbox>.Instance),
+            ConsentTestDoubles.NoConsent());
     }
 
     private static SendNotificationRequest CreateRequest(string? title = "Reminder", string? body = null, string? link = null)

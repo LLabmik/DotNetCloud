@@ -134,7 +134,8 @@ public class CoreCapabilitiesRealtimeTests
             new ModuleEventInbox(
                 Mock.Of<DotNetCloud.Core.Events.IEventBus>(),
                 registry.Object,
-                NullLogger<ModuleEventInbox>.Instance));
+                NullLogger<ModuleEventInbox>.Instance),
+            ConsentTestDoubles.NoConsent());
     }
 
     private sealed class RecordingAuditLogger : IAuditLogger

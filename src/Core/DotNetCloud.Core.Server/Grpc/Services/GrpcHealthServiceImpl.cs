@@ -31,17 +31,20 @@ internal class CoreCapabilitiesServiceImpl : CoreCapabilities.CoreCapabilitiesBa
     private readonly IServiceProvider _serviceProvider;
     private readonly SearchIndexingService _indexingService;
     private readonly ModuleEventInbox _eventInbox;
+    private readonly ModuleConsentPolicy _consentPolicy;
 
     public CoreCapabilitiesServiceImpl(
         ILogger<CoreCapabilitiesServiceImpl> logger,
         IServiceProvider serviceProvider,
         SearchIndexingService indexingService,
-        ModuleEventInbox eventInbox)
+        ModuleEventInbox eventInbox,
+        ModuleConsentPolicy consentPolicy)
     {
         _logger = logger;
         _serviceProvider = serviceProvider;
         _indexingService = indexingService;
         _eventInbox = eventInbox;
+        _consentPolicy = consentPolicy;
     }
 
     /// <summary>
@@ -96,32 +99,50 @@ internal class CoreCapabilitiesServiceImpl : CoreCapabilities.CoreCapabilitiesBa
     /// <summary>
     /// Searches users matching criteria (IUserDirectory capability).
     /// </summary>
+    /// <remarks>
+    /// Email addresses are personal data: a result carries one only when the target user has
+    /// consented to the <c>profile</c> scope for the calling module. Names and avatars stay
+    /// available because a module cannot render a member list without them, and the search itself
+    /// is already gated by the capability grant.
+    /// </remarks>
     public override async Task<SearchUsersResponse> SearchUsers(SearchUsersRequest request, ServerCallContext context)
     {
         _logger.LogDebug("SearchUsers called with query '{Query}' by module {ModuleId}",
-            request.Query, GetModuleId(context));
+            LogSanitizer.Sanitize(request.Query), LogSanitizer.Sanitize(GetModuleId(context)));
 
         try
         {
+            var moduleId = GetModuleId(context);
+
             using var scope = _serviceProvider.CreateScope();
             var userDir = scope.ServiceProvider.GetRequiredService<IUserDirectory>();
 
             var results = await userDir.SearchUsersAsync(request.Query, request.MaxResults > 0 ? request.MaxResults : 20);
 
             var response = new SearchUsersResponse();
-            response.Users.AddRange(results.Select(r => new UserInfo
+            foreach (var result in results)
             {
-                Id = r.Id.ToString(),
-                DisplayName = r.DisplayName,
-                Email = r.Email,
-            }));
+                var maySeeEmail = await _consentPolicy.HasConsentAsync(
+                    moduleId,
+                    result.Id,
+                    ModuleScopes.Profile,
+                    context.CancellationToken);
 
-            _logger.LogDebug("SearchUsers: found {Count} results for query '{Query}'", response.Users.Count, request.Query);
+                response.Users.Add(new UserInfo
+                {
+                    Id = result.Id.ToString(),
+                    DisplayName = result.DisplayName,
+                    Email = maySeeEmail ? result.Email : string.Empty,
+                });
+            }
+
+            _logger.LogDebug("SearchUsers: found {Count} results for query '{Query}'",
+                response.Users.Count, LogSanitizer.Sanitize(request.Query));
             return response;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "SearchUsers failed for query '{Query}'", request.Query);
+            _logger.LogError(ex, "SearchUsers failed for query '{Query}'", LogSanitizer.Sanitize(request.Query));
             return new SearchUsersResponse();
         }
     }
@@ -250,13 +271,24 @@ internal class CoreCapabilitiesServiceImpl : CoreCapabilities.CoreCapabilitiesBa
             // included — was persisted as a generic Info/Normal entry.
             var (type, priority) = MapNotificationCategory(request.Category);
 
+            // Delivery honours per-user consent when the module declared `notifications:send`:
+            // "this module may notify me" is the user's decision, not the admin's.
+            var recipients = await FilterNotificationRecipientsAsync(
+                moduleId, request.RecipientUserIds, context.CancellationToken);
+
+            if (recipients.Count != request.RecipientUserIds.Distinct().Count())
+            {
+                _logger.LogDebug(
+                    "SendNotification from module {ModuleId} filtered recipients by consent: {Delivered} of {Requested}",
+                    LogSanitizer.Sanitize(moduleId),
+                    recipients.Count,
+                    request.RecipientUserIds.Count);
+            }
+
             var deliveredCount = 0;
 
-            foreach (var rawUserId in request.RecipientUserIds)
+            foreach (var userId in recipients)
             {
-                if (!Guid.TryParse(rawUserId, out var userId))
-                    continue;
-
                 var notification = new NotificationDto
                 {
                     Id = Guid.CreateVersion7(),
@@ -288,9 +320,76 @@ internal class CoreCapabilitiesServiceImpl : CoreCapabilities.CoreCapabilitiesBa
     }
 
     /// <summary>
-    /// Maps a notification category supplied by a calling module onto the notification type and
-    /// priority to store.
+    /// Rejects a user-scoped directory call when the module declared the <c>profile</c> scope and
+    /// the user has not consented to it.
     /// </summary>
+    /// <param name="context">The gRPC call context.</param>
+    /// <param name="userId">The user the call targets (already bound to the caller).</param>
+    /// <param name="rpc">The RPC name, for the audit trail.</param>
+    private async Task EnforceProfileConsentAsync(ServerCallContext context, Guid userId, string rpc)
+    {
+        var moduleId = GetModuleId(context);
+
+        var missing = await _consentPolicy.GetMissingConsentScopesAsync(
+            moduleId,
+            userId,
+            [ModuleScopes.Profile],
+            context.CancellationToken);
+
+        if (missing.Count == 0)
+        {
+            return;
+        }
+
+        _logger.LogInformation(
+            "{Rpc} denied for module {ModuleId}: user {UserId} has not consented to {Scopes}",
+            rpc,
+            LogSanitizer.Sanitize(moduleId),
+            userId,
+            string.Join(' ', missing));
+
+        throw ModuleConsentPolicy.CreateConsentRequiredException(missing);
+    }
+
+    /// <summary>
+    /// Gets the recipients of a notification, dropping any user who has not consented to
+    /// <c>notifications:send</c> from a module that declared it.
+    /// </summary>
+    /// <param name="moduleId">The authenticated module id.</param>
+    /// <param name="recipientIds">The requested recipients.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The recipients the module may notify.</returns>
+    private async Task<IReadOnlyList<Guid>> FilterNotificationRecipientsAsync(
+        string moduleId,
+        IEnumerable<string> recipientIds,
+        CancellationToken cancellationToken)
+    {
+        var parsed = recipientIds
+            .Select(id => Guid.TryParse(id, out var userId) ? userId : Guid.Empty)
+            .Where(userId => userId != Guid.Empty)
+            .Distinct()
+            .ToArray();
+
+        var declared = _consentPolicy.GetDeclaredScopes(moduleId);
+        if (declared is null || !declared.Contains(ModuleScopes.NotificationsSend, StringComparer.Ordinal))
+        {
+            // The module did not opt into the consent plane for notifications; the capability grant
+            // is the only gate, exactly as before.
+            return parsed;
+        }
+
+        var allowed = new List<Guid>(parsed.Length);
+        foreach (var userId in parsed)
+        {
+            if (await _consentPolicy.HasConsentAsync(moduleId, userId, ModuleScopes.NotificationsSend, cancellationToken))
+            {
+                allowed.Add(userId);
+            }
+        }
+
+        return allowed;
+    }
+
     /// <remarks>
     /// A reminder is a time-sensitive, high-priority notification and must not be filed as generic
     /// information, which is how every module-sent notification was stored while this field was ignored.
@@ -575,6 +674,8 @@ internal class CoreCapabilitiesServiceImpl : CoreCapabilities.CoreCapabilitiesBa
         _logger.LogInformation("GetTeamsForUser called for {UserId} by module {ModuleId}",
             userId, GetModuleId(context));
 
+        await EnforceProfileConsentAsync(context, userId, "GetTeamsForUser");
+
         try
         {
             using var scope = _serviceProvider.CreateScope();
@@ -624,6 +725,8 @@ internal class CoreCapabilitiesServiceImpl : CoreCapabilities.CoreCapabilitiesBa
 
         _logger.LogDebug("GetGroupsForUser called for {UserId} by module {ModuleId}",
             userId, GetModuleId(context));
+
+        await EnforceProfileConsentAsync(context, userId, "GetGroupsForUser");
 
         try
         {

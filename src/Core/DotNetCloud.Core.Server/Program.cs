@@ -460,6 +460,19 @@ public class Program
         // Inbox for platform events raised by module hosts over PublishEvent. The core owns
         // delivery; the inbox only whitelists which event types a module may raise.
         builder.Services.AddSingleton<ModuleEventInbox>();
+        // Per-user consent plane (phase A3): stored (module, user, scope) grants, evaluated on every
+        // user-scoped module call and by the OIDC consent step.
+        builder.Services.AddScoped<DotNetCloud.Core.Modules.IModuleConsentService, ModuleConsentService>();
+        builder.Services.AddSingleton<DotNetCloud.Core.Server.Grpc.ModuleAccess.ModuleConsentPolicy>();
+        builder.Services.AddSingleton<DotNetCloud.Core.Server.Consent.ConsentRequestStore>();
+        // One public, explicitly-consenting OIDC client per consent-aware module (phase A3).
+        builder.Services.AddScoped<DotNetCloud.Core.Server.Consent.ModuleOidcClientRegistrar>();
+        builder.Services.AddHostedService<DotNetCloud.Core.Server.Consent.ModuleOidcClientProvisioningService>();
+        // Account erasure (F12): fan out to every module, retry for 72 hours, never report success early.
+        builder.Services.AddScoped<DotNetCloud.Core.Server.Services.IModuleErasureDispatcher, DotNetCloud.Core.Server.Services.GrpcModuleErasureDispatcher>();
+        builder.Services.AddScoped<DotNetCloud.Core.Services.IUserErasureService, UserErasureService>();
+        builder.Services.AddHostedService<UserDeletedEventSubscriber>();
+        builder.Services.AddHostedService<UserErasureRetryHostedService>();
         // LegacyFilesMigrationService moved to Files.Host (runs in that process)
         builder.Services.AddScoped<DotNetCloud.Core.Capabilities.ICrossModuleLinkResolver, CrossModuleLinkResolver>();
         builder.Services.AddSingleton<DotNetCloud.Core.Services.IBackgroundServiceTracker, DotNetCloud.Core.Services.BackgroundServiceTracker>();
@@ -1055,6 +1068,8 @@ public class Program
 
         // Map OpenIddict endpoints
         app.MapOpenIddictEndpoints();
+        // Consent prompt + POST-only decision endpoint (phase A3, F9).
+        DotNetCloud.Core.Server.Consent.ConsentEndpoints.MapConsentEndpoints(app);
 
         // Proxy Collabora through the main DotNetCloud origin so clients only need one public port.
         MapCollaboraReverseProxy(app);

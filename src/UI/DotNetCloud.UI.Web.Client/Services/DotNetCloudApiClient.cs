@@ -354,6 +354,80 @@ public sealed class DotNetCloudApiClient
     }
 
     // -----------------------------------------------------------------------
+    // Consent ("Connected apps") and account erasure
+    // -----------------------------------------------------------------------
+
+    /// <summary>Lists the modules the signed-in user has approved.</summary>
+    public async Task<IReadOnlyList<ConnectedAppDto>> GetConnectedAppsAsync(CancellationToken ct = default)
+    {
+        try
+        {
+            var envelope = await _http.GetFromJsonAsync<ApiEnvelope<IReadOnlyList<ConnectedAppDto>>>(
+                "api/v1/core/account/consents", ct);
+            return envelope?.Data ?? [];
+        }
+        catch
+        {
+            return [];
+        }
+    }
+
+    /// <summary>Revokes every scope the signed-in user granted to one module.</summary>
+    public async Task<bool> RevokeConsentAsync(string moduleId, CancellationToken ct = default)
+    {
+        var response = await _http.DeleteAsync(
+            $"api/v1/core/account/consents/{Uri.EscapeDataString(moduleId)}", ct);
+        return response.IsSuccessStatusCode;
+    }
+
+    /// <summary>Gets the consent overview for a module (admin only).</summary>
+    public async Task<ModuleConsentOverviewDto?> GetModuleConsentAsync(string moduleId, CancellationToken ct = default)
+    {
+        try
+        {
+            var envelope = await _http.GetFromJsonAsync<ApiEnvelope<ModuleConsentOverviewDto>>(
+                $"api/v1/core/admin/modules/{Uri.EscapeDataString(moduleId)}/consent", ct);
+            return envelope?.Data;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    /// <summary>Revokes one user's consent for a module (admin only).</summary>
+    public async Task<bool> RevokeModuleConsentForUserAsync(string moduleId, Guid userId, CancellationToken ct = default)
+    {
+        var response = await _http.DeleteAsync(
+            $"api/v1/core/admin/modules/{Uri.EscapeDataString(moduleId)}/consent/{userId}", ct);
+        return response.IsSuccessStatusCode;
+    }
+
+    /// <summary>Lists account-erasure requests (admin only).</summary>
+    public async Task<IReadOnlyList<UserErasureRequestDto>> ListErasureRequestsAsync(
+        bool includeCompleted = false,
+        CancellationToken ct = default)
+    {
+        try
+        {
+            var envelope = await _http.GetFromJsonAsync<ApiEnvelope<IReadOnlyList<UserErasureRequestDto>>>(
+                $"api/v1/core/admin/erasure?includeCompleted={includeCompleted.ToString().ToLowerInvariant()}", ct);
+            return envelope?.Data ?? [];
+        }
+        catch
+        {
+            return [];
+        }
+    }
+
+    /// <summary>Force-completes an outstanding erasure request (admin only).</summary>
+    public async Task<bool> OverrideErasureAsync(Guid requestId, CancellationToken ct = default)
+    {
+        var response = await _http.PostAsync($"api/v1/core/admin/erasure/{requestId}/override", null, ct);
+        return response.IsSuccessStatusCode;
+    }
+
+    // -----------------------------------------------------------------------
     // Settings
     // -----------------------------------------------------------------------
 

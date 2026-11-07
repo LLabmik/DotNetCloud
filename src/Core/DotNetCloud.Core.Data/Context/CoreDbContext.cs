@@ -292,6 +292,15 @@ public class CoreDbContext : IdentityDbContext<ApplicationUser, ApplicationRole,
     /// </remarks>
     public DbSet<ModuleUserErasure> ModuleUserErasures => Set<ModuleUserErasure>();
 
+    /// <summary>
+    /// Gets or sets the ModuleUserConsents DbSet.
+    /// </summary>
+    /// <remarks>
+    /// Per-user approval of a module's declared scopes. One row per (module, user, scope); the
+    /// consent plane decides whose personal data a capability-granted module may read.
+    /// </remarks>
+    public DbSet<ModuleUserConsent> ModuleUserConsents => Set<ModuleUserConsent>();
+
     // Authentication (OpenIddict) DbSets
     /// <summary>
     /// Gets or sets the OpenIddict Applications DbSet.
@@ -507,6 +516,7 @@ public class CoreDbContext : IdentityDbContext<ApplicationUser, ApplicationRole,
         modelBuilder.ApplyConfiguration(new ModuleQuotaConfiguration());
         modelBuilder.ApplyConfiguration(new UserErasureRequestConfiguration());
         modelBuilder.ApplyConfiguration(new ModuleUserErasureConfiguration());
+        modelBuilder.ApplyConfiguration(new ModuleUserConsentConfiguration());
     }
 
     /// <summary>

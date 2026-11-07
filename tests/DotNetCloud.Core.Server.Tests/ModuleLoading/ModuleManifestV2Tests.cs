@@ -34,7 +34,7 @@ public class ModuleManifestV2Tests
           "dataStore": "isolated",
           "handlesUserErasure": true,
           "capabilities": ["INotificationService", "IStorageProvider"],
-          "userConsentScopes": ["files:read", "calendar:write"],
+          "userConsentScopes": ["files:read", "calendar:write", "notifications:send"],
           "events": { "publishes": ["ThingCreatedEvent"], "subscribes": ["FileUploadedEvent"] },
           "ui": {
             "type": "iframe",
@@ -259,4 +259,64 @@ public class ModuleManifestV2Tests
         HandlesUserErasure = handlesUserErasure,
         UserConsentScopes = scopes ?? [],
     };
+
+    [TestMethod]
+    public void LoadAndValidate_UnknownConsentScope_IsRejected()
+    {
+        var json = ValidV2.Replace(
+            "\"userConsentScopes\": [\"files:read\", \"calendar:write\", \"notifications:send\"]",
+            "\"userConsentScopes\": [\"files:read\", \"made-up:read\", \"notifications:send\"]");
+
+        var result = _loader.LoadAndValidate(WriteManifest(json), "org.example.customapp");
+
+        Assert.IsFalse(result.IsValid, "A scope the core cannot describe is a scope a user cannot approve.");
+        Assert.IsTrue(
+            result.Errors.Any(error => error.Contains("made-up:read", StringComparison.Ordinal)),
+            string.Join("; ", result.Errors));
+    }
+
+    [TestMethod]
+    public void LoadAndValidate_IdentityScopeDeclaredAsConsent_IsRejected()
+    {
+        var json = ValidV2.Replace(
+            "\"userConsentScopes\": [\"files:read\", \"calendar:write\", \"notifications:send\"]",
+            "\"userConsentScopes\": [\"files:read\", \"calendar:write\", \"notifications:send\", \"offline_access\"]");
+
+        var result = _loader.LoadAndValidate(WriteManifest(json), "org.example.customapp");
+
+        Assert.IsFalse(result.IsValid);
+        Assert.IsTrue(
+            result.Errors.Any(error => error.Contains("offline_access", StringComparison.Ordinal)),
+            string.Join("; ", result.Errors));
+    }
+
+    [TestMethod]
+    public void LoadAndValidate_UserDataCapabilityWithoutItsScope_IsRejected()
+    {
+        // F18: a module that opts into consent must declare the scope for every user-data capability.
+        var json = ValidV2.Replace(
+            "\"userConsentScopes\": [\"files:read\", \"calendar:write\", \"notifications:send\"]",
+            "\"userConsentScopes\": [\"files:read\", \"calendar:write\"]");
+
+        var result = _loader.LoadAndValidate(WriteManifest(json), "org.example.customapp");
+
+        Assert.IsFalse(result.IsValid);
+        Assert.IsTrue(
+            result.Errors.Any(error => error.Contains("notifications:send", StringComparison.Ordinal)),
+            string.Join("; ", result.Errors));
+    }
+
+    [TestMethod]
+    public void LoadAndValidate_ModuleWithoutConsentScopes_IsNotSubjectToTheCapabilityRule()
+    {
+        // The transitional rule: a module that declares no scopes is unaffected, which is what keeps
+        // required and bundled modules working until Track C migrates them.
+        var json = ValidV2.Replace(
+            "\"userConsentScopes\": [\"files:read\", \"calendar:write\", \"notifications:send\"],",
+            string.Empty);
+
+        var result = _loader.LoadAndValidate(WriteManifest(json), "org.example.customapp");
+
+        Assert.IsTrue(result.IsValid, string.Join("; ", result.Errors));
+    }
 }

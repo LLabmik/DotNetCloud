@@ -1,6 +1,9 @@
 using DotNetCloud.Core;
 using DotNetCloud.Core.Auth.Security;
 using DotNetCloud.Core.Grpc.TokenIntrospection;
+using DotNetCloud.Core.Modules;
+using DotNetCloud.Core.Server.Grpc.ModuleAccess;
+using DotNetCloud.Core.Server.ModuleLoading;
 using Grpc.Core;
 using Microsoft.Extensions.Logging;
 using Microsoft.IdentityModel.Tokens;
@@ -23,8 +26,10 @@ namespace DotNetCloud.Core.Server.Grpc.Services;
 /// (F15).
 /// </para>
 /// <para>
-/// Scope filtering to the module's declared scopes ships with the consent plane (phase A3), where
-/// a module-scope catalog exists to filter against.
+/// The scope set is narrowed twice before it leaves this service: to the scopes the module
+/// declared in its manifest, and — for the scopes that cover personal data — to what the token's
+/// user has consented to for this module. An introspection response is therefore never a wider
+/// grant than the user approved.
 /// </para>
 /// </remarks>
 internal sealed class TokenIntrospectionServiceImpl : TokenIntrospection.TokenIntrospectionBase
@@ -62,12 +67,18 @@ internal sealed class TokenIntrospectionServiceImpl : TokenIntrospection.TokenIn
     };
 
     private readonly ILogger<TokenIntrospectionServiceImpl> _logger;
+    private readonly IModuleManifestRegistry _manifests;
+    private readonly ModuleConsentPolicy _consentPolicy;
     private readonly TokenValidationParameters _validationParameters;
 
     public TokenIntrospectionServiceImpl(
-        ILogger<TokenIntrospectionServiceImpl> logger)
+        ILogger<TokenIntrospectionServiceImpl> logger,
+        IModuleManifestRegistry manifests,
+        ModuleConsentPolicy consentPolicy)
     {
         _logger = logger;
+        _manifests = manifests;
+        _consentPolicy = consentPolicy;
 
         // Load signing and encryption keys from the shared oidc-keys directory.
         // On Core.Server this is always available — it's the same directory
@@ -131,7 +142,7 @@ internal sealed class TokenIntrospectionServiceImpl : TokenIntrospection.TokenIn
     /// <summary>
     /// Validates a bearer token and returns scoped claims for the calling module.
     /// </summary>
-    public override Task<IntrospectTokenResponse> IntrospectToken(
+    public override async Task<IntrospectTokenResponse> IntrospectToken(
         IntrospectTokenRequest request,
         ServerCallContext context)
     {
@@ -145,20 +156,20 @@ internal sealed class TokenIntrospectionServiceImpl : TokenIntrospection.TokenIn
                 LogSanitizer.Sanitize(authenticatedModuleId ?? "unknown"),
                 LogSanitizer.Sanitize(request.CallerModuleId));
 
-            return Task.FromResult(new IntrospectTokenResponse
+            return new IntrospectTokenResponse
             {
                 Active = false,
                 ErrorDescription = "Module identity mismatch. Caller module ID does not match authenticated gRPC identity."
-            });
+            };
         }
 
         if (string.IsNullOrWhiteSpace(request.Token))
         {
-            return Task.FromResult(new IntrospectTokenResponse
+            return new IntrospectTokenResponse
             {
                 Active = false,
                 ErrorDescription = "Token is empty."
-            });
+            };
         }
 
         try
@@ -170,28 +181,28 @@ internal sealed class TokenIntrospectionServiceImpl : TokenIntrospection.TokenIn
 
             if (validatedToken is not JwtSecurityToken jwtToken)
             {
-                return Task.FromResult(new IntrospectTokenResponse
+                return new IntrospectTokenResponse
                 {
                     Active = false,
                     ErrorDescription = "Token is not a valid JWT."
-                });
+                };
             }
 
             // Audience check. The proto documents required_audience as mandatory when supplied;
             // it was previously ignored, so a module could validate a token that was never
             // intended for it. Only enforced when the caller asks for it, because OpenIddict
-            // currently issues client-scoped audiences (the per-module clients arrive with A3).
+            // currently issues client-scoped audiences.
             if (!SatisfiesAudience(jwtToken.Audiences, request.RequiredAudience))
             {
                 _logger.LogWarning(
                     "IntrospectToken: token audience does not include the required audience for module {Module}",
                     LogSanitizer.Sanitize(request.CallerModuleId));
 
-                return Task.FromResult(new IntrospectTokenResponse
+                return new IntrospectTokenResponse
                 {
                     Active = false,
                     ErrorDescription = "Token audience mismatch."
-                });
+                };
             }
 
             // Extract claims and scopes.
@@ -199,25 +210,45 @@ internal sealed class TokenIntrospectionServiceImpl : TokenIntrospection.TokenIn
                 ?.Split(' ', StringSplitOptions.RemoveEmptyEntries)
                 ?? Array.Empty<string>();
 
+            var subscriber = principal.FindFirst(ClaimTypes.NameIdentifier)?.Value
+                ?? principal.FindFirst("sub")?.Value
+                ?? string.Empty;
+
+            var effectiveScopes = await FilterScopesAsync(
+                authenticatedModuleId!,
+                subscriber,
+                scopes,
+                context.CancellationToken);
+
+            var maySeeEmail = await MaySeeEmailAsync(
+                authenticatedModuleId!,
+                subscriber,
+                context.CancellationToken);
+
             var response = new IntrospectTokenResponse
             {
                 Active = true,
-                Sub = principal.FindFirst(ClaimTypes.NameIdentifier)?.Value
-                    ?? principal.FindFirst("sub")?.Value
-                    ?? string.Empty,
+                Sub = subscriber,
                 Username = principal.FindFirst(ClaimTypes.Name)?.Value
                     ?? principal.FindFirst("name")?.Value
                     ?? string.Empty,
-                Email = principal.FindFirst(ClaimTypes.Email)?.Value
-                    ?? principal.FindFirst("email")?.Value
-                    ?? string.Empty,
+                Email = maySeeEmail
+                    ? principal.FindFirst(ClaimTypes.Email)?.Value
+                        ?? principal.FindFirst("email")?.Value
+                        ?? string.Empty
+                    : string.Empty,
             };
 
-            response.Scopes.AddRange(scopes);
+            response.Scopes.AddRange(effectiveScopes);
 
             foreach (var claim in principal.Claims)
             {
                 if (!ExposedClaimTypes.Contains(claim.Type))
+                {
+                    continue;
+                }
+
+                if (!maySeeEmail && IsEmailClaim(claim.Type))
                 {
                     continue;
                 }
@@ -231,29 +262,136 @@ internal sealed class TokenIntrospectionServiceImpl : TokenIntrospection.TokenIn
 
             _logger.LogDebug(
                 "IntrospectToken: token valid for user {Sub}, module {Module}",
-                response.Sub, LogSanitizer.Sanitize(request.CallerModuleId));
+                LogSanitizer.Sanitize(subscriber), LogSanitizer.Sanitize(request.CallerModuleId));
 
-            return Task.FromResult(response);
+            return response;
         }
         catch (SecurityTokenExpiredException ex)
         {
             _logger.LogDebug(ex, "IntrospectToken: token expired");
-            return Task.FromResult(new IntrospectTokenResponse
+            return new IntrospectTokenResponse
             {
                 Active = false,
                 ErrorDescription = "Token has expired."
-            });
+            };
         }
         catch (SecurityTokenException ex)
         {
             _logger.LogWarning(ex, "IntrospectToken: token validation failed");
-            return Task.FromResult(new IntrospectTokenResponse
+            return new IntrospectTokenResponse
             {
                 Active = false,
-                ErrorDescription = $"Token validation failed: {ex.Message}"
-            });
+                ErrorDescription = "Token validation failed."
+            };
         }
     }
+
+    /// <summary>
+    /// Narrows a token's scopes to the calling module's declared scopes and, for personal-data
+    /// scopes, to what the token's user has consented to.
+    /// </summary>
+    /// <param name="moduleId">The authenticated module id.</param>
+    /// <param name="subscriber">The token subject, when it names a user.</param>
+    /// <param name="tokenScopes">The scopes carried by the token.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The scopes the module may actually use.</returns>
+    private async Task<IReadOnlyList<string>> FilterScopesAsync(
+        string moduleId,
+        string subscriber,
+        IReadOnlyList<string> tokenScopes,
+        CancellationToken cancellationToken)
+    {
+        var declared = _manifests.GetUserConsentScopes(moduleId);
+
+        // A module that declares no consent scopes predates the consent plane; the token's own
+        // scope set remains the answer so existing clients keep working.
+        if (declared is null || declared.Count == 0)
+        {
+            return tokenScopes;
+        }
+
+        HashSet<string>? consented = null;
+        if (Guid.TryParse(subscriber, out var userId) && userId != Guid.Empty)
+        {
+            var granted = await _consentPolicy.GetGrantedScopesAsync(moduleId, userId, cancellationToken);
+            consented = new HashSet<string>(granted, StringComparer.Ordinal);
+        }
+
+        return FilterScopes(declared, consented, tokenScopes);
+    }
+
+    /// <summary>
+    /// Narrows a token's scopes to what the calling module may use, given the scopes it declared
+    /// and (for personal-data scopes) what the user consented to.
+    /// </summary>
+    /// <param name="declared">The scopes the module declared, or <see langword="null"/> when unknown.</param>
+    /// <param name="consented">The scopes the user consented to, or <see langword="null"/> when there is no user subject.</param>
+    /// <param name="tokenScopes">The scopes carried by the token.</param>
+    /// <returns>The scopes the module may actually use.</returns>
+    /// <remarks>
+    /// Only the consent catalog is filtered. A standard OIDC scope (<c>openid</c>,
+    /// <c>offline_access</c>) is part of the authentication contract, not a per-module grant, and an
+    /// unrecognized scope was never a consent decision. <c>email</c> is the exception: it is only
+    /// meaningful next to <c>profile</c> consent.
+    /// </remarks>
+    internal static IReadOnlyList<string> FilterScopes(
+        IReadOnlyCollection<string>? declared,
+        IReadOnlySet<string>? consented,
+        IReadOnlyList<string> tokenScopes)
+    {
+        if (declared is null || declared.Count == 0)
+        {
+            return tokenScopes;
+        }
+
+        var declaredSet = declared as IReadOnlySet<string>
+            ?? new HashSet<string>(declared, StringComparer.Ordinal);
+        var maySeeEmail = consented is not null && consented.Contains(ModuleScopes.Profile);
+
+        return tokenScopes
+            .Where(scope =>
+            {
+                if (ModuleScopes.IsConsentScope(scope))
+                {
+                    return declaredSet.Contains(scope)
+                        && consented is not null
+                        && consented.Contains(scope);
+                }
+
+                if (string.Equals(scope, "email", StringComparison.Ordinal))
+                {
+                    return declaredSet.Contains(ModuleScopes.Profile) && maySeeEmail;
+                }
+
+                return true;
+            })
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+    }
+
+    /// <summary>
+    /// Determines whether the calling module may see the token user's email address.
+    /// </summary>
+    /// <param name="moduleId">The authenticated module id.</param>
+    /// <param name="subscriber">The token subject.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns><see langword="true"/> when the user consented to <c>profile</c> for this module.</returns>
+    private async Task<bool> MaySeeEmailAsync(
+        string moduleId,
+        string subscriber,
+        CancellationToken cancellationToken)
+    {
+        if (!Guid.TryParse(subscriber, out var userId) || userId == Guid.Empty)
+        {
+            return false;
+        }
+
+        return await _consentPolicy.HasConsentAsync(moduleId, userId, ModuleScopes.Profile, cancellationToken);
+    }
+
+    private static bool IsEmailClaim(string claimType) =>
+        string.Equals(claimType, "email", StringComparison.Ordinal)
+        || string.Equals(claimType, ClaimTypes.Email, StringComparison.Ordinal);
 
     /// Extracts the authenticated module ID from the gRPC call context.
     /// Set by the AuthenticationInterceptor during call handling.

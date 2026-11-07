@@ -1,6 +1,8 @@
 using Api = DotNetCloud.Core.Grpc.ModuleApi.V1;
 using Legacy = DotNetCloud.Core.Grpc.Capabilities;
+using DotNetCloud.Core.Modules;
 using DotNetCloud.Core.Server.Grpc.Services;
+using DotNetCloud.Core.Server.ModuleLoading;
 using DotNetCloud.Core.Server.Tests.Services;
 using Grpc.Core;
 using Microsoft.Extensions.DependencyInjection;
@@ -20,15 +22,29 @@ public class ModuleApiV1ServiceTests
 
     private readonly ModuleHealthRegistry _health = new(TimeProvider.System);
 
-    private ModuleApiV1Service CreateService(out Mock<CoreCapabilitiesServiceImpl> legacy)
+    private ModuleApiV1Service CreateService(out Mock<CoreCapabilitiesServiceImpl> legacy) =>
+        CreateService(out legacy, out _);
+
+    private ModuleApiV1Service CreateService(
+        out Mock<CoreCapabilitiesServiceImpl> legacy,
+        out ModuleManifestRegistry manifests,
+        IModuleConsentService? consent = null)
     {
         legacy = new Mock<CoreCapabilitiesServiceImpl>(
             NullLogger<CoreCapabilitiesServiceImpl>.Instance,
             new ServiceCollection().BuildServiceProvider(),
             null!,
-            null!);
+            null!,
+            ConsentTestDoubles.NoConsent());
 
-        return new ModuleApiV1Service(legacy.Object, _health, NullLogger<ModuleApiV1Service>.Instance);
+        manifests = new ModuleManifestRegistry();
+        var consentService = consent ?? new ConsentTestDoubles.NoopConsentService();
+
+        return new ModuleApiV1Service(
+            legacy.Object,
+            _health,
+            ConsentTestDoubles.Policy(manifests, consentService),
+            NullLogger<ModuleApiV1Service>.Instance);
     }
 
     [TestMethod]
@@ -78,7 +94,7 @@ public class ModuleApiV1ServiceTests
     }
 
     [TestMethod]
-    public async Task GetUser_LegacyHit_MapsProfileAndWithholdsEmail()
+    public async Task GetUser_LegacyHit_MapsProfileAndPassesConsentGatedEmail()
     {
         var service = CreateService(out var legacy);
         legacy
@@ -101,11 +117,14 @@ public class ModuleApiV1ServiceTests
         Assert.IsTrue(response.Found);
         Assert.IsNotNull(response.User);
         Assert.AreEqual("Ada", response.User.DisplayName);
-        Assert.AreEqual(string.Empty, response.User.Email, "Email must not be exposed before A3 consent.");
+        Assert.AreEqual(
+            "ada@example.test",
+            response.User.Email,
+            "The legacy handler already withholds email without `profile` consent; the canonical surface must not blank it a second time.");
     }
 
     [TestMethod]
-    public async Task SearchUsers_DelegatesQueryAndWithholdsEmail()
+    public async Task SearchUsers_DelegatesQueryAndPassesConsentGatedEmail()
     {
         var service = CreateService(out var legacy);
         legacy
@@ -123,7 +142,7 @@ public class ModuleApiV1ServiceTests
             CreateContext());
 
         Assert.AreEqual(1, response.Users.Count);
-        Assert.AreEqual(string.Empty, response.Users[0].Email);
+        Assert.AreEqual("ada@example.test", response.Users[0].Email);
         legacy.Verify(
             l => l.SearchUsers(
                 It.Is<Legacy.SearchUsersRequest>(r => r.Query == "ada" && r.MaxResults == 5),
@@ -175,25 +194,84 @@ public class ModuleApiV1ServiceTests
     }
 
     [TestMethod]
-    public async Task CheckUserConsent_BeforeConsentPlane_ReturnsUnimplemented()
+    public async Task CheckUserConsent_ModuleScopeWithoutUser_ReportsEveryScopeMissing()
     {
         var service = CreateService(out _);
 
-        var ex = await Assert.ThrowsExactlyAsync<RpcException>(
-            () => service.CheckUserConsent(new Api.CheckUserConsentRequest(), CreateContext()));
+        var response = await service.CheckUserConsent(
+            new Api.CheckUserConsentRequest { Scopes = { "files:read", "profile" } },
+            CreateModuleScopeContext());
 
-        Assert.AreEqual(StatusCode.Unimplemented, ex.StatusCode);
+        Assert.IsFalse(response.Granted);
+        CollectionAssert.AreEqual(
+            new[] { "files:read", "profile" },
+            response.MissingScopes.ToArray());
     }
 
     [TestMethod]
-    public async Task GetGrantedScopes_BeforeConsentPlane_ReturnsUnimplemented()
+    public async Task CheckUserConsent_AllScopesConsented_IsGranted()
+    {
+        var userId = Guid.CreateVersion7();
+        var service = CreateService(out _, out _, new ConsentTestDoubles.GrantingConsentService(["files:read"]));
+
+        var response = await service.CheckUserConsent(
+            new Api.CheckUserConsentRequest { Scopes = { "files:read" } },
+            CreateUserContext(userId));
+
+        Assert.IsTrue(response.Granted);
+        Assert.AreEqual(0, response.MissingScopes.Count);
+    }
+
+    [TestMethod]
+    public async Task CheckUserConsent_PartiallyConsented_ReportsOnlyTheMissingScope()
+    {
+        var userId = Guid.CreateVersion7();
+        var service = CreateService(out _, out _, new ConsentTestDoubles.GrantingConsentService(["files:read"]));
+
+        var response = await service.CheckUserConsent(
+            new Api.CheckUserConsentRequest { Scopes = { "files:read", "profile" } },
+            CreateUserContext(userId));
+
+        Assert.IsFalse(response.Granted);
+        CollectionAssert.AreEqual(new[] { "profile" }, response.MissingScopes.ToArray());
+    }
+
+    [TestMethod]
+    public async Task GetGrantedScopes_IntersectsStoredConsentWithDeclaredScopes()
+    {
+        var userId = Guid.CreateVersion7();
+        var service = CreateService(
+            out _,
+            out var manifests,
+            new ConsentTestDoubles.GrantingConsentService(["files:read", "profile"]));
+
+        manifests.Record(ModuleId, new ModuleManifestData
+        {
+            Id = ModuleId,
+            Name = "Notes",
+            Version = "1.0.0",
+            ManifestVersion = 2,
+            UserConsentScopes = ["files:read"],
+        });
+
+        var response = await service.GetGrantedScopes(
+            new Api.GetGrantedScopesRequest(),
+            CreateUserContext(userId));
+
+        CollectionAssert.AreEqual(new[] { "files:read" }, response.Scopes.ToArray());
+    }
+
+    [TestMethod]
+    public async Task GetGrantedScopes_WithoutAuthenticatedCaller_ThrowsUnauthenticated()
     {
         var service = CreateService(out _);
+        var context = new TestServerCallContext("/dotnetcloud.moduleapi.v1.ModuleApi/GetGrantedScopes", []);
+        context.UserState["ModuleId"] = ModuleId;
 
         var ex = await Assert.ThrowsExactlyAsync<RpcException>(
-            () => service.GetGrantedScopes(new Api.GetGrantedScopesRequest(), CreateContext()));
+            () => service.GetGrantedScopes(new Api.GetGrantedScopesRequest(), context));
 
-        Assert.AreEqual(StatusCode.Unimplemented, ex.StatusCode);
+        Assert.AreEqual(StatusCode.Unauthenticated, ex.StatusCode);
     }
 
     [TestMethod]
@@ -214,6 +292,25 @@ public class ModuleApiV1ServiceTests
     {
         var context = new TestServerCallContext("/dotnetcloud.moduleapi.v1.ModuleApi/ReportHealth", []);
         context.UserState["ModuleId"] = ModuleId;
+        return context;
+    }
+
+    private static TestServerCallContext CreateUserContext(Guid userId)
+    {
+        var context = new TestServerCallContext("/dotnetcloud.moduleapi.v1.ModuleApi/CheckUserConsent", []);
+        context.UserState["ModuleId"] = ModuleId;
+        context.UserState["CallerContext"] = new DotNetCloud.Core.Authorization.CallerContext(
+            userId,
+            [],
+            DotNetCloud.Core.Authorization.CallerType.User);
+        return context;
+    }
+
+    private static TestServerCallContext CreateModuleScopeContext()
+    {
+        var context = new TestServerCallContext("/dotnetcloud.moduleapi.v1.ModuleApi/CheckUserConsent", []);
+        context.UserState["ModuleId"] = ModuleId;
+        context.UserState["CallerContext"] = DotNetCloud.Core.Authorization.CallerContext.CreateSystemContext();
         return context;
     }
 }

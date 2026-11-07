@@ -38,7 +38,8 @@ public class CoreCapabilitiesCurrentUserTests
             new ModuleEventInbox(
                 Mock.Of<DotNetCloud.Core.Events.IEventBus>(),
                 Mock.Of<DotNetCloud.Core.Server.ModuleLoading.IModuleManifestRegistry>(),
-                NullLogger<ModuleEventInbox>.Instance));
+                NullLogger<ModuleEventInbox>.Instance),
+            ConsentTestDoubles.NoConsent());
     }
 
     private static TestServerCallContext CreateContext(CallerContext? caller)

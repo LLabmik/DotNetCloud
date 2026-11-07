@@ -897,6 +897,54 @@ namespace DotNetCloud.Core.Data.SqlServer.Migrations
                     b.ToTable("ModuleSettings");
                 });
 
+            modelBuilder.Entity("DotNetCloud.Core.Data.Entities.Modules.ModuleUserConsent", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier")
+                        .HasDefaultValueSql("NEWSEQUENTIALID()");
+
+                    b.Property<DateTime?>("ExpiresAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("GrantedAtUtc")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime2")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<Guid?>("GrantedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("ModuleId")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("Scope")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("GrantedByUserId");
+
+                    b.HasIndex("ModuleId")
+                        .HasDatabaseName("ix_module_user_consents_module_id");
+
+                    b.HasIndex("UserId")
+                        .HasDatabaseName("ix_module_user_consents_user_id");
+
+                    b.HasIndex("ModuleId", "UserId", "Scope")
+                        .IsUnique()
+                        .HasDatabaseName("uq_module_user_consents_module_id_user_id_scope");
+
+                    b.ToTable("ModuleUserConsents");
+                });
+
             modelBuilder.Entity("DotNetCloud.Core.Data.Entities.Modules.ModuleUserErasure", b =>
                 {
                     b.Property<Guid>("RequestId")
@@ -1911,6 +1959,35 @@ namespace DotNetCloud.Core.Data.SqlServer.Migrations
                     b.Navigation("Module");
                 });
 
+            modelBuilder.Entity("DotNetCloud.Core.Data.Entities.Modules.ModuleUserConsent", b =>
+                {
+                    b.HasOne("DotNetCloud.Core.Data.Entities.Identity.ApplicationUser", "GrantedByUser")
+                        .WithMany()
+                        .HasForeignKey("GrantedByUserId")
+                        .OnDelete(DeleteBehavior.SetNull)
+                        .HasConstraintName("fk_module_user_consents_granted_by_user_id");
+
+                    b.HasOne("DotNetCloud.Core.Data.Entities.Modules.InstalledModule", "Module")
+                        .WithMany("UserConsents")
+                        .HasForeignKey("ModuleId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_module_user_consents_module_id");
+
+                    b.HasOne("DotNetCloud.Core.Data.Entities.Identity.ApplicationUser", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_module_user_consents_user_id");
+
+                    b.Navigation("GrantedByUser");
+
+                    b.Navigation("Module");
+
+                    b.Navigation("User");
+                });
+
             modelBuilder.Entity("DotNetCloud.Core.Data.Entities.Modules.ModuleUserErasure", b =>
                 {
                     b.HasOne("DotNetCloud.Core.Data.Entities.Modules.UserErasureRequest", "Request")
@@ -2135,6 +2212,8 @@ namespace DotNetCloud.Core.Data.SqlServer.Migrations
             modelBuilder.Entity("DotNetCloud.Core.Data.Entities.Modules.InstalledModule", b =>
                 {
                     b.Navigation("CapabilityGrants");
+
+                    b.Navigation("UserConsents");
                 });
 
             modelBuilder.Entity("DotNetCloud.Core.Data.Entities.Modules.UserErasureRequest", b =>

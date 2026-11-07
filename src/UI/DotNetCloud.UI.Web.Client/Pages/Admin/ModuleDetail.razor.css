@@ -1,0 +1,24 @@
+.consent-user-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 0.75rem;
+  font-size: 0.9rem;
+}
+
+.consent-user-table th,
+.consent-user-table td {
+  text-align: left;
+  padding: 0.4rem 0.5rem;
+  border-bottom: 1px solid var(--border-color, #2a2f3a);
+  vertical-align: middle;
+}
+
+.consent-user-table th {
+  font-weight: 600;
+  color: var(--text-secondary, #8b93a1);
+}
+
+.consent-user-id {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.8rem;
+}

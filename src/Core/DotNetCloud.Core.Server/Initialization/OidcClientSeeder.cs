@@ -1,3 +1,4 @@
+using DotNetCloud.Core.Modules;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using OpenIddict.Abstractions;
@@ -32,6 +33,18 @@ internal sealed class OidcClientSeeder
     /// <summary>
     /// Ensures first-party public clients (desktop and mobile) are registered for PKCE auth-code flow.
     /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The three first-party clients are <see cref="ConsentTypes.Implicit"/> on purpose (D3): they are
+    /// shipped by the project, the user installed them deliberately, and the sign-in experience must
+    /// stay a single click. Interactive consent is reserved for <c>dnc-module-*</c> clients, which
+    /// represent third-party code the user did not choose to run.
+    /// </para>
+    /// <para>
+    /// Scopes come from <see cref="ModuleScopes"/> so this seeder, the OpenIddict scope registry and
+    /// the consent catalog can never drift apart.
+    /// </para>
+    /// </remarks>
     public async Task SeedAsync(CancellationToken cancellationToken = default)
     {
         _ = cancellationToken;
@@ -44,7 +57,7 @@ internal sealed class OidcClientSeeder
             ClientId = "dotnetcloud-desktop",
             DisplayName = "DotNetCloud Desktop SyncTray",
             ClientType = ClientTypes.Public,
-            ConsentType = ConsentTypes.Explicit,
+            ConsentType = ConsentTypes.Implicit,
             RedirectUris =
             {
                 new Uri(desktopRedirectUri),
@@ -61,8 +74,8 @@ internal sealed class OidcClientSeeder
                 Permissions.Scopes.Profile,
                 Permissions.Prefixes.Scope + Scopes.OpenId,
                 Permissions.Prefixes.Scope + Scopes.OfflineAccess,
-                Permissions.Prefixes.Scope + "files:read",
-                Permissions.Prefixes.Scope + "files:write",
+                Permissions.Prefixes.Scope + ModuleScopes.FilesRead,
+                Permissions.Prefixes.Scope + ModuleScopes.FilesWrite,
             },
             Requirements =
             {
@@ -75,7 +88,7 @@ internal sealed class OidcClientSeeder
             ClientId = "dotnetcloud-mobile",
             DisplayName = "DotNetCloud Mobile",
             ClientType = ClientTypes.Public,
-            ConsentType = ConsentTypes.Explicit,
+            ConsentType = ConsentTypes.Implicit,
             RedirectUris =
             {
                 new Uri(mobileRedirectUri),
@@ -92,8 +105,8 @@ internal sealed class OidcClientSeeder
                 Permissions.Scopes.Profile,
                 Permissions.Prefixes.Scope + Scopes.OpenId,
                 Permissions.Prefixes.Scope + Scopes.OfflineAccess,
-                Permissions.Prefixes.Scope + "files:read",
-                Permissions.Prefixes.Scope + "files:write",
+                Permissions.Prefixes.Scope + ModuleScopes.FilesRead,
+                Permissions.Prefixes.Scope + ModuleScopes.FilesWrite,
             },
             Requirements =
             {
@@ -106,7 +119,7 @@ internal sealed class OidcClientSeeder
             ClientId = "dotnetcloud-browser-extension",
             DisplayName = "DotNetCloud Browser Extension",
             ClientType = ClientTypes.Public,
-            ConsentType = ConsentTypes.Explicit,
+            ConsentType = ConsentTypes.Implicit,
             Permissions =
             {
                 Permissions.Endpoints.Token,
@@ -117,8 +130,8 @@ internal sealed class OidcClientSeeder
                 Permissions.Prefixes.Scope + Scopes.Profile,
                 Permissions.Prefixes.Scope + Scopes.Email,
                 Permissions.Prefixes.Scope + Scopes.OfflineAccess,
-                Permissions.Prefixes.Scope + "bookmarks:read",
-                Permissions.Prefixes.Scope + "bookmarks:write",
+                Permissions.Prefixes.Scope + ModuleScopes.BookmarksRead,
+                Permissions.Prefixes.Scope + ModuleScopes.BookmarksWrite,
             },
         };
 

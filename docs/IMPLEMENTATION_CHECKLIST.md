@@ -3448,17 +3448,28 @@ Plan: `docs/THIRD_PARTY_MODULE_SANDBOX_AND_STORE_PLAN.md` (phase A0). Branch `fe
   - ✓ Resource quotas (F10): policy + resolver, admin `GET/PUT modules/{id}/quota`, cgroup memory/cpu/pids, PG `CONNECTION LIMIT` + pool size, identity-keyed request/event/notification/audit limiters, and measured DB/data-dir usage with `QuotaExceeded` suspension + start refusal
   - ✓ Storage namespacing (F5): `IStorageProvider` namespaced contract + `ModuleStorageNamespace` (module/user segment from verified identity, traversal/rooted/encoding rejection, containment re-check, 30 tests)
   - ✓ Adoption/legacy-override service (§9): preflight report, in-place schema/object ownership transfer incl. `__EFMigrationsHistory`, startup migration service ordered before the supervisor, bundled-only audited `LegacyOverride`, `datastore preflight` CLI
-- 🔄 Phase A2 — module API v1 (in progress)
+- ✓ Phase A2 — module API v1 (complete)
   - ✓ D2 transport-identity rename: `dnc-module-id` / `dnc-module-token` / `dnc-user-assertion` headers and `DOTNETCLOUD_MODULE_TOKEN` env var, cut over in one release (single source: `ModuleIdentityMetadata`); credential-store/supervisor terminology moved from secret to token; `CROSS_MODULE_TRUST.md`/`SECURITY_MODEL.md` updated
   - ✓ Drift guard: producer↔consumer tests prove `ModuleIdentityMetadata.Create` output is accepted by `AuthenticationInterceptor` and `ModulePeerAuthenticationInterceptor`
   - ✓ `module_api.proto` (`dotnetcloud.moduleapi.v1`, 17 RPCs) with identity-free requests (reserved caller slot, no `module_id`, empty `user_id` = acting user) and descriptor-level contract tests
-  - ✓ Legacy `module_capabilities` mapped onto `module_api` via `ModuleApiV1Service` (delegates to the legacy handlers; minimal profile without email; `ReportHealth` registry; consent RPCs `Unimplemented` until A3)
+  - ✓ Legacy `module_capabilities` mapped onto `module_api` via `ModuleApiV1Service` (delegates to the legacy handlers; minimal profile without email; `ReportHealth` registry)
   - ✓ `ModuleAccessEvaluator` + shared public `CapabilityCatalog` in `DotNetCloud.Core`: fully-qualified RPC mapping for both services, explicit self-service allow-list, fail-closed on unmapped module RPCs, 60 s grant cache invalidated on admin grant/revoke, `ModuleCapabilityDenied` audit on denials; `ModuleAccessInterceptor` replaces `CapabilityGrantInterceptor`
   - ✓ Credential lifecycle (D1): `ModuleCredentialStore` issue/`Rotate`/`Revoke` plus a non-secret `ModuleCredentialStatus` (hint + issued/rotated/revoked timestamps), no table and no token in logs
-  - ☐ Authorization invariants F4/F5/F6/F7/F15
-  - ☐ Audience/scope-bound `dnc-user-assertion`, event & audit authenticity, internal REST facade `/internal/moduleapi/v1/*`
-  - ☐ `DotNetCloud.Modules.Sdk` + Example module on the SDK
-- ☐ Phases A3–A6 / B1–B5 / C / D per the plan
+  - ✓ Authorization invariants F4/F5/F6/F7/F15 (+ auth-failure audit, manifest-validated events, introspection audience)
+  - ✓ Audience-bound `dnc-user-assertion`, event & audit authenticity, internal REST facade `/internal/moduleapi/v1/*`
+  - ✓ `DotNetCloud.Modules.Sdk` + Example module on the SDK
+- ✓ Phase A3 — user consent (hybrid authorization)
+  - ✓ Scope catalog in `DotNetCloud.Core` (`ModuleScopes` + `ModuleCapabilityScopes`) replacing the duplicated client-seeder literals
+  - ✓ Consent UI on `/connect/authorize` → `/connect/consent` (core chrome) with POST-only, anti-forgery-protected, non-frameable decision endpoints (F9); D3 first-party clients switched to `ConsentTypes.Implicit`
+  - ✓ `ModuleUserConsent` entity (both-provider migrations) + `IModuleConsentService` with expiry, cache invalidation and bulk revocation
+  - ✓ Consent enforcement: `MODULE_CONSENT_REQUIRED` + `consent-scopes` on user-scoped directory RPCs; email withheld without `profile` consent; notification recipients filtered by `notifications:send`
+  - ✓ Module OIDC clients (`dnc-module-<short>`, public PKCE, explicit) registered and reconciled
+  - ✓ F18 manifest validation (unknown scopes, identity scopes as consent, capability → scope completeness) in core and SDK
+  - ✓ User-erasure propagation (F12): `EraseUserData` RPC + handler seam, 72-hour retrying orchestrator, consent-row deletion, audited admin override, Files handler
+  - ✓ `CheckUserConsent` / `GetGrantedScopes` implemented; `TokenIntrospectionServiceImpl` scopes filtered to declared ∩ consented
+  - ✓ `/connected-apps` page + admin consent overview with revoke-on-behalf
+  - ✓ `docs/modules/MODULE_SECURITY.md`: permission mapping table, enforcement rules, consent flow, shared/team-data decision
+- ☐ Phases A4–A6 / B1–B5 / C / D per the plan
 
 ---
 

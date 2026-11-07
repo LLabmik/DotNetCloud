@@ -1,0 +1,76 @@
+.connected-apps-intro {
+  color: var(--text-secondary, #8b93a1);
+  margin-bottom: 1.5rem;
+  max-width: 60ch;
+  line-height: 1.5;
+}
+
+.connected-apps-list {
+  display: grid;
+  gap: 1rem;
+}
+
+.connected-app-card {
+  border: 1px solid var(--border-color, #2a2f3a);
+  border-radius: 10px;
+  padding: 1.25rem;
+  background: var(--surface-color, #171a21);
+}
+
+.connected-app-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.connected-app-header h2 {
+  margin: 0 0 0.25rem;
+  font-size: 1.1rem;
+}
+
+.connected-app-id {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.8rem;
+  color: var(--text-secondary, #8b93a1);
+}
+
+.connected-app-scopes {
+  list-style: none;
+  margin: 1rem 0;
+  padding: 0;
+  display: grid;
+  gap: 0.5rem;
+}
+
+.connected-app-scopes li {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+  border-bottom: 1px dashed var(--border-color, #2a2f3a);
+  padding-bottom: 0.5rem;
+}
+
+.scope-text {
+  line-height: 1.4;
+}
+
+.scope-name {
+  font-size: 0.8rem;
+  color: var(--text-secondary, #8b93a1);
+  flex-shrink: 0;
+}
+
+.connected-app-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-top: 0.5rem;
+}
+
+.connected-app-since {
+  font-size: 0.85rem;
+  color: var(--text-secondary, #8b93a1);
+}

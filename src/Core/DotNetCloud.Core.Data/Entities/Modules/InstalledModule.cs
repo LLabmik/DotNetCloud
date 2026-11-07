@@ -163,4 +163,14 @@ public class InstalledModule
     /// <para>Used to track which capabilities (IUserDirectory, IStorageProvider, etc.) are granted to this module.</para>
     /// </remarks>
     public virtual ICollection<ModuleCapabilityGrant> CapabilityGrants { get; set; } = new List<ModuleCapabilityGrant>();
+
+    /// <summary>
+    /// Navigation property to the per-user consent grants for this module.
+    /// </summary>
+    /// <remarks>
+    /// <para>Cascade delete enabled: uninstalling a module removes every user's consent for it.</para>
+    /// <para>Consent decides <em>whose</em> data the module may touch; the capability grant decides
+    /// whether the module may call the code path at all.</para>
+    /// </remarks>
+    public virtual ICollection<ModuleUserConsent> UserConsents { get; set; } = new List<ModuleUserConsent>();
 }

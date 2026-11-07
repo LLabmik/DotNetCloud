@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using DotNetCloud.Core.Errors;
 using DotNetCloud.Core.Server.Grpc.Interceptors;
+using DotNetCloud.Core.Server.Grpc.ModuleAccess;
 using DotNetCloud.Core.Server.Grpc.Services;
 using Grpc.Core;
 using Api = DotNetCloud.Core.Grpc.ModuleApi.V1;
@@ -460,6 +461,17 @@ internal sealed class ModuleRestApiService
             Path = http.Request.Path,
             TraceId = Activity.Current?.Id,
         };
+
+        // Consent denials carry the scopes the user still has to approve, so a REST caller can
+        // launch the consent flow without guessing what is missing.
+        var consentScopes = exception.Trailers.GetValue(ModuleConsentPolicy.MissingScopesTrailer);
+        if (!string.IsNullOrWhiteSpace(consentScopes))
+        {
+            error.Details = new
+            {
+                consentScopes = consentScopes.Split(' ', StringSplitOptions.RemoveEmptyEntries),
+            };
+        }
 
         return Results.Json(error, statusCode: status);
     }

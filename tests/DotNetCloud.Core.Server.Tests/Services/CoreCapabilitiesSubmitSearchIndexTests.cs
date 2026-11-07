@@ -18,7 +18,8 @@ public class CoreCapabilitiesSubmitSearchIndexTests
             NullLogger<CoreCapabilitiesServiceImpl>.Instance,
             Mock.Of<IServiceProvider>(),
             indexingService,
-            CreateEventInbox());
+            CreateEventInbox(),
+            ConsentTestDoubles.NoConsent());
 
     private static ModuleEventInbox CreateEventInbox()
         => new(

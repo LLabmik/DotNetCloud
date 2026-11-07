@@ -40,15 +40,35 @@ internal interface IModuleManifestRegistry
     /// The declared names (possibly empty), or <see langword="null"/> when the module is unknown.
     /// </returns>
     IReadOnlyCollection<string>? GetRealtimeEvents(string moduleId);
+
+    /// <summary>
+    /// Gets the per-user consent scopes a module declared in its manifest.
+    /// </summary>
+    /// <param name="moduleId">The module id.</param>
+    /// <returns>
+    /// The declared scopes (possibly empty), or <see langword="null"/> when the module is unknown.
+    /// </returns>
+    /// <remarks>
+    /// An empty set is the transitional case: a required or bundled module that has not opted into
+    /// the consent plane yet. A module that declares scopes must hold a live consent row for the
+    /// user before it can reach that user's personal data.
+    /// </remarks>
+    IReadOnlyCollection<string>? GetUserConsentScopes(string moduleId);
+
+    /// <summary>Gets the ids of every module whose manifest has been recorded.</summary>
+    /// <returns>The recorded module ids.</returns>
+    IReadOnlyCollection<string> GetModuleIds();
+
+    /// <summary>Gets the manifest recorded for a module.</summary>
+    /// <param name="moduleId">The module id.</param>
+    /// <returns>The manifest, or <see langword="null"/> when the module is unknown.</returns>
+    ModuleManifestData? GetManifest(string moduleId);
 }
 
 /// <inheritdoc />
 internal sealed class ModuleManifestRegistry : IModuleManifestRegistry
 {
-    private readonly ConcurrentDictionary<string, IReadOnlyCollection<string>> _publishedEvents =
-        new(StringComparer.OrdinalIgnoreCase);
-
-    private readonly ConcurrentDictionary<string, IReadOnlyCollection<string>> _realtimeEvents =
+    private readonly ConcurrentDictionary<string, ModuleManifestData> _manifests =
         new(StringComparer.OrdinalIgnoreCase);
 
     /// <inheritdoc />
@@ -61,20 +81,28 @@ internal sealed class ModuleManifestRegistry : IModuleManifestRegistry
             return;
         }
 
-        _publishedEvents[moduleId] = Normalize(manifest.EffectivePublishedEvents);
-        _realtimeEvents[moduleId] = Normalize(manifest.EffectiveRealtimeEvents);
+        _manifests[moduleId] = manifest;
     }
 
     /// <inheritdoc />
     public IReadOnlyCollection<string>? GetPublishedEvents(string moduleId) =>
-        !string.IsNullOrWhiteSpace(moduleId) && _publishedEvents.TryGetValue(moduleId, out var declared)
-            ? declared
-            : null;
+        GetManifest(moduleId) is { } manifest ? Normalize(manifest.EffectivePublishedEvents) : null;
 
     /// <inheritdoc />
     public IReadOnlyCollection<string>? GetRealtimeEvents(string moduleId) =>
-        !string.IsNullOrWhiteSpace(moduleId) && _realtimeEvents.TryGetValue(moduleId, out var declared)
-            ? declared
+        GetManifest(moduleId) is { } manifest ? Normalize(manifest.EffectiveRealtimeEvents) : null;
+
+    /// <inheritdoc />
+    public IReadOnlyCollection<string>? GetUserConsentScopes(string moduleId) =>
+        GetManifest(moduleId) is { } manifest ? Normalize(manifest.UserConsentScopes) : null;
+
+    /// <inheritdoc />
+    public IReadOnlyCollection<string> GetModuleIds() => _manifests.Keys.ToArray();
+
+    /// <inheritdoc />
+    public ModuleManifestData? GetManifest(string moduleId) =>
+        !string.IsNullOrWhiteSpace(moduleId) && _manifests.TryGetValue(moduleId, out var manifest)
+            ? manifest
             : null;
 
     private static IReadOnlyCollection<string> Normalize(IReadOnlyList<string>? declared) =>
