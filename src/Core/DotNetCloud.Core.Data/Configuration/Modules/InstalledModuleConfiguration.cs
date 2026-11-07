@@ -46,9 +46,43 @@ public class InstalledModuleConfiguration : IEntityTypeConfiguration<InstalledMo
             .IsRequired()
             .HasDefaultValueSql("CURRENT_TIMESTAMP");
 
+        // Sandbox metadata. The trust tier is provenance-derived and persisted; the data-store
+        // mode and sandbox state drive provisioning and operator visibility.
+        builder.Property(m => m.TrustTier)
+            .IsRequired()
+            .HasMaxLength(20)
+            .HasConversion<string>()
+            .HasDefaultValue(ModuleTrustTier.Bundled);
+
+        builder.Property(m => m.PublisherId)
+            .IsRequired(false)
+            .HasMaxLength(200);
+
+        builder.Property(m => m.SignedByKeyId)
+            .IsRequired(false)
+            .HasMaxLength(100);
+
+        builder.Property(m => m.DataStoreMode)
+            .IsRequired()
+            .HasMaxLength(20)
+            .HasConversion<string>()
+            .HasDefaultValue(ModuleDataStoreMode.None);
+
+        builder.Property(m => m.SandboxStatus)
+            .IsRequired()
+            .HasMaxLength(30)
+            .HasConversion<string>()
+            .HasDefaultValue(ModuleSandboxStatus.Active);
+
         // Indexes for efficient querying
         builder.HasIndex(m => m.Status)
             .HasDatabaseName("ix_installed_modules_status");
+
+        builder.HasIndex(m => m.TrustTier)
+            .HasDatabaseName("ix_installed_modules_trust_tier");
+
+        builder.HasIndex(m => m.SandboxStatus)
+            .HasDatabaseName("ix_installed_modules_sandbox_status");
 
         builder.HasIndex(m => m.InstalledAt)
             .HasDatabaseName("ix_installed_modules_installed_at");

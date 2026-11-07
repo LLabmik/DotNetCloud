@@ -9,11 +9,7 @@
     "IStorageProvider",
     "IAuditLogger"
   ],
-  "publishedEvents": [
-    "NoteCreatedEvent",
-    "NoteDeletedEvent"
-  ],
+  "publishedEvents": ["NoteCreatedEvent", "NoteDeletedEvent"],
   "subscribedEvents": [],
-  "minCoreVersion": "0.7.0",
-  "schemaProvider": "self"
+  "minCoreVersion": "0.7.0"
 }

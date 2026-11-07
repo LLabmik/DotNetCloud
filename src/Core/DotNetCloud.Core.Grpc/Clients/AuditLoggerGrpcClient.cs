@@ -26,6 +26,7 @@ internal sealed class AuditLoggerGrpcClient : IAuditLogger, IDisposable
 {
     private readonly ILogger<AuditLoggerGrpcClient> _logger;
     private readonly string? _coreEndpoint;
+    private readonly string? _moduleId;
     private GrpcChannel? _channel;
     private CoreCapabilities.CoreCapabilitiesClient? _client;
     private readonly object _sync = new();
@@ -40,6 +41,7 @@ internal sealed class AuditLoggerGrpcClient : IAuditLogger, IDisposable
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
         _coreEndpoint = Environment.GetEnvironmentVariable("DOTNETCLOUD_CORE_ENDPOINT");
+        _moduleId = Environment.GetEnvironmentVariable("DOTNETCLOUD_MODULE_ID");
         if (string.IsNullOrWhiteSpace(_coreEndpoint))
         {
             _logger.LogWarning(
@@ -93,13 +95,13 @@ internal sealed class AuditLoggerGrpcClient : IAuditLogger, IDisposable
         ArgumentNullException.ThrowIfNull(entry);
         ArgumentNullException.ThrowIfNull(entry.Caller);
 
-        if (string.IsNullOrWhiteSpace(_coreEndpoint))
+        if (string.IsNullOrWhiteSpace(_coreEndpoint) || string.IsNullOrWhiteSpace(_moduleId))
         {
-            // No Core.Server endpoint (test host / manual run) — do not throw, but
-            // surface the gap so operators don't mistake silence for auditing.
+            // No Core.Server endpoint or no supervisor-issued identity (test host / manual run) —
+            // do not throw, but surface the gap so operators don't mistake silence for auditing.
             _logger.LogWarning(
                 "AuditLoggerGrpcClient: audit entry NOT persisted for {AuditAction} on {EntityType}/{EntityId} " +
-                "in {ModuleId} (DOTNETCLOUD_CORE_ENDPOINT not set).",
+                "in {ModuleId} (DOTNETCLOUD_CORE_ENDPOINT or DOTNETCLOUD_MODULE_ID not set).",
                 entry.Action, entry.EntityType, entry.EntityId, entry.ModuleId);
             return;
         }
@@ -123,7 +125,12 @@ internal sealed class AuditLoggerGrpcClient : IAuditLogger, IDisposable
             foreach (var role in entry.Caller.Roles)
                 request.Caller.Roles.Add(role);
 
-            var response = await GetClient().LogAuditAsync(request, cancellationToken: cancellationToken);
+            var response = await GetClient().LogAuditAsync(
+                request,
+                // The credential must match the identity the supervisor issued; the core ignores
+                // request.ModuleId for attribution.
+                headers: ModuleIdentityMetadata.Create(_moduleId!),
+                cancellationToken: cancellationToken);
 
             if (!response.Success)
             {

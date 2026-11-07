@@ -24,6 +24,5 @@
     "ResourceSharedEvent"
   ],
   "subscribedEvents": ["ContactCreatedEvent", "ContactDeletedEvent"],
-  "minCoreVersion": "0.7.0",
-  "schemaProvider": "core"
+  "minCoreVersion": "0.7.0"
 }

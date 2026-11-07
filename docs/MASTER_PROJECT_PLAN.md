@@ -1748,6 +1748,29 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 
 ---
 
+### Step: third-party-module-sandbox-a1-2026-11-06 - Module Sandbox A1 (isolation foundation, slice 1)
+
+**Status:** 🔄 In progress
+**Duration:** ongoing
+**Description:** Phase A1 of `docs/THIRD_PARTY_MODULE_SANDBOX_AND_STORE_PLAN.md`. This slice lands the sandbox data model, manifest v2, the module settings plane and the registry/trust-tier reconciliation; provisioning, the supervisor env split, quotas and storage namespacing remain.
+
+**Deliverables:**
+
+- ✓ Manifest v2: publisher, dataStore, consent scopes, events, UI, resources, moduleApiVersion, maxCoreVersion; strict camelCase parsing with unknown-field rejection for v2 while v1 stays lenient; required modules may not declare dataStore/UI; `handlesUserErasure` required when the module stores user data
+- ✓ Dead `schemaProvider` field removed from the model and all manifests (D5)
+- ✓ Entities + configurations + migrations for `ModuleDataStore`, `ModuleSetting`, `ModuleQuota`, `UserErasureRequest`, `ModuleUserErasure`; `InstalledModule` extended with `TrustTier`, `PublisherId`, `SignedByKeyId`, `DataStoreMode`, `SandboxStatus`
+- ✓ `SyncDiscoveredModulesToDatabaseAsync` is an upsert that reconciles version/required/tier/mode/sandbox state and never upgrades an existing store-tier row
+- ✓ Manifest grants are gated by trust tier; store-tier modules require explicit admin approval
+- ✓ Settings plane: `IModuleSettingsStore` + `ModuleSettingsStore`, module-namespaced `GetSetting`/`SetSetting` (request `module_id` ignored), `IModuleSettings` gRPC client + `AddModuleSettingsClient()`, key/value limits
+- ✓ Fixed `LogAudit` attribution (verified module id, not the payload) and made `AuditLoggerGrpcClient` present the supervisor-issued credential
+- ☐ Provisioning service, supervisor env split, sanitized `module.json`, Example host listener/DataProtection, setup `CREATEROLE`/prerequisites, admin+CLI `datastore`, quotas, storage namespacing, adoption service
+
+**Dependencies:** `third-party-module-sandbox-a0-2026-11-06`
+**Blocking Issues:** None
+**Notes:** CI build clean; full suite green apart from the two pre-existing `sqlcmd`-dependent backup integration tests. New tests: manifest v2 validation (strict/lenient, erasure, UI, resources, required-module rules), settings store round-trip/namespacing/limits, settings RPC module-namespace enforcement.
+
+---
+
 ## Phase 2: Chat & Notifications & Android
 
 **STATUS:** ✅ COMPLETED (13/13 sub-phases)
@@ -7085,7 +7108,6 @@ Plan document: `docs/ADMIN_SYSTEM_PAGE_PER_USER_TRAFFIC_PLAN.md`.
   cache and is refreshed from the server setting on every circuit start.
 - Native clients (Android, SyncTray) and native `<input type="time">` / `datetime-local` values keep their own
   formats — this setting covers the web UI.
-
 
 ## Client Download Nav Items: Browser Extension + Android Client (2026-11-05, `feature/browser-extension-and-android-client-links`)
 

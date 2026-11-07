@@ -248,6 +248,50 @@ public class CoreDbContext : IdentityDbContext<ApplicationUser, ApplicationRole,
     /// </remarks>
     public DbSet<ModuleCapabilityGrant> ModuleCapabilityGrants => Set<ModuleCapabilityGrant>();
 
+    /// <summary>
+    /// Gets or sets the ModuleDataStores DbSet.
+    /// </summary>
+    /// <remarks>
+    /// Represents the provisioned schema + scoped principal for a sandboxed module, including the
+    /// DataProtection-encrypted connection string handed to the module process at launch.
+    /// </remarks>
+    public DbSet<ModuleDataStore> ModuleDataStores => Set<ModuleDataStore>();
+
+    /// <summary>
+    /// Gets or sets the ModuleSettings DbSet.
+    /// </summary>
+    /// <remarks>
+    /// Per-module key/value settings, namespaced by the authenticated module identity. Backs the
+    /// <c>IModuleSettings</c> capability for modules that declare <c>dataStore: "none"</c>.
+    /// </remarks>
+    public DbSet<ModuleSetting> ModuleSettings => Set<ModuleSetting>();
+
+    /// <summary>
+    /// Gets or sets the ModuleQuotas DbSet.
+    /// </summary>
+    /// <remarks>
+    /// Effective resource limits per module: kernel (memory/CPU/pids), database connections,
+    /// API rates and measured storage ceilings.
+    /// </remarks>
+    public DbSet<ModuleQuota> ModuleQuotas => Set<ModuleQuota>();
+
+    /// <summary>
+    /// Gets or sets the UserErasureRequests DbSet.
+    /// </summary>
+    /// <remarks>
+    /// Tracks account-deletion fan-out to every module; account deletion does not complete until
+    /// each reachable module acknowledges the erasure.
+    /// </remarks>
+    public DbSet<UserErasureRequest> UserErasureRequests => Set<UserErasureRequest>();
+
+    /// <summary>
+    /// Gets or sets the ModuleUserErasures DbSet.
+    /// </summary>
+    /// <remarks>
+    /// Per-module progress within a <see cref="UserErasureRequest"/>.
+    /// </remarks>
+    public DbSet<ModuleUserErasure> ModuleUserErasures => Set<ModuleUserErasure>();
+
     // Authentication (OpenIddict) DbSets
     /// <summary>
     /// Gets or sets the OpenIddict Applications DbSet.
@@ -458,6 +502,11 @@ public class CoreDbContext : IdentityDbContext<ApplicationUser, ApplicationRole,
         // Apply configurations for all module entities
         modelBuilder.ApplyConfiguration(new InstalledModuleConfiguration());
         modelBuilder.ApplyConfiguration(new ModuleCapabilityGrantConfiguration());
+        modelBuilder.ApplyConfiguration(new ModuleDataStoreConfiguration());
+        modelBuilder.ApplyConfiguration(new ModuleSettingConfiguration());
+        modelBuilder.ApplyConfiguration(new ModuleQuotaConfiguration());
+        modelBuilder.ApplyConfiguration(new UserErasureRequestConfiguration());
+        modelBuilder.ApplyConfiguration(new ModuleUserErasureConfiguration());
     }
 
     /// <summary>

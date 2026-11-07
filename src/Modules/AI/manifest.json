@@ -11,11 +11,7 @@
     "INotificationService",
     "ILlmProvider"
   ],
-  "publishedEvents": [
-    "ConversationCreatedEvent",
-    "ConversationMessageEvent"
-  ],
+  "publishedEvents": ["ConversationCreatedEvent", "ConversationMessageEvent"],
   "subscribedEvents": [],
-  "minCoreVersion": "0.7.0",
-  "schemaProvider": "core"
+  "minCoreVersion": "0.7.0"
 }

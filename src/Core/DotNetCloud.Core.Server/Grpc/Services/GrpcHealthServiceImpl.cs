@@ -5,6 +5,7 @@ using DotNetCloud.Core.DTOs;
 using DotNetCloud.Core.Events;
 using DotNetCloud.Core.Events.Search;
 using DotNetCloud.Core.Grpc.Capabilities;
+using DotNetCloud.Core.Modules;
 using DotNetCloud.Core.Modules.Supervisor;
 using DotNetCloud.Core.Server.RealTime;
 using DotNetCloud.Core.Server.Services;
@@ -348,23 +349,67 @@ internal sealed class CoreCapabilitiesServiceImpl : CoreCapabilities.CoreCapabil
     /// <summary>
     /// Gets a module setting value (IModuleSettings capability).
     /// </summary>
-    public override Task<GetSettingResponse> GetSetting(GetSettingRequest request, ServerCallContext context)
+    /// <remarks>
+    /// The key is namespaced by the <em>authenticated</em> module identity; <c>request.ModuleId</c>
+    /// is caller-supplied and ignored, so a module cannot read another module's settings.
+    /// </remarks>
+    public override async Task<GetSettingResponse> GetSetting(GetSettingRequest request, ServerCallContext context)
     {
-        _logger.LogDebug("GetSetting: {Module}/{Key} by module {ModuleId}",
-            request.ModuleId, request.Key, GetModuleId(context));
+        var moduleId = GetModuleId(context);
 
-        return Task.FromResult(new GetSettingResponse { Found = false });
+        if (!ModuleSettingLimits.IsValidKey(request.Key))
+        {
+            _logger.LogWarning(
+                "GetSetting: rejected invalid key from module {ModuleId}: {Key}",
+                moduleId, LogSanitizer.Sanitize(request.Key));
+            return new GetSettingResponse { Found = false };
+        }
+
+        using var scope = _serviceProvider.CreateScope();
+        var store = scope.ServiceProvider.GetRequiredService<IModuleSettingsStore>();
+        var value = await store.GetAsync(moduleId, request.Key, context.CancellationToken);
+
+        return value is null
+            ? new GetSettingResponse { Found = false }
+            : new GetSettingResponse { Found = true, Value = value };
     }
 
     /// <summary>
     /// Sets a module setting value (IModuleSettings capability).
     /// </summary>
-    public override Task<SetSettingResponse> SetSetting(SetSettingRequest request, ServerCallContext context)
+    /// <remarks>
+    /// The key is namespaced by the <em>authenticated</em> module identity; <c>request.ModuleId</c>
+    /// is caller-supplied and ignored. Keys and values are length- and charset-capped before they
+    /// reach the database.
+    /// </remarks>
+    public override async Task<SetSettingResponse> SetSetting(SetSettingRequest request, ServerCallContext context)
     {
-        _logger.LogDebug("SetSetting: {Module}/{Key} by module {ModuleId}",
-            request.ModuleId, request.Key, GetModuleId(context));
+        var moduleId = GetModuleId(context);
 
-        return Task.FromResult(new SetSettingResponse { Success = true });
+        if (!ModuleSettingLimits.IsValidKey(request.Key) || !ModuleSettingLimits.IsValidValue(request.Value))
+        {
+            _logger.LogWarning(
+                "SetSetting: rejected invalid key or oversized value from module {ModuleId}: {Key}",
+                moduleId, LogSanitizer.Sanitize(request.Key));
+            return new SetSettingResponse { Success = false };
+        }
+
+        var actingUserId = context.UserState.TryGetValue("CallerContext", out var callerState)
+            && callerState is CallerContext { Type: CallerType.User } caller
+                ? caller.UserId
+                : (Guid?)null;
+
+        using var scope = _serviceProvider.CreateScope();
+        var store = scope.ServiceProvider.GetRequiredService<IModuleSettingsStore>();
+        await store.SetAsync(
+            moduleId,
+            request.Key,
+            request.Value,
+            isSecret: false,
+            updatedByUserId: actingUserId,
+            context.CancellationToken);
+
+        return new SetSettingResponse { Success = true };
     }
 
     /// <summary>
@@ -750,7 +795,9 @@ internal sealed class CoreCapabilitiesServiceImpl : CoreCapabilities.CoreCapabil
             var entry = new AuditEntry
             {
                 Caller = caller,
-                ModuleId = string.IsNullOrWhiteSpace(request.ModuleId) ? moduleId : request.ModuleId,
+                // Attribution comes from the verified credential, never from the payload: a module
+                // must not be able to write audit entries as another module.
+                ModuleId = moduleId,
                 Action = Enum.IsDefined(typeof(AuditAction), request.Action)
                     ? (AuditAction)request.Action
                     : AuditAction.Read,

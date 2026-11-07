@@ -18,7 +18,7 @@ namespace DotNetCloud.Core.Data.Migrations
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasAnnotation("ProductVersion", "10.0.10")
+                .HasAnnotation("ProductVersion", "10.0.14")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
@@ -633,6 +633,13 @@ namespace DotNetCloud.Core.Data.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");
 
+                    b.Property<string>("DataStoreMode")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasDefaultValue("None");
+
                     b.Property<DateTime>("InstalledAt")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("timestamp with time zone")
@@ -643,10 +650,32 @@ namespace DotNetCloud.Core.Data.Migrations
                         .HasColumnType("boolean")
                         .HasDefaultValue(false);
 
+                    b.Property<string>("PublisherId")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("SandboxStatus")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
+                        .HasDefaultValue("Active");
+
+                    b.Property<string>("SignedByKeyId")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
                     b.Property<string>("Status")
                         .IsRequired()
                         .HasMaxLength(50)
                         .HasColumnType("character varying(50)");
+
+                    b.Property<string>("TrustTier")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasDefaultValue("Bundled");
 
                     b.Property<DateTime>("UpdatedAt")
                         .ValueGeneratedOnAdd()
@@ -663,8 +692,14 @@ namespace DotNetCloud.Core.Data.Migrations
                     b.HasIndex("InstalledAt")
                         .HasDatabaseName("ix_installed_modules_installed_at");
 
+                    b.HasIndex("SandboxStatus")
+                        .HasDatabaseName("ix_installed_modules_sandbox_status");
+
                     b.HasIndex("Status")
                         .HasDatabaseName("ix_installed_modules_status");
+
+                    b.HasIndex("TrustTier")
+                        .HasDatabaseName("ix_installed_modules_trust_tier");
 
                     b.ToTable("InstalledModules");
                 });
@@ -711,6 +746,174 @@ namespace DotNetCloud.Core.Data.Migrations
                     b.ToTable("ModuleCapabilityGrants");
                 });
 
+            modelBuilder.Entity("DotNetCloud.Core.Data.Entities.Modules.ModuleDataStore", b =>
+                {
+                    b.Property<string>("ModuleId")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<string>("EncryptedConnectionString")
+                        .HasMaxLength(4000)
+                        .HasColumnType("character varying(4000)");
+
+                    b.Property<string>("LastError")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<string>("PrincipalName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("Provider")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<string>("SchemaName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<DateTime>("UpdatedAtUtc")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.HasKey("ModuleId");
+
+                    b.HasIndex("Status")
+                        .HasDatabaseName("ix_module_data_stores_status");
+
+                    b.ToTable("ModuleDataStores");
+                });
+
+            modelBuilder.Entity("DotNetCloud.Core.Data.Entities.Modules.ModuleQuota", b =>
+                {
+                    b.Property<string>("ModuleId")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<int?>("AuditEntriesPerMinute")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("ConnectionLimit")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("CpuPercent")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("DataDirMb")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("DatabaseMb")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("EventsPerMinute")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("MemoryLimitMb")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("NotificationsPerMinute")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("RequestsPerMinute")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("UpdatedAtUtc")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<Guid?>("UpdatedByUserId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("ModuleId");
+
+                    b.ToTable("ModuleQuotas");
+                });
+
+            modelBuilder.Entity("DotNetCloud.Core.Data.Entities.Modules.ModuleSetting", b =>
+                {
+                    b.Property<string>("ModuleId")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("Key")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<bool>("IsSecret")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false);
+
+                    b.Property<DateTime>("UpdatedAtUtc")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<Guid?>("UpdatedByUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Value")
+                        .IsRequired()
+                        .HasMaxLength(10000)
+                        .HasColumnType("character varying(10000)");
+
+                    b.HasKey("ModuleId", "Key");
+
+                    b.HasIndex("ModuleId")
+                        .HasDatabaseName("ix_module_settings_module_id");
+
+                    b.ToTable("ModuleSettings");
+                });
+
+            modelBuilder.Entity("DotNetCloud.Core.Data.Entities.Modules.ModuleUserErasure", b =>
+                {
+                    b.Property<Guid>("RequestId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ModuleId")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<int>("Attempts")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0);
+
+                    b.Property<DateTime?>("CompletedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("LastError")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.HasKey("RequestId", "ModuleId");
+
+                    b.HasIndex("Status")
+                        .HasDatabaseName("ix_module_user_erasures_status");
+
+                    b.ToTable("ModuleUserErasures");
+                });
+
             modelBuilder.Entity("DotNetCloud.Core.Data.Entities.Modules.UserDevice", b =>
                 {
                     b.Property<Guid>("Id")
@@ -754,6 +957,42 @@ namespace DotNetCloud.Core.Data.Migrations
                         .HasDatabaseName("ix_user_devices_user_id_device_type");
 
                     b.ToTable("UserDevices");
+                });
+
+            modelBuilder.Entity("DotNetCloud.Core.Data.Entities.Modules.UserErasureRequest", b =>
+                {
+                    b.Property<Guid>("RequestId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("CompletedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime>("RequestedAtUtc")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<Guid?>("RequestedByUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("RequestId");
+
+                    b.HasIndex("Status")
+                        .HasDatabaseName("ix_user_erasure_requests_status");
+
+                    b.HasIndex("UserId")
+                        .HasDatabaseName("ix_user_erasure_requests_user_id");
+
+                    b.ToTable("UserErasureRequests");
                 });
 
             modelBuilder.Entity("DotNetCloud.Core.Data.Entities.Notifications.Notification", b =>
@@ -1608,6 +1847,54 @@ namespace DotNetCloud.Core.Data.Migrations
                     b.Navigation("Module");
                 });
 
+            modelBuilder.Entity("DotNetCloud.Core.Data.Entities.Modules.ModuleDataStore", b =>
+                {
+                    b.HasOne("DotNetCloud.Core.Data.Entities.Modules.InstalledModule", "Module")
+                        .WithOne()
+                        .HasForeignKey("DotNetCloud.Core.Data.Entities.Modules.ModuleDataStore", "ModuleId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_module_data_stores_module_id");
+
+                    b.Navigation("Module");
+                });
+
+            modelBuilder.Entity("DotNetCloud.Core.Data.Entities.Modules.ModuleQuota", b =>
+                {
+                    b.HasOne("DotNetCloud.Core.Data.Entities.Modules.InstalledModule", "Module")
+                        .WithOne()
+                        .HasForeignKey("DotNetCloud.Core.Data.Entities.Modules.ModuleQuota", "ModuleId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_module_quotas_module_id");
+
+                    b.Navigation("Module");
+                });
+
+            modelBuilder.Entity("DotNetCloud.Core.Data.Entities.Modules.ModuleSetting", b =>
+                {
+                    b.HasOne("DotNetCloud.Core.Data.Entities.Modules.InstalledModule", "Module")
+                        .WithMany()
+                        .HasForeignKey("ModuleId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_module_settings_module_id");
+
+                    b.Navigation("Module");
+                });
+
+            modelBuilder.Entity("DotNetCloud.Core.Data.Entities.Modules.ModuleUserErasure", b =>
+                {
+                    b.HasOne("DotNetCloud.Core.Data.Entities.Modules.UserErasureRequest", "Request")
+                        .WithMany("Modules")
+                        .HasForeignKey("RequestId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_module_user_erasures_request_id");
+
+                    b.Navigation("Request");
+                });
+
             modelBuilder.Entity("DotNetCloud.Core.Data.Entities.Modules.UserDevice", b =>
                 {
                     b.HasOne("DotNetCloud.Core.Data.Entities.Identity.ApplicationUser", "User")
@@ -1820,6 +2107,11 @@ namespace DotNetCloud.Core.Data.Migrations
             modelBuilder.Entity("DotNetCloud.Core.Data.Entities.Modules.InstalledModule", b =>
                 {
                     b.Navigation("CapabilityGrants");
+                });
+
+            modelBuilder.Entity("DotNetCloud.Core.Data.Entities.Modules.UserErasureRequest", b =>
+                {
+                    b.Navigation("Modules");
                 });
 
             modelBuilder.Entity("DotNetCloud.Core.Data.Entities.Organizations.Group", b =>

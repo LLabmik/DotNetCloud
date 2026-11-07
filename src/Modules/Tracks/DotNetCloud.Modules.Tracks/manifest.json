@@ -26,9 +26,6 @@
     "PokerSessionRevealedEvent",
     "PokerSessionCompletedEvent"
   ],
-  "subscribedEvents": [
-    "FileDeletedEvent"
-  ],
-  "minCoreVersion": "0.7.0",
-  "schemaProvider": "core"
+  "subscribedEvents": ["FileDeletedEvent"],
+  "minCoreVersion": "0.7.0"
 }

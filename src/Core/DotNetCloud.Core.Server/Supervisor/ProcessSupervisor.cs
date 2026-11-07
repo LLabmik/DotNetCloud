@@ -276,7 +276,7 @@ internal sealed class ProcessSupervisor : BackgroundService, IProcessSupervisor
         }
 
         var restartPolicy = ParseRestartPolicy(manifest.RestartPolicy);
-        var memoryLimitMb = manifest.MemoryLimitMb ?? _options.DefaultMemoryLimitMb;
+        var memoryLimitMb = manifest.EffectiveMemoryLimitMb ?? _options.DefaultMemoryLimitMb;
         var grpcEndpoint = BuildGrpcEndpoint(moduleId);
 
         var handle = new ModuleProcessHandle
@@ -866,9 +866,15 @@ internal sealed class ProcessSupervisor : BackgroundService, IProcessSupervisor
     // ---- Database Sync ----
 
     /// <summary>
-    /// Ensures all discovered modules have corresponding <see cref="InstalledModule"/>
-    /// records in the database so the admin UI and module UI registration can see them.
+    /// Ensures all discovered modules have corresponding <see cref="InstalledModule"/> records in
+    /// the database, reconciling version, status, required flag and sandbox metadata on restart.
     /// </summary>
+    /// <remarks>
+    /// This used to be insert-only, so an upgraded module kept its original version and status in
+    /// the admin UI forever. The upsert persists the trust tier from <em>provenance</em> and never
+    /// upgrades an existing store-tier row: a package that claims a bundled module id must not
+    /// inherit the bundled tier.
+    /// </remarks>
     private async Task SyncDiscoveredModulesToDatabaseAsync(
         IReadOnlyList<DiscoveredModule> discovered, CancellationToken cancellationToken)
     {
@@ -877,39 +883,77 @@ internal sealed class ProcessSupervisor : BackgroundService, IProcessSupervisor
             using var scope = _scopeFactory.CreateScope();
             var dbContext = scope.ServiceProvider.GetRequiredService<CoreDbContext>();
 
-            var existingModuleIds = await dbContext.InstalledModules
-                .Select(m => m.ModuleId)
-                .ToListAsync(cancellationToken);
+            var existingModules = await dbContext.InstalledModules
+                .ToDictionaryAsync(m => m.ModuleId, StringComparer.OrdinalIgnoreCase, cancellationToken);
 
-            var existingSet = existingModuleIds.ToHashSet(StringComparer.OrdinalIgnoreCase);
             var added = 0;
+            var updated = 0;
 
             foreach (var module in discovered)
             {
-                if (existingSet.Contains(module.ModuleId))
-                    continue;
-
                 var manifest = LoadManifest(module);
+                var isRequired = RequiredModules.IsRequired(module.ModuleId);
 
-                dbContext.InstalledModules.Add(new InstalledModule
+                var isNew = !existingModules.TryGetValue(module.ModuleId, out var existingRecord);
+                InstalledModule record;
+                if (isNew)
                 {
-                    ModuleId = module.ModuleId,
-                    Version = manifest.Version,
-                    Status = "Enabled",
-                    InstalledAt = DateTime.UtcNow,
-                    IsRequired = RequiredModules.IsRequired(module.ModuleId),
-                });
+                    record = new InstalledModule
+                    {
+                        ModuleId = module.ModuleId,
+                        Status = "Enabled",
+                        InstalledAt = DateTime.UtcNow,
+                    };
 
-                added++;
-                _logger.LogInformation(
-                    "Auto-registered discovered module {ModuleId} (v{Version}) in database",
-                    module.ModuleId, manifest.Version);
+                    dbContext.InstalledModules.Add(record);
+                    existingModules[module.ModuleId] = record;
+                    added++;
+                }
+                else
+                {
+                    record = existingRecord!;
+                    updated++;
+                }
+
+                // Trust tier is provenance-derived and persisted. Required wins; an existing row
+                // keeps its tier (a store package is never silently promoted to bundled); a module
+                // discovered for the first time is part of the product's module directory.
+                if (isRequired)
+                {
+                    record.TrustTier = ModuleTrustTier.Required;
+                }
+                else if (isNew)
+                {
+                    record.TrustTier = ModuleTrustTier.Bundled;
+                }
+
+                record.Version = manifest.Version;
+                record.IsRequired = isRequired;
+                record.UpdatedAt = DateTime.UtcNow;
+
+                // v2 manifests are authoritative for the data-store mode. v1 (legacy in-repo)
+                // modules keep the core-managed schema model until Track C migrates them.
+                record.DataStoreMode = manifest.ManifestVersion >= 2
+                    ? manifest.EffectiveDataStoreMode
+                    : ModuleDataStoreMode.None;
+
+                if (isRequired)
+                {
+                    record.SandboxStatus = ModuleSandboxStatus.Active;
+                }
+                else if (isNew)
+                {
+                    record.SandboxStatus = record.DataStoreMode == ModuleDataStoreMode.Isolated
+                        ? ModuleSandboxStatus.PendingProvisioning
+                        : ModuleSandboxStatus.Active;
+                }
             }
 
-            if (added > 0)
+            if (added > 0 || updated > 0)
             {
                 await dbContext.SaveChangesAsync(cancellationToken);
-                _logger.LogInformation("Registered {Count} newly discovered modules in database", added);
+                _logger.LogInformation(
+                    "Reconciled module registry: {Added} added, {Updated} reconciled", added, updated);
             }
 
             await EnsureManifestGrantsAsync(dbContext, discovered, cancellationToken);
@@ -925,17 +969,26 @@ internal sealed class ProcessSupervisor : BackgroundService, IProcessSupervisor
     /// a module's manifest declares.
     /// </summary>
     /// <remarks>
-    /// The manifest is the module's install-time request, so accepting it here is the equivalent
-    /// of an operator installing the module. The resulting rows are ordinary grants: an
-    /// administrator can revoke any of them, and <c>CapabilityGrantInterceptor</c> refuses the
-    /// capability on the next call once the row is gone. Capabilities whose tier is public or
-    /// unknown are skipped because they are not governed by the grant table.
+    /// <para>
+    /// For product-shipped modules (required and bundled) the manifest is the module's install-time
+    /// request, so accepting it here is the equivalent of an operator installing the module.
+    /// </para>
+    /// <para>
+    /// <strong>Store-tier modules are never auto-granted.</strong> Their capabilities must be
+    /// approved explicitly by an administrator at install time, otherwise a publisher would
+    /// self-authorize through its own manifest. Grants whose tier is public or unknown are skipped
+    /// because they are not governed by the grant table.
+    /// </para>
     /// </remarks>
     private async Task EnsureManifestGrantsAsync(
         CoreDbContext dbContext,
         IReadOnlyList<DiscoveredModule> discovered,
         CancellationToken cancellationToken)
     {
+        var trustTiers = await dbContext.InstalledModules
+            .Select(m => new { m.ModuleId, m.TrustTier })
+            .ToDictionaryAsync(m => m.ModuleId, m => m.TrustTier, StringComparer.OrdinalIgnoreCase, cancellationToken);
+
         var existingGrants = await dbContext.ModuleCapabilityGrants
             .Select(g => new { g.ModuleId, g.CapabilityName })
             .ToListAsync(cancellationToken);
@@ -950,9 +1003,18 @@ internal sealed class ProcessSupervisor : BackgroundService, IProcessSupervisor
         {
             cancellationToken.ThrowIfCancellationRequested();
 
+            if (trustTiers.TryGetValue(module.ModuleId, out var trustTier)
+                && trustTier == ModuleTrustTier.Store)
+            {
+                _logger.LogDebug(
+                    "Module {ModuleId} is store-tier; manifest capabilities require explicit admin approval",
+                    SanitizeForLog(module.ModuleId));
+                continue;
+            }
+
             var manifest = LoadManifest(module);
 
-            foreach (var capability in manifest.RequiredCapabilities)
+            foreach (var capability in manifest.EffectiveCapabilities)
             {
                 if (!CapabilityCatalog.RequiresGrant(capability))
                 {

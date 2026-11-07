@@ -10,7 +10,7 @@
 
 ## Recent Fix — Calendar event times rendered in UTC (2026-11-05, `fix/calendar-event-times`)
 
-> Reported live: the TUE 3 cell read **5:00 PM** for an event whose *Edit Event* dialog showed **11:00 AM** (CST).
+> Reported live: the TUE 3 cell read **5:00 PM** for an event whose _Edit Event_ dialog showed **11:00 AM** (CST).
 
 - ✓ **Root cause** — `BrowserTimeProvider.EnsureInitializedAsync` invoked the JS identifier `Intl.DateTimeFormat().resolvedOptions().timeZone`. Blazor resolves identifiers as **dotted property paths only** (verified in the served `blazor.web.js`: `findObjectMember` splits on `.`), so `"DateTimeFormat()" in Intl` is false, the call throws `Could not find …`, and the `catch` latched onto **UTC** — every `ToLocal`/`FormatTime` became a no-op. 11:00 AM CST is stored as 17:00 UTC, so the badge printed **5:00 PM**, while the editor used `DateTime.ToLocalTime()` (server = `America/Chicago`) and printed 11:00 AM. Regression introduced by #207, which switched the badges from `ToLocalTime()` to `BrowserTimeProvider`.
 - ✓ **Fix** — `BrowserTimeProvider` now calls the existing helper `dotnetcloud.getTimezone` (`wwwroot/js/timezone.js`, already used by Profile/Admin/Register), falls back to `TimeZoneInfo.Local` (browser zone in WASM, process zone under server-interactive rendering) instead of raw UTC, retries after a prerender failure, formats `DateTimeOffset` through the resolved zone (no more process-local `LocalDateTime`), and adds `ToUtc(...)` for wall-clock → UTC with a DST-gap guard.
@@ -28,7 +28,7 @@
 - ✓ **Files share expiry** — `ShareExpiryNotificationService` raises `ShareExpiringEvent` through the publisher instead of the module-local bus with `CreateSystemContext()`; a share is only marked notified once the core accepts the event, so a failure retries instead of being dropped. The sweep is registered by the **Files host alone** (`AddShareExpiryNotifications`) — Photos/Music/Video reuse `AddFilesServices` and were silently mounting a second copy
 - ✓ **Email sync is core-driven** — the module's self-scheduling `EmailSyncBackgroundService` is replaced by `EmailSyncService` (no timer, owner predicate on every sync). New `ListSyncCandidates` RPC reports which accounts are due; `TriggerSync` now **requires** a core-signed user assertion, refuses a payload that names a different user, and syncs only the asserted user's account. Core-side `EmailSyncScheduler` lists candidates, confirms each owner against the identity store, mints a ≤60 s ECDSA assertion (`op = email.sync`) and invokes the module over `IModuleGrpcChannelProvider`. IMAP/SMTP/Gmail logic untouched
 - ✓ **Manual sync ownership (closes `email.sync.account-idor-missing-ownership-check`)** — `EmailController.SyncAccount` passes the authenticated caller and returns 404 for an account the caller does not own
-- ✓ **Contacts 503 (found live during verification)** — `ContactsGrpcApiClient` is registered scoped and disposed the manager-owned channel, so the first scope to end (a closed Blazor circuit — opening the Contacts page was enough) killed the contacts channel process-wide: every later call *and* the supervisor's health probe failed with `ObjectDisposedException: GrpcChannel` and the page returned 503 until restart. `Dispose()` is now a documented no-op; `ContactsGrpcApiClientTests` pins it (mutation-checked key: restoring the old body reproduces the production stack). Same bug class as the three Files clients fixed in batch 1
+- ✓ **Contacts 503 (found live during verification)** — `ContactsGrpcApiClient` is registered scoped and disposed the manager-owned channel, so the first scope to end (a closed Blazor circuit — opening the Contacts page was enough) killed the contacts channel process-wide: every later call _and_ the supervisor's health probe failed with `ObjectDisposedException: GrpcChannel` and the page returned 503 until restart. `Dispose()` is now a documented no-op; `ContactsGrpcApiClientTests` pins it (mutation-checked key: restoring the old body reproduces the production stack). Same bug class as the three Files clients fixed in batch 1
 - ✓ **Dead unauthenticated channel factories deleted** — `AdminController` and `AdminSystemController` each carried an unreferenced `CreateGrpcChannel(endpoint)`; both already use `IModuleGrpcChannelProvider`. Removed so the raw-channel path cannot be wired up later
 - ✓ Tests — 7 (Video HLS) + 9 (`ModuleEventInboxTests`) + 7 (`EmailSyncSchedulerTests`) + 5 (`EmailGrpcServiceSyncTests`) + 5 (`EmailSyncServiceTests`) new, plus the reminder wording and publish-failure cases and the rewritten Calendar/Files service tests
 - ✓ Live verification (mint22) — `ListSyncCandidates` reached the Email host over the authenticated channel (200); a seeded due reminder published via `PublishEvent`, appeared on the core event bus and produced a `Type=Reminder` notification; share-expiry cycles run in `dotnetcloud.files` only
@@ -3431,7 +3431,17 @@ Plan: `docs/THIRD_PARTY_MODULE_SANDBOX_AND_STORE_PLAN.md` (phase A0). Branch `fe
 - ✓ gRPC detailed errors limited to Development
 - ✓ Module transport documentation truth-passed (`CROSS_MODULE_TRUST.md`, `SECURITY_MODEL.md`, `ARCHITECTURE.md`, `MODULE_DEVELOPMENT.md`); remaining files recorded for Track D in the plan
 - ✓ Regression tests: capability mapping completeness, capability tiers, `minCoreVersion`, path containment, verified `GetCurrentUser`, search-index attribution
-- ☐ Phase A1 — isolation foundation (manifest v2, scoped DB principals, settings plane, quotas)
+- 🔄 Phase A1 — isolation foundation (in progress)
+  - ✓ Manifest v2 model + strict validation; `schemaProvider` removed
+  - ✓ Sandbox entities (`ModuleDataStore`, `ModuleSetting`, `ModuleQuota`, `UserErasureRequest`, `ModuleUserErasure`) + `InstalledModule` extension + PostgreSQL and SQL Server migrations
+  - ✓ Module registry upsert (version, required flag, trust tier, data-store mode, sandbox state)
+  - ✓ Trust-tier gated manifest grants (store-tier modules are never auto-granted)
+  - ✓ Settings plane: `IModuleSettingsStore`/`ModuleSettingsStore`, working `GetSetting`/`SetSetting` namespaced by the authenticated module, `IModuleSettings` gRPC client
+  - ☐ Data-store provisioning service (PostgreSQL + SQL Server, scoped principals, encrypted connection strings)
+  - ☐ Supervisor env split + per-module directories + sanitized `module.json`; Example host listener/DataProtection fix
+  - ☐ Setup `CREATEROLE` + prerequisite checks; admin/CLI `datastore` commands
+  - ☐ Resource quotas (kernel, API rate, measured storage) and storage namespacing
+  - ☐ Adoption/legacy-override migration service
 - ☐ Phases A2–A6 / B1–B5 / C / D per the plan
 
 ---
@@ -5093,7 +5103,7 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
   - ✓ **Enhancement (2026-10-13):** now-playing track shown in the browser tab title (`♪ Song — Band`, `⏸` when paused). The override survives Blazor page navigation (`MutationObserver` in `music-player.js`) and is cleared when playback stops or on logout (`GlobalMusicPlaybar`).
   - ✓ **Fix (2026-10-26):** the now-playing tab title is scoped to the Music module and to actual playback — `GlobalMusicPlaybar.UpdateTabTitleAsync` requires `Playback.IsPlaying` + `NowPlaying` + `MusicRoutes.IsMusicUrl(Navigation.Uri)` and follows `Navigation.LocationChanged`, so navigating to another module (or the queue finishing) restores that page's own title; `clearNowPlayingTitle` no longer stomps a title Blazor already wrote; the `⏸` paused variant is gone. Tests: `MusicRoutesTests` (11).
   - ✓ **Change (2026-11-03):** the `♪` glyph is no longer prefixed to the now-playing tab title — it is plain `{Song} — {Band}`.
-  - ✓ **Enhancement (2026-11-03):** every track row now exposes a visible **Add to playlist** action — new shared `TrackActionsMenu` component (`playlist_add` icon; `MaterialSvgIcons` entry) opens a dropdown headed *Add to playlist* listing the caller's own playlists with track counts, plus **New playlist…** (create-and-add) and **Add to queue**; replaces the previous `⋯` menu and adds a confirmation toast for added / already-in-playlist / failed outcomes.
+  - ✓ **Enhancement (2026-11-03):** every track row now exposes a visible **Add to playlist** action — new shared `TrackActionsMenu` component (`playlist_add` icon; `MaterialSvgIcons` entry) opens a dropdown headed _Add to playlist_ listing the caller's own playlists with track counts, plus **New playlist…** (create-and-add) and **Add to queue**; replaces the previous `⋯` menu and adds a confirmation toast for added / already-in-playlist / failed outcomes.
   - ✓ **Fix (2026-11-03):** the global playbar no longer covers the bottom of full-height pages — new `--global-player-height` variable (0 / 80px with `.has-global-player` / 64px ≤768px) is subtracted by `.chat-layout` (restores the Chat message composer), `.files-page-layout`, `.calendar-page-layout`, `.notes-page-layout` and `.contacts-page-layout`, and `.has-global-player .page-content` pads by it.
   - ✓ **Enhancement (2026-10-23):** `GlobalMusicPlaybar` repeat control is colour-coded by mode — Off = red, One = yellow, All = green — via `MaterialIcon` (`repeat` / `repeat_one`, added to `MaterialSvgIcons`) and the `gmp-repeat-mode-off/one/all` classes in `app.css`; icon and label share the mode colour
 
@@ -8283,7 +8293,6 @@ block buttons replaced the highlighted block with a canned template.
   for the repeated relative-text + ISO-tooltip pattern
 - ✓ Tests updated: `BrowserTimeProviderTests`, `RelativeTimeFormatterTests` and `MessageListFormatTimeTests`;
   `NotificationProducerTests` green
-
 
 ## Client Download Nav Items: Browser Extension + Android Client (2026-11-05)
 

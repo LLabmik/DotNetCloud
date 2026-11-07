@@ -48,6 +48,9 @@ public static class DataServiceExtensions
         services.AddSingleton<IModuleSchemaProvider, SelfManagedSchemaProvider>();
         services.AddSingleton<ModuleSchemaService>();
 
+        // Per-module key/value settings plane (IModuleSettings capability, dataStore: "none").
+        services.AddScoped<IModuleSettingsStore, ModuleSettingsStore>();
+
         return services;
     }
 
