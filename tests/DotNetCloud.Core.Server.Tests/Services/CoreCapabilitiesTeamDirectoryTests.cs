@@ -33,6 +33,7 @@ public class CoreCapabilitiesTeamDirectoryTests
             indexingService,
             new ModuleEventInbox(
                 Mock.Of<DotNetCloud.Core.Events.IEventBus>(),
+                Mock.Of<DotNetCloud.Core.Server.ModuleLoading.IModuleManifestRegistry>(),
                 NullLogger<ModuleEventInbox>.Instance));
     }
 

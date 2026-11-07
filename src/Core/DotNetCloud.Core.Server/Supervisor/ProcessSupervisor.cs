@@ -31,6 +31,7 @@ internal sealed class ProcessSupervisor : BackgroundService, IProcessSupervisor
     private readonly ProcessSupervisorOptions _options;
     private readonly ModuleDiscoveryService _discoveryService;
     private readonly ModuleManifestLoader _manifestLoader;
+    private readonly IModuleManifestRegistry _manifestRegistry;
     private readonly GrpcChannelManager _channelManager;
     private readonly ResourceLimiter _resourceLimiter;
     private readonly IServiceScopeFactory _scopeFactory;
@@ -48,6 +49,7 @@ internal sealed class ProcessSupervisor : BackgroundService, IProcessSupervisor
         IOptions<ProcessSupervisorOptions> options,
         ModuleDiscoveryService discoveryService,
         ModuleManifestLoader manifestLoader,
+        IModuleManifestRegistry manifestRegistry,
         GrpcChannelManager channelManager,
         ResourceLimiter resourceLimiter,
         IServiceScopeFactory scopeFactory,
@@ -62,6 +64,7 @@ internal sealed class ProcessSupervisor : BackgroundService, IProcessSupervisor
         _options = options.Value;
         _discoveryService = discoveryService;
         _manifestLoader = manifestLoader;
+        _manifestRegistry = manifestRegistry;
         _channelManager = channelManager;
         _resourceLimiter = resourceLimiter;
         _scopeFactory = scopeFactory;
@@ -991,14 +994,21 @@ internal sealed class ProcessSupervisor : BackgroundService, IProcessSupervisor
         {
             var result = _manifestLoader.LoadAndValidate(discovered.ManifestPath, discovered.ModuleId);
             if (result.IsValid && result.Manifest is not null)
+            {
+                // Every discovery/start path funnels through here, so this is the one place that
+                // needs to publish what the module declared it publishes.
+                _manifestRegistry.Record(discovered.ModuleId, result.Manifest);
                 return result.Manifest;
+            }
 
             _logger.LogWarning(
                 "Manifest invalid for {ModuleId}: {Errors}. Using defaults.",
                 discovered.ModuleId, string.Join("; ", result.Errors));
         }
 
-        return _manifestLoader.CreateDefaultManifest(discovered.ModuleId);
+        var fallback = _manifestLoader.CreateDefaultManifest(discovered.ModuleId);
+        _manifestRegistry.Record(discovered.ModuleId, fallback);
+        return fallback;
     }
 
     private RestartPolicy ParseRestartPolicy(string? policyString)

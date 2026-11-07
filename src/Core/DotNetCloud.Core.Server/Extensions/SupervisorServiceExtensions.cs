@@ -52,6 +52,10 @@ internal static class SupervisorServiceExtensions
         services.AddSingleton<ModuleManifestLoader>();
         services.AddScoped<ModuleConfigurationLoader>();
 
+        // What each manifest declares it publishes — consulted by PublishEvent so a module can
+        // only raise the events it declared (identity is the verified module on the transport).
+        services.AddSingleton<IModuleManifestRegistry, ModuleManifestRegistry>();
+
         // Register supervisor infrastructure
         services.AddSingleton<GrpcChannelManager>();
         services.AddSingleton<IModuleGrpcChannelProvider>(sp => sp.GetRequiredService<GrpcChannelManager>());

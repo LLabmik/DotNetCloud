@@ -33,6 +33,7 @@ public class CoreCapabilitiesSendNotificationTests
             indexingService,
             new ModuleEventInbox(
                 Mock.Of<DotNetCloud.Core.Events.IEventBus>(),
+                Mock.Of<DotNetCloud.Core.Server.ModuleLoading.IModuleManifestRegistry>(),
                 NullLogger<ModuleEventInbox>.Instance));
     }
 

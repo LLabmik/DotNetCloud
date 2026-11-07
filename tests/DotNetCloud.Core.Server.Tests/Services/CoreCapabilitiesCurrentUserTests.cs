@@ -35,7 +35,10 @@ public class CoreCapabilitiesCurrentUserTests
             NullLogger<CoreCapabilitiesServiceImpl>.Instance,
             services,
             new SearchIndexingService(Mock.Of<IServiceScopeFactory>(), NullLogger<SearchIndexingService>.Instance),
-            new ModuleEventInbox(Mock.Of<DotNetCloud.Core.Events.IEventBus>(), NullLogger<ModuleEventInbox>.Instance));
+            new ModuleEventInbox(
+                Mock.Of<DotNetCloud.Core.Events.IEventBus>(),
+                Mock.Of<DotNetCloud.Core.Server.ModuleLoading.IModuleManifestRegistry>(),
+                NullLogger<ModuleEventInbox>.Instance));
     }
 
     private static TestServerCallContext CreateContext(CallerContext? caller)

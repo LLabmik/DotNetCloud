@@ -4,6 +4,7 @@ using DotNetCloud.Core.Events;
 using DotNetCloud.Core.Errors;
 using DotNetCloud.Core.Grpc.Capabilities;
 using DotNetCloud.Core.Server.Grpc.Services;
+using DotNetCloud.Core.Server.ModuleLoading;
 using DotNetCloud.Core.Server.Services;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -27,11 +28,26 @@ public class ModuleEventInboxTests
 {
     private const string ModuleId = "dotnetcloud.calendar";
 
-    private static (ModuleEventInbox Inbox, Mock<IEventBus> EventBus) CreateInbox()
+    private static (ModuleEventInbox Inbox, Mock<IEventBus> EventBus) CreateInbox(
+        params string[] declaredEvents)
+    {
+        var eventBus = new Mock<IEventBus>();
+        var manifests = new Mock<IModuleManifestRegistry>();
+        manifests
+            .Setup(m => m.GetPublishedEvents(It.IsAny<string>()))
+            .Returns(declaredEvents);
+
+        var inbox = new ModuleEventInbox(
+            eventBus.Object, manifests.Object, NullLogger<ModuleEventInbox>.Instance);
+        return (inbox, eventBus);
+    }
+
+    /// <summary>Inbox whose manifest registry knows nothing about the calling module.</summary>
+    private static (ModuleEventInbox Inbox, Mock<IEventBus> EventBus) CreateInboxWithoutManifest()
     {
         var eventBus = new Mock<IEventBus>();
         var inbox = new ModuleEventInbox(
-            eventBus.Object, NullLogger<ModuleEventInbox>.Instance);
+            eventBus.Object, Mock.Of<IModuleManifestRegistry>(), NullLogger<ModuleEventInbox>.Instance);
         return (inbox, eventBus);
     }
 
@@ -68,7 +84,7 @@ public class ModuleEventInboxTests
     [TestMethod]
     public async Task TryPublishAsync_ReminderTriggered_PublishesAsModuleCaller()
     {
-        var (inbox, eventBus) = CreateInbox();
+        var (inbox, eventBus) = CreateInbox(nameof(ReminderTriggeredEvent));
         var reminder = CreateReminder();
         var caller = ModuleCaller();
 
@@ -86,7 +102,7 @@ public class ModuleEventInboxTests
     [TestMethod]
     public async Task TryPublishAsync_ReminderTriggered_OverridesClaimedSourceModule()
     {
-        var (inbox, eventBus) = CreateInbox();
+        var (inbox, eventBus) = CreateInbox(nameof(ReminderTriggeredEvent));
         var reminder = CreateReminder();
 
         var (success, _) = await inbox.TryPublishAsync(
@@ -105,7 +121,7 @@ public class ModuleEventInboxTests
     [TestMethod]
     public async Task TryPublishAsync_ShareExpiring_PublishesOnTheCoreBus()
     {
-        var (inbox, eventBus) = CreateInbox();
+        var (inbox, eventBus) = CreateInbox(nameof(ShareExpiringEvent));
         var shareExpiring = new ShareExpiringEvent
         {
             EventId = Guid.CreateVersion7(),
@@ -152,9 +168,75 @@ public class ModuleEventInboxTests
     }
 
     [TestMethod]
+    public async Task TryPublishAsync_EventNotDeclaredInManifest_IsRejectedAndNotPublished()
+    {
+        // Calendar may publish reminder events, but this module's manifest declares nothing —
+        // the manifest is what the operator reviewed, so the event is refused.
+        var (inbox, eventBus) = CreateInbox();
+
+        var (success, error) = await inbox.TryPublishAsync(
+            nameof(ReminderTriggeredEvent), Serialize(CreateReminder()), ModuleCaller(), ModuleId);
+
+        Assert.IsFalse(success);
+        StringAssert.Contains(error!, "not declared in the module manifest");
+        eventBus.Verify(bus => bus.PublishAsync(
+            It.IsAny<ReminderTriggeredEvent>(),
+            It.IsAny<CallerContext>(),
+            It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
+    [TestMethod]
+    public async Task TryPublishAsync_ModuleWithoutManifest_FailsClosed()
+    {
+        var (inbox, eventBus) = CreateInboxWithoutManifest();
+
+        var (success, error) = await inbox.TryPublishAsync(
+            nameof(ReminderTriggeredEvent), Serialize(CreateReminder()), ModuleCaller(), ModuleId);
+
+        Assert.IsFalse(success);
+        StringAssert.Contains(error!, "No manifest is recorded");
+        eventBus.Verify(bus => bus.PublishAsync(
+            It.IsAny<ReminderTriggeredEvent>(),
+            It.IsAny<CallerContext>(),
+            It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
+    [TestMethod]
+    public async Task TryPublishAsync_DeclaredEventNameDiffersInCase_IsAccepted()
+    {
+        // Manifest authors should not be tripped up by casing, but the check must not be a
+        // substring/prefix match either.
+        var (inbox, eventBus) = CreateInbox(nameof(ReminderTriggeredEvent).ToLowerInvariant());
+
+        var (success, error) = await inbox.TryPublishAsync(
+            nameof(ReminderTriggeredEvent), Serialize(CreateReminder()), ModuleCaller(), ModuleId);
+
+        Assert.IsTrue(success, error);
+        eventBus.Verify(bus => bus.PublishAsync(
+            It.IsAny<ReminderTriggeredEvent>(),
+            It.IsAny<CallerContext>(),
+            It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
+
+    [TestMethod]
+    public async Task TryPublishAsync_DeclaredEventPrefix_DoesNotAuthorizeTheFullName()
+    {
+        var (inbox, _) = CreateInbox("Reminder");
+
+        var (success, error) = await inbox.TryPublishAsync(
+            nameof(ReminderTriggeredEvent), Serialize(CreateReminder()), ModuleCaller(), ModuleId);
+
+        Assert.IsFalse(success);
+        StringAssert.Contains(error!, "not declared in the module manifest");
+    }
+
+    [TestMethod]
     public async Task TryPublishAsync_UserCaller_IsRejected()
     {
-        var (inbox, eventBus) = CreateInbox();
+        var (inbox, eventBus) = CreateInbox(nameof(ReminderTriggeredEvent));
 
         // A module acting for an end user must not be able to fire platform notifications.
         var userCaller = new CallerContext(Guid.CreateVersion7(), ["user"], CallerType.User);
@@ -174,7 +256,7 @@ public class ModuleEventInboxTests
     [TestMethod]
     public async Task TryPublishAsync_MalformedPayload_IsRejected()
     {
-        var (inbox, eventBus) = CreateInbox();
+        var (inbox, eventBus) = CreateInbox(nameof(ReminderTriggeredEvent));
 
         var (success, error) = await inbox.TryPublishAsync(
             nameof(ReminderTriggeredEvent), "{ not json", ModuleCaller(), ModuleId);
@@ -191,7 +273,7 @@ public class ModuleEventInboxTests
     [TestMethod]
     public async Task TryPublishAsync_PayloadOverTheLimit_IsRejected()
     {
-        var (inbox, _) = CreateInbox();
+        var (inbox, _) = CreateInbox(nameof(ShareExpiringEvent));
         var oversized = new string('x', ModuleEventInbox.MaxPayloadBytes + 1);
 
         var (success, error) = await inbox.TryPublishAsync(
@@ -205,7 +287,7 @@ public class ModuleEventInboxTests
     public async Task PublishEvent_AuthenticatedModule_PublishesOnTheCoreBus()
     {
         // End-to-end through the RPC handler, with the caller context the interceptor would inject.
-        var (inbox, eventBus) = CreateInbox();
+        var (inbox, eventBus) = CreateInbox(nameof(ReminderTriggeredEvent));
         var service = CreateCapabilitiesService(inbox);
         var context = new TestServerCallContext();
         context.UserState["ModuleId"] = ModuleId;

@@ -1,6 +1,7 @@
 using System.Text.Json;
 using DotNetCloud.Core.Authorization;
 using DotNetCloud.Core.Events;
+using DotNetCloud.Core.Server.ModuleLoading;
 using Microsoft.Extensions.Logging;
 using IEventBus = DotNetCloud.Core.Events.IEventBus;
 
@@ -19,7 +20,9 @@ namespace DotNetCloud.Core.Server.Services;
 /// <para>
 /// The registry is a <b>whitelist</b>. Only types registered here can be published by a module; an
 /// unregistered type is refused rather than deserialised, so a module cannot inject an arbitrary
-/// event (or spoof a user-facing event that the core would act on) by naming it on the wire.
+/// event (or spoof a user-facing event that the core would act on) by naming it on the wire. The
+/// whitelist is then intersected with the events the calling module declared in its manifest, so a
+/// module can only raise the events an operator reviewing that manifest agreed to.
 /// </para>
 /// <para>
 /// The caller context is always the authenticated module, never one supplied in the payload. Events
@@ -39,6 +42,7 @@ internal sealed class ModuleEventInbox
         = new(StringComparer.Ordinal);
 
     private readonly IEventBus _eventBus;
+    private readonly IModuleManifestRegistry _manifests;
     private readonly ILogger<ModuleEventInbox> _logger;
 
     /// <summary>
@@ -46,10 +50,15 @@ internal sealed class ModuleEventInbox
     /// platform event types a module may publish.
     /// </summary>
     /// <param name="eventBus">The core's in-process event bus.</param>
+    /// <param name="manifests">The manifests the supervisor loaded, used for per-module checks.</param>
     /// <param name="logger">The logger for this inbox.</param>
-    public ModuleEventInbox(IEventBus eventBus, ILogger<ModuleEventInbox> logger)
+    public ModuleEventInbox(
+        IEventBus eventBus,
+        IModuleManifestRegistry manifests,
+        ILogger<ModuleEventInbox> logger)
     {
         _eventBus = eventBus;
+        _manifests = manifests;
         _logger = logger;
 
         // Notification-producing platform events. Each entry opts a core-owned event type in; the
@@ -88,8 +97,27 @@ internal sealed class ModuleEventInbox
         {
             _logger.LogWarning(
                 "PublishEvent: module {ModuleId} attempted to publish unregistered event type '{EventType}'",
-                verifiedModuleId, eventType);
+                LogSanitizer.Sanitize(verifiedModuleId), LogSanitizer.Sanitize(eventType));
             return (false, $"Event type '{eventType}' is not module-publishable.");
+        }
+
+        var declaredEvents = _manifests.GetPublishedEvents(verifiedModuleId);
+        if (declaredEvents is null)
+        {
+            // The supervisor records every manifest it reads, so an unrecorded module did not
+            // come through a supervised launch. Fail closed instead of trusting the event type.
+            _logger.LogWarning(
+                "PublishEvent: {EventType} rejected — no manifest is recorded for module {ModuleId}",
+                LogSanitizer.Sanitize(eventType), LogSanitizer.Sanitize(verifiedModuleId));
+            return (false, "No manifest is recorded for this module; platform events cannot be published.");
+        }
+
+        if (!declaredEvents.Contains(eventType, StringComparer.OrdinalIgnoreCase))
+        {
+            _logger.LogWarning(
+                "PublishEvent: module {ModuleId} published {EventType}, which its manifest does not declare",
+                LogSanitizer.Sanitize(verifiedModuleId), LogSanitizer.Sanitize(eventType));
+            return (false, $"Event type '{eventType}' is not declared in the module manifest.");
         }
 
         // Only a module acting for itself may publish a platform event. A user-scoped assertion (or

@@ -21,7 +21,10 @@ public class CoreCapabilitiesSubmitSearchIndexTests
             CreateEventInbox());
 
     private static ModuleEventInbox CreateEventInbox()
-        => new(Mock.Of<DotNetCloud.Core.Events.IEventBus>(), NullLogger<ModuleEventInbox>.Instance);
+        => new(
+            Mock.Of<DotNetCloud.Core.Events.IEventBus>(),
+            Mock.Of<DotNetCloud.Core.Server.ModuleLoading.IModuleManifestRegistry>(),
+            NullLogger<ModuleEventInbox>.Instance);
 
     private static SearchIndexingService CreateIndexingService()
         => new(
