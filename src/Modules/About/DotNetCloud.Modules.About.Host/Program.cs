@@ -23,14 +23,8 @@ public static partial class Program
                 builder.Configuration.AddJsonFile(p, optional: true, reloadOnChange: false);
         }
 
-        // Bind gRPC endpoint from DOTNETCLOUD_GRPC_ENDPOINT (set by ProcessSupervisor)
-        var grpcEndpoint = Environment.GetEnvironmentVariable("DOTNETCLOUD_GRPC_ENDPOINT");
-        if (!string.IsNullOrEmpty(grpcEndpoint))
-        {
-            var uri = new Uri(grpcEndpoint.Replace("unix://", "http://").Replace("net.pipe://", "http://"));
-            builder.WebHost.ConfigureKestrel(o =>
-                o.Listen(System.Net.IPAddress.Loopback, uri.Port, l => l.Protocols = HttpProtocols.Http2));
-        }
+        // Bind the endpoint the supervisor assigned: a Unix socket, a named pipe or loopback TCP.
+        DotNetCloud.Core.Grpc.ModuleGrpcEndpointBinding.ConfigureModuleGrpcEndpoint(builder);
 
         // Share DataProtection keys with Core.Server so auth cookies from the proxy are valid.
         var dataProtectionDir = Environment.GetEnvironmentVariable("DOTNETCLOUD_DATA_DIR");

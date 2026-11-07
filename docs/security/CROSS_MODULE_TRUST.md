@@ -8,7 +8,7 @@
 
 DotNetCloud uses a **module-isolated architecture**: each module runs in its own OS process and communicates with the core exclusively via gRPC. No module directly accesses another module's database.
 
-**What ships today (v0.7.0):** the module↔core gRPC channel is cleartext HTTP/2 (h2c) over a **loopback TCP port** that the supervisor assigns per module. Identity is enforced per launch:
+**What ships today (v0.7.0):** the module↔core gRPC channel is cleartext HTTP/2 (h2c). The default transport is a **per-module Unix domain socket** (`<dataDir>/modules/<moduleId>/run/module.sock`, `0600`) on Linux/macOS and a **per-module Named Pipe** (`CurrentUserOnly`) on Windows; `Modules:Transport=Tcp` selects a supervisor-assigned **loopback TCP port** instead. Identity is enforced per launch:
 
 - The `ProcessSupervisor` mints a 32-byte CSPRNG token for each module start (`ModuleCredentialStore`) and passes it in `DOTNETCLOUD_MODULE_TOKEN`.
 - Every module→core call carries `dnc-module-id` + `dnc-module-token` metadata; `AuthenticationInterceptor` compares the token in constant time and rejects anything else with `Unauthenticated`.

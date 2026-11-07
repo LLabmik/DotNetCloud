@@ -95,7 +95,8 @@ public partial class ModuleDetail : ComponentBase
             Toast.ShowSuccess("Module started.");
             await LoadAsync();
         }
-        else Toast.ShowError("Failed to start module.");
+        else
+            Toast.ShowError("Failed to start module.");
         _actionInProgress = false;
     }
 
@@ -107,7 +108,8 @@ public partial class ModuleDetail : ComponentBase
             Toast.ShowSuccess("Module stopped.");
             await LoadAsync();
         }
-        else Toast.ShowError("Failed to stop module.");
+        else
+            Toast.ShowError("Failed to stop module.");
         _actionInProgress = false;
     }
 
@@ -119,7 +121,8 @@ public partial class ModuleDetail : ComponentBase
             Toast.ShowSuccess("Module restarted.");
             await LoadAsync();
         }
-        else Toast.ShowError("Failed to restart module.");
+        else
+            Toast.ShowError("Failed to restart module.");
         _actionInProgress = false;
     }
 

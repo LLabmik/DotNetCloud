@@ -105,12 +105,21 @@ public sealed class ProcessSupervisorOptions
     /// The base directory for Unix domain sockets (Linux only).
     /// Default: <c>/run/dotnetcloud</c>.
     /// </summary>
+    /// <remarks>
+    /// Superseded by <see cref="ModuleTransportOptions.UnixSocketDirectory"/>: module sockets now
+    /// live in each module's own runtime directory
+    /// (<c>&lt;dataDir&gt;/modules/&lt;moduleId&gt;/run/module.sock</c>). This value is kept for
+    /// configuration compatibility.
+    /// </remarks>
     public string UnixSocketDirectory { get; set; } = "/run/dotnetcloud";
 
     /// <summary>
     /// The named pipe prefix for Windows IPC.
     /// Default: <c>dotnetcloud</c> (results in pipes like <c>\\.\pipe\dotnetcloud-files</c>).
     /// </summary>
+    /// <remarks>
+    /// Superseded by <see cref="ModuleTransportOptions.NamedPipePrefix"/>.
+    /// </remarks>
     public string NamedPipePrefix { get; set; } = "dotnetcloud";
 
     /// <summary>
@@ -126,11 +135,19 @@ public sealed class ProcessSupervisorOptions
     public int TcpPortRangeEnd { get; set; } = 50500;
 
     /// <summary>
-    /// Whether to prefer TCP transport over Unix sockets/Named pipes.
-    /// TCP works cross-platform (Linux, Windows, containers).
-    /// Default: true.
+    /// Forces loopback TCP for module endpoints, overriding <see cref="ModuleTransportOptions.Transport"/>
+    /// when it is left at <see cref="ModuleTransportMode.Auto"/>.
     /// </summary>
-    public bool PreferTcpTransport { get; set; } = true;
+    /// <remarks>
+    /// <para>
+    /// Retained as the legacy opt-in for deployments that cannot share a socket path between the
+    /// core and its module processes. Prefer <c>Modules:Transport=Tcp</c>, which is the documented
+    /// switch; this flag exists so existing configuration keeps working and so a regression test
+    /// can prove that setting it to <see langword="false"/> is actually honoured.
+    /// </para>
+    /// <para>Default: <see langword="false"/> — sockets/pipes are used where available.</para>
+    /// </remarks>
+    public bool PreferTcpTransport { get; set; }
 
     /// <summary>
     /// Allows product-shipped non-required modules that still use a version 1 manifest to keep

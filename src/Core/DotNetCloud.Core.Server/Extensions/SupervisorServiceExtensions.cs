@@ -61,6 +61,18 @@ internal static class SupervisorServiceExtensions
         services.AddSingleton<IModuleGrpcChannelProvider>(sp => sp.GetRequiredService<GrpcChannelManager>());
         services.AddSingleton<ResourceLimiter>();
 
+        // Core↔module transport (Modules:Transport). Resolved exactly once so the supervisor, the
+        // gRPC channel manager, the REST proxy and the endpoint provider can never disagree.
+        services.AddOptions<ModuleTransportOptions>().BindConfiguration(ModuleTransportOptions.SectionName);
+        services.AddSingleton(sp => ModuleTransportSelection.Resolve(
+            sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<ModuleTransportOptions>>().Value,
+            sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<ProcessSupervisorOptions>>().Value));
+        services.AddSingleton(sp => ModuleEndpointAllocator.FromSelection(
+            sp.GetRequiredService<ModuleTransportSelection>(),
+            sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<ProcessSupervisorOptions>>().Value,
+            DotNetCloud.Core.Server.Sandbox.ModuleSandboxLayout.GetDataRoot()));
+        services.AddSingleton<ModuleHttpInvokerCache>();
+
         // Per-module resource quota policy (Modules:Quotas) and the single resolver used by the
         // supervisor, the provisioning service and the admin surface.
         services.AddOptions<ModuleQuotasOptions>().BindConfiguration(ModuleQuotasOptions.SectionName);
@@ -159,9 +171,8 @@ internal static class SupervisorServiceExtensions
             .GetSection(ProcessSupervisorOptions.SectionName)
             .Get<ProcessSupervisorOptions>() ?? new ProcessSupervisorOptions();
 
-        // TCP transport for cross-platform compatibility (Linux + Windows)
-        options.PreferTcpTransport = true;
-
+        // The module transport is selected once from Modules:Transport (see ModuleTransportSelection).
+        // Do not hard-code PreferTcpTransport here — that is what made sockets impossible to use.
         GrpcServerConfiguration.ConfigureCoreGrpcEndpoint(builder, options);
     }
 

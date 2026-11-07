@@ -12,13 +12,21 @@
   <ItemGroup>
     <PackageReference Include="Google.Protobuf" />
     <PackageReference Include="Grpc.Net.Client" />
-    <!-- Middleware that adopts the core-signed user assertion on inbound proxied requests. -->
-    <PackageReference Include="Microsoft.AspNetCore.Http.Abstractions" />
     <PackageReference Include="Grpc.Tools">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
-    <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" />
+  </ItemGroup>
+
+  <!--
+    Shared module-host Kestrel binding (Unix sockets / named pipes) lives here so all 14 module
+    hosts bind the endpoint the supervisor assigned instead of re-implementing it. The framework
+    reference also supplies Microsoft.AspNetCore.Http.Abstractions and
+    Microsoft.Extensions.Hosting.Abstractions, which used to be explicit package references
+    (NU1510: they are redundant once the framework reference exists).
+  -->
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
   </ItemGroup>
 
   <ItemGroup>

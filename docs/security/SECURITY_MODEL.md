@@ -43,8 +43,9 @@ DotNetCloud uses a **module-isolated architecture** where each feature module ru
 
 ### Boundary 3: Core → Modules (gRPC)
 
-- Cleartext HTTP/2 (h2c) on a loopback TCP port assigned per module by `ProcessSupervisor`
-- Per-module socket/named-pipe transport with 0600 / ACL permissions is **planned (phase A4)**, not deployed
+- Cleartext HTTP/2 (h2c) on a per-module Unix socket / Named Pipe, or on a loopback TCP port assigned per module by `ProcessSupervisor` (`Modules:Transport=Tcp`)
+- Per-module Unix sockets (`0600`, `0700` runtime directory) and Named Pipes (`PipeOptions.CurrentUserOnly`) are the **default** since phase A4; the credential check below is applied on every transport
+- Socket/pipe permissions key on the OS user, so sibling modules can reach each other's endpoint — the module credential, not the filesystem, is the API identity control
 - The supervisor mints a fresh 32-byte token for each module launch (`DOTNETCLOUD_MODULE_TOKEN`); module→core calls carry `dnc-module-id` + `dnc-module-token` and are validated in constant time
 - Core→module calls are authenticated by `ModulePeerAuthenticationInterceptor` and fail closed when the supervisor did not launch the host
 - End-user identity is only ever carried in a core-signed, short-lived `dnc-user-assertion`; modules cannot assert `CallerType.System` or supply their own roles

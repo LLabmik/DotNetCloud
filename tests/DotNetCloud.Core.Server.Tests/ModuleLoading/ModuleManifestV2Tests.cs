@@ -249,16 +249,16 @@ public class ModuleManifestV2Tests
         string? dataStore,
         bool? handlesUserErasure = true,
         IReadOnlyList<string>? scopes = null) => new()
-    {
-        ManifestVersion = 2,
-        Id = "org.example.customapp",
-        Name = "Custom App",
-        Version = "1.2.0",
-        ModuleApiVersion = 1,
-        DataStore = dataStore,
-        HandlesUserErasure = handlesUserErasure,
-        UserConsentScopes = scopes ?? [],
-    };
+        {
+            ManifestVersion = 2,
+            Id = "org.example.customapp",
+            Name = "Custom App",
+            Version = "1.2.0",
+            ModuleApiVersion = 1,
+            DataStore = dataStore,
+            HandlesUserErasure = handlesUserErasure,
+            UserConsentScopes = scopes ?? [],
+        };
 
     [TestMethod]
     public void LoadAndValidate_UnknownConsentScope_IsRejected()

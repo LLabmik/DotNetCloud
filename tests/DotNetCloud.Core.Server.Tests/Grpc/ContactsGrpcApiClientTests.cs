@@ -49,7 +49,12 @@ public class ContactsGrpcApiClientTests
         var endpointProvider = new ModuleEndpointProvider(
             Mock.Of<IProcessSupervisor>(),
             new FixedChannelProvider(channel),
-            Options.Create(new ProcessSupervisorOptions()),
+            new ModuleEndpointAllocator(
+                ModuleTransportKind.Tcp,
+                unixSocketDirectory: null,
+                namedPipePrefix: "dotnetcloud",
+                new ProcessSupervisorOptions(),
+                Path.GetTempPath()),
             NullLogger<ModuleEndpointProvider>.Instance);
 
         var client = new ContactsGrpcApiClient(

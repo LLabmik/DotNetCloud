@@ -1,23 +1,23 @@
 {
-    "id": "dotnetcloud.files",
-    "name": "Files",
-    "version": "1.0.0",
-    "description": "File storage, sharing, versioning, sync, and Collabora Office integration.",
-    "author": "DotNetCloud",
-    "requiredCapabilities": [
-        "INotificationService",
-        "IUserDirectory",
-        "ICurrentUserContext",
-        "IAuditLogger",
-        "ISearchProvider",
-        "ITeamDirectory",
-        "IAdminSharedFolderCleanup"
-    ],
-    "publishedEvents": [
-        "FileUploadedEvent",
-        "FileSharedEvent",
-        "ShareExpiringEvent"
-    ],
-    "subscribedEvents": [],
-    "minCoreVersion": "0.7.0"
+  "id": "dotnetcloud.files",
+  "name": "Files",
+  "version": "1.0.0",
+  "description": "File storage, sharing, versioning, sync, and Collabora Office integration.",
+  "author": "DotNetCloud",
+  "requiredCapabilities": [
+    "INotificationService",
+    "IUserDirectory",
+    "ICurrentUserContext",
+    "IAuditLogger",
+    "ISearchProvider",
+    "ITeamDirectory",
+    "IAdminSharedFolderCleanup"
+  ],
+  "publishedEvents": [
+    "FileUploadedEvent",
+    "FileSharedEvent",
+    "ShareExpiringEvent"
+  ],
+  "subscribedEvents": [],
+  "minCoreVersion": "0.7.0"
 }

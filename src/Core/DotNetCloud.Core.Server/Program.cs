@@ -260,12 +260,7 @@ public class Program
 
         // Configure and register supervisor + module gRPC infrastructure.
         builder.ConfigureGrpcForModules();
-        builder.Services.AddProcessSupervisor(
-            options =>
-            {
-                options.PreferTcpTransport = true;
-            },
-            enableDetailedErrors: builder.Environment.IsDevelopment());
+        builder.Services.AddProcessSupervisor(enableDetailedErrors: builder.Environment.IsDevelopment());
 
         // Add service defaults (logging, telemetry, health checks)
         builder.AddDotNetCloudServiceDefaults();
@@ -1312,25 +1307,10 @@ public class Program
             ["api/v1/poker"] = "dotnetcloud.tracks",
         };
 
-        var handler = new SocketsHttpHandler
-        {
-            UseProxy = false,
-            AllowAutoRedirect = false,
-            UseCookies = false,
-            EnableMultipleHttp2Connections = true,
-            // Prevent stale HTTP/2 connections: force reconnection every 2 minutes
-            // to avoid "Connection reset by peer" / "Request timed out" errors from
-            // long-lived connections that outlast the backend's keep-alive settings.
-            PooledConnectionLifetime = TimeSpan.FromMinutes(2),
-            // Close idle connections after 30 seconds to free resources on the backend.
-            PooledConnectionIdleTimeout = TimeSpan.FromSeconds(30),
-            // Limit connection attempts so a dead backend doesn't hang the proxy indefinitely.
-            ConnectTimeout = TimeSpan.FromSeconds(10),
-        };
-        // Module hosts are configured for HTTP/2 (gRPC). Force HTTP/2 for REST proxy.
-        handler.SslOptions.RemoteCertificateValidationCallback = static (_, _, _, _) => true;
-        var httpClient = new HttpMessageInvoker(handler);
-        app.Lifetime.ApplicationStopping.Register(httpClient.Dispose);
+        // Transport-aware invokers: loopback TCP keeps one shared handler, while socket/pipe
+        // endpoints get a per-module handler whose ConnectCallback dials that module's socket.
+        var invokerCache = app.Services.GetRequiredService<Supervisor.ModuleHttpInvokerCache>();
+        app.Lifetime.ApplicationStopping.Register(invokerCache.Dispose);
 
         foreach (var (prefix, moduleId) in moduleMappings)
         {
@@ -1349,10 +1329,10 @@ public class Program
                     return;
                 }
 
-                // GrpcEndpoint is like "http://localhost:50105" — use it directly as destination.
-                var destinationPrefix = moduleInfo.GrpcEndpoint;
-                if (!destinationPrefix.EndsWith('/'))
-                    destinationPrefix += "/";
+                // GrpcEndpoint is "http://localhost:50105", "unix:///…/module.sock" or
+                // "net.pipe://dotnetcloud-…". The invoker cache returns the matching handler
+                // (socket/dial-redirect or shared TCP) plus the destination prefix YARP needs.
+                var (destinationPrefix, httpClient) = invokerCache.Resolve(moduleId, moduleInfo.GrpcEndpoint);
 
                 var error = await forwarder.SendAsync(
                     httpContext,

@@ -37,8 +37,13 @@ public sealed record ModuleProcessInfo
 
     /// <summary>
     /// The gRPC endpoint address for communicating with this module
-    /// (e.g., "unix:///run/dotnetcloud/files.sock" or "pipe://dotnetcloud-files").
+    /// (e.g. "unix:///data/modules/dotnetcloud.files/run/module.sock",
+    /// "net.pipe://dotnetcloud-dotnetcloud.files" or "http://localhost:50105").
     /// </summary>
+    /// <remarks>
+    /// Parse with <see cref="ModuleEndpoint.TryParse(string?, out ModuleEndpoint?)"/>; do not string-replace
+    /// the scheme, which silently turns a socket endpoint into loopback port 80.
+    /// </remarks>
     public string? GrpcEndpoint { get; init; }
 
     /// <summary>

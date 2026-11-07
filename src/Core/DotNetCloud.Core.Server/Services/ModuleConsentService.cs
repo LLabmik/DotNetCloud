@@ -417,7 +417,7 @@ internal sealed class ModuleConsentService : IModuleConsentService
 
     private string CacheKey(string moduleId, Guid userId) =>
         $"dnc:moduleconsent:{moduleId}:{Volatile.Read(ref _userGeneration)}"
-        + $":{( _moduleGenerations.TryGetValue(moduleId, out var generation) ? generation : 0)}:{userId:N}";
+        + $":{(_moduleGenerations.TryGetValue(moduleId, out var generation) ? generation : 0)}:{userId:N}";
 
     private static bool IsInstalled(string status) =>
         !string.Equals(status, "Uninstalling", StringComparison.OrdinalIgnoreCase);

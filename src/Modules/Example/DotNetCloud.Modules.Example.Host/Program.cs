@@ -19,15 +19,9 @@ public static partial class Program
     {
         var builder = WebApplication.CreateBuilder(args);
 
-        // Bind the gRPC endpoint the supervisor assigned. Without this the host was not
-        // addressable by ProcessSupervisor at all.
-        var grpcEndpoint = Environment.GetEnvironmentVariable("DOTNETCLOUD_GRPC_ENDPOINT");
-        if (!string.IsNullOrEmpty(grpcEndpoint))
-        {
-            var uri = new Uri(grpcEndpoint.Replace("unix://", "http://").Replace("net.pipe://", "http://"));
-            builder.WebHost.ConfigureKestrel(o =>
-                o.Listen(System.Net.IPAddress.Loopback, uri.Port, l => l.Protocols = HttpProtocols.Http2));
-        }
+        // Bind the endpoint the supervisor assigned: a Unix socket, a named pipe or loopback TCP.
+        // Without this the host is not addressable by ProcessSupervisor at all.
+        DotNetCloud.Core.Grpc.ModuleGrpcEndpointBinding.ConfigureModuleGrpcEndpoint(builder);
 
         // DataProtection keys are private to the module. Sandboxed hosts persist them under their
         // own data directory; never the core key ring.

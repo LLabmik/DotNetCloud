@@ -80,7 +80,7 @@ DotNetCloud is a self-hosted, open-source cloud platform built on .NET 10/C#. It
 
 ### Overview
 
-DotNetCloud runs as a single core process that supervises individual module processes. Modules communicate with the core over gRPC. The current release uses cleartext HTTP/2 (h2c) on a supervisor-assigned loopback TCP port, authenticated per launch by a supervisor-issued module secret; per-module Unix sockets (Linux) and Named Pipes (Windows) are the planned transport hardening (phase A4 of the module sandbox program).
+DotNetCloud runs as a single core process that supervises individual module processes. Modules communicate with the core over gRPC. Internal gRPC is cleartext HTTP/2 (h2c) — never TLS — authenticated per launch by a supervisor-issued module credential. Since phase A4 the default transport is a per-module Unix domain socket on Linux/macOS and a per-module Named Pipe on Windows; loopback TCP remains available via `Modules:Transport=Tcp` for hosts where the core and its module processes do not share a filesystem.
 
 ```
 dotnetcloud (core process — supervisor)
@@ -102,11 +102,15 @@ dotnetcloud (core process — supervisor)
 
 ### Process Communication
 
-| Platform          | Transport (v0.7.0)                                                              |
-| ----------------- | ------------------------------------------------------------------------------- |
-| All platforms     | Loopback TCP, cleartext HTTP/2 (h2c), per-launch module secret                  |
-| Linux (planned)   | Unix domain sockets (`<dataDir>/modules/<id>/run/module.sock`, 0600) — phase A4 |
-| Windows (planned) | Named Pipes with an explicit ACL — phase A4                                     |
+| Platform          | Transport (v0.7.0)                                                                        |
+| ----------------- | ----------------------------------------------------------------------------------------- |
+| Linux / macOS     | Unix domain socket (`<dataDir>/modules/<id>/run/module.sock`, 0600) — **default** (phase A4) |
+| Windows           | Named Pipe (`\\.\pipe\dotnetcloud-<id>`, `PipeOptions.CurrentUserOnly`) — **default** (A4)   |
+| All platforms     | Loopback TCP, cleartext HTTP/2 (h2c) via `Modules:Transport=Tcp` — the documented fallback   |
+
+Every connection is cleartext HTTP/2 (h2c) and carries the per-launch module credential. See
+`docs/modules/MODULE_SECURITY.md` §9 for the transport matrix and deployment guidance (Docker volume /
+`Modules:Transport=Tcp`).
 
 Modules connect **only to the core**. There is no module-to-module transport.
 

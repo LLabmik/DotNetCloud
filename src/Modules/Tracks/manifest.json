@@ -1,36 +1,34 @@
 {
-    "id": "dotnetcloud.tracks",
-    "name": "Tracks",
-    "version": "1.0.0",
-    "description": "Project management with products, work items, sprints, and team collaboration.",
-    "author": "DotNetCloud",
-    "requiredCapabilities": [
-        "INotificationService",
-        "IUserDirectory",
-        "ICurrentUserContext",
-        "IAuditLogger",
-        "IOrganizationDirectory",
-        "IRealtimeBroadcaster"
-    ],
-    "publishedEvents": [
-        "WorkItemCreatedEvent"
-    ],
-    "realtimeEvents": [
-        "TracksWorkItemAction",
-        "TracksSwimlaneAction",
-        "TracksCommentAction",
-        "TracksSprintAction",
-        "TracksActivity",
-        "TracksProductMemberAction",
-        "TracksTeamAction",
-        "TracksReviewItemChanged",
-        "TracksReviewSessionState",
-        "TracksPokerVoteStatus",
-        "TracksReviewPokerState",
-        "TracksReviewParticipantChanged",
-        "TracksSprintDiscussionMessage",
-        "TracksReviewDiscussionMessage"
-    ],
-    "subscribedEvents": [],
-    "minCoreVersion": "0.7.0"
+  "id": "dotnetcloud.tracks",
+  "name": "Tracks",
+  "version": "1.0.0",
+  "description": "Project management with products, work items, sprints, and team collaboration.",
+  "author": "DotNetCloud",
+  "requiredCapabilities": [
+    "INotificationService",
+    "IUserDirectory",
+    "ICurrentUserContext",
+    "IAuditLogger",
+    "IOrganizationDirectory",
+    "IRealtimeBroadcaster"
+  ],
+  "publishedEvents": ["WorkItemCreatedEvent"],
+  "realtimeEvents": [
+    "TracksWorkItemAction",
+    "TracksSwimlaneAction",
+    "TracksCommentAction",
+    "TracksSprintAction",
+    "TracksActivity",
+    "TracksProductMemberAction",
+    "TracksTeamAction",
+    "TracksReviewItemChanged",
+    "TracksReviewSessionState",
+    "TracksPokerVoteStatus",
+    "TracksReviewPokerState",
+    "TracksReviewParticipantChanged",
+    "TracksSprintDiscussionMessage",
+    "TracksReviewDiscussionMessage"
+  ],
+  "subscribedEvents": [],
+  "minCoreVersion": "0.7.0"
 }

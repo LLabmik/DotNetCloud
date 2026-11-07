@@ -13,10 +13,10 @@ contract.
 
 A module call that touches personal data needs **two** separate approvals:
 
-| Decision | Decided by | Stored as | Answers |
-| --- | --- | --- | --- |
+| Decision         | Decided by    | Stored as               | Answers                               |
+| ---------------- | ------------- | ----------------------- | ------------------------------------- |
 | Capability grant | Administrator | `ModuleCapabilityGrant` | May this module call this API at all? |
-| User consent | Each end user | `ModuleUserConsent` | May this module touch **my** data? |
+| User consent     | Each end user | `ModuleUserConsent`     | May this module touch **my** data?    |
 
 Neither implies the other:
 
@@ -38,32 +38,32 @@ remains the gate on the code path.
 registry, the first-party client seeder, module OIDC client registration, manifest validation, the
 consent prompt, the "Connected apps" page and token-introspection filtering all read it.
 
-| Scope | Grants | Consent required |
-| --- | --- | --- |
-| `profile` | Read your name, email address and profile picture. | Yes |
-| `files:read` | Read your files and folders. | Yes |
-| `files:write` | Create, change and delete your files and folders. | Yes |
-| `contacts:read` | Read your contacts. | Yes |
-| `contacts:write` | Create, change and delete your contacts. | Yes |
-| `calendar:read` | Read your calendars and events. | Yes |
-| `calendar:write` | Create, change and delete your calendar events. | Yes |
-| `notes:read` | Read your notes. | Yes |
-| `notes:write` | Create, change and delete your notes. | Yes |
-| `mail:read` | Read your email. | Yes |
-| `mail:write` | Send, change and delete your email. | Yes |
-| `chat:read` | Read your chat conversations. | Yes |
-| `chat:write` | Send messages in your chat conversations. | Yes |
-| `tracks:read` | Read your Tracks boards and work items. | Yes |
-| `tracks:write` | Create and change your Tracks work items. | Yes |
-| `photos:read` | Read your photos. | Yes |
-| `photos:write` | Upload, change and delete your photos. | Yes |
-| `music:read` | Read your music library. | Yes |
-| `music:write` | Change your music library and playlists. | Yes |
-| `video:read` | Read your videos. | Yes |
-| `video:write` | Upload, change and delete your videos. | Yes |
-| `bookmarks:read` | Read your bookmarks. | Yes |
-| `bookmarks:write` | Create, change and delete your bookmarks. | Yes |
-| `notifications:send` | Send notifications to you. | Yes (delivery filter) |
+| Scope                | Grants                                             | Consent required      |
+| -------------------- | -------------------------------------------------- | --------------------- |
+| `profile`            | Read your name, email address and profile picture. | Yes                   |
+| `files:read`         | Read your files and folders.                       | Yes                   |
+| `files:write`        | Create, change and delete your files and folders.  | Yes                   |
+| `contacts:read`      | Read your contacts.                                | Yes                   |
+| `contacts:write`     | Create, change and delete your contacts.           | Yes                   |
+| `calendar:read`      | Read your calendars and events.                    | Yes                   |
+| `calendar:write`     | Create, change and delete your calendar events.    | Yes                   |
+| `notes:read`         | Read your notes.                                   | Yes                   |
+| `notes:write`        | Create, change and delete your notes.              | Yes                   |
+| `mail:read`          | Read your email.                                   | Yes                   |
+| `mail:write`         | Send, change and delete your email.                | Yes                   |
+| `chat:read`          | Read your chat conversations.                      | Yes                   |
+| `chat:write`         | Send messages in your chat conversations.          | Yes                   |
+| `tracks:read`        | Read your Tracks boards and work items.            | Yes                   |
+| `tracks:write`       | Create and change your Tracks work items.          | Yes                   |
+| `photos:read`        | Read your photos.                                  | Yes                   |
+| `photos:write`       | Upload, change and delete your photos.             | Yes                   |
+| `music:read`         | Read your music library.                           | Yes                   |
+| `music:write`        | Change your music library and playlists.           | Yes                   |
+| `video:read`         | Read your videos.                                  | Yes                   |
+| `video:write`        | Upload, change and delete your videos.             | Yes                   |
+| `bookmarks:read`     | Read your bookmarks.                               | Yes                   |
+| `bookmarks:write`    | Create, change and delete your bookmarks.          | Yes                   |
+| `notifications:send` | Send notifications to you.                         | Yes (delivery filter) |
 
 `openid`, `email` and `offline_access` are standard OIDC scopes, not consent records. `profile` is
 both: it is the OIDC profile scope and the consent record that unlocks an email address.
@@ -78,12 +78,12 @@ cannot describe is a scope a user cannot meaningfully approve.
 
 `ModuleCapabilityScopes` answers "if a module asks for capability X, which user data can it reach?".
 
-| Capability | Required consent scope(s) |
-| --- | --- |
-| `IUserDirectory` | `profile` |
-| `ICurrentUserContext` | `profile` |
-| `IStorageProvider` | `files:read` |
-| `INotificationService` | `notifications:send` |
+| Capability             | Required consent scope(s) |
+| ---------------------- | ------------------------- |
+| `IUserDirectory`       | `profile`                 |
+| `ICurrentUserContext`  | `profile`                 |
+| `IStorageProvider`     | `files:read`              |
+| `INotificationService` | `notifications:send`      |
 
 **Validation (F18).** Once a v2 manifest declares at least one `userConsentScopes` entry, every
 user-data capability it requests must be covered by a declared scope, or the manifest is rejected.
@@ -97,10 +97,10 @@ A module that declares no scopes at all is unaffected — see the transitional r
 
 Returned when the whole call exists to read one user's data and the user has not approved it:
 
-| RPC | Required scope |
-| --- | --- |
-| `GetTeamsForUser` | `profile` |
-| `GetGroupsForUser` | `profile` |
+| RPC                | Required scope |
+| ------------------ | -------------- |
+| `GetTeamsForUser`  | `profile`      |
+| `GetGroupsForUser` | `profile`      |
 
 The denial is `PermissionDenied` with:
 
@@ -117,12 +117,12 @@ missing scopes.
 
 Some calls must succeed but must not leak personal data:
 
-| RPC | Rule |
-| --- | --- |
-| `SearchUsers` | An email address is returned only for users who consented to `profile` for this module. Names and avatars stay available — a member list is unusable without them, and the capability grant already gates the search. |
-| `GetCurrentUser` | Email is never returned. |
-| `IntrospectToken` | Scopes are narrowed to the module's declared scopes ∩ the user's consent; the `email` claim is dropped without `profile` consent. |
-| `SendNotification` | When the module declares `notifications:send`, recipients without consent are filtered out. |
+| RPC                | Rule                                                                                                                                                                                                                  |
+| ------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `SearchUsers`      | An email address is returned only for users who consented to `profile` for this module. Names and avatars stay available — a member list is unusable without them, and the capability grant already gates the search. |
+| `GetCurrentUser`   | Email is never returned.                                                                                                                                                                                              |
+| `IntrospectToken`  | Scopes are narrowed to the module's declared scopes ∩ the user's consent; the `email` claim is dropped without `profile` consent.                                                                                     |
+| `SendNotification` | When the module declares `notifications:send`, recipients without consent are filtered out.                                                                                                                           |
 
 ### 4.3 Transitional rule
 
@@ -237,15 +237,15 @@ module-owned files.
 rpc EraseUserData (EraseUserDataRequest) returns (EraseUserDataResponse);
 ```
 
-| Field | Meaning |
-| --- | --- |
-| `request_id` | Stable id of the erasure request. Repeated calls with the same id must be idempotent. |
-| `user_id` | The deleted user. |
-| `scopes` | Advisory: the consent scopes the module held. |
-| `acknowledged` | True when everything the module holds for the user is gone. |
-| `deleted_counts` | Per-scope rows/objects deleted, for operator visibility. |
-| `error` | Why the erasure could not complete. |
-| `not_applicable` | True when the module holds no per-user data. |
+| Field            | Meaning                                                                               |
+| ---------------- | ------------------------------------------------------------------------------------- |
+| `request_id`     | Stable id of the erasure request. Repeated calls with the same id must be idempotent. |
+| `user_id`        | The deleted user.                                                                     |
+| `scopes`         | Advisory: the consent scopes the module held.                                         |
+| `acknowledged`   | True when everything the module holds for the user is gone.                           |
+| `deleted_counts` | Per-scope rows/objects deleted, for operator visibility.                              |
+| `error`          | Why the erasure could not complete.                                                   |
+| `not_applicable` | True when the module holds no per-user data.                                          |
 
 **Implementation.** Every module host derives from `TrackedModuleLifecycleBase`, which implements the
 RPC. A host that stores per-user data registers an `IModuleUserErasureHandler`:
@@ -276,7 +276,83 @@ Aggregated or anonymised data is only acceptable when declared and consented.
 
 ---
 
-## 9. What this model does not cover
+## 9. Core↔module transport
+
+Every core↔module connection is cleartext HTTP/2 (h2c) with no TLS, because both ends are local
+processes owned by the same service. Identity is carried by the per-launch **module credential**
+(`dnc-module-token`), never by the transport.
+
+### 9.1 Transport matrix
+
+| Transport             | Endpoint string                                            | Where it applies                                                                | Artifact / permission                                              |
+| --------------------- | ---------------------------------------------------------- | ------------------------------------------------------------------------------- | ------------------------------------------------------------------ |
+| Unix domain socket    | `unix://<dataDir>/modules/<moduleId>/run/module.sock`      | Linux, macOS — **default**                                                      | Runtime directory `0700`, socket file `0600`, owned by the service |
+| Windows named pipe    | `net.pipe://dotnetcloud-<moduleId>`                        | Windows — **default**                                                           | `PipeOptions.CurrentUserOnly` (DACL = service account only)         |
+| Loopback TCP          | `http://localhost:<port>`                                  | `Modules:Transport=Tcp`, legacy `PreferTcpTransport=true`, or an over-long socket path | Port from `ProcessSupervisor:TcpPortRange` (50101–50500)            |
+
+### 9.2 Configuration
+
+```json
+{
+  "Modules": {
+    "Transport": "Auto",
+    "UnixSocketDirectory": null,
+    "NamedPipePrefix": "dotnetcloud"
+  }
+}
+```
+
+- `Transport` — `Auto` (default), `Sockets`, `Tcp`. Resolved once at startup by
+  `ModuleTransportSelection`; every consumer (supervisor, gRPC channel manager, REST proxy,
+  endpoint provider) reads the same resolved value.
+- `UnixSocketDirectory` — optional override. Set this when the data directory path is too deep for
+  a `sockaddr_un` (≈107 bytes); a shared directory uses `<moduleId>.sock` filenames.
+- `ProcessSupervisor:PreferTcpTransport` — legacy opt-in retained for compatibility. It only applies
+  when `Modules:Transport` is `Auto`, and it now defaults to `false` (it used to be forced `true`,
+  which made sockets unusable).
+
+### 9.3 What the transport does and does not protect
+
+**Does:**
+
+- Removes the loopback listening port from every module, so a module is not reachable from other
+  network interfaces on the host, and only the core knows where to dial.
+- Restricts socket/pipe access to the service account (other OS users are excluded).
+- Keeps the credential check (`ModulePeerAuthenticationInterceptor` host-side,
+  `AuthenticationInterceptor` core-side) on every call regardless of transport — a test asserts that
+  a caller who can open a module's socket is still rejected without that module's credential.
+
+**Does not:**
+
+- Separate modules from each other. `0600`/`CurrentUserOnly` key on the **OS user**, and module
+  hosts run as the core's user, so a sibling module can connect to another module's socket. The
+  credential is what stops it from being *accepted*. Eliminating this requires per-module OS
+  accounts (a public-store launch gate) or connection-level core→module authentication.
+- Encrypt traffic. Nothing leaves the host; TLS would add cost without adding a boundary.
+
+### 9.4 Deployment guidance
+
+- **Bare metal / single container:** the default (`Auto`) works. The socket lives under
+  `<DOTNETCLOUD_DATA_DIR>/modules/<moduleId>/run/`.
+- **Separate module containers:** mount the module data directory into every container so the
+  socket path is visible in both, or set `Modules__Transport=Tcp`. A module started without the
+  supervisor's credential fails closed either way.
+- **Anything that cannot share a filesystem** (some PaaS runtimes): `Modules__Transport=Tcp`.
+  TCP widens *reachability*, not *authorization* — the credential check is unchanged.
+
+### 9.5 Operational notes
+
+- The supervisor removes a module's socket file before every spawn and after every stop or crash,
+  because a hard-killed host leaves the file behind and the next bind fails with "address already
+  in use". Windows pipes are released by the OS.
+- A module whose computed socket path exceeds ~107 bytes falls back to loopback TCP with a warning
+  logged by the supervisor; set `Modules:UnixSocketDirectory` to a short path instead.
+- The core's own module-facing gRPC listener stays on loopback TCP (`TcpPortRangeStart`, default
+  50100). Modules dial it with `DOTNETCLOUD_CORE_ENDPOINT`.
+
+---
+
+## 10. What this model does not cover
 
 - **Scope enforcement inside a module.** Consent governs what the core hands to a module. A module
   that has `files:read` still decides what it does with the bytes; store review and the audit log are
@@ -285,4 +361,4 @@ Aggregated or anonymised data is only acceptable when declared and consented.
   store (there is no `InstalledModule` row), so the authorize endpoint lets it through. Tracking
   non-module OAuth clients is out of scope for the store launch.
 - **OS-level isolation.** Sockets are reachable by any process running as the core service account;
-  the credential is the API-layer identity, not an OS boundary. See phase A4.
+  the credential is the API-layer identity, not an OS boundary. See §7 and phase A4.

@@ -3469,7 +3469,18 @@ Plan: `docs/THIRD_PARTY_MODULE_SANDBOX_AND_STORE_PLAN.md` (phase A0). Branch `fe
   - ✓ `CheckUserConsent` / `GetGrantedScopes` implemented; `TokenIntrospectionServiceImpl` scopes filtered to declared ∩ consented
   - ✓ `/connected-apps` page + admin consent overview with revoke-on-behalf
   - ✓ `docs/modules/MODULE_SECURITY.md`: permission mapping table, enforcement rules, consent flow, shared/team-data decision
-- ☐ Phases A4–A6 / B1–B5 / C / D per the plan
+- ✓ Phase A4 — transport hardening (per-module sockets)
+  - ✓ Removed both forced `PreferTcpTransport = true` assignments; the option now defaults to `false` and a regression test proves `false` is honoured
+  - ✓ `ModuleTransportOptions` (`Modules:Transport` = `Auto`/`Sockets`/`Tcp`, socket-directory override, pipe prefix) + `ModuleTransportSelection` resolving the transport exactly once
+  - ✓ `ModuleEndpoint` (parse/format for `unix://`, `net.pipe://`, `http://`) replacing every `Replace("unix://","http://")` string hack
+  - ✓ `ModuleEndpointAllocator`: `<dataDir>/modules/<id>/run/module.sock`, named pipe `dotnetcloud-<id>`, TCP port probing; single authority shared with `ModuleEndpointProvider` (the duplicate allocator is gone)
+  - ✓ `ModuleRuntimeArtifacts`: `0700` runtime directory, `0600` socket file after bind, stale socket removed before spawn and after stop/crash, too-long path → TCP fallback
+  - ✓ Host binding helper `ModuleGrpcEndpointBinding` (`ListenUnixSocket`/`ListenNamedPipe`/loopback TCP, HTTP/2) adopted by all 14 module hosts + the extraction host; no loopback listener when a socket is assigned
+  - ✓ `GrpcChannelManager` and the YARP REST proxy dial sockets/pipes through `SocketsHttpHandler.ConnectCallback`; `ModuleHttpInvokerCache` gives each socket module its own invoker
+  - ✓ `ModulePeerAuthenticationInterceptor` retained on every transport (transport-agnostic, fails closed without the supervisor-issued credential)
+  - ✓ Tests: endpoint parsing/formatting, transport-selection matrix, allocator layout + fallback, socket permissions/cleanup, live gRPC over Unix socket, credential rejection over socket, TCP fallback round-trip
+  - ✓ `docs/modules/MODULE_SECURITY.md` §9: transport matrix, `Modules:Transport` reference, what the transport does/does not protect, Docker/deployment guidance
+- ☐ Phases A5–A6 / B1–B5 / C / D per the plan
 
 ---
 

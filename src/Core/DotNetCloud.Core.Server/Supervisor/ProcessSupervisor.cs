@@ -41,6 +41,7 @@ internal sealed class ProcessSupervisor : BackgroundService, IProcessSupervisor
     private readonly IModuleDataStoreProvisioningService _dataStoreProvisioning;
     private readonly CoreDatabaseOptions _database;
     private readonly Quotas.ModuleQuotaResolver _quotas;
+    private readonly ModuleEndpointAllocator _endpoints;
     private readonly ConcurrentDictionary<string, ModuleProcessHandle> _modules = new();
     private readonly SemaphoreSlim _startStopLock = new(1, 1);
 
@@ -58,7 +59,8 @@ internal sealed class ProcessSupervisor : BackgroundService, IProcessSupervisor
         ModuleAssertionKeyRing assertions,
         IModuleDataStoreProvisioningService dataStoreProvisioning,
         CoreDatabaseOptions database,
-        Quotas.ModuleQuotaResolver quotas)
+        Quotas.ModuleQuotaResolver quotas,
+        ModuleEndpointAllocator endpoints)
     {
         _logger = logger;
         _options = options.Value;
@@ -74,6 +76,7 @@ internal sealed class ProcessSupervisor : BackgroundService, IProcessSupervisor
         _dataStoreProvisioning = dataStoreProvisioning;
         _database = database;
         _quotas = quotas;
+        _endpoints = endpoints;
     }
 
     // ---- IProcessSupervisor ----
@@ -348,7 +351,18 @@ internal sealed class ProcessSupervisor : BackgroundService, IProcessSupervisor
 
         var restartPolicy = ParseRestartPolicy(manifest.RestartPolicy);
         var memoryLimitMb = quota.MemoryLimitMb ?? 0;
-        var grpcEndpoint = BuildGrpcEndpoint(moduleId);
+
+        // Endpoint transport is decided once for the process (see ModuleTransportSelection) and
+        // minted here: a per-module Unix socket / named pipe, or a loopback TCP port.
+        var endpoint = _endpoints.Resolve(moduleId, GetActiveEndpoints(moduleId));
+        if (!ModuleRuntimeArtifacts.Prepare(endpoint, runDirectory: null))
+        {
+            _logger.LogWarning(
+                "Could not prepare the {Transport} endpoint for module {ModuleId}; the module may fail to bind",
+                endpoint.Transport, SanitizeForLog(moduleId));
+        }
+
+        var grpcEndpoint = endpoint.ToEndpointString();
 
         var handle = new ModuleProcessHandle
         {
@@ -400,6 +414,15 @@ internal sealed class ProcessSupervisor : BackgroundService, IProcessSupervisor
         else
         {
             handle.RecordHealthCheck();
+
+            // The socket is created by Kestrel with the process umask, so restrict it to the
+            // service account once the listener exists. Defence in depth only — the module
+            // credential, not the file mode, is the API identity control.
+            if (endpoint.IsSocketTransport)
+            {
+                ModuleRuntimeArtifacts.RestrictSocket(endpoint);
+            }
+
             _logger.LogInformation(
                 "Module {ModuleId} is running (PID {Pid}, endpoint {Endpoint})",
                 SanitizeForLog(moduleId), handle.ProcessId, grpcEndpoint);
@@ -451,6 +474,12 @@ internal sealed class ProcessSupervisor : BackgroundService, IProcessSupervisor
         await _channelManager.RemoveChannelAsync(moduleId);
         _credentials.Revoke(moduleId);
         handle.SetStatus(ModuleProcessStatus.Stopped);
+
+        // A stale socket file would make the next bind fail with "address already in use".
+        if (ModuleEndpoint.TryParse(handle.GrpcEndpoint, out var stoppedEndpoint))
+        {
+            ModuleRuntimeArtifacts.Remove(stoppedEndpoint);
+        }
 
         _logger.LogInformation("Module {ModuleId} stopped", moduleId);
     }
@@ -520,6 +549,8 @@ internal sealed class ProcessSupervisor : BackgroundService, IProcessSupervisor
             startInfo.Environment[ModuleIdentityMetadata.ModuleTokenEnvironmentVariable] = moduleToken;
             // Public half only: a module can verify a user assertion but cannot mint one.
             startInfo.Environment["DOTNETCLOUD_ASSERTION_PUBLIC_KEY"] = _assertions.PublicKeyBase64;
+            // Socket (unix://… / net.pipe://…) or TCP (http://localhost:<port>) form, parsed by the
+            // shared host binding helper. Never rewritten to http:// here.
             startInfo.Environment["DOTNETCLOUD_GRPC_ENDPOINT"] = ForceHttpForInternalGrpc(grpcEndpoint);
             startInfo.Environment["DOTNETCLOUD_CORE_ENDPOINT"] = ForceHttpForInternalGrpc(BuildCoreEndpoint());
 
@@ -740,6 +771,12 @@ internal sealed class ProcessSupervisor : BackgroundService, IProcessSupervisor
         _credentials.Revoke(moduleId);
         handle.IncrementRestartCount();
 
+        // The crashed host may have left its socket behind; a stale file blocks the re-bind.
+        if (ModuleEndpoint.TryParse(handle.GrpcEndpoint, out var crashedEndpoint))
+        {
+            ModuleRuntimeArtifacts.Remove(crashedEndpoint);
+        }
+
         if (handle.RestartPolicy == RestartPolicy.AlertOnly)
         {
             _logger.LogWarning(
@@ -851,7 +888,7 @@ internal sealed class ProcessSupervisor : BackgroundService, IProcessSupervisor
             ModuleName = manifest.Name,
             Version = manifest.Version,
             ExecutablePath = discovered.ExecutablePath,
-            GrpcEndpoint = BuildGrpcEndpoint(discovered.ModuleId),
+            GrpcEndpoint = _endpoints.Resolve(discovered.ModuleId, GetActiveEndpoints(discovered.ModuleId)).ToEndpointString(),
             RestartPolicy = ParseRestartPolicy(manifest.RestartPolicy),
             MaxRestartAttempts = _options.MaxRestartAttempts
         };
@@ -1035,12 +1072,6 @@ internal sealed class ProcessSupervisor : BackgroundService, IProcessSupervisor
         return path;
     }
 
-    private string BuildGrpcEndpoint(string moduleId)
-    {
-        var port = AllocateTcpPort(moduleId);
-        return $"http://localhost:{port}";
-    }
-
     /// <summary>
     /// Normalizes an internal module↔core gRPC endpoint to cleartext HTTP.
     /// All internal gRPC is plaintext HTTP/2 (h2c) — never TLS.
@@ -1070,41 +1101,17 @@ internal sealed class ProcessSupervisor : BackgroundService, IProcessSupervisor
         return $"http://localhost:{_options.TcpPortRangeStart}";
     }
 
-    private int AllocateTcpPort(string moduleId)
-    {
-        // Reserve TcpPortRangeStart for the core gRPC server.
-        // Module ports use the module name's hash to pick a semi-stable offset,
-        // but with probe avoidance: we check the allocated set and shift forward
-        // linearly to skip collisions (same hash means same port every restart).
-        var range = Math.Max(1, _options.TcpPortRangeEnd - _options.TcpPortRangeStart - 1);
-        var basePort = _options.TcpPortRangeStart + 1 + (Math.Abs(moduleId.GetHashCode()) % range);
-        var port = basePort;
-
-        var allocated = new HashSet<int>(_modules.Values
-            .Where(m => m.GrpcEndpoint is not null)
-            .Select(m =>
-            {
-                var ep = m.GrpcEndpoint!;
-                var colon = ep.LastIndexOf(':');
-                return colon >= 0 && int.TryParse(ep.AsSpan(colon + 1), out var p) ? p : 0;
-            })
-            .Where(p => p > 0));
-
-        // Linear probe forward until we find an unclaimed port.
-        var end = _options.TcpPortRangeEnd;
-        while (port <= end && allocated.Contains(port))
-            port++;
-
-        // If we exhausted the range, wrap around and try again from the start.
-        if (port > end)
-        {
-            port = _options.TcpPortRangeStart + 1;
-            while (port < basePort && allocated.Contains(port))
-                port++;
-        }
-
-        return port;
-    }
+    /// <summary>
+    /// Gets the endpoints already handed to other module handles, so TCP port probing skips them.
+    /// The module being (re)started is excluded: its own previous handle would otherwise push it
+    /// to the next port on every restart.
+    /// </summary>
+    private IEnumerable<string> GetActiveEndpoints(string excludedModuleId) =>
+        _modules
+            .Where(pair => !string.Equals(pair.Key, excludedModuleId, StringComparison.OrdinalIgnoreCase))
+            .Select(pair => pair.Value.GrpcEndpoint)
+            .OfType<string>()
+            .Where(endpoint => endpoint.Length > 0);
 
     private static async Task<bool> WaitForProcessExitAsync(
         ModuleProcessHandle handle, TimeSpan timeout, CancellationToken cancellationToken)

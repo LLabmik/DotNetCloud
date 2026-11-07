@@ -8,24 +8,32 @@ namespace DotNetCloud.Core.Server.Grpc.Clients;
 /// <summary>
 /// Resolves gRPC endpoints for process-isolated modules by querying the
 /// <see cref="IProcessSupervisor"/> which tracks running module processes.
-/// Falls back to TCP defaults when modules aren't yet running.
+/// Falls back to the deterministic endpoint the supervisor will assign when a module is not
+/// running yet, so a channel created early still points at the right socket or port.
 /// </summary>
 public sealed class ModuleEndpointProvider
 {
     private readonly IProcessSupervisor _supervisor;
     private readonly IModuleGrpcChannelProvider _channelProvider;
-    private readonly ProcessSupervisorOptions _options;
+    private readonly ModuleEndpointAllocator _endpoints;
     private readonly ILogger<ModuleEndpointProvider> _logger;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="ModuleEndpointProvider"/> class.
+    /// </summary>
+    /// <param name="supervisor">The process supervisor.</param>
+    /// <param name="channelProvider">The credential-bearing channel provider.</param>
+    /// <param name="endpoints">The shared endpoint allocator.</param>
+    /// <param name="logger">The logger.</param>
     public ModuleEndpointProvider(
         IProcessSupervisor supervisor,
         IModuleGrpcChannelProvider channelProvider,
-        Microsoft.Extensions.Options.IOptions<ProcessSupervisorOptions> options,
+        ModuleEndpointAllocator endpoints,
         ILogger<ModuleEndpointProvider> logger)
     {
         _supervisor = supervisor;
         _channelProvider = channelProvider;
-        _options = options.Value;
+        _endpoints = endpoints;
         _logger = logger;
     }
 
@@ -42,12 +50,13 @@ public sealed class ModuleEndpointProvider
         _channelProvider.GetOrCreateChannel(moduleId, GetEndpoint(moduleId));
 
     /// <summary>
-    /// Gets the gRPC endpoint for a module. Uses the running module's endpoint
-    /// if available, otherwise falls back to a TCP default based on module ID hash.
+    /// Gets the gRPC endpoint for a module: the running module's endpoint when available,
+    /// otherwise the endpoint the supervisor will assign on its next start.
     /// </summary>
+    /// <param name="moduleId">The module identifier.</param>
+    /// <returns>The endpoint string (socket, pipe or loopback TCP form).</returns>
     public string GetEndpoint(string moduleId)
     {
-        // If the module is already running via the supervisor, use its actual endpoint
         var info = _supervisor.GetModuleInfo(moduleId);
         if (info is not null && !string.IsNullOrEmpty(info.GrpcEndpoint))
         {
@@ -55,19 +64,10 @@ public sealed class ModuleEndpointProvider
             return info.GrpcEndpoint;
         }
 
-        // Fallback: compute TCP endpoint matching the supervisor's port allocation
-        var port = AllocateTcpPort(moduleId);
-        var fallback = $"http://localhost:{port}";
-        _logger.LogDebug("Module {ModuleId} not yet running, using fallback: {Endpoint}", moduleId, fallback);
+        // Deterministic: sockets/pipes are derived from the module id, and the TCP port is the
+        // same hash + probe start the supervisor uses, so this cannot disagree with the launch.
+        var fallback = _endpoints.Resolve(moduleId).ToEndpointString();
+        _logger.LogDebug("Module {ModuleId} not yet running, using planned endpoint: {Endpoint}", moduleId, fallback);
         return fallback;
-    }
-
-    private int AllocateTcpPort(string moduleId)
-    {
-        // Reserve TcpPortRangeStart for the core gRPC server.
-        // Module ports start at TcpPortRangeStart + 1.
-        var hash = Math.Abs(moduleId.GetHashCode());
-        var range = Math.Max(1, _options.TcpPortRangeEnd - _options.TcpPortRangeStart - 1);
-        return _options.TcpPortRangeStart + 1 + (hash % range);
     }
 }

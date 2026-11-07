@@ -1,35 +1,32 @@
 {
-    "id": "dotnetcloud.chat",
-    "name": "Chat",
-    "version": "1.0.0",
-    "description": "Real-time messaging with channels, direct messages, reactions, and video calls.",
-    "author": "DotNetCloud",
-    "requiredCapabilities": [
-        "INotificationService",
-        "IUserDirectory",
-        "ICurrentUserContext",
-        "IAuditLogger",
-        "IRealtimeBroadcaster"
-    ],
-    "publishedEvents": [
-        "MessageSentEvent",
-        "ChannelCreatedEvent"
-    ],
-    "realtimeEvents": [
-        "NewMessage",
-        "MessageEdited",
-        "MessageDeleted",
-        "TypingIndicator",
-        "ReactionUpdated",
-        "ChannelUpdated",
-        "MemberJoined",
-        "MemberLeft",
-        "PresenceChanged",
-        "HostTransferred",
-        "AnnouncementCreated",
-        "UrgentAnnouncement",
-        "TracksActivityNotification"
-    ],
-    "subscribedEvents": [],
-    "minCoreVersion": "0.7.0"
+  "id": "dotnetcloud.chat",
+  "name": "Chat",
+  "version": "1.0.0",
+  "description": "Real-time messaging with channels, direct messages, reactions, and video calls.",
+  "author": "DotNetCloud",
+  "requiredCapabilities": [
+    "INotificationService",
+    "IUserDirectory",
+    "ICurrentUserContext",
+    "IAuditLogger",
+    "IRealtimeBroadcaster"
+  ],
+  "publishedEvents": ["MessageSentEvent", "ChannelCreatedEvent"],
+  "realtimeEvents": [
+    "NewMessage",
+    "MessageEdited",
+    "MessageDeleted",
+    "TypingIndicator",
+    "ReactionUpdated",
+    "ChannelUpdated",
+    "MemberJoined",
+    "MemberLeft",
+    "PresenceChanged",
+    "HostTransferred",
+    "AnnouncementCreated",
+    "UrgentAnnouncement",
+    "TracksActivityNotification"
+  ],
+  "subscribedEvents": [],
+  "minCoreVersion": "0.7.0"
 }
