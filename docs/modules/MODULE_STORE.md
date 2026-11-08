@@ -3,18 +3,44 @@
 > **Audience:** server operators and administrators installing modules from a `.dncpkg` package.
 > Module authors and store operators start with [`MODULE_PACKAGING.md`](MODULE_PACKAGING.md).
 
-## 1. What the first release does
+## 1. What the installer does
 
-The first release of the installer (phase B3, decision D6) installs from:
+The installer accepts packages from three sources:
 
 - **a file** — `dotnetcloud module install --file ./org.example.receipts-1.0.0.dncpkg`, or an upload
   through the admin UI;
 - **a local feed directory** — a directory holding an `index.json`, the signed package files and an
-  optional `yanked.json` (`dotnetcloud module install --from-feed /srv/store-feed org.example.receipts`).
+  optional `yanked.json` (`dotnetcloud module install --from-feed /srv/store-feed org.example.receipts`);
+- **a remote signed index** — a published store (for example
+  `https://modules.dotnetcloud.net/index/v1/index.json`) configured with `Modules:Store:IndexUrl`
+  (`dotnetcloud module install --from-store org.example.receipts`).
 
-There is **no network access** in this path: no remote index, no mirrors, no automatic update check.
-`IModuleStoreService` is the seam a future release implements for those; the verification and install
-code below does not change when it arrives.
+Setting `IndexUrl` replaces the local feed rather than adding to it, so exactly one source is ever
+active. All three sources funnel into the same verification and install path below: the remote client
+only adds *acquisition* (fetch, cache, download), never trust of its own.
+
+### The remote index
+
+- The index is fetched over HTTPS together with its detached signature `<IndexUrl>.sig`. The
+  signature must verify against one of `Modules:Store:TrustedKeys`; an index signed by any other key
+  — or whose bytes do not match the signed SHA-256 — is rejected outright and nothing is cached.
+- The verified index is cached under `Modules:Store:CachePath` for `Modules:Store:IndexCacheTtl`
+  (default one hour), so restarts do not refetch. A failed refresh keeps serving the cached copy and
+  logs a warning; it never breaks the admin store page.
+- An index whose `generatedAt` is **older** than the cached one is refused (replay protection). An
+  operator who deliberately wants to undo a publish sets `Modules:Store:AllowIndexRollback`.
+- A package is downloaded only when its `<id>/<version>` directory has no file with the published
+  size and SHA-256. The download is size-capped, hashed after arrival, and compared with the signed
+  index entry before it is moved into place.
+- The signature file the installer verifies is written from the signed index itself, so a package is
+  never installed on the strength of a signature that arrived separately from the catalogue.
+- A relative `downloadUrl` resolves against `Modules:Store:DownloadBaseUrl` (default: the index
+  origin), because published catalogues use site-root-relative paths such as
+  `packages/<id>/<version>/<file>.dncpkg`. An absolute `downloadUrl` must be `https` **and** on the
+  index's own origin or an origin listed in `Modules:Store:DownloadOrigins` — a compromised index
+  cannot redirect installs to a third-party host.
+- Index entries are validated before use: schema version 1, semver versions, 64-hex SHA-256, sane
+  sizes, no duplicate `<id>@<version>`, and ids/versions that are safe path segments.
 
 ## 2. The install state machine
 
@@ -65,6 +91,14 @@ a key id in `Modules:Store:TrustedKeys`. Otherwise:
 {
   "Modules": {
     "Store": {
+      "IndexUrl": "https://modules.dotnetcloud.net/index/v1/index.json",
+      "Mirrors": [],
+      "CachePath": "store-cache",
+      "IndexCacheTtl": "01:00:00",
+      "DownloadTimeout": "00:01:00",
+      "DownloadBaseUrl": null,
+      "DownloadOrigins": [],
+      "AllowIndexRollback": false,
       "LocalFeedPath": "/srv/dotnetcloud/store-feed",
       "AllowUnverified": false,
       "HealthCheckTimeout": "00:00:30",
@@ -80,14 +114,23 @@ a key id in `Modules:Store:TrustedKeys`. Otherwise:
 
 | Key                   | Default                                         | Meaning                                                                                                          |
 | --------------------- | ----------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| `IndexUrl`            | _(unset)_                                       | Published store index. When set it **replaces** the local feed; must be `https` (loopback `http` for dev).        |
+| `Mirrors`             | `[]`                                            | Additional index URLs tried in order when `IndexUrl` cannot be fetched or verified.                              |
+| `CachePath`           | `store-cache` (beside the application)          | Where the verified index and downloaded packages are cached.                                                     |
+| `IndexCacheTtl`       | 1 hour                                          | How long a cached index is served before it is refetched.                                                        |
+| `DownloadTimeout`     | 60 s                                            | Per-request timeout for index and package downloads.                                                             |
+| `DownloadBaseUrl`     | the index origin                                | Base for relative `downloadUrl` values (`https://modules.dotnetcloud.net/`).                                    |
+| `DownloadOrigins`     | `[]`                                            | Extra origins an absolute `downloadUrl` may use. Same-origin is always allowed.                                  |
+| `AllowIndexRollback`  | `false`                                         | Accept an index older than the cached one (deliberate store rollback only).                                       |
 | `LocalFeedPath`       | `store-feed` (sibling of the modules directory) | Feed directory used by `--from-feed` without an argument, `module verify` and the admin catalogue.               |
 | `AllowUnverified`     | `false`                                         | Whether this server **permits** unverified installs at all. Even when true, each install must opt in explicitly. |
-| `TrustedKeys`         | `{}`                                            | Key id → base64 public key. Keys are only trusted from configuration, never from a feed.                         |
+| `TrustedKeys`         | `{}`                                            | Key id → base64 public key. Keys are only trusted from configuration, never from a feed or an index.             |
 | `RevokedKeyIds`       | `[]`                                            | Key ids that must never verify again (rotation after compromise).                                                |
 | `HealthCheckTimeout`  | 30 s                                            | How long a fresh install has to become healthy before it is rolled back.                                         |
 | `KeepPreviousVersion` | `true`                                          | Retain the replaced version for `module rollback`.                                                               |
 
-The trusted key list is the whole trust root: a feed is data, so keys carried by a feed are ignored.
+The trusted key list is the whole trust root: a feed and an index are data, so keys they carry are
+ignored. Pin both the store index key and every publisher key you intend to accept.
 
 ## 4. Layout on disk
 
@@ -105,29 +148,51 @@ The trusted key list is the whole trust root: a feed is data, so keys carried by
 Both working directories start with a dot and are skipped by module discovery, so a half-extracted
 tree can never be registered as an installed module.
 
+The remote client keeps its own state beside the application (or `Modules:Store:CachePath`):
+
+```
+<store-cache>/
+├── index/
+│   ├── index.json          verified index (rewritten atomically on refresh)
+│   └── state.json          fetchedAt / generatedAt / source URL
+└── packages/<id>/<version>/
+    ├── <id>-<version>.dncpkg      downloaded, size- and SHA-256-checked
+    └── <id>-<version>.dncpkg.sig  written from the signed index
+```
+
+A `.part` file never survives an attempt: downloads are staged, verified, then moved into place.
+
 ## 5. Command reference
 
 ```
 dotnetcloud module install <module-id>                 # register a module already extracted on disk
 dotnetcloud module install --file <package.dncpkg> [--allow-unverified] [--yes]
 dotnetcloud module install --from-feed <dir> <module-id> [--version <ver>] [--allow-unverified] [--yes]
+dotnetcloud module install --from-store <module-id> [--version <ver>] [--allow-unverified] [--yes]
 dotnetcloud module verify <package.dncpkg>
 dotnetcloud module info <module-id>
 dotnetcloud module rollback <module-id>
 dotnetcloud module list | start <id> | stop <id> | restart <id> | uninstall <id> [--destroy-data] [--keep-files]
 ```
 
+`--from-store` uses whichever source is configured: the remote index when `Modules:Store:IndexUrl` is
+set, otherwise the local feed. It resolves the package, downloads and verifies it, then runs the same
+review and install flow as `--file`.
+
 Admin API (all `RequireAdmin`):
 
-| Method | Route                                       | Purpose                                                                                                                                     |
-| ------ | ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
-| `GET`  | `api/v1/core/admin/modules/store`           | List the configured feed's packages with the installed version.                                                                             |
-| `POST` | `api/v1/core/admin/modules/install/inspect` | Upload a package; returns the review. Installs nothing.                                                                                     |
-| `POST` | `api/v1/core/admin/modules/install`         | Multipart upload plus `expectedSha256`, repeated `acknowledgedCapabilities` / `acknowledgedScopes`, `allowUnverified`, `startAfterInstall`. |
-| `POST` | `api/v1/core/admin/modules/{id}/rollback`   | Restore the retained version.                                                                                                               |
+| Method | Route                                                  | Purpose                                                                                                                                     |
+| ------ | ------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET`  | `api/v1/core/admin/modules/store`                      | List the configured source's packages with the installed version.                                                                            |
+| `POST` | `api/v1/core/admin/modules/store/{id}/inspect?version=` | Fetch the listed package and return the review. Installs nothing.                                                                          |
+| `POST` | `api/v1/core/admin/modules/store/{id}/install`         | JSON body: `version`, `expectedSha256`, `acknowledgedCapabilities` / `acknowledgedScopes`, `allowUnverified`, `startAfterInstall`.           |
+| `POST` | `api/v1/core/admin/modules/install/inspect`            | Upload a package; returns the review. Installs nothing.                                                                                     |
+| `POST` | `api/v1/core/admin/modules/install`                    | Multipart upload plus `expectedSha256`, repeated `acknowledgedCapabilities` / `acknowledgedScopes`, `allowUnverified`, `startAfterInstall`. |
+| `POST` | `api/v1/core/admin/modules/{id}/rollback`              | Restore the retained version.                                                                                                               |
 
-Admin UI: **Module Store** (`/admin/store`) — upload, review the declared capabilities and scopes,
-approve, install.
+Admin UI: **Module Store** (`/admin/store`) — the configured catalogue is listed with a **Review**
+action per version, which fetches and verifies the package and shows the same approval step as an
+upload. Uploading a `.dncpkg` still works for air-gapped installs.
 
 ## 6. Why these decisions
 
@@ -143,3 +208,13 @@ approve, install.
   of an atomic rename.
 - **Manifest rules are not duplicated.** The installer runs the core's own `ModuleManifestLoader`, so
   a package cannot be installable but unstartable.
+- **The index signature and the package signature are separate checks.** The index signature proves
+  the catalogue came from the store; the package signature proves the publisher produced those bytes.
+  Requiring both means a compromised index still cannot inject a package, and a compromised publisher
+  key still cannot be installed unless the store published it.
+- **An older index is refused by default.** Without the `generatedAt` monotonicity check, anyone who
+  can replay an old signed index (a stale mirror, a cached CDN object, an on-path attacker) could roll
+  the catalogue back to a version the store has already superseded.
+- **Download URLs are origin-restricted.** A signed index is authoritative about *what* to install,
+  not about *where to fetch it from*; letting it point at any host would turn the store into an SSRF
+  primitive and a cross-origin downgrade path.

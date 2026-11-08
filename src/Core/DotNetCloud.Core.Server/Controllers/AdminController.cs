@@ -712,6 +712,122 @@ public class AdminController : ControllerBase
     }
 
     /// <summary>
+    /// Fetches a package the configured store source lists and returns its review without
+    /// installing it.
+    /// </summary>
+    /// <param name="moduleId">The module id to inspect.</param>
+    /// <param name="version">The version to inspect; omit for the highest listed.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The verification findings and the manifest facts the administrator must review.</returns>
+    [HttpPost("modules/store/{moduleId}/inspect")]
+    public async Task<IActionResult> InspectStorePackageAsync(
+        string moduleId,
+        [FromQuery] string? version,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var review = await _moduleService.InspectStorePackageAsync(moduleId, version, cancellationToken);
+            return Ok(new { success = true, data = review });
+        }
+        catch (ModulePackageException ex)
+        {
+            _logger.LogWarning(
+                "Store package inspection for {ModuleId} failed: {Error}",
+                SanitizeForLog(moduleId), SanitizeForLog(ex.Message));
+
+            return BadRequest(new
+            {
+                success = false,
+                error = new { code = "STORE_PACKAGE_UNAVAILABLE", message = ex.Message },
+            });
+        }
+    }
+
+    /// <summary>
+    /// Installs a package from the configured store source after an administrator reviewed it.
+    /// </summary>
+    /// <remarks>
+    /// The body must carry the hash shown by the review and the exact capability and scope lists it
+    /// displayed, exactly as the upload path does.
+    /// </remarks>
+    /// <param name="moduleId">The module id to install.</param>
+    /// <param name="dto">The reviewed version, hash and acknowledgements.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The install outcome; a failed health check is rolled back before the response.</returns>
+    [HttpPost("modules/store/{moduleId}/install")]
+    public async Task<IActionResult> InstallStorePackageAsync(
+        string moduleId,
+        [FromBody] InstallStorePackageDto dto,
+        CancellationToken cancellationToken)
+    {
+        if (!TryGetUserId(out var adminUserId))
+        {
+            return Unauthorized(new { success = false, error = new { code = "INVALID_TOKEN", message = "Invalid token claims" } });
+        }
+
+        if (dto is null)
+        {
+            return BadRequest(new
+            {
+                success = false,
+                error = new { code = "INVALID_REQUEST", message = "A request body is required." },
+            });
+        }
+
+        if (string.IsNullOrWhiteSpace(dto.ExpectedSha256))
+        {
+            return BadRequest(new
+            {
+                success = false,
+                error = new
+                {
+                    code = "PACKAGE_HASH_REQUIRED",
+                    message = "Send the SHA-256 the review displayed; it binds the approval to those bytes.",
+                },
+            });
+        }
+
+        try
+        {
+            var result = await _moduleService.InstallStorePackageAsync(
+                moduleId, dto, adminUserId, cancellationToken);
+
+            if (!result.Success)
+            {
+                _logger.LogWarning(
+                    "Store install failed for module {ModuleId}: {Error}",
+                    SanitizeForLog(result.ModuleId), SanitizeForLog(result.Error));
+
+                return BadRequest(new
+                {
+                    success = false,
+                    data = result,
+                    error = new { code = "INSTALL_FAILED", message = result.Error },
+                });
+            }
+
+            _logger.LogInformation(
+                "Store install of {ModuleId} {Version} completed by admin {AdminUserId} (unverified={Unverified})",
+                SanitizeForLog(result.ModuleId), SanitizeForLog(result.Version), adminUserId, dto.AllowUnverified);
+
+            return Ok(new { success = true, data = result });
+        }
+        catch (ModulePackageException ex)
+        {
+            _logger.LogWarning(
+                "Store install for {ModuleId} could not be resolved: {Error}",
+                SanitizeForLog(moduleId), SanitizeForLog(ex.Message));
+
+            return BadRequest(new
+            {
+                success = false,
+                error = new { code = "STORE_PACKAGE_UNAVAILABLE", message = ex.Message },
+            });
+        }
+    }
+
+    /// <summary>
     /// Verifies an uploaded <c>.dncpkg</c> package without installing it.
     /// </summary>
     /// <param name="file">The package file.</param>

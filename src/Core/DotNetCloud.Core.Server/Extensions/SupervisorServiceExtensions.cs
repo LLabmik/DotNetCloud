@@ -101,10 +101,12 @@ internal static class SupervisorServiceExtensions
         // Sandboxed module data stores (scoped schema + principal, encrypted connection string).
         services.AddSingleton<IModuleDataStoreProvisioningService, ModuleDataStoreProvisioningService>();
 
-        // Module store client + package installer (B3). The first release resolves packages from a
-        // local feed or an explicit .dncpkg file; remote indexes are deferred (decision D6).
+        // Module store client + package installer (B3). A local feed directory or an explicit
+        // .dncpkg file by default; setting Modules:Store:IndexUrl switches the client to the remote
+        // signed index (module store) without changing the installer or the admin API.
         services.AddOptions<ModuleStoreOptions>().BindConfiguration(ModuleStoreOptions.SectionName);
-        services.AddSingleton<IModuleStoreService, LocalModuleFeedStoreService>();
+        services.AddHttpClient();
+        services.AddSingleton<IModuleStoreService>(ModuleStoreServiceFactory.Create);
         services.AddSingleton<IModuleInstallRunner, SupervisorModuleInstallRunner>();
         services.AddScoped<IModulePackageInstaller, ModulePackageInstaller>();
 

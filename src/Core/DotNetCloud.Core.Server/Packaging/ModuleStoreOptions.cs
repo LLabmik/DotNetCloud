@@ -6,9 +6,10 @@ namespace DotNetCloud.ModulePackaging;
 /// </summary>
 /// <remarks>
 /// <para>
-/// The first release installs from a <b>local feed directory</b> or an explicit <c>.dncpkg</c> file
-/// (decision D6). <see cref="LocalFeedPath"/> and <see cref="TrustedKeys"/> are the whole trust
-/// configuration: a package is only installed without an explicit
+/// Two sources implement the store client: a <b>local feed directory</b> or an explicit
+/// <c>.dncpkg</c> file, and a <b>remote signed index</b> fetched over HTTPS
+/// (<see cref="IndexUrl"/>). <see cref="TrustedKeys"/> is the whole trust configuration in both
+/// cases: a package is only installed without an explicit
 /// <c>--allow-unverified</c>/admin override when its detached signature verifies against one of
 /// <see cref="TrustedKeys"/> and that key id is not listed in <see cref="RevokedKeyIds"/>.
 /// </para>
@@ -26,7 +27,69 @@ public sealed class ModuleStoreOptions
     /// The local feed directory (an <c>index.json</c> beside the packages). Relative paths resolve
     /// against the application base directory; when unset, <c>store-feed</c> is used.
     /// </summary>
+    /// <remarks>
+    /// Ignored when <see cref="IndexUrl"/> is set: the remote index replaces the local feed rather
+    /// than supplementing it, so one trust decision (which index) governs every install.
+    /// </remarks>
     public string? LocalFeedPath { get; set; }
+
+    /// <summary>
+    /// The published store index (for example <c>https://modules.dotnetcloud.net/index/v1/index.json</c>).
+    /// When set, the server fetches, verifies and caches that index instead of reading
+    /// <see cref="LocalFeedPath"/>.
+    /// </summary>
+    /// <remarks>
+    /// Must be <c>https</c> (plain <c>http</c> is accepted only for loopback, for development).
+    /// The detached signature at <c>&lt;IndexUrl&gt;.sig</c> must verify against one of
+    /// <see cref="TrustedKeys"/>; an index signed by any other key is rejected outright.
+    /// </remarks>
+    public string? IndexUrl { get; set; }
+
+    /// <summary>
+    /// Additional index URLs tried in order when <see cref="IndexUrl"/> cannot be fetched or fails
+    /// verification. Every mirror must serve the same signed index.
+    /// </summary>
+    public string[] Mirrors { get; set; } = [];
+
+    /// <summary>
+    /// Where the fetched index and downloaded packages are cached. Relative paths resolve against
+    /// the application base directory; when unset, <c>store-cache</c> is used.
+    /// </summary>
+    public string? CachePath { get; set; }
+
+    /// <summary>
+    /// How long a cached index is served before it is refetched. Default: one hour. When a refetch
+    /// fails, the cached copy keeps being used and the failure is logged.
+    /// </summary>
+    public TimeSpan IndexCacheTtl { get; set; } = TimeSpan.FromHours(1);
+
+    /// <summary>
+    /// Per-request timeout for the index and package downloads. Default: 60 seconds.
+    /// </summary>
+    public TimeSpan DownloadTimeout { get; set; } = TimeSpan.FromSeconds(60);
+
+    /// <summary>
+    /// Extra origins (<c>scheme://host:port</c>) an index may serve packages from, in addition to
+    /// the index's own origin. Empty by default: a download URL that points anywhere else is
+    /// refused, so a compromised index cannot redirect installations to a third-party host.
+    /// </summary>
+    public string[] DownloadOrigins { get; set; } = [];
+
+    /// <summary>
+    /// The base URL that relative index <c>downloadUrl</c> values resolve against. Default: the
+    /// index URL's origin (<c>https://modules.dotnetcloud.net/</c>), because the published
+    /// catalogue uses site-root-relative paths such as <c>packages/&lt;id&gt;/&lt;version&gt;/…</c>
+    /// while the index itself is served from <c>index/v1/index.json</c>.
+    /// </summary>
+    public string? DownloadBaseUrl { get; set; }
+
+    /// <summary>
+    /// Whether an index whose <c>generatedAt</c> is <em>older</em> than the cached one may replace
+    /// it. Default <see langword="false"/>: an old index replayed by an attacker or a stale mirror
+    /// would otherwise silently roll the catalogue back. Set it only to deliberately undo a
+    /// publish.
+    /// </summary>
+    public bool AllowIndexRollback { get; set; }
 
     /// <summary>
     /// Whether this server permits unverified installs <em>at all</em>. The default is

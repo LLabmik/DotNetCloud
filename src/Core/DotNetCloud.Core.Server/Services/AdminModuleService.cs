@@ -11,6 +11,7 @@ using DotNetCloud.Core.Server.Quotas;
 using DotNetCloud.Core.Server.Sandbox;
 using DotNetCloud.Core.Server.Supervisor;
 using DotNetCloud.Core.Services;
+using DotNetCloud.ModulePackaging;
 using Microsoft.EntityFrameworkCore;
 
 namespace DotNetCloud.Core.Server.Services;
@@ -820,6 +821,59 @@ internal sealed class AdminModuleService : IAdminModuleService
             LogSanitizer.Sanitize(moduleId), rolledBackByUserId);
 
         return _installer.RollbackAsync(moduleId, cancellationToken);
+    }
+
+    /// <inheritdoc/>
+    public async Task<ModulePackageReviewDto> InspectStorePackageAsync(
+        string moduleId,
+        string? version,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(moduleId);
+
+        var resolved = await _store.ResolveAsync(moduleId, version, cancellationToken)
+            ?? throw new ModulePackageException(
+                $"'{moduleId}' is not listed by the configured module store source.");
+
+        return await _installer.InspectAsync(
+            resolved.PackagePath, resolved.SignaturePath, cancellationToken);
+    }
+
+    /// <inheritdoc/>
+    public async Task<ModuleInstallResultDto> InstallStorePackageAsync(
+        string moduleId,
+        InstallStorePackageDto dto,
+        Guid installedByUserId,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(moduleId);
+        ArgumentNullException.ThrowIfNull(dto);
+
+        var resolved = await _store.ResolveAsync(moduleId, dto.Version, cancellationToken)
+            ?? throw new ModulePackageException(
+                $"'{moduleId}'{(dto.Version is null ? string.Empty : " " + dto.Version)} "
+                + "is not listed by the configured module store source.");
+
+        if (resolved.Package.Yanked)
+        {
+            throw new ModulePackageException(
+                $"'{moduleId}' {resolved.Package.Version} has been withdrawn: "
+                + (resolved.Package.YankReason ?? "no reason given"));
+        }
+
+        return await _installer.InstallAsync(
+            new ModulePackageInstallRequest
+            {
+                PackagePath = resolved.PackagePath,
+                SignaturePath = resolved.SignaturePath,
+                ExpectedSha256 = dto.ExpectedSha256,
+                AllowUnverified = dto.AllowUnverified,
+                StartAfterInstall = dto.StartAfterInstall,
+                AcknowledgedCapabilities = dto.AcknowledgedCapabilities,
+                AcknowledgedScopes = dto.AcknowledgedScopes,
+                InstalledByUserId = installedByUserId,
+            },
+            cancellationToken);
     }
 
     private ModuleCredentialDto MapCredential(string moduleId)

@@ -151,7 +151,7 @@ internal static class ServiceProviderFactory
         {
             services.AddOptions<ModuleStoreOptions>().Bind(configuration.GetSection(ModuleStoreOptions.SectionName));
             services.AddOptions<ProcessSupervisorOptions>().Bind(configuration.GetSection(ProcessSupervisorOptions.SectionName));
-            services.AddSingleton<IModuleStoreService, LocalModuleFeedStoreService>();
+            services.AddSingleton<IModuleStoreService>(ModuleStoreServiceFactory.Create);
             services.AddSingleton<IModuleInstallRunner>(OfflineModuleInstallRunner.Instance);
             services.AddScoped<IModulePackageInstaller, ModulePackageInstaller>();
         });

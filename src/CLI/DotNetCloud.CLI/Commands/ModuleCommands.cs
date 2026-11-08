@@ -98,8 +98,8 @@ internal static class ModuleCommands
     {
         var moduleArg = new Argument<string?>("module")
         {
-            Description = "The module ID (with --from-feed), or the ID of a module already extracted "
-                          + "under the modules directory",
+            Description = "The module ID (with --from-feed or --from-store), or the ID of a module "
+                          + "already extracted under the modules directory",
             DefaultValueFactory = _ => null,
         };
         var fileOption = new Option<string?>("--file")
@@ -110,9 +110,14 @@ internal static class ModuleCommands
         {
             Description = "Install a module from a local feed directory (index.json + packages)",
         };
+        var storeOption = new Option<bool>("--from-store")
+        {
+            Description = "Install a module from the configured store source "
+                          + "(Modules:Store:IndexUrl, or the local feed when unset)",
+        };
         var versionOption = new Option<string?>("--version")
         {
-            Description = "Version to install from the feed (default: the highest listed)",
+            Description = "Version to install from the feed or store (default: the highest listed)",
         };
         var allowUnverifiedOption = new Option<bool>("--allow-unverified")
         {
@@ -123,11 +128,12 @@ internal static class ModuleCommands
             Description = "Skip the interactive review confirmation",
         };
 
-        var command = new Command("install", "Install a module from a package, a feed, or the disk")
+        var command = new Command("install", "Install a module from a package, a feed, the store, or the disk")
         {
             moduleArg,
             fileOption,
             feedOption,
+            storeOption,
             versionOption,
             allowUnverifiedOption,
             yesOption,
@@ -137,6 +143,7 @@ internal static class ModuleCommands
             parseResult.GetValue(moduleArg),
             parseResult.GetValue(fileOption),
             parseResult.GetValue(feedOption),
+            parseResult.GetValue(storeOption),
             parseResult.GetValue(versionOption),
             parseResult.GetValue(allowUnverifiedOption),
             parseResult.GetValue(yesOption)));
@@ -315,19 +322,22 @@ internal static class ModuleCommands
     }
 
     /// <summary>
-    /// Dispatches <c>module install</c>: a package file, a local feed, or a module already on disk.
+    /// Dispatches <c>module install</c>: a package file, a local feed, the configured store source,
+    /// or a module already on disk.
     /// </summary>
     private static Task<int> InstallAsync(
         string? moduleId,
         string? packageFile,
         string? feedDirectory,
+        bool fromStore,
         string? version,
         bool allowUnverified,
         bool assumeYes)
     {
-        if (!string.IsNullOrWhiteSpace(packageFile) && !string.IsNullOrWhiteSpace(feedDirectory))
+        var sources = new[] { packageFile is not null, feedDirectory is not null, fromStore };
+        if (sources.Count(isSet => isSet) > 1)
         {
-            ConsoleOutput.WriteError("Specify either --file or --from-feed, not both.");
+            ConsoleOutput.WriteError("Specify only one of --file, --from-feed or --from-store.");
             return Task.FromResult(1);
         }
 
@@ -347,9 +357,21 @@ internal static class ModuleCommands
             return InstallFromFeedAsync(Path.GetFullPath(feedDirectory), moduleId, version, allowUnverified, assumeYes);
         }
 
+        if (fromStore)
+        {
+            if (string.IsNullOrWhiteSpace(moduleId))
+            {
+                ConsoleOutput.WriteError("--from-store requires a module id, for example: dotnetcloud module install --from-store org.example.receipts");
+                return Task.FromResult(1);
+            }
+
+            return InstallFromStoreAsync(moduleId, version, allowUnverified, assumeYes);
+        }
+
         if (string.IsNullOrWhiteSpace(moduleId))
         {
-            ConsoleOutput.WriteError("Specify a module id, --file <package.dncpkg> or --from-feed <directory>.");
+            ConsoleOutput.WriteError(
+                "Specify a module id, --file <package.dncpkg>, --from-feed <directory> or --from-store.");
             return Task.FromResult(1);
         }
 
@@ -444,10 +466,67 @@ internal static class ModuleCommands
     }
 
     /// <summary>
+    /// Resolves a module through the configured store source (a published index, or the local feed
+    /// when <c>Modules:Store:IndexUrl</c> is unset), then verifies and installs it.
+    /// </summary>
+    /// <remarks>
+    /// The remote client verifies the index signature, the downloaded hash and the package signature
+    /// before the installer sees the file, so this path adds no trust of its own.
+    /// </remarks>
+    private static async Task<int> InstallFromStoreAsync(
+        string moduleId,
+        string? version,
+        bool allowUnverified,
+        bool assumeYes)
+    {
+        if (!IsValidModuleId(moduleId))
+        {
+            ConsoleOutput.WriteError($"'{moduleId}' is not a valid module id.");
+            return 1;
+        }
+
+        await using var provider = ServiceProviderFactory.CreateForPackageInstall();
+        if (provider is null)
+            return 1;
+
+        var store = provider.GetRequiredService<IModuleStoreService>();
+
+        ModuleStoreResolution? resolved;
+        try
+        {
+            resolved = await store.ResolveAsync(moduleId, version);
+        }
+        catch (ModulePackageException ex)
+        {
+            ConsoleOutput.WriteError(ex.Message);
+            return 1;
+        }
+
+        if (resolved is null)
+        {
+            ConsoleOutput.WriteError(
+                $"'{moduleId}'{(version is null ? string.Empty : " " + version)} "
+                + $"is not listed by the configured store source ({store.SourceId}).");
+            return 1;
+        }
+
+        if (resolved.Package.Yanked)
+        {
+            ConsoleOutput.WriteError(
+                $"'{resolved.Package.ModuleId}' {resolved.Package.Version} has been withdrawn: "
+                + (resolved.Package.YankReason ?? "no reason given"));
+            return 1;
+        }
+
+        return await InstallFromPackageAsync(
+            resolved.PackagePath, allowUnverified, assumeYes, resolved.SignaturePath);
+    }
+
+    /// <summary>
     /// Verifies, reviews and installs one package.
     /// </summary>
     private static async Task<int> InstallFromPackageAsync(
-        string packagePath, bool allowUnverified, bool assumeYes)
+        string packagePath, bool allowUnverified, bool assumeYes, string? signaturePath = null)
     {
         if (!File.Exists(packagePath))
         {
@@ -462,7 +541,7 @@ internal static class ModuleCommands
         using var scope = provider.CreateScope();
         var installer = scope.ServiceProvider.GetRequiredService<IModulePackageInstaller>();
 
-        var review = await installer.InspectAsync(packagePath);
+        var review = await installer.InspectAsync(packagePath, signaturePath);
         WriteReview(review);
 
         var blocking = review.Issues
@@ -505,6 +584,7 @@ internal static class ModuleCommands
         var result = await installer.InstallAsync(new ModulePackageInstallRequest
         {
             PackagePath = packagePath,
+            SignaturePath = signaturePath,
             ExpectedSha256 = review.Sha256,
             AllowUnverified = allowUnverified,
             AcknowledgedCapabilities = review.Capabilities,

@@ -614,6 +614,39 @@ public sealed class DotNetCloudApiClient
         return await ReadInstallResultAsync(response, ct);
     }
 
+    /// <summary>
+    /// Fetches a package the store lists and returns its review without installing it (admin only).
+    /// </summary>
+    public async Task<ModulePackageReviewDto?> InspectStorePackageAsync(
+        string moduleId, string? version, CancellationToken ct = default)
+    {
+        var url = $"api/v1/core/admin/modules/store/{Uri.EscapeDataString(moduleId)}/inspect";
+        if (!string.IsNullOrWhiteSpace(version))
+        {
+            url += $"?version={Uri.EscapeDataString(version)}";
+        }
+
+        var response = await _http.PostAsync(url, null, ct);
+        if (!response.IsSuccessStatusCode)
+        {
+            return null;
+        }
+
+        var envelope = await response.Content.ReadFromJsonAsync<ApiEnvelope<ModulePackageReviewDto>>(JsonOptions, ct);
+        return envelope?.Data;
+    }
+
+    /// <summary>
+    /// Installs a package the store lists, after its review was approved (admin only).
+    /// </summary>
+    public async Task<ModuleInstallResultDto?> InstallStorePackageAsync(
+        string moduleId, InstallStorePackageDto dto, CancellationToken ct = default)
+    {
+        var response = await _http.PostAsJsonAsync(
+            $"api/v1/core/admin/modules/store/{Uri.EscapeDataString(moduleId)}/install", dto, JsonOptions, ct);
+        return await ReadInstallResultAsync(response, ct);
+    }
+
     private static async Task<ModuleInstallResultDto?> ReadInstallResultAsync(
         HttpResponseMessage response, CancellationToken ct)
     {

@@ -1,6 +1,5 @@
 using DotNetCloud.Core.Modules.Store;
 using DotNetCloud.Core.Modules.Supervisor;
-using DotNetCloud.Core.Server.ModuleLoading;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -99,7 +98,7 @@ public sealed class LocalModuleFeedStoreService : IModuleStoreService
         if (string.IsNullOrWhiteSpace(version))
         {
             entry = candidates
-                .OrderByDescending(candidate => candidate.Version, VersionComparer.Instance)
+                .OrderByDescending(candidate => candidate.Version, ModuleStoreVersionComparer.Instance)
                 .First();
         }
         else
@@ -118,7 +117,7 @@ public sealed class LocalModuleFeedStoreService : IModuleStoreService
         var packagePath = Path.GetFullPath(Path.Combine(root, entry.File));
 
         // The index is untrusted data: the file it names must resolve inside the feed.
-        if (!IsInside(root, packagePath))
+        if (!ModuleStorePaths.IsInside(root, packagePath))
         {
             throw new ModulePackageException($"Feed entry '{entry.File}' resolves outside the feed directory.");
         }
@@ -185,40 +184,5 @@ public sealed class LocalModuleFeedStoreService : IModuleStoreService
 
         // Sibling of the modules directory: <base>/store-feed.
         return Path.GetFullPath(Path.Combine(Path.GetDirectoryName(Path.GetFullPath(modulesPath))!, "store-feed"));
-    }
-
-    private static bool IsInside(string root, string candidate)
-    {
-        var relative = Path.GetRelativePath(Path.GetFullPath(root), candidate);
-        if (Path.IsPathRooted(relative))
-        {
-            return false;
-        }
-
-        var firstSegment = relative.Split([Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar])[0];
-        return !string.Equals(relative, ".", StringComparison.Ordinal)
-               && !string.Equals(firstSegment, "..", StringComparison.Ordinal);
-    }
-
-    /// <summary>Compares two module versions using the core's own semver rules.</summary>
-    private sealed class VersionComparer : IComparer<string>
-    {
-        /// <summary>The shared instance.</summary>
-        public static readonly VersionComparer Instance = new();
-
-        /// <inheritdoc/>
-        public int Compare(string? x, string? y)
-        {
-            var hasX = ModuleCompatibility.TryParseVersion(x, out var left);
-            var hasY = ModuleCompatibility.TryParseVersion(y, out var right);
-
-            return (hasX, hasY) switch
-            {
-                (true, true) => left.CompareTo(right),
-                (true, false) => 1,
-                (false, true) => -1,
-                _ => string.CompareOrdinal(x, y),
-            };
-        }
     }
 }

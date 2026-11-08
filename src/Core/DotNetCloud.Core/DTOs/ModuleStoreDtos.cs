@@ -171,6 +171,39 @@ public class InstallModulePackageDto
 }
 
 /// <summary>
+/// Request body for installing a package that the configured store source lists, after the
+/// administrator reviewed it.
+/// </summary>
+/// <remarks>
+/// Same approval contract as <see cref="InstallModulePackageDto"/> — the reviewed hash plus the
+/// exact capability and scope lists — but the bytes come from the store source rather than an
+/// upload, so the request names the package instead of carrying it.
+/// </remarks>
+public class InstallStorePackageDto
+{
+    /// <summary>Gets or sets the version to install; <see langword="null"/> means the highest listed.</summary>
+    public string? Version { get; set; }
+
+    /// <summary>Gets or sets the SHA-256 shown by the review step.</summary>
+    public string? ExpectedSha256 { get; set; }
+
+    /// <summary>Gets or sets the capabilities the administrator approved.</summary>
+    public IReadOnlyList<string> AcknowledgedCapabilities { get; set; } = [];
+
+    /// <summary>Gets or sets the consent scopes the administrator approved.</summary>
+    public IReadOnlyList<string> AcknowledgedScopes { get; set; } = [];
+
+    /// <summary>
+    /// Gets or sets whether an unsigned or untrusted package may be installed. Requires
+    /// <c>Modules:Store:AllowUnverified</c> on the server and is always audited.
+    /// </summary>
+    public bool AllowUnverified { get; set; }
+
+    /// <summary>Gets or sets whether the module is started and health-checked after the swap.</summary>
+    public bool StartAfterInstall { get; set; } = true;
+}
+
+/// <summary>
 /// Request to install a <c>.dncpkg</c> package from a local file.
 /// </summary>
 public class ModulePackageInstallRequest

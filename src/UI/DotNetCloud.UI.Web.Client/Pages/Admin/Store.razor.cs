@@ -37,6 +37,12 @@ public partial class Store : ComponentBase
     private ModuleInstallResultDto? _result;
     private IReadOnlyList<ModuleStorePackageDto> _catalogue = [];
 
+    /// <summary>The store package the current review belongs to, when it came from the catalogue.</summary>
+    private string? _storeModuleId;
+
+    /// <summary>The store version being reviewed or installed.</summary>
+    private string? _storeVersion;
+
     private string ReviewTitle =>
         string.Join(' ', new[] { _review?.Name, _review?.Version }.Where(part => !string.IsNullOrWhiteSpace(part)));
 
@@ -82,6 +88,8 @@ public partial class Store : ComponentBase
         _review = null;
         _acknowledged = false;
         _unverifiedAcknowledged = false;
+        _storeModuleId = null;
+        _storeVersion = null;
         _selectedFile = args.File;
 
         if (_selectedFile.Size > MaxUploadBytes)
@@ -125,7 +133,21 @@ public partial class Store : ComponentBase
 
     private async Task InstallAsync()
     {
-        if (_selectedFile is null || _review is null)
+        var review = _review;
+        var selectedFile = _selectedFile;
+
+        if (review is null || (selectedFile is null && _storeModuleId is null))
+        {
+            return;
+        }
+
+        if (_storeModuleId is not null)
+        {
+            await InstallStorePackageAsync();
+            return;
+        }
+
+        if (selectedFile is null)
         {
             return;
         }
@@ -135,17 +157,17 @@ public partial class Store : ComponentBase
 
         try
         {
-            await using var stream = _selectedFile.OpenReadStream(MaxUploadBytes);
+            await using var stream = selectedFile.OpenReadStream(MaxUploadBytes);
 
             _result = await Api.InstallModulePackageAsync(
                 stream,
-                _selectedFile.Name,
+                selectedFile.Name,
                 new InstallModulePackageDto
                 {
-                    ExpectedSha256 = _review.Sha256,
-                    AcknowledgedCapabilities = _review.Capabilities,
-                    AcknowledgedScopes = _review.UserConsentScopes,
-                    AllowUnverified = !_review.IsSignedByTrustedKey,
+                    ExpectedSha256 = review.Sha256,
+                    AcknowledgedCapabilities = review.Capabilities,
+                    AcknowledgedScopes = review.UserConsentScopes,
+                    AllowUnverified = !review.IsSignedByTrustedKey,
                     StartAfterInstall = true,
                 });
 
@@ -180,5 +202,93 @@ public partial class Store : ComponentBase
         _result = null;
         _acknowledged = false;
         _unverifiedAcknowledged = false;
+        _storeModuleId = null;
+        _storeVersion = null;
+    }
+
+    /// <summary>
+    /// Fetches a catalogue package and shows the same review the upload flow uses, so the approval
+    /// (hash + exact capability and scope lists) is identical whichever way the bytes arrived.
+    /// </summary>
+    private async Task ReviewStorePackageAsync(ModuleStorePackageDto package)
+    {
+        _result = null;
+        _review = null;
+        _acknowledged = false;
+        _unverifiedAcknowledged = false;
+        _selectedFile = null;
+        _storeModuleId = package.ModuleId;
+        _storeVersion = package.Version;
+        _inspecting = true;
+        StateHasChanged();
+
+        try
+        {
+            _review = await Api.InspectStorePackageAsync(package.ModuleId, package.Version);
+
+            if (_review is null)
+            {
+                Toast.ShowError($"Could not fetch {package.ModuleId} {package.Version} from the store.");
+                _storeModuleId = null;
+                _storeVersion = null;
+            }
+            else if (!_review.IsStructurallyValid)
+            {
+                Toast.ShowError("The package failed verification. See the findings below.");
+            }
+            else if (!_review.IsSignedByTrustedKey)
+            {
+                Toast.ShowWarning("The package is not signed by a key this server trusts.");
+            }
+        }
+        finally
+        {
+            _inspecting = false;
+        }
+    }
+
+    private async Task InstallStorePackageAsync()
+    {
+        if (_review is null || _storeModuleId is null)
+        {
+            return;
+        }
+
+        _installing = true;
+        StateHasChanged();
+
+        try
+        {
+            _result = await Api.InstallStorePackageAsync(
+                _storeModuleId,
+                new InstallStorePackageDto
+                {
+                    Version = _storeVersion,
+                    ExpectedSha256 = _review.Sha256,
+                    AcknowledgedCapabilities = _review.Capabilities,
+                    AcknowledgedScopes = _review.UserConsentScopes,
+                    AllowUnverified = !_review.IsSignedByTrustedKey,
+                    StartAfterInstall = true,
+                });
+
+            if (_result?.Success == true)
+            {
+                Toast.ShowSuccess($"Installed {@_result.ModuleId} {@_result.Version}.");
+                _review = null;
+                _storeModuleId = null;
+                _storeVersion = null;
+                _acknowledged = false;
+                _unverifiedAcknowledged = false;
+                await LoadCatalogueAsync();
+            }
+            else
+            {
+                Toast.ShowError(_result?.Error ?? "The install failed.");
+            }
+        }
+        finally
+        {
+            _installing = false;
+        }
     }
 }

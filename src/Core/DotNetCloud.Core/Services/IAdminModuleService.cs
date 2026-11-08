@@ -200,6 +200,37 @@ public interface IAdminModuleService
         CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Fetches (or reuses) a package the configured store source lists and returns the review an
+    /// administrator must approve. Nothing is installed.
+    /// </summary>
+    /// <param name="moduleId">The module id to inspect.</param>
+    /// <param name="version">The version, or <see langword="null"/> for the highest listed.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The review, including every verification finding.</returns>
+    /// <remarks>
+    /// Throws <c>ModulePackageException</c> when the source does not list the package, or when it
+    /// could not be fetched and verified.
+    /// </remarks>
+    Task<ModulePackageReviewDto> InspectStorePackageAsync(
+        string moduleId,
+        string? version,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Installs a package from the configured store source after the administrator reviewed it.
+    /// </summary>
+    /// <param name="moduleId">The module id to install.</param>
+    /// <param name="dto">The reviewed version, hash and acknowledged capability/scope lists.</param>
+    /// <param name="installedByUserId">The administrator performing the install.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The outcome; a failed health check is rolled back before returning.</returns>
+    Task<ModuleInstallResultDto> InstallStorePackageAsync(
+        string moduleId,
+        InstallStorePackageDto dto,
+        Guid installedByUserId,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Restores the previous version retained by the last install.
     /// </summary>
     /// <param name="moduleId">The module identifier.</param>

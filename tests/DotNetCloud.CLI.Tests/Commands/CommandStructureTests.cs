@@ -111,6 +111,7 @@ public class CommandStructureTests
         var optionNames = installCmd.Options.Select(o => o.Name).ToList();
         CollectionAssert.Contains(optionNames, "--file");
         CollectionAssert.Contains(optionNames, "--from-feed");
+        CollectionAssert.Contains(optionNames, "--from-store");
         CollectionAssert.Contains(optionNames, "--version");
         CollectionAssert.Contains(optionNames, "--allow-unverified");
         CollectionAssert.Contains(optionNames, "--yes");

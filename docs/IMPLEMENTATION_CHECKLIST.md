@@ -3529,20 +3529,22 @@ Plan: `docs/THIRD_PARTY_MODULE_SANDBOX_AND_STORE_PLAN.md` (phase A0). Branch `fe
   - ✓ Static store frontend (browse/search, package detail, publisher page) reusing the website's visual language; no npm, `textContent`-only rendering, URL scheme checks
   - ✓ 20 tooling tests; local end-to-end pack → build → verify → yank → verify passes
   - ✓ Unified the detached-signature field on `file` across the packer (B1) and the store
-- ✓ Phase B3 — core package installer (first release, decision D6)
+- ✓ Phase B3 — core package installer + remote store client (decision D6)
   - ✓ Packaging primitives moved into `DotNetCloud.Core.Server/Packaging` (BouncyCastle on the server) so the installer and the packer share one verifier without a project cycle
-  - ✓ `IModuleStoreService` + `LocalModuleFeedStoreService` (local feed `index.json`, containment-checked resolution, `yanked.json`); remote index/mirrors/update checks deferred per D6
+  - ✓ `IModuleStoreService` + `LocalModuleFeedStoreService` (local feed `index.json`, containment-checked resolution, `yanked.json`)
+  - ✓ `RemoteModuleIndexStoreService`: signed index fetch (signature verified against pinned keys), 1 h disk cache with stale/offline fallback, mirrors, `generatedAt` replay protection (`AllowIndexRollback` escape hatch), origin-restricted downloads, size-capped streaming download, package cache, signature written from the signed entry
+  - ✓ `ModuleStoreServiceFactory` selects the source from `Modules:Store:IndexUrl` (server DI and CLI)
   - ✓ `ModulePackageInstaller` state machine: verify → review → acknowledge → provision → stage → swap → record → start → health-check → rollback; `install-receipt.json` written per installed module
   - ✓ Verification hardening on every install path: pinned trusted key ids with revocation, SHA-256 + Ed25519 re-verification, archive safety, staged-manifest identity check, `manifest.id` = install directory name
   - ✓ Rollback: the replaced version is retained under `modules/.previous/<id>/<version>`, `module rollback` swaps it back, and a withdrawn (yanked) version is refused (F16); `.staging`/`.previous` are skipped by discovery
   - ✓ Isolated data store provisioned before the swap; a provisioning failure leaves the previous install untouched; a failed health check restores the previous binaries and record (first-install failures remove both)
-  - ✓ CLI: `module install --file|--from-feed [--version] [--allow-unverified] [--yes]`, `module verify`, `module info`, `module rollback`; the disk-only registration path is kept for bundled deployments
-  - ✓ Admin API: `GET modules/store`, `POST modules/install/inspect`, `POST modules/install` (multipart + reviewed hash + capability/scope acknowledgements), `POST modules/{id}/rollback`
-  - ✓ Admin UI `/admin/store` (upload → review → approve → install) with an explicit unverified acknowledgement; nav entry added
-  - ✓ Config `Modules:Store` — `LocalFeedPath`, `TrustedKeys`, `RevokedKeyIds`, `AllowUnverified` (default false), `HealthCheckTimeout`, `KeepPreviousVersion`
+  - ✓ CLI: `module install --file|--from-feed|--from-store [--version] [--allow-unverified] [--yes]`, `module verify`, `module info`, `module rollback`; the disk-only registration path is kept for bundled deployments
+  - ✓ Admin API: `GET modules/store`, `POST modules/store/{id}/inspect`, `POST modules/store/{id}/install` (JSON + reviewed hash + acknowledgements), `POST modules/install/inspect`, `POST modules/install` (multipart + reviewed hash + capability/scope acknowledgements), `POST modules/{id}/rollback`
+  - ✓ Admin UI `/admin/store` (upload → review → approve → install, plus a **Review** action per catalogue version for the configured source) with an explicit unverified acknowledgement; nav entry added
+  - ✓ Config `Modules:Store` — `LocalFeedPath`, `IndexUrl`, `Mirrors`, `CachePath`, `IndexCacheTtl`, `DownloadTimeout`, `DownloadBaseUrl`, `DownloadOrigins`, `AllowIndexRollback`, `TrustedKeys`, `RevokedKeyIds`, `AllowUnverified` (default false), `HealthCheckTimeout`, `KeepPreviousVersion`
   - ✓ Audit: `ModuleInstalled`/`ModuleUpdated` on install and rollback, `ModulePackageVerificationFailed` on rejected and unverified installs
-  - ✓ Tests: 31 packaging/installer tests (review, trust gates, acknowledgements, hash binding, hostile archive, RID selection, upgrade/rollback retention, health-failure rollback, data-store failure) + CLI command-structure coverage
-- ☐ Phase B4 — websites (`www` + `modules`) on **self-hosted IIS (`portal6`)** — **planning only, blocked on the IIS host configuration**. Cloudflare Pages dropped (no Cloudflare account). Planned: `deploy/sites/{www,modules}/web.config` (`.dncpkg` MIME map, cache headers, URL Rewrite redirects), `scripts/deploy-sites.ps1` (timestamped releases + `current` junction, `-Rollback`, `-WhatIf`), win-acme TLS, `docs/admin/SITES.md`; pre-launch gating and CI deploys deferred until the host is ready
+  - ✓ Tests: 47 packaging/installer/store tests (review, trust gates, acknowledgements, hash binding, hostile archive, RID selection, upgrade/rollback retention, health-failure rollback, data-store failure, remote index signature/cache/replay/mirror/download paths) + CLI command-structure coverage
+- ☐ Phase B4 — websites (`www` + `modules`) on **self-hosted IIS (`portal6`)** — **partially live**: `modules.dotnetcloud.net` is deployed; Cloudflare Pages dropped (no Cloudflare account). Remaining: `www.dotnetcloud.net`, `deploy/sites/{www,modules}/web.config` (URL Rewrite redirects, cache headers), `scripts/deploy-sites.ps1` (timestamped releases + `current` junction, `-Rollback`, `-WhatIf`), automated TLS renewal, `docs/admin/SITES.md`; pre-launch gating and CI deploys deferred until chosen
   - ✓ `modules.dotnetcloud.net` is live on `portal6` (IIS 10, Let's Encrypt, `C:\inetpub\Apps\DotNetCloud-Modules`): store frontend, signed catalogue, `.dncpkg`/`.sig` served as `application/octet-stream`
   - ☐ `www.dotnetcloud.net`, deploy script, gate, `docs/admin/SITES.md`
 - 🔄 Phase C — dogfood migration, **Example** module (started 2026-11-07)

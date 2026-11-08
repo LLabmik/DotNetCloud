@@ -10,9 +10,9 @@
 </div>
 
 <p class="text-muted">
-    Install a signed <code>.dncpkg</code> package. A package signed by a key this server does not
-    trust can only be installed with an explicit unverified approval, and every install is written to
-    the audit trail.
+    Install a signed <code>.dncpkg</code> package, either from the configured store source or by
+    uploading a file. A package signed by a key this server does not trust can only be installed
+    with an explicit unverified approval, and every install is written to the audit trail.
 </p>
 
 <div class="card store-panel">
@@ -162,14 +162,14 @@
 
     @if (_loadingCatalogue)
     {
-        <LoadingIndicator Message="Reading the local feed..." />
+        <LoadingIndicator Message="Reading the configured store source..." />
     }
     else if (_catalogue.Count == 0)
     {
         <p class="text-muted">
-            No packages are listed. Point <code>Modules:Store:LocalFeedPath</code> at a feed directory
-            (an <code>index.json</code> beside signed packages) to see what is available here, or
-            install a file above.
+            No packages are listed. Point <code>Modules:Store:IndexUrl</code> at a published store
+            index (or <code>Modules:Store:LocalFeedPath</code> at a feed directory) to see what is
+            available here, or install a file above.
         </p>
     }
     else
@@ -184,6 +184,7 @@
                         <th>Capabilities</th>
                         <th>Installed</th>
                         <th>Status</th>
+                        <th>Actions</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -208,6 +209,13 @@
                                     <span class="badge badge-success">Available</span>
                                 }
                             </td>
+                            <td>
+                                <button class="btn btn-outline"
+                                        @onclick="() => ReviewStorePackageAsync(package)"
+                                        disabled="@(_inspecting || _installing || package.Yanked || package.InstalledVersion == package.Version)">
+                                    Review
+                                </button>
+                            </td>
                         </tr>
                     }
                 </tbody>
@@ -215,8 +223,8 @@
         </div>
 
         <p class="text-muted">
-            Install from the feed with
-            <code>dotnetcloud module install --from-feed &lt;directory&gt; &lt;module-id&gt;</code>.
+            Review fetches and verifies the package, then shows the same approval step as an upload.
+            From a shell, use <code>dotnetcloud module install --from-store &lt;module-id&gt;</code>.
         </p>
     }
 </div>
