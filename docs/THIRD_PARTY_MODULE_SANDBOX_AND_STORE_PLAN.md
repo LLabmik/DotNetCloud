@@ -71,7 +71,7 @@ These were explicitly decided with the project owner. **Do not revisit during im
 | 3   | Module→core API: **gRPC canonical** (extend/harden the existing capability service) + **internal REST/JSON facade** for language-agnostic module backends.                                                                                                                                                         | Matches the mandatory gRPC architecture; REST keeps the sandbox approachable.                        |
 | 4   | Required modules keep today's access (shared `core` schema, core-managed migrations, current credentials, in-process Blazor UI). **All non-required modules** (first-party optional + third-party) use the unified sandboxed model and must be dogfooded.                                                          | Required modules are a core part; everything else must prove the third-party path works.             |
 | 5   | Module UI: module-hosted web UI embedded in a **sandboxed iframe** via the core proxy + `postMessage` handshake.                                                                                                                                                                                                   | Third-party assemblies cannot load into the core process without destroying process isolation.       |
-| 6   | Store: full platform in repo **`DotNetCloud.ModuleStore`** (private initially, public at launch); frontend lives in that repo; Ed25519 signing (curated store key + verified-publisher keys); sites `www.dotnetcloud.net` + `modules.dotnetcloud.net` on Cloudflare Pages, independent of the live cloud instance. | Self-contained store; private-first development; no coupling to `cloud.dotnetcloud.net`.             |
+| 6   | Store: full platform in repo **`DotNetCloud.ModuleStore`** (private initially, public at launch); frontend lives in that repo; Ed25519 signing (curated store key + verified-publisher keys); sites `www.dotnetcloud.net` + `modules.dotnetcloud.net` **self-hosted on IIS (Windows, host `portal6`)**, independent of the live cloud instance. | Self-contained store; private-first development; no coupling to `cloud.dotnetcloud.net`; no third-party CDN/edge account required. |
 | 7   | SDK (`DotNetCloud.Modules.Sdk`) distributed via **GitHub Packages**.                                                                                                                                                                                                                                               | Avoids a NuGet.org dependency while keeping the dev workflow one command.                            |
 | 8   | Transport hardening: **per-module Unix sockets (0600) / Named Pipes (ACL'd)** for gRPC + proxied HTTP, plus **per-module credentials** for identity. (Identity is implemented as per-launch module secrets — see §0/§4.3; the sockets are still to do.)                                                            | Removes cross-module reachability and header spoofing in one move.                                   |
 | 9   | PostgreSQL provisioning requires `CREATEROLE` on the app role (accepted). SQL Server uses **contained database users** (see A1).                                                                                                                                                                                   | Both keep the app account's existing privilege level as low as each engine allows.                   |
@@ -167,7 +167,7 @@ For **required modules only** — `dotnetcloud.files`, `dotnetcloud.chat`, `dotn
 | Repo                                               | Role in this program                                                                                         | Notes                                                                     |
 | -------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------- |
 | `DotNetCloud.ModuleStore` (new, private initially) | Store packages, index, tooling, policy, store frontend                                                       | Goes public at launch                                                     |
-| `DotNetCloud-WebSite` (existing)                   | `www.dotnetcloud.net` marketing site                                                                         | Static HTML/CSS/JS; add a Modules/Store entry; deploy to Cloudflare Pages |
+| `DotNetCloud-WebSite` (existing)                   | `www.dotnetcloud.net` marketing site                                                                         | Static HTML/CSS/JS; add a Modules/Store entry; deploy to IIS on `portal6` (B4) |
 | This repo (`DotNetCloud`)                          | Core sandbox (Track A), store client (B3), packaging tool (B1), dogfood migrations (Track C), docs (Track D) | Branch `feature/third-party-modules`                                      |
 
 **Rule:** no committed document in this repo may reference private deployment topology (host names, IPs, machine names). The store and sites must not depend on the production cloud instance.
@@ -900,21 +900,45 @@ Per-module directories: `<dataDir>/modules/<moduleId>/{config,data,run}` created
 8. **Uninstall and install share a containment rule.** `DOTNETCLOUD_MODULES_DIR` stays the CLI override, and the installer resolves the module directory through the same `PathContainment` guard the supervisor uses.
 
 
-### Phase B4 — Websites (`www` + `modules`) on Cloudflare Pages
+### Phase B4 — Websites (`www` + `modules`) on self-hosted IIS
 
-**Status:** ☐ Not started
-**Effort:** Medium (~1–2 weeks)
-**Parallel with:** all Track A/B work.
+**Status:** ☐ Not started — **planning only.** Implementation waits until the IIS host (`portal6`) is configured.
+**Effort:** Medium (~1 week once the host is ready)
+**Depends on:** `portal6` IIS readiness; B2 (the store index/packages that `modules` serves).
+**Hosting model:** two static IIS sites on **`portal6`** (Windows; a **separate host** from the cloud instance). Static content only — no ASP.NET Core Hosting Bundle, no app pool running managed code, and no coupling to `scripts/deploy.sh` (which is the Linux/systemd path for the cloud instance).
+
+> **Superseded:** the original plan used Cloudflare Pages (`wrangler`, Cloudflare Access, Cloudflare DNS). There is no Cloudflare account and the intent is to self-host everything, so all edge/CDN hosting is dropped. A CDN can be added later without changing the deploy contract (the sites are plain static files on disk).
 
 **Deliverables**
 
-- ☐ `www.dotnetcloud.net`: deploy the existing `DotNetCloud-WebSite` repo (static HTML/CSS/JS: home, server, client pages, support; pending image assets tracked in `images/IMAGES_NEEDED.md`); add a "Modules" nav entry + store page linking `modules.dotnetcloud.net`.
-- ☐ `modules.dotnetcloud.net`: store frontend deployed from the store repo (Cloudflare Pages GitHub integration); index JSON served from the same origin.
-- ☐ Deployment pipelines: Cloudflare Pages for both (source repos vary — direct `wrangler pages deploy` upload for the Gitea-hosted website, GitHub integration for the store repo); documented rollback.
-- ☐ DNS + TLS: Cloudflare DNS records for apex, `www`, `modules`; apex redirects to `www`; automatic TLS.
-- ☐ Private-first gating: `modules` is held undeployed or gated (Cloudflare Access) until the store launch milestone (§7 of B2); no public index until then.
+- ☐ Site configuration lives in the core repo under `deploy/sites/` so both content repos stay static-only:
+  - ☐ `deploy/sites/www/web.config` — default document `index.html`, static + dynamic compression, long-lived cache for `css/`, `js/`, `images/`, `no-cache` for `*.html`, `http`→`https` 301 and apex→`www` 301 via URL Rewrite.
+  - ☐ `deploy/sites/modules/web.config` — same, plus `<mimeMap>` for `.dncpkg` (`application/octet-stream`), `.sig` (`application/octet-stream`), `.json` (`application/json`), short TTL on `index/v1/*.json`, immutable cache on `packages/*`.
+  - ☐ `scripts/deploy-sites.ps1` (PowerShell, runs on `portal6`) — `-Site www|modules|all`, source roots configurable, timestamped `releases/<yyyyMMdd-HHmmss>/` + `current` directory junction swap, `robocopy /MIR` into the new release, `-Rollback` re-points `current`, `-WhatIf` dry run, non-zero exit on failure.
+- ☐ `www.dotnetcloud.net`: deploy the existing `DotNetCloud-WebSite` repo (home, server, windows/linux/android client pages, support; pending image assets tracked in `images/IMAGES_NEEDED.md`); add a "Modules" nav entry + store page linking `modules.dotnetcloud.net`.
+- ☐ `modules.dotnetcloud.net`: store frontend (`DotNetCloud.ModuleStore/site/*`) at the **site root**, with `index/`, `packages/`, `publishers.json` and `yanked.json` beside it, so both the relative `../index/v1/index.json` fetch and the catalogue's repo-relative `downloadUrl` values (`packages/<id>/<version>/…`) resolve same-origin. Package files come from the repo until launch switches to GitHub Release assets, at which point `downloadUrl` becomes absolute and the site stops hosting them.
+- ☐ TLS: win-acme (`wacs.exe`, HTTP-01 on port 80 — needs no DNS-provider API account) or Certify The Web, issuing `www` + `modules` certificates and re-binding IIS on renewal; a manual PFX import is the documented fallback.
+- ☐ DNS: A/AAAA records for `www` and `modules` pointing at `portal6`; the apex `dotnetcloud.net` is an IIS site with a host-header binding that 301s to `https://www.dotnetcloud.net`.
+- ☐ Docs: `docs/admin/SITES.md` — IIS site/app-pool creation, host-header bindings, MIME maps, URL Rewrite rules, win-acme renewal task, deploy + rollback procedure, post-deploy smoke list.
+- ☐ Smoke checks: both sites 200 over HTTPS; `http`→`https` and apex→`www` both 301; `index.html`, `package.html?id=<id>` and `publisher.html?id=<id>` render; `index.json` fetched same-origin with no CORS or 404; a `.dncpkg` downloads with the right content type and byte length.
 - ☐ Docs/link updates after launch: `README.md` "Website — Coming soon" line and the `.github/copilot-instructions.md` "Domain Information" section — **requires explicit user approval of the diff before committing** (instruction-file protocol).
-- ☐ Smoke checks: both sites reachable over HTTPS, redirects correct, gate active while private, index fetch works.
+
+**Decisions deferred until the host is ready (do not pre-implement)**
+
+- ☐ **Pre-launch gating of `modules`** — nothing is published until this is chosen. Candidate mechanisms, simplest first: (a) the IIS site is created but stopped/unbound, (b) IIS IP/Domain Restrictions allow-list, (c) Windows Authentication, (d) `web.config` basic authentication over HTTPS. No gate code is written before the choice.
+- ☐ **Whether `portal6` ever hosts the cloud instance too**, or stays static-only.
+- ☐ **Certificate lifecycle tool** (win-acme vs Certify The Web vs an organisation certificate).
+- ☐ **CI-driven deploys** — the first deployments are manual/pull-based on `portal6`; a pipeline needs a deployment credential on that server, which is a later decision.
+
+**Findings/constraints recorded while planning**
+
+1. **The store frontend is same-origin and relative-URL driven.** `site/js/store.js` fetches `../index/v1/index.json` and links `version.downloadUrl` as-is; the catalogue's `downloadUrl` is repo-relative (`packages/<id>/<version>/<file>.dncpkg`, see `StoreIndexBuilder.ResolveLocalDirectory`). Deploying `site/*` **at the site root** makes both resolve correctly — `../index/v1/index.json` → `<root>/index/v1/index.json` and `packages/...` → `<root>/packages/...`. Deploying the frontend into a `/site/` subdirectory (or the packages outside the root) breaks the catalogue, so the root layout is a hard requirement. Internal `index/v1/index.json` links (icons, per-package documents) are likewise relative to `index/`.
+2. **`.dncpkg` is not a known IIS MIME type.** IIS refuses to serve unknown extensions, so a missing `<mimeMap>` presents as a 404 for the package file. This is the most likely first-deploy failure and must be part of the smoke check.
+3. **URL Rewrite is the only redirect mechanism** on IIS — the same prerequisite the core app's IIS instructions already list. Without it, apex/`http` redirects silently do not happen.
+4. **No CDN means cache headers are the only caching control.** `index.json` must be `no-cache`/short TTL (the store changes on every publish) while `packages/*` is content-addressed by version and can be immutable.
+5. **Separate host ⇒ separate deploy path.** `scripts/deploy.sh` targets Linux + systemd + rsync for the cloud instance; the sites need the PowerShell script and must not be folded into it.
+6. **Static-only means a smaller attack surface** — no managed handlers, no app pool credentials beyond the file-system read identity.
+7. **Rollback must not rebuild.** Release directories plus a `current` junction make rollback a pointer swap, matching the rollback expectations already established for module installs (B3).
 
 ### Phase B5 — Trust program
 
@@ -955,7 +979,14 @@ Per module, four workstreams:
 
 Order and module checklist:
 
-- ☐ **Example** — first; validates the whole path as the SDK reference. **Prerequisite:** give its host a Kestrel listener on `DOTNETCLOUD_GRPC_ENDPOINT` and DataProtection support; today it is not supervisor-addressable.
+- 🔄 **Example** — **in progress (2026-11-07)**; validates the whole path as the SDK reference.
+  - ✓ Sandboxed host: Kestrel listener on `DOTNETCLOUD_GRPC_ENDPOINT`, module-private DataProtection keys under `DOTNETCLOUD_MODULE_DATA_DIR`, sanitized `module.json` topology, `DOTNETCLOUD_MODULE_DB_CONNECTION_STRING`, self-migration with retry (the old "not supervisor-addressable" prerequisite is closed).
+  - ✓ **v2 manifest**: publisher `dotnetcloud`, `dataStore: "isolated"`, `handlesUserErasure: true`, capabilities/events in the v2 fields; the packer no longer reports `MANIFEST_LEGACY_V1`.
+  - ✓ **Erasure**: `ExampleUserErasureHandler` deletes only the deleted user's notes, is idempotent, and reports the deleted count; guarded by 7 tests plus manifest-file guard tests (the store's v2/publisher and the erasure rules are asserted against the shipped JSON).
+  - ✓ **First publication**: `dotnetcloud.example` 1.0.0 (linux-x64 + win-x64, 31,376,184 bytes, sha256 `138ed9dedce9b9b7a0de15b47d484554e0c327368d9a5c268539eeb477e4961b`) signed with publisher key `dotnetcloud-official-2026`, catalogue signed with `store-2026`, live at `https://modules.dotnetcloud.net`.
+  - ☐ Iframe UI plane — the RCL page is still in-core (A5's plane is ready, the migration is not).
+  - ☐ `userConsentScopes` still `[]`, so the store page reports "no personal data access" even though the module stores per-user notes; declare the scopes that `IStorageProvider`/`INotificationService` expose when the UI migration lands.
+  - ☐ Decouple the module's RCL/Data/Widget `ProjectReference`s from `DotNetCloud.Core.Server.csproj` and the two registration hosted services.
 - ☐ **Bookmarks** — smallest data + UI surface. Note its manifest exists twice (Host + RCL).
 - ☐ **Email** — data plane only needs settings + own storage; moderate UI. Same duplicate-manifest note.
 - ☐ **AI** — depends on core AI capability plumbing; verify provider settings migration.
@@ -1055,7 +1086,8 @@ A module completes the checklist only when: no ProjectReference remains, it runs
 | 2026-09-15 | Required vs non-required modules  | Required keep current access; all non-required dogfood the sandbox                                                                                                                |
 | 2026-09-15 | Third-party UI                    | Module-hosted UI in sandboxed iframe via core proxy                                                                                                                               |
 | 2026-09-15 | Store platform scope              | Full platform; repo `DotNetCloud.ModuleStore` (private initially); Ed25519; frontend in-repo                                                                                      |
-| 2026-09-15 | Sites & hosting                   | `www` + `modules` on Cloudflare Pages, independent of the live cloud instance; existing `DotNetCloud-WebSite` repo is the `www` source                                            |
+| 2026-09-15 | Sites & hosting                   | ~~`www` + `modules` on Cloudflare Pages~~ — **superseded 2026-11-07** (see the row below); existing `DotNetCloud-WebSite` repo is still the `www` source                          |
+| 2026-11-07 | Sites & hosting (revised)         | No Cloudflare account; everything is self-hosted. `www` + `modules` are static IIS sites on **`portal6`** (Windows, separate host), deployed with `scripts/deploy-sites.ps1` into timestamped releases; TLS via win-acme/Certify; gating and CI deploys deferred until the host is configured |
 | 2026-09-15 | SDK distribution                  | GitHub Packages                                                                                                                                                                   |
 | 2026-09-15 | Transport hardening               | Per-module sockets/pipes + per-module credentials (identity half already implemented as per-launch secrets; sockets still pending)                                                |
 | 2026-09-15 | PostgreSQL provisioning privilege | `CREATEROLE` on the app role (accepted)                                                                                                                                           |

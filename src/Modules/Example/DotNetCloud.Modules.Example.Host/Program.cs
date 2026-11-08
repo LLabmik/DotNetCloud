@@ -134,6 +134,11 @@ public static partial class Program
             options.Interceptors.Add<DotNetCloud.Core.Grpc.ModulePeerAuthenticationInterceptor>());
         builder.Services.AddHealthChecks().AddCheck<ExampleHealthCheck>("example_module");
 
+        // Account erasure (F12): the core calls EraseUserData when a user is deleted, and the module
+        // owns the notes it stored, so it owns the deletion. Registered before the host starts so the
+        // handler is materialized before the first call arrives.
+        builder.Services.AddModuleUserErasureHandler<ExampleUserErasureHandler>();
+
         var app = builder.Build();
 
         // Adopt the core-signed end-user assertion before anything can call back into the core.

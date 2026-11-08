@@ -3542,7 +3542,18 @@ Plan: `docs/THIRD_PARTY_MODULE_SANDBOX_AND_STORE_PLAN.md` (phase A0). Branch `fe
   - ✓ Config `Modules:Store` — `LocalFeedPath`, `TrustedKeys`, `RevokedKeyIds`, `AllowUnverified` (default false), `HealthCheckTimeout`, `KeepPreviousVersion`
   - ✓ Audit: `ModuleInstalled`/`ModuleUpdated` on install and rollback, `ModulePackageVerificationFailed` on rejected and unverified installs
   - ✓ Tests: 31 packaging/installer tests (review, trust gates, acknowledgements, hash binding, hostile archive, RID selection, upgrade/rollback retention, health-failure rollback, data-store failure) + CLI command-structure coverage
-- ☐ Phases B4–B5 / C / D per the plan
+- ☐ Phase B4 — websites (`www` + `modules`) on **self-hosted IIS (`portal6`)** — **planning only, blocked on the IIS host configuration**. Cloudflare Pages dropped (no Cloudflare account). Planned: `deploy/sites/{www,modules}/web.config` (`.dncpkg` MIME map, cache headers, URL Rewrite redirects), `scripts/deploy-sites.ps1` (timestamped releases + `current` junction, `-Rollback`, `-WhatIf`), win-acme TLS, `docs/admin/SITES.md`; pre-launch gating and CI deploys deferred until the host is ready
+  - ✓ `modules.dotnetcloud.net` is live on `portal6` (IIS 10, Let's Encrypt, `C:\inetpub\Apps\DotNetCloud-Modules`): store frontend, signed catalogue, `.dncpkg`/`.sig` served as `application/octet-stream`
+  - ☐ `www.dotnetcloud.net`, deploy script, gate, `docs/admin/SITES.md`
+- 🔄 Phase C — dogfood migration, **Example** module (started 2026-11-07)
+  - ✓ Sandboxed host: Kestrel endpoint, module-private DataProtection keys, `module.json` topology, `DOTNETCLOUD_MODULE_DB_CONNECTION_STRING`, self-migration with retry
+  - ✓ v2 manifest: publisher `dotnetcloud`, `dataStore: isolated`, `handlesUserErasure: true`, capabilities/events in v2 fields
+  - ✓ `ExampleUserErasureHandler` (one user's notes only, idempotent) + 7 tests; manifest-file guard tests
+  - ✓ First signed package published: `dotnetcloud.example` 1.0.0, sha256 `138ed9dedce9b9b7a0de15b47d484554e0c327368d9a5c268539eeb477e4961b`; catalogue signed with `store-2026`
+  - ☐ Iframe UI plane (RCL page still in-core)
+  - ☐ `userConsentScopes` declared (store currently reports "no personal data access")
+  - ☐ Decouple RCL/Data/Widget `ProjectReference`s from `Core.Server`
+- ☐ Phases B5 / C (remaining modules) / D per the plan
 
 ---
 
