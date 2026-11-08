@@ -16,7 +16,7 @@ public sealed class ExampleModuleManifest : IModuleManifest
     public string Name => "Example";
 
     /// <inheritdoc />
-    public string Version => "1.0.0";
+    public string Version => "1.0.2";
 
     /// <inheritdoc />
     public IReadOnlyCollection<string> RequiredCapabilities => new[]

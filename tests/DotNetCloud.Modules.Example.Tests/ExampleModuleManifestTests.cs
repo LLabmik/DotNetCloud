@@ -32,7 +32,9 @@ public class ExampleModuleManifestTests
     [TestMethod]
     public void WhenCreatedThenVersionIsSemanticVersion()
     {
-        Assert.AreEqual("1.0.0", _manifest.Version);
+        // The value itself is pinned against the packaged manifest by
+        // Manifest_IdentityMatchesCodeManifest; asserting a literal here made every version bump
+        // fail a test that was only meant to check the shape.
         Assert.IsTrue(Version.TryParse(_manifest.Version, out _));
     }
 

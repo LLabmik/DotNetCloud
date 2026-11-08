@@ -754,10 +754,24 @@ public sealed class ModulePackageInstaller : IModulePackageInstaller
     /// <summary>
     /// Selects the <c>files/&lt;rid&gt;</c> directory that matches this host.
     /// </summary>
+    /// <param name="extractedRoot">The extracted package root.</param>
+    /// <returns>The selected runtime directory.</returns>
     /// <exception cref="ModulePackageException">
     /// No directory matches and the choice cannot be made unambiguously.
     /// </exception>
-    private static string SelectRuntimeDirectory(string extractedRoot)
+    private static string SelectRuntimeDirectory(string extractedRoot) =>
+        SelectRuntimeDirectory(extractedRoot, RuntimeInformation.RuntimeIdentifier);
+
+    /// <summary>
+    /// Selects the <c>files/&lt;rid&gt;</c> directory that matches <paramref name="hostRuntime"/>.
+    /// </summary>
+    /// <param name="extractedRoot">The extracted package root.</param>
+    /// <param name="hostRuntime">The host RID to match against.</param>
+    /// <returns>The selected runtime directory.</returns>
+    /// <exception cref="ModulePackageException">
+    /// No directory matches and the choice cannot be made unambiguously.
+    /// </exception>
+    internal static string SelectRuntimeDirectory(string extractedRoot, string hostRuntime)
     {
         var filesRoot = Path.Combine(extractedRoot, ModulePackageFormat.FilesDirectoryName);
 
@@ -768,7 +782,6 @@ public sealed class ModulePackageInstaller : IModulePackageInstaller
                 [new PackageIssue(PackageIssueCodes.MissingEntry, "files/ is missing.")]);
         }
 
-        var hostRuntime = RuntimeInformation.RuntimeIdentifier;
         var matching = Path.Combine(filesRoot, hostRuntime);
 
         if (Directory.Exists(matching))
@@ -806,9 +819,28 @@ public sealed class ModulePackageInstaller : IModulePackageInstaller
     }
 
     /// <summary>
+    /// Linux distro RIDs that ship glibc assets and therefore fall back to the portable
+    /// <c>linux-&lt;arch&gt;</c> runtime, exactly as the .NET RID fallback graph does.
+    /// </summary>
+    private static readonly HashSet<string> GlibcLinuxRids = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "amzn", "arch", "centos", "debian", "fedora", "linux", "ol", "opensuse", "rhel",
+        "rocky", "sles", "tizen", "ubuntu",
+    };
+
+    /// <summary>
     /// Whether a package RID targets the same operating system and CPU architecture as the host.
     /// </summary>
-    private static bool IsSamePlatform(string candidateRid, string hostRid)
+    /// <remarks>
+    /// A distro RID such as <c>ubuntu.24.04-x64</c> is compatible with the portable
+    /// <c>linux-x64</c> assets, and <c>alpine.3.20-x64</c> with <c>linux-musl-x64</c>; comparing the
+    /// literal first segment (as an earlier version did) matched neither, so a portable package
+    /// looked "foreign" on its own platform. Anything else must match the RID OS exactly.
+    /// </remarks>
+    /// <param name="candidateRid">The RID directory name from the package.</param>
+    /// <param name="hostRid">The RID of the machine installing the package.</param>
+    /// <returns><see langword="true"/> when the candidate targets the host platform.</returns>
+    internal static bool IsSamePlatform(string candidateRid, string hostRid)
     {
         var candidate = candidateRid.Split('-');
         var host = hostRid.Split('-');
@@ -818,8 +850,44 @@ public sealed class ModulePackageInstaller : IModulePackageInstaller
             return string.Equals(candidateRid, hostRid, StringComparison.OrdinalIgnoreCase);
         }
 
-        return string.Equals(candidate[0], host[0], StringComparison.OrdinalIgnoreCase)
+        return string.Equals(GetRuntimeOsFamily(candidateRid), GetRuntimeOsFamily(hostRid), StringComparison.Ordinal)
                && string.Equals(candidate[^1], host[^1], StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// Reduces a RID to the OS family used for compatibility: <c>windows</c>, <c>osx</c>,
+    /// <c>linux</c> (any glibc distro), <c>linux-musl</c> (musl and Alpine), or the literal OS
+    /// segment for everything else.
+    /// </summary>
+    /// <param name="rid">The runtime identifier, for example <c>ubuntu.24.04-x64</c>.</param>
+    /// <returns>The OS family token.</returns>
+    private static string GetRuntimeOsFamily(string rid)
+    {
+        var parts = rid.Split('-');
+
+        // RID syntax is <os>-[<os version>]-<architecture>: the architecture is the last segment.
+        var os = parts.Length > 1 ? string.Join('-', parts[..^1]) : rid;
+
+        if (os.StartsWith("win", StringComparison.OrdinalIgnoreCase))
+        {
+            return "windows";
+        }
+
+        if (os.StartsWith("osx", StringComparison.OrdinalIgnoreCase)
+            || os.StartsWith("macos", StringComparison.OrdinalIgnoreCase))
+        {
+            return "osx";
+        }
+
+        var distro = os.Split('.')[0];
+
+        if (os.Contains("musl", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(distro, "alpine", StringComparison.OrdinalIgnoreCase))
+        {
+            return "linux-musl";
+        }
+
+        return GlibcLinuxRids.Contains(distro) ? "linux" : os.ToLowerInvariant();
     }
 
     private static void CopyDirectory(string source, string destination, bool recursive)

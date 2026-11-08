@@ -41,9 +41,15 @@ public sealed class ProcessSupervisorOptions
 
     /// <summary>
     /// Maximum time to wait for a module to shut down gracefully before force-killing.
-    /// Default: 30 seconds.
+    /// Default: 10 seconds.
     /// </summary>
-    public TimeSpan GracefulShutdownTimeout { get; set; } = TimeSpan.FromSeconds(30);
+    /// <remarks>
+    /// A module that acknowledges the Stop RPC but never exits used to hold the supervisor for the
+    /// full 30-second default, which made an install or <c>module restart</c> look hung and left the
+    /// old binaries running if the service was restarted in that window. Ten seconds is still ample
+    /// for in-flight requests to drain and bounds the worst case deterministically.
+    /// </remarks>
+    public TimeSpan GracefulShutdownTimeout { get; set; } = TimeSpan.FromSeconds(10);
 
     /// <summary>
     /// Maximum time to wait for a module process to start and respond to health checks.

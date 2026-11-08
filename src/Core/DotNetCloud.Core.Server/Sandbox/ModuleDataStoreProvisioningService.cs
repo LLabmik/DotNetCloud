@@ -504,7 +504,16 @@ public sealed class ModuleDataStoreProvisioningService : IModuleDataStoreProvisi
         using var scope = _scopeFactory.CreateScope();
         var dbContext = scope.ServiceProvider.GetRequiredService<CoreDbContext>();
 
+        // AsTracking is required: CoreDbContext sets QueryTrackingBehavior.NoTracking globally, so a
+        // detached row would be mutated and then silently discarded by SaveChanges — leaving a store
+        // that was provisioned successfully (and logged as such) stuck in its previous status, most
+        // often the Error row written by a first attempt that failed the prerequisite check.
+        // AsTracking is required: CoreDbContext sets QueryTrackingBehavior.NoTracking globally, so a
+        // detached row would be mutated and then silently discarded by SaveChanges — leaving a store
+        // that was provisioned successfully (and logged as such) stuck in its previous status, most
+        // often the Error row written by a first attempt that failed the prerequisite check.
         var row = await dbContext.ModuleDataStores
+            .AsTracking()
             .FirstOrDefaultAsync(d => d.ModuleId == moduleId, cancellationToken);
 
         if (row is null)

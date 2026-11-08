@@ -2,7 +2,7 @@
   "manifestVersion": 2,
   "id": "dotnetcloud.example",
   "name": "Example",
-  "version": "1.0.0",
+  "version": "1.0.2",
   "description": "Reference implementation of a DotNetCloud module. Demonstrates lifecycle management, capability usage, event publishing, gRPC services, and Blazor UI components.",
   "publisher": {
     "id": "dotnetcloud",

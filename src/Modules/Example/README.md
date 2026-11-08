@@ -213,3 +213,11 @@ dotnet run --project src/Modules/Example/DotNetCloud.Modules.Example.Host
 ```
 
 If the database configuration is missing, the host throws `InvalidOperationException` at startup instead of booting with an empty in-memory database. The module self-migrates its schema on startup.
+
+### Sandbox rule: keep the model and migrations schema-neutral
+
+A sandboxed module does **not** own the database: the core provisions a schema and a principal that owns only that schema. The connection string it passes pins `search_path` to that schema, so:
+
+- Do **not** call `HasDefaultSchema(...)` in `OnModelCreating` and do **not** name a schema in a migration or in `MigrationsHistoryTable(...)`. Unqualified DDL lands in the module's own schema; naming one requires `CREATE` on the database and fails with PostgreSQL `42501 permission denied for database`.
+- Naming the schema in the model also makes EF report pending model changes against the snapshot, so `MigrateAsync` refuses to run.
+- Keep `ExampleDbContextModelTests` green: it asserts both that the model matches the snapshot and that the generated script contains no schema-qualified DDL.

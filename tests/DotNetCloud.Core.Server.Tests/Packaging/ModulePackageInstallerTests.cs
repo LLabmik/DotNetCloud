@@ -632,6 +632,113 @@ public class ModulePackageInstallerTests
         Assert.AreEqual("1.1.0", row.Version);
     }
 
+    // ------------------------------------------------- runtime selection (RID)
+
+    [TestMethod]
+    public void SelectRuntimeDirectory_PortableLinuxPackageOnDistroHost_SelectsLinuxDirectory()
+    {
+        // Regression: a package publishing the portable RID (linux-x64) was rejected on Ubuntu,
+        // whose host RID is ubuntu.24.04-x64, because only the literal OS segment was compared.
+        var root = CreateRuntimeLayout("linux-x64", "win-x64");
+
+        var selected = ModulePackageInstaller.SelectRuntimeDirectory(root, "ubuntu.24.04-x64");
+
+        Assert.AreEqual(RuntimeLayoutPath(root, "linux-x64"), selected);
+    }
+
+    [TestMethod]
+    public void SelectRuntimeDirectory_GlibcDistroHostWithMuslAndGlibcPackages_SelectsGlibcDirectory()
+    {
+        var root = CreateRuntimeLayout("linux-musl-x64", "linux-x64");
+
+        var selected = ModulePackageInstaller.SelectRuntimeDirectory(root, "debian.12-x64");
+
+        Assert.AreEqual(RuntimeLayoutPath(root, "linux-x64"), selected);
+    }
+
+    [TestMethod]
+    public void SelectRuntimeDirectory_AlpineHostWithMuslAndGlibcPackages_SelectsMuslDirectory()
+    {
+        var root = CreateRuntimeLayout("linux-x64", "linux-musl-x64");
+
+        var selected = ModulePackageInstaller.SelectRuntimeDirectory(root, "alpine.3.20-x64");
+
+        Assert.AreEqual(RuntimeLayoutPath(root, "linux-musl-x64"), selected);
+    }
+
+    [TestMethod]
+    public void SelectRuntimeDirectory_ExactDistroRidAlsoShipped_PrefersExactDirectory()
+    {
+        var root = CreateRuntimeLayout("linux-x64", "ubuntu.24.04-x64");
+
+        var selected = ModulePackageInstaller.SelectRuntimeDirectory(root, "ubuntu.24.04-x64");
+
+        Assert.AreEqual(RuntimeLayoutPath(root, "ubuntu.24.04-x64"), selected);
+    }
+
+    [TestMethod]
+    public void SelectRuntimeDirectory_ForeignOperatingSystemOnly_ThrowsNoMatchingRuntime()
+    {
+        var root = CreateRuntimeLayout("win-x64");
+
+        var exception = Assert.ThrowsExactly<ModulePackageException>(
+            () => ModulePackageInstaller.SelectRuntimeDirectory(root, "ubuntu.24.04-x64"));
+
+        Assert.AreEqual(PackageIssueCodes.NoMatchingRuntime, exception.Issues[0].Code);
+    }
+
+    [TestMethod]
+    public void SelectRuntimeDirectory_MuslPackageOnGlibcHost_ThrowsNoMatchingRuntime()
+    {
+        var root = CreateRuntimeLayout("linux-musl-x64", "win-x64");
+
+        var exception = Assert.ThrowsExactly<ModulePackageException>(
+            () => ModulePackageInstaller.SelectRuntimeDirectory(root, "ubuntu.24.04-x64"));
+
+        Assert.AreEqual(PackageIssueCodes.NoMatchingRuntime, exception.Issues[0].Code);
+    }
+
+    [TestMethod]
+    public void SelectRuntimeDirectory_TwoCompatibleDistroDirectories_ThrowsAmbiguous()
+    {
+        var root = CreateRuntimeLayout("debian.12-x64", "fedora.41-x64");
+
+        var exception = Assert.ThrowsExactly<ModulePackageException>(
+            () => ModulePackageInstaller.SelectRuntimeDirectory(root, "ubuntu.24.04-x64"));
+
+        Assert.AreEqual(PackageIssueCodes.NoMatchingRuntime, exception.Issues[0].Code);
+    }
+
+    [TestMethod]
+    public void SelectRuntimeDirectory_BinariesDirectlyUnderFiles_ReturnsFilesDirectory()
+    {
+        var root = CreateRuntimeLayout();
+        File.WriteAllText(
+            Path.Combine(root, ModulePackageFormat.FilesDirectoryName, PackageInstallerFixture.ModuleId + ".dll"),
+            "fake assembly");
+
+        var selected = ModulePackageInstaller.SelectRuntimeDirectory(root, "ubuntu.24.04-x64");
+
+        Assert.AreEqual(Path.Combine(root, ModulePackageFormat.FilesDirectoryName), selected);
+    }
+
+    private string CreateRuntimeLayout(params string[] rids)
+    {
+        var root = Path.Combine(_fixture.Root, "rid-" + Guid.NewGuid().ToString("N"));
+        var files = Path.Combine(root, ModulePackageFormat.FilesDirectoryName);
+        Directory.CreateDirectory(files);
+
+        foreach (var rid in rids)
+        {
+            Directory.CreateDirectory(Path.Combine(files, rid));
+        }
+
+        return root;
+    }
+
+    private static string RuntimeLayoutPath(string root, string rid) =>
+        Path.Combine(root, ModulePackageFormat.FilesDirectoryName, rid);
+
     // ---------------------------------------------------------------- doubles
 
     private sealed class FakeRunner : IModuleInstallRunner

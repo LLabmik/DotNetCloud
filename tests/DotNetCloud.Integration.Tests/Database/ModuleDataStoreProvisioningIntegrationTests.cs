@@ -41,6 +41,7 @@ public class ModuleDataStoreProvisioningIntegrationTests
     private const string OtherModule = "org.example.itest.other";
     private const string AdoptModule = "org.example.itest.adopt";
     private const string DestroyModule = "org.example.itest.destroy";
+    private const string RetryModule = "org.example.itest.retry";
 
     private static DatabaseContainerFixture? s_fixture;
     private static bool s_available;
@@ -88,7 +89,7 @@ public class ModuleDataStoreProvisioningIntegrationTests
         if (s_services is not null)
         {
             var provisioning = s_services.GetRequiredService<IModuleDataStoreProvisioningService>();
-            foreach (var moduleId in new[] { ProvisionModule, OtherModule, AdoptModule, DestroyModule })
+            foreach (var moduleId in new[] { ProvisionModule, OtherModule, AdoptModule, DestroyModule, RetryModule })
             {
                 try
                 {
@@ -123,6 +124,11 @@ public class ModuleDataStoreProvisioningIntegrationTests
             {
                 options.UseNpgsql(connectionString);
             }
+
+            // Mirror production: AddDotNetCloudDbContext sets QueryTrackingBehavior.NoTracking
+            // globally. A fixture that tracks by default would hide the whole class of
+            // "mutate a detached row then SaveChanges" bugs the services are written against.
+            options.UseQueryTrackingBehavior(QueryTrackingBehavior.NoTracking);
         });
 
         services.AddSingleton<ITableNamingStrategy>(s_provider == DatabaseProvider.SqlServer
@@ -295,6 +301,71 @@ public class ModuleDataStoreProvisioningIntegrationTests
             $"CREATE TABLE {Quote(otherSchema)}.{Quote("intruder")} (id int)"));
         await AssertPermissionDeniedAsync(() => ScalarAsync(moduleConnectionString,
             $"SELECT count(*) FROM {Quote("core")}.{Quote("core_secret")}"));
+    }
+
+    /// <summary>
+    /// Regression: a first provisioning attempt that fails the prerequisite check writes an
+    /// <c>Error</c> row. The retry must persist <c>Active</c> plus the encrypted connection string.
+    /// <c>CoreDbContext</c> defaults to no-tracking queries, so the detached row was mutated and then
+    /// silently discarded by <c>SaveChanges</c>, leaving the module permanently unstartable with
+    /// "the module data store is provisioned but its connection string could not be read".
+    /// </summary>
+    [TestMethod]
+    public async Task Provision_AfterFailedAttempt_PersistsActiveStatusAndConnectionString()
+    {
+        SkipIfUnavailable();
+
+        using (var clearScope = s_services!.CreateScope())
+        {
+            var clearContext = clearScope.ServiceProvider.GetRequiredService<CoreDbContext>();
+            var leftover = await clearContext.ModuleDataStores
+                .AsNoTracking()
+                .FirstOrDefaultAsync(d => d.ModuleId == RetryModule);
+
+            if (leftover is not null)
+            {
+                clearContext.ModuleDataStores.Remove(leftover);
+                await clearContext.SaveChangesAsync();
+            }
+        }
+
+        using (var seedScope = s_services!.CreateScope())
+        {
+            var seedContext = seedScope.ServiceProvider.GetRequiredService<CoreDbContext>();
+            var (schema, principal) = NamesFor(RetryModule);
+
+            seedContext.ModuleDataStores.Add(new ModuleDataStore
+            {
+                ModuleId = RetryModule,
+                Provider = s_provider.ToString(),
+                SchemaName = schema,
+                PrincipalName = principal,
+                EncryptedConnectionString = null,
+                Status = ModuleDataStoreStatus.Error,
+                LastError = "The DotNetCloud database role lacks CREATEROLE.",
+                CreatedAtUtc = DateTime.UtcNow,
+                UpdatedAtUtc = DateTime.UtcNow,
+            });
+
+            await seedContext.SaveChangesAsync();
+        }
+
+        var provisioned = await Provisioning.EnsureProvisionedAsync(RetryModule);
+        Assert.IsTrue(provisioned.Success, provisioned.Error);
+
+        using (var assertScope = s_services!.CreateScope())
+        {
+            var assertContext = assertScope.ServiceProvider.GetRequiredService<CoreDbContext>();
+            var row = await assertContext.ModuleDataStores
+                .AsNoTracking()
+                .SingleAsync(d => d.ModuleId == RetryModule);
+
+            Assert.AreEqual(ModuleDataStoreStatus.Active, row.Status, "the retry must clear the failed status");
+            Assert.IsNull(row.LastError);
+            Assert.IsFalse(string.IsNullOrEmpty(row.EncryptedConnectionString));
+        }
+
+        Assert.IsNotNull(await Provisioning.GetConnectionStringAsync(RetryModule));
     }
 
     [TestMethod]

@@ -81,10 +81,12 @@ public static partial class Program
 
         var isPostgreSql = string.Equals(dbProvider, "PostgreSql", StringComparison.OrdinalIgnoreCase);
 
-        // Sandboxed modules own a generated schema; the host must use it for both the model's
-        // default schema and the migration-history table.
+        // Sandboxed modules own a generated schema. Nothing in the model or the migration names it:
+        // the provisioned connection string pins search_path to that schema, so unqualified DDL —
+        // including the migration-history table — lands in the module's own schema. Naming the
+        // schema here or in the migration would require CREATE on the database, which the module
+        // principal deliberately does not have (42501).
         var sandboxSchema = builder.Configuration["databaseSchema"];
-        var migrationsSchema = string.IsNullOrWhiteSpace(sandboxSchema) ? "example" : sandboxSchema;
 
         ITableNamingStrategy namingStrategy = isPostgreSql
             ? new PostgreSqlNamingStrategy()
@@ -102,7 +104,7 @@ public static partial class Program
             if (isPostgreSql)
             {
                 options.UseNpgsql(connectionString, npgsql =>
-                    npgsql.MigrationsHistoryTable("__EFMigrationsHistory", migrationsSchema));
+                    npgsql.MigrationsHistoryTable("__EFMigrationsHistory"));
             }
             else
             {
@@ -111,7 +113,7 @@ public static partial class Program
                     sql.EnableRetryOnFailure(maxRetryCount: 3);
                     sql.CommandTimeout(30);
                     sql.MigrationsAssembly("DotNetCloud.Modules.Example.Data.SqlServer");
-                    sql.MigrationsHistoryTable("__EFMigrationsHistory", migrationsSchema);
+                    sql.MigrationsHistoryTable("__EFMigrationsHistory");
                 });
             }
         });
@@ -183,7 +185,7 @@ public static partial class Program
         app.MapGrpcService<ExampleGrpcService>();
         app.MapGrpcService<ExampleLifecycleService>();
         app.MapHealthChecks("/health");
-        app.MapGet("/", () => Results.Ok(new { module = "dotnetcloud.example", version = "1.0.0", status = "running" }));
+        app.MapGet("/", () => Results.Ok(new { module = "dotnetcloud.example", version = "1.0.2", status = "running" }));
 
         await app.RunAsync();
     }

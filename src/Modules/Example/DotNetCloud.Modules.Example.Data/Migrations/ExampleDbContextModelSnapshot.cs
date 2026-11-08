@@ -17,8 +17,7 @@ namespace DotNetCloud.Modules.Example.Data.Migrations
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasDefaultSchema("example")
-                .HasAnnotation("ProductVersion", "10.0.3")
+                .HasAnnotation("ProductVersion", "10.0.14")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
@@ -61,7 +60,7 @@ namespace DotNetCloud.Modules.Example.Data.Migrations
                     b.HasIndex("Title")
                         .HasDatabaseName("ix_example_notes_title");
 
-                    b.ToTable("Notes", "example");
+                    b.ToTable("Notes");
                 });
 #pragma warning restore 612, 618
         }

@@ -132,6 +132,22 @@ a key id in `Modules:Store:TrustedKeys`. Otherwise:
 The trusted key list is the whole trust root: a feed and an index are data, so keys they carry are
 ignored. Pin both the store index key and every publisher key you intend to accept.
 
+### Prerequisites on the host
+
+- **PostgreSQL `CREATEROLE`.** Installing a package whose manifest declares `dataStore: "isolated"`
+  provisions a per-module principal, which needs the app role to hold `CREATEROLE`:
+  `ALTER ROLE "<app-role>" CREATEROLE;` as a superuser, then restart the server. Without it the
+  install stops with `DATASTORE_PROVISIONING_FAILED` and the remediation text naming the real role.
+  Installs created by the current setup wizard already grant it; older ones do not.
+- **`CachePath` must be writable by the service account.** Under the systemd unit the application
+  directory is read-only (`ProtectSystem=strict`), so set it under the data directory, for example
+  `/var/lib/dotnetcloud/store-cache`. The client creates the directory on first use.
+- **Packages ship portable RIDs** (`files/linux-x64`, `files/win-x64`). The installer matches a
+  distro host such as `ubuntu.24.04-x64` by OS family plus architecture, so one `linux-x64` build
+  serves every glibc distribution; Alpine/musl hosts need `linux-musl-<arch>`. An exact
+  `files/<host-rid>` directory still wins when a package ships one, and a package that only carries
+  a foreign OS is refused with `PACKAGE_NO_MATCHING_RUNTIME`.
+
 ## 4. Layout on disk
 
 ```

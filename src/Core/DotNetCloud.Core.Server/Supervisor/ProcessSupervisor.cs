@@ -478,7 +478,12 @@ internal sealed class ProcessSupervisor : BackgroundService, IProcessSupervisor
         // 3. Force kill if still running
         if (!exited && handle.IsRunning)
         {
-            _logger.LogWarning("Module {ModuleId} did not exit gracefully, force-killing", moduleId);
+            // The module did not exit within the grace period. It may have acknowledged Stop and
+            // then ignored it (a host that never shuts its listener down), so say so plainly: this
+            // is the line that explains why an install or restart took the full timeout.
+            _logger.LogWarning(
+                "Module {ModuleId} did not exit within {TimeoutSeconds}s of Stop (gRPC stop acknowledged: {Acknowledged}); force-killing PID {Pid}",
+                SanitizeForLog(moduleId), _options.GracefulShutdownTimeout.TotalSeconds, grpcStopSuccess, handle.ProcessId);
             ForceKillProcess(handle);
         }
 
