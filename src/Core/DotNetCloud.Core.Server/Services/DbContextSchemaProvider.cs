@@ -1,6 +1,5 @@
 using DotNetCloud.Core.Modules;
 using DotNetCloud.Modules.AI.Data;
-using DotNetCloud.Modules.Bookmarks.Data;
 using DotNetCloud.Modules.Calendar.Data;
 using DotNetCloud.Modules.Chat.Data;
 using DotNetCloud.Modules.Contacts.Data;
@@ -43,7 +42,6 @@ public class DbContextSchemaProvider : IModuleSchemaProvider
         ["dotnetcloud.music"] = typeof(MusicDbContext),
         ["dotnetcloud.video"] = typeof(VideoDbContext),
         ["dotnetcloud.ai"] = typeof(AiDbContext),
-        ["dotnetcloud.bookmarks"] = typeof(BookmarksDbContext),
         ["dotnetcloud.email"] = typeof(EmailDbContext),
     };
 

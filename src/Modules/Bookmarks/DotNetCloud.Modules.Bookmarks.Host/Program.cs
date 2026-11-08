@@ -9,14 +9,13 @@ using DotNetCloud.Modules.Bookmarks.Host.Services;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.HttpOverrides;
-using Microsoft.AspNetCore.Authentication.Cookies;
-using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.DataProtection;
-using Microsoft.AspNetCore.Diagnostics;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Load shared config from DOTNETCLOUD_CONFIG_DIR
+// Legacy shared config (DOTNETCLOUD_CONFIG_DIR) is only present when the supervisor still launches
+// this module in compatibility mode (ProcessSupervisor:AllowLegacyAccess). A sandboxed module gets
+// the non-secret topology in module.json instead.
 var configDir = Environment.GetEnvironmentVariable("DOTNETCLOUD_CONFIG_DIR");
 if (!string.IsNullOrEmpty(configDir))
 {
@@ -25,56 +24,34 @@ if (!string.IsNullOrEmpty(configDir))
         builder.Configuration.AddJsonFile(p, optional: true, reloadOnChange: false);
 }
 
+var moduleConfigDir = Environment.GetEnvironmentVariable("DOTNETCLOUD_MODULE_CONFIG_DIR");
+if (!string.IsNullOrEmpty(moduleConfigDir))
+{
+    var moduleJsonPath = Path.Combine(moduleConfigDir, "module.json");
+    if (File.Exists(moduleJsonPath))
+        builder.Configuration.AddJsonFile(moduleJsonPath, optional: false, reloadOnChange: false);
+}
+
 // Bind the endpoint the supervisor assigned: a Unix socket, a named pipe or loopback TCP.
 DotNetCloud.Core.Grpc.ModuleGrpcEndpointBinding.ConfigureModuleGrpcEndpoint(builder);
 
-// Share DataProtection keys with Core.Server so auth cookies from the proxy are valid.
-var dataProtectionDir = Environment.GetEnvironmentVariable("DOTNETCLOUD_DATA_DIR");
-var dpKeysPath = !string.IsNullOrWhiteSpace(dataProtectionDir)
-    ? Path.Combine(dataProtectionDir, "data-protection-keys")
+// DataProtection keys are private to the module (F1/F4). A sandboxed host must never share the
+// core's key ring: sharing it would let the module mint core cookies, and the core's rotation would
+// silently break the module.
+var moduleDataDir = Environment.GetEnvironmentVariable("DOTNETCLOUD_MODULE_DATA_DIR");
+var dpKeysPath = !string.IsNullOrWhiteSpace(moduleDataDir)
+    ? Path.Combine(moduleDataDir, "data-protection-keys")
     : Path.Combine(builder.Environment.ContentRootPath, "data-protection-keys");
 Directory.CreateDirectory(dpKeysPath);
 builder.Services.AddDataProtection()
-    .SetApplicationName("DotNetCloud")
+    .SetApplicationName("DotNetCloud.Modules.Bookmarks")
     .PersistKeysToFileSystem(new DirectoryInfo(dpKeysPath));
 
-// Cookie auth — same cookie name as Core.Server. SecurePolicy=Always because
-// the YARP proxy sets X-Forwarded-Proto, so UseForwardedHeaders() enables Secure.
-builder.Services.AddAuthentication("Identity.Application")
-    .AddCookie("Identity.Application", options =>
-    {
-        options.Cookie.Name = ".AspNetCore.Identity.Application";
-        options.Cookie.HttpOnly = true;
-        options.Cookie.SameSite = SameSiteMode.Lax;
-        options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
-        options.Cookie.IsEssential = true;
-        options.ExpireTimeSpan = TimeSpan.FromHours(24);
-        options.SlidingExpiration = true;
-
-        // Skip Identity user-store lookup — the cookie was already validated
-        // by Core.Server. Just accept the decrypted principal as-is.
-        options.Events.OnValidatePrincipal = static context =>
-        {
-            if (context.Principal?.Identity?.IsAuthenticated == true)
-                return Task.CompletedTask;
-            context.RejectPrincipal();
-            return Task.CompletedTask;
-        };
-
-        // Return 401 for API requests instead of redirecting to login.
-        options.Events.OnRedirectToLogin = context =>
-        {
-            context.Response.StatusCode = StatusCodes.Status401Unauthorized;
-            return Task.CompletedTask;
-        };
-        options.Events.OnRedirectToAccessDenied = context =>
-        {
-            context.Response.StatusCode = StatusCodes.Status403Forbidden;
-            return Task.CompletedTask;
-        };
-    });
-
-builder.Services.AddAuthorization();
+// Identity (F4/F5): the core reverse-proxy strips the browser's session cookie and mints a
+// short-lived, module-audience assertion instead. The module therefore authenticates no user of its
+// own — no cookie scheme, no shared key ring — and every request's acting user comes from
+// IModuleUserAssertionAccessor (see BookmarksControllerBase).
+builder.Services.AddModuleUserAssertionAccessor();
 
 // Register the gRPC-backed audit logger (SOC 2 CC4) — routes to Core.Server.
 builder.Services.AddAuditLogger();
@@ -88,9 +65,14 @@ builder.Services.AddSingleton<BookmarksModule>();
 // File validation service for upload security
 builder.Services.AddSingleton<IFileValidationService, FileValidationService>();
 
-// Register EF Core with SQL Server or PostgreSQL based on configuration
-var connectionString = builder.Configuration["connectionString"]
-    ?? builder.Configuration.GetConnectionString("DefaultConnection");
+// Register EF Core with SQL Server or PostgreSQL based on configuration. A sandboxed module is
+// handed a scoped connection string (its own principal, its own schema, search_path pinned); only a
+// legacy launch falls back to the shared config.json.
+var sandboxConnectionString = Environment.GetEnvironmentVariable("DOTNETCLOUD_MODULE_DB_CONNECTION_STRING");
+var connectionString = !string.IsNullOrEmpty(sandboxConnectionString)
+    ? sandboxConnectionString
+    : builder.Configuration["connectionString"]
+        ?? builder.Configuration.GetConnectionString("DefaultConnection");
 var dbProvider = builder.Configuration["databaseProvider"]
     ?? builder.Configuration["database:provider"];
 
@@ -102,6 +84,10 @@ if (string.IsNullOrEmpty(connectionString) || string.IsNullOrEmpty(dbProvider))
 }
 
 var provider = ResolveDatabaseProvider(dbProvider);
+
+// The DbContext is provider-aware (table naming and the sequential-Guid defaults differ per engine).
+builder.Services.AddSingleton<ITableNamingStrategy>(
+    provider == DatabaseProvider.SqlServer ? new SqlServerNamingStrategy() : new PostgreSqlNamingStrategy());
 
 builder.Services.AddDbContext<BookmarksDbContext>(options =>
     DbResiliencePolicy.Configure(
@@ -122,6 +108,10 @@ builder.Services.AddGrpc(options =>
 builder.Services.AddControllers();
 builder.Services.AddHealthChecks()
     .AddCheck<BookmarksHealthCheck>("bookmarks_module");
+
+// Account erasure (F12): this module owns the bookmarks of a deleted account, so it owns their
+// deletion. The core calls EraseUserData and retries until the module acknowledges.
+builder.Services.AddModuleUserErasureHandler<BookmarksUserErasureHandler>();
 
 var app = builder.Build();
 
@@ -165,32 +155,33 @@ if (!string.IsNullOrEmpty(connectionString) && !string.IsNullOrEmpty(dbProvider)
     }
 }
 
-// Show full exception details for debugging; remove in production.
-app.UseDeveloperExceptionPage();
+// Show exception details only while developing; a sandboxed host must not leak stack traces.
+if (app.Environment.IsDevelopment())
+{
+    app.UseDeveloperExceptionPage();
+}
 
 // Map gRPC services
 app.MapGrpcService<BookmarksGrpcService>();
 app.MapGrpcService<BookmarksLifecycleService>();
 
 // Map REST API controllers
-// Trust X-Forwarded-Proto from the YARP proxy so __Host- cookies work over HTTP.
+// Trust X-Forwarded-Proto from the YARP proxy so cookie/host derivation matches the public origin.
 app.UseForwardedHeaders(new ForwardedHeadersOptions
 {
     ForwardedHeaders = ForwardedHeaders.XForwardedProto,
     KnownProxies = { System.Net.IPAddress.Loopback, System.Net.IPAddress.IPv6Loopback },
 });
-app.UseAuthentication();
-app.UseAuthorization();
 app.MapControllers();
 
 // Health check endpoint
 app.MapHealthChecks("/health");
 
 // Minimal info endpoint
-app.MapGet("/", () => Results.Ok(new
+app.MapGet("/api/info", () => Results.Ok(new
 {
     module = "dotnetcloud.bookmarks",
-    version = "1.0.0",
+    version = "1.1.0",
     status = "running"
 }));
 

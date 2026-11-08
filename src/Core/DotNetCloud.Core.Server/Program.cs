@@ -403,18 +403,19 @@ public class Program
             ModuleDbContextConfiguration.Configure(options, provider, connectionString, "DotNetCloud.Modules.AI.Data.SqlServer"),
             ServiceLifetime.Transient);
 
-        // Contacts/Bookmarks/Email DbContexts for schema creation by DbContextSchemaProvider.
+        // Contacts/Email DbContexts for schema creation by DbContextSchemaProvider.
         // These modules are process-isolated — their hosts query the shared DB directly, but the
         // schema must exist before the module host starts. Without these registrations the schema
-        // provider skipped them entirely and no contacts/bookmarks/email tables were ever created on
+        // provider skipped them entirely and no contacts/email tables were ever created on
         // server-only (Docker/Helm) installs that never run `dotnetcloud migrate`. The .Data.SqlServer
         // migrations assembly string is only used on SQL Server; on PostgreSQL Npgsql discovers the
         // (Postgres) migrations in the DbContext's own .Data assembly.
+        //
+        // Bookmarks is deliberately absent: it owns its data store (dataStore: "isolated", Track C),
+        // so the core neither registers nor migrates its DbContext — the module self-migrates in the
+        // schema the provisioning service created for it.
         builder.Services.AddDbContext<ContactsDbContext>(options =>
             ModuleDbContextConfiguration.Configure(options, provider, connectionString, "DotNetCloud.Modules.Contacts.Data.SqlServer"),
-            ServiceLifetime.Transient);
-        builder.Services.AddDbContext<BookmarksDbContext>(options =>
-            ModuleDbContextConfiguration.Configure(options, provider, connectionString, "DotNetCloud.Modules.Bookmarks.Data.SqlServer"),
             ServiceLifetime.Transient);
         builder.Services.AddDbContext<EmailDbContext>(options =>
             ModuleDbContextConfiguration.Configure(options, provider, connectionString, "DotNetCloud.Modules.Email.Data.SqlServer"),

@@ -16,14 +16,16 @@ public sealed class BookmarksModuleManifest : IModuleManifest
     public string Name => "Bookmarks";
 
     /// <inheritdoc />
-    public string Version => "1.0.0";
+    public string Version => "1.1.0";
 
     /// <inheritdoc />
     public IReadOnlyCollection<string> RequiredCapabilities => new[]
     {
         nameof(Core.Capabilities.INotificationService),
+        nameof(Core.Capabilities.IUserDirectory),
         nameof(Core.Capabilities.ICurrentUserContext),
-        nameof(Core.Capabilities.IAuditLogger)
+        nameof(Core.Capabilities.IAuditLogger),
+        nameof(Core.Capabilities.ISearchProvider)
     };
 
     /// <inheritdoc />

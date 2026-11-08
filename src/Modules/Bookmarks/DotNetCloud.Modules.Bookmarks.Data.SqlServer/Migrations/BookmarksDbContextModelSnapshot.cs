@@ -17,8 +17,7 @@ namespace DotNetCloud.Modules.Bookmarks.Data.SqlServer.Migrations
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasDefaultSchema("bookmarks")
-                .HasAnnotation("ProductVersion", "10.0.3")
+                .HasAnnotation("ProductVersion", "10.0.14")
                 .HasAnnotation("Relational:MaxIdentifierLength", 128);
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
@@ -74,7 +73,7 @@ namespace DotNetCloud.Modules.Bookmarks.Data.SqlServer.Migrations
                     b.HasIndex("OwnerId", "ParentId")
                         .HasDatabaseName("ix_bookmark_folders_owner_parent");
 
-                    b.ToTable("BookmarkFolders", "bookmarks");
+                    b.ToTable("BookmarkFolders");
                 });
 
             modelBuilder.Entity("DotNetCloud.Modules.Bookmarks.Models.BookmarkItem", b =>
@@ -147,7 +146,7 @@ namespace DotNetCloud.Modules.Bookmarks.Data.SqlServer.Migrations
                     b.HasIndex("OwnerId", "FolderId")
                         .HasDatabaseName("ix_bookmarks_owner_folder");
 
-                    b.ToTable("Bookmarks", "bookmarks");
+                    b.ToTable("Bookmarks");
                 });
 
             modelBuilder.Entity("DotNetCloud.Modules.Bookmarks.Models.BookmarkPreview", b =>
@@ -228,7 +227,7 @@ namespace DotNetCloud.Modules.Bookmarks.Data.SqlServer.Migrations
                     b.HasIndex("Status")
                         .HasDatabaseName("ix_bookmark_previews_status");
 
-                    b.ToTable("BookmarkPreviews", "bookmarks");
+                    b.ToTable("BookmarkPreviews");
                 });
 
             modelBuilder.Entity("DotNetCloud.Modules.Bookmarks.Models.BookmarkFolder", b =>

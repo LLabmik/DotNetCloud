@@ -9,7 +9,6 @@ using DotNetCloud.Core.Server.Sandbox;
 using DotNetCloud.Core.Server.Services;
 using DotNetCloud.ModulePackaging;
 using DotNetCloud.Modules.AI.Data;
-using DotNetCloud.Modules.Bookmarks.Data;
 using DotNetCloud.Modules.Calendar.Data;
 using DotNetCloud.Modules.Chat.Data;
 using DotNetCloud.Modules.Contacts.Data;
@@ -274,7 +273,6 @@ internal static class ServiceProviderFactory
             : new PostgreSqlNamingStrategy());
 
         const string AiMigrationsAssembly = "DotNetCloud.Modules.AI.Data.SqlServer";
-        const string BookmarksMigrationsAssembly = "DotNetCloud.Modules.Bookmarks.Data.SqlServer";
         const string CalendarMigrationsAssembly = "DotNetCloud.Modules.Calendar.Data.SqlServer";
         const string ChatMigrationsAssembly = "DotNetCloud.Modules.Chat.Data.SqlServer";
         const string ContactsMigrationsAssembly = "DotNetCloud.Modules.Contacts.Data.SqlServer";
@@ -288,8 +286,6 @@ internal static class ServiceProviderFactory
 
         services.AddDbContext<AiDbContext>(options =>
             ConfigureModuleDbContext(options, provider, connectionString, AiMigrationsAssembly));
-        services.AddDbContext<BookmarksDbContext>(options =>
-            ConfigureModuleDbContext(options, provider, connectionString, BookmarksMigrationsAssembly));
         services.AddDbContext<CalendarDbContext>(options =>
             ConfigureModuleDbContext(options, provider, connectionString, CalendarMigrationsAssembly));
         services.AddDbContext<ChatDbContext>(options =>

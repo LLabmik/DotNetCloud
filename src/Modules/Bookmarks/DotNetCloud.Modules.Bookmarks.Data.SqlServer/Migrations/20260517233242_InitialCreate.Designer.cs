@@ -20,8 +20,7 @@ namespace DotNetCloud.Modules.Bookmarks.Data.SqlServer.Migrations
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasDefaultSchema("bookmarks")
-                .HasAnnotation("ProductVersion", "10.0.3")
+                .HasAnnotation("ProductVersion", "10.0.14")
                 .HasAnnotation("Relational:MaxIdentifierLength", 128);
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
@@ -30,7 +29,8 @@ namespace DotNetCloud.Modules.Bookmarks.Data.SqlServer.Migrations
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("uniqueidentifier")
+                        .HasDefaultValueSql("NEWSEQUENTIALID()");
 
                     b.Property<string>("Color")
                         .HasMaxLength(20)
@@ -76,14 +76,15 @@ namespace DotNetCloud.Modules.Bookmarks.Data.SqlServer.Migrations
                     b.HasIndex("OwnerId", "ParentId")
                         .HasDatabaseName("ix_bookmark_folders_owner_parent");
 
-                    b.ToTable("BookmarkFolders", "bookmarks");
+                    b.ToTable("BookmarkFolders");
                 });
 
             modelBuilder.Entity("DotNetCloud.Modules.Bookmarks.Models.BookmarkItem", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("uniqueidentifier")
+                        .HasDefaultValueSql("NEWSEQUENTIALID()");
 
                     b.Property<DateTime>("CreatedAt")
                         .ValueGeneratedOnAdd()
@@ -148,14 +149,15 @@ namespace DotNetCloud.Modules.Bookmarks.Data.SqlServer.Migrations
                     b.HasIndex("OwnerId", "FolderId")
                         .HasDatabaseName("ix_bookmarks_owner_folder");
 
-                    b.ToTable("Bookmarks", "bookmarks");
+                    b.ToTable("Bookmarks");
                 });
 
             modelBuilder.Entity("DotNetCloud.Modules.Bookmarks.Models.BookmarkPreview", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("uniqueidentifier")
+                        .HasDefaultValueSql("NEWSEQUENTIALID()");
 
                     b.Property<Guid>("BookmarkId")
                         .HasColumnType("uniqueidentifier");
@@ -228,7 +230,7 @@ namespace DotNetCloud.Modules.Bookmarks.Data.SqlServer.Migrations
                     b.HasIndex("Status")
                         .HasDatabaseName("ix_bookmark_previews_status");
 
-                    b.ToTable("BookmarkPreviews", "bookmarks");
+                    b.ToTable("BookmarkPreviews");
                 });
 
             modelBuilder.Entity("DotNetCloud.Modules.Bookmarks.Models.BookmarkFolder", b =>
