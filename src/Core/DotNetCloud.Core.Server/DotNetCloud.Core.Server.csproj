@@ -26,6 +26,9 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- Ed25519 package/signature verification (B1/B3). .NET 10 has no
+         System.Security.Cryptography.Ed25519 surface; BouncyCastle is pure managed. -->
+    <PackageReference Include="BouncyCastle.Cryptography" />
     <PackageReference Include="Grpc.AspNetCore" />
     <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly.Server" />
     <!-- Microsoft.OpenApi comes transitively from Microsoft.AspNetCore.OpenApi at a vulnerable

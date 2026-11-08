@@ -11,6 +11,7 @@ using DotNetCloud.Core.Modules;
 using DotNetCloud.Core.Modules.Supervisor;
 using DotNetCloud.Core.Services;
 using DotNetCloud.Core.Server.Services;
+using DotNetCloud.ModulePackaging;
 using Grpc.Net.Client;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -693,6 +694,211 @@ public class AdminController : ControllerBase
             EntityId = Guid.CreateVersion7(),
             Description = $"module-datastore-{operation}-failed:{SanitizeForLog(moduleId)}:{SanitizeForLog(error)}",
         });
+
+    // ---------------------------------------------------------------------------
+    // Module store (B3)
+    // ---------------------------------------------------------------------------
+
+    /// <summary>
+    /// Lists the packages available from the configured module store source.
+    /// </summary>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The catalogue entries, annotated with the installed version where known.</returns>
+    [HttpGet("modules/store")]
+    public async Task<IActionResult> ListStorePackagesAsync(CancellationToken cancellationToken)
+    {
+        var packages = await _moduleService.ListStorePackagesAsync(cancellationToken);
+        return Ok(new { success = true, data = packages });
+    }
+
+    /// <summary>
+    /// Verifies an uploaded <c>.dncpkg</c> package without installing it.
+    /// </summary>
+    /// <param name="file">The package file.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The verification findings and the manifest facts the administrator must review.</returns>
+    [HttpPost("modules/install/inspect")]
+    [RequestSizeLimit(ModulePackageLimits.MaxPackageBytes)]
+    public async Task<IActionResult> InspectModulePackageAsync(
+        [FromForm] IFormFile? file,
+        CancellationToken cancellationToken)
+    {
+        if (file is null || file.Length == 0)
+        {
+            return BadRequest(new
+            {
+                success = false,
+                error = new { code = "PACKAGE_MISSING", message = "Upload a .dncpkg file." },
+            });
+        }
+
+        var temporaryPath = await SaveUploadAsync(file, cancellationToken);
+
+        try
+        {
+            var review = await _moduleService.InspectPackageAsync(temporaryPath, cancellationToken);
+            return Ok(new { success = true, data = review });
+        }
+        finally
+        {
+            TryDeleteFile(temporaryPath);
+        }
+    }
+
+    /// <summary>
+    /// Installs an uploaded <c>.dncpkg</c> package after an administrator reviewed it.
+    /// </summary>
+    /// <remarks>
+    /// The form must carry the hash shown by the review and the exact capability and scope lists it
+    /// displayed. Anything else is the wrong package or an unreviewed capability set and is refused.
+    /// </remarks>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The install outcome; a failed health check is rolled back before the response.</returns>
+    [HttpPost("modules/install")]
+    [RequestSizeLimit(ModulePackageLimits.MaxPackageBytes)]
+    public async Task<IActionResult> InstallModulePackageAsync(CancellationToken cancellationToken)
+    {
+        if (!TryGetUserId(out var adminUserId))
+        {
+            return Unauthorized(new { success = false, error = new { code = "INVALID_TOKEN", message = "Invalid token claims" } });
+        }
+
+        if (!Request.HasFormContentType)
+        {
+            return BadRequest(new
+            {
+                success = false,
+                error = new { code = "INVALID_REQUEST", message = "Expected multipart/form-data." },
+            });
+        }
+
+        var form = await Request.ReadFormAsync(cancellationToken);
+        var file = form.Files.GetFile("file");
+
+        if (file is null || file.Length == 0)
+        {
+            return BadRequest(new
+            {
+                success = false,
+                error = new { code = "PACKAGE_MISSING", message = "Upload a .dncpkg file." },
+            });
+        }
+
+        var dto = new InstallModulePackageDto
+        {
+            ExpectedSha256 = form["expectedSha256"].FirstOrDefault(),
+            AcknowledgedCapabilities = ReadFormList(form, "acknowledgedCapabilities"),
+            AcknowledgedScopes = ReadFormList(form, "acknowledgedScopes"),
+            AllowUnverified = ReadFormBool(form, "allowUnverified", defaultValue: false),
+            StartAfterInstall = ReadFormBool(form, "startAfterInstall", defaultValue: true),
+        };
+
+        var temporaryPath = await SaveUploadAsync(file, cancellationToken);
+
+        try
+        {
+            var result = await _moduleService.InstallPackageAsync(
+                temporaryPath, dto, adminUserId, cancellationToken);
+
+            if (!result.Success)
+            {
+                _logger.LogWarning(
+                    "Package install failed for module {ModuleId}: {Error}",
+                    SanitizeForLog(result.ModuleId), SanitizeForLog(result.Error));
+
+                return BadRequest(new { success = false, data = result, error = new { code = "INSTALL_FAILED", message = result.Error } });
+            }
+
+            _logger.LogInformation(
+                "Package install of {ModuleId} {Version} completed by admin {AdminUserId} (unverified={Unverified})",
+                SanitizeForLog(result.ModuleId), SanitizeForLog(result.Version), adminUserId, dto.AllowUnverified);
+
+            return Ok(new { success = true, data = result });
+        }
+        finally
+        {
+            TryDeleteFile(temporaryPath);
+        }
+    }
+
+    /// <summary>
+    /// Restores the previous version retained by the last install.
+    /// </summary>
+    /// <param name="moduleId">The module identifier.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The rollback outcome.</returns>
+    [HttpPost("modules/{moduleId}/rollback")]
+    public async Task<IActionResult> RollbackModuleAsync(string moduleId, CancellationToken cancellationToken)
+    {
+        if (!TryGetUserId(out var adminUserId))
+        {
+            return Unauthorized(new { success = false, error = new { code = "INVALID_TOKEN", message = "Invalid token claims" } });
+        }
+
+        var result = await _moduleService.RollbackModuleAsync(moduleId, adminUserId, cancellationToken);
+
+        if (!result.Success)
+        {
+            return BadRequest(new { success = false, data = result, error = new { code = "ROLLBACK_FAILED", message = result.Error } });
+        }
+
+        await _auditLogger.LogAsync(new AuditEntry
+        {
+            Caller = BuildCaller(),
+            ModuleId = "dotnetcloud.core",
+            Action = AuditAction.ModuleUpdated,
+            EntityType = "Module",
+            EntityId = Guid.CreateVersion7(),
+            Description = $"module-rollback:{SanitizeForLog(moduleId)}:{SanitizeForLog(result.Version)}",
+        });
+
+        _logger.LogInformation(
+            "Module {ModuleId} rolled back to {Version} by admin {AdminUserId}",
+            SanitizeForLog(moduleId), SanitizeForLog(result.Version), adminUserId);
+
+        return Ok(new { success = true, data = result });
+    }
+
+    private async Task<string> SaveUploadAsync(IFormFile file, CancellationToken cancellationToken)
+    {
+        var directory = Path.Combine(Path.GetTempPath(), "dnc-module-upload");
+        Directory.CreateDirectory(directory);
+
+        // Never trust the client's file name: the extension is fixed and the name is generated.
+        var path = Path.Combine(directory, Guid.CreateVersion7().ToString("N") + ModulePackageFormat.Extension);
+
+        await using var stream = new FileStream(path, FileMode.CreateNew, FileAccess.Write, FileShare.None);
+        await file.CopyToAsync(stream, cancellationToken);
+
+        return path;
+    }
+
+    private void TryDeleteFile(string path)
+    {
+        try
+        {
+            // 'File' alone would resolve to ControllerBase.File(...).
+            if (System.IO.File.Exists(path))
+            {
+                System.IO.File.Delete(path);
+            }
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            _logger.LogDebug("Could not delete the uploaded package {Path}: {Error}", path, ex.Message);
+        }
+    }
+
+    private static IReadOnlyList<string> ReadFormList(IFormCollection form, string key) =>
+        form[key]
+            .Where(value => !string.IsNullOrWhiteSpace(value))
+            .Select(value => value!)
+            .ToArray();
+
+    private static bool ReadFormBool(IFormCollection form, string key, bool defaultValue) =>
+        form.TryGetValue(key, out var value) && bool.TryParse(value.FirstOrDefault(), out var parsed)
+            ? parsed
+            : defaultValue;
 
     // ---------------------------------------------------------------------------
     // Backup & Restore

@@ -3,9 +3,13 @@ using System.Text.Json;
 using DotNetCloud.CLI.Infrastructure;
 using DotNetCloud.Core.Data.Context;
 using DotNetCloud.Core.Data.Entities.Modules;
+using DotNetCloud.Core.DTOs;
 using DotNetCloud.Core.Modules;
+using DotNetCloud.Core.Modules.Store;
 using DotNetCloud.Core.Server.Sandbox;
+using DotNetCloud.ModulePackaging;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace DotNetCloud.CLI.Commands;
@@ -31,6 +35,9 @@ internal static class ModuleCommands
         command.Subcommands.Add(CreateStop());
         command.Subcommands.Add(CreateRestart());
         command.Subcommands.Add(CreateInstall());
+        command.Subcommands.Add(CreateVerify());
+        command.Subcommands.Add(CreateInfo());
+        command.Subcommands.Add(CreateRollback());
         command.Subcommands.Add(CreateUninstall());
         return command;
     }
@@ -89,16 +96,87 @@ internal static class ModuleCommands
 
     private static Command CreateInstall()
     {
+        var moduleArg = new Argument<string?>("module")
+        {
+            Description = "The module ID (with --from-feed), or the ID of a module already extracted "
+                          + "under the modules directory",
+            DefaultValueFactory = _ => null,
+        };
+        var fileOption = new Option<string?>("--file")
+        {
+            Description = "Install a signed .dncpkg package file",
+        };
+        var feedOption = new Option<string?>("--from-feed")
+        {
+            Description = "Install a module from a local feed directory (index.json + packages)",
+        };
+        var versionOption = new Option<string?>("--version")
+        {
+            Description = "Version to install from the feed (default: the highest listed)",
+        };
+        var allowUnverifiedOption = new Option<bool>("--allow-unverified")
+        {
+            Description = "Install a package that is unsigned or signed by an untrusted key (audited)",
+        };
+        var yesOption = new Option<bool>("--yes", "-y")
+        {
+            Description = "Skip the interactive review confirmation",
+        };
+
+        var command = new Command("install", "Install a module from a package, a feed, or the disk")
+        {
+            moduleArg,
+            fileOption,
+            feedOption,
+            versionOption,
+            allowUnverifiedOption,
+            yesOption,
+        };
+
+        command.SetAction(parseResult => InstallAsync(
+            parseResult.GetValue(moduleArg),
+            parseResult.GetValue(fileOption),
+            parseResult.GetValue(feedOption),
+            parseResult.GetValue(versionOption),
+            parseResult.GetValue(allowUnverifiedOption),
+            parseResult.GetValue(yesOption)));
+
+        return command;
+    }
+
+    private static Command CreateVerify()
+    {
+        var packageArg = new Argument<string>("package")
+        {
+            Description = "The .dncpkg package to verify",
+        };
+        var command = new Command("verify", "Verify a package's integrity, signature and manifest") { packageArg };
+        command.SetAction(parseResult => VerifyPackageAsync(parseResult.GetValue(packageArg)!));
+        return command;
+    }
+
+    private static Command CreateInfo()
+    {
         var moduleArg = new Argument<string>("module")
         {
-            Description = "The module ID to register (must already exist under the modules directory)"
+            Description = "The module ID to describe"
         };
-        var command = new Command("install", "Register a module that is already present on disk") { moduleArg };
-        command.SetAction(parseResult =>
+        var command = new Command("info", "Show an installed module's manifest, tier and identity") { moduleArg };
+        command.SetAction(parseResult => ShowModuleInfoAsync(parseResult.GetValue(moduleArg)!));
+        return command;
+    }
+
+    private static Command CreateRollback()
+    {
+        var moduleArg = new Argument<string>("module")
         {
-            var moduleId = parseResult.GetValue(moduleArg)!;
-            return InstallModuleAsync(moduleId);
-        });
+            Description = "The module ID to roll back"
+        };
+        var command = new Command("rollback", "Restore the previous version retained by the last install")
+        {
+            moduleArg
+        };
+        command.SetAction(parseResult => RollbackModuleAsync(parseResult.GetValue(moduleArg)!));
         return command;
     }
 
@@ -236,7 +314,505 @@ internal static class ModuleCommands
         return 0;
     }
 
-    private static async Task<int> InstallModuleAsync(string moduleId)
+    /// <summary>
+    /// Dispatches <c>module install</c>: a package file, a local feed, or a module already on disk.
+    /// </summary>
+    private static Task<int> InstallAsync(
+        string? moduleId,
+        string? packageFile,
+        string? feedDirectory,
+        string? version,
+        bool allowUnverified,
+        bool assumeYes)
+    {
+        if (!string.IsNullOrWhiteSpace(packageFile) && !string.IsNullOrWhiteSpace(feedDirectory))
+        {
+            ConsoleOutput.WriteError("Specify either --file or --from-feed, not both.");
+            return Task.FromResult(1);
+        }
+
+        if (!string.IsNullOrWhiteSpace(packageFile))
+        {
+            return InstallFromPackageAsync(Path.GetFullPath(packageFile), allowUnverified, assumeYes);
+        }
+
+        if (!string.IsNullOrWhiteSpace(feedDirectory))
+        {
+            if (string.IsNullOrWhiteSpace(moduleId))
+            {
+                ConsoleOutput.WriteError("--from-feed requires a module id, for example: dotnetcloud module install --from-feed ./feed org.example.receipts");
+                return Task.FromResult(1);
+            }
+
+            return InstallFromFeedAsync(Path.GetFullPath(feedDirectory), moduleId, version, allowUnverified, assumeYes);
+        }
+
+        if (string.IsNullOrWhiteSpace(moduleId))
+        {
+            ConsoleOutput.WriteError("Specify a module id, --file <package.dncpkg> or --from-feed <directory>.");
+            return Task.FromResult(1);
+        }
+
+        return RegisterInstalledModuleAsync(moduleId);
+    }
+
+    /// <summary>
+    /// Resolves a module from a local feed and installs it. The feed's <c>yanked.json</c> is
+    /// authoritative for this directory: a withdrawn version is never installed.
+    /// </summary>
+    private static async Task<int> InstallFromFeedAsync(
+        string feedDirectory,
+        string moduleId,
+        string? version,
+        bool allowUnverified,
+        bool assumeYes)
+    {
+        if (!IsValidModuleId(moduleId))
+        {
+            ConsoleOutput.WriteError($"'{moduleId}' is not a valid module id.");
+            return 1;
+        }
+
+        ModuleFeedIndex index;
+        try
+        {
+            index = await ModuleFeed.ReadAsync(feedDirectory);
+        }
+        catch (ModulePackageException ex)
+        {
+            ConsoleOutput.WriteError(ex.Message);
+            return 1;
+        }
+
+        var candidates = index.Packages
+            .Where(entry => string.Equals(entry.Id, moduleId, StringComparison.Ordinal))
+            .ToList();
+
+        if (candidates.Count == 0)
+        {
+            ConsoleOutput.WriteError($"'{moduleId}' is not listed in the feed at '{feedDirectory}'.");
+            return 1;
+        }
+
+        ModuleFeedEntry? entry;
+        if (string.IsNullOrWhiteSpace(version))
+        {
+            entry = candidates
+                .OrderByDescending(candidate => candidate.Version, StringComparer.Ordinal)
+                .First();
+        }
+        else
+        {
+            entry = candidates.FirstOrDefault(candidate =>
+                string.Equals(candidate.Version, version, StringComparison.Ordinal));
+
+            if (entry is null)
+            {
+                ConsoleOutput.WriteError($"'{moduleId}' {version} is not listed in the feed at '{feedDirectory}'.");
+                return 1;
+            }
+        }
+
+        var packagePath = Path.GetFullPath(Path.Combine(feedDirectory, entry.File));
+
+        // The index is data, not authority.
+        var relative = Path.GetRelativePath(feedDirectory, packagePath);
+        var firstSegment = relative.Split([Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar])[0];
+        if (Path.IsPathRooted(relative) || string.Equals(firstSegment, "..", StringComparison.Ordinal))
+        {
+            ConsoleOutput.WriteError($"Feed entry '{entry.File}' resolves outside the feed directory.");
+            return 1;
+        }
+
+        if (!File.Exists(packagePath))
+        {
+            ConsoleOutput.WriteError($"The feed lists '{entry.File}' but the file does not exist.");
+            return 1;
+        }
+
+        var yanked = ModuleFeed.FindYank(
+            await ModuleFeed.ReadYankedAsync(feedDirectory), entry.Id, entry.Version);
+
+        if (yanked is not null)
+        {
+            ConsoleOutput.WriteError(
+                $"'{entry.Id}' {entry.Version} has been withdrawn ({yanked.Severity}): {yanked.Reason}");
+            return 1;
+        }
+
+        return await InstallFromPackageAsync(packagePath, allowUnverified, assumeYes);
+    }
+
+    /// <summary>
+    /// Verifies, reviews and installs one package.
+    /// </summary>
+    private static async Task<int> InstallFromPackageAsync(
+        string packagePath, bool allowUnverified, bool assumeYes)
+    {
+        if (!File.Exists(packagePath))
+        {
+            ConsoleOutput.WriteError($"Package not found: {packagePath}");
+            return 1;
+        }
+
+        await using var provider = ServiceProviderFactory.CreateForPackageInstall();
+        if (provider is null)
+            return 1;
+
+        using var scope = provider.CreateScope();
+        var installer = scope.ServiceProvider.GetRequiredService<IModulePackageInstaller>();
+
+        var review = await installer.InspectAsync(packagePath);
+        WriteReview(review);
+
+        var blocking = review.Issues
+            .Where(issue => issue.Code is not (PackageIssueCodes.SignatureMissing or PackageIssueCodes.SignatureUntrustedKey))
+            .ToList();
+
+        if (blocking.Count > 0)
+        {
+            ConsoleOutput.WriteError("The package failed verification and was not installed.");
+            return 1;
+        }
+
+        var unverified = review.Issues.Any(issue =>
+            issue.Code is PackageIssueCodes.SignatureMissing or PackageIssueCodes.SignatureUntrustedKey);
+
+        if (unverified && !allowUnverified)
+        {
+            ConsoleOutput.WriteError(
+                "The package is not signed by a key this server trusts. "
+                + "Re-run with --allow-unverified only if you trust its source.");
+            return 1;
+        }
+
+        if (unverified)
+        {
+            ConsoleOutput.WriteWarning(
+                $"UNVERIFIED INSTALL. Nobody vouches for these bytes: SHA-256 {review.Sha256}");
+        }
+
+        if (!assumeYes
+            && !ConsoleOutput.PromptConfirm(
+                $"Install {review.ModuleId} {review.Version}"
+                + (review.IsAlreadyInstalled ? $" (replacing {review.InstalledVersion})" : string.Empty)
+                + "?", defaultValue: false))
+        {
+            ConsoleOutput.WriteInfo("Install cancelled.");
+            return 0;
+        }
+
+        var result = await installer.InstallAsync(new ModulePackageInstallRequest
+        {
+            PackagePath = packagePath,
+            ExpectedSha256 = review.Sha256,
+            AllowUnverified = allowUnverified,
+            AcknowledgedCapabilities = review.Capabilities,
+            AcknowledgedScopes = review.UserConsentScopes,
+        });
+
+        if (!result.Success)
+        {
+            ConsoleOutput.WriteError(result.Error ?? "The install failed.");
+
+            foreach (var issue in result.Issues)
+            {
+                ConsoleOutput.WriteError($"  [{issue.Code}] {issue.Message}");
+            }
+
+            return 1;
+        }
+
+        ConsoleOutput.WriteSuccess(
+            $"Installed {result.ModuleId} {result.Version}"
+            + (result.PreviousVersion is null ? string.Empty : $" (replacing {result.PreviousVersion})"));
+
+        if (result.DataStoreProvisioned)
+        {
+            ConsoleOutput.WriteInfo("Provisioned the module's isolated data store.");
+        }
+
+        ConsoleOutput.WriteInfo("A running server starts (or restarts) the module within 30 seconds.");
+        return 0;
+    }
+
+    /// <summary>
+    /// Prints the review: identity, integrity, and the capabilities and scopes an operator approves.
+    /// </summary>
+    private static void WriteReview(ModulePackageReviewDto review)
+    {
+        ConsoleOutput.WriteHeader("Package Review");
+
+        ConsoleOutput.WriteDetail("Module", review.ModuleId ?? "(unknown)");
+        ConsoleOutput.WriteDetail("Name", review.Name ?? "(none)");
+        ConsoleOutput.WriteDetail("Version", review.Version ?? "(unknown)");
+        ConsoleOutput.WriteDetail("Manifest", review.ManifestVersion == 0 ? "unreadable" : $"v{review.ManifestVersion}");
+        ConsoleOutput.WriteDetail("Publisher", review.PublisherId ?? "(none)");
+        ConsoleOutput.WriteDetail("Data store", review.DataStoreMode);
+        ConsoleOutput.WriteDetail("Erasure support", review.HandlesUserErasure ? "yes" : "no");
+        ConsoleOutput.WriteDetail("SHA-256", review.Sha256 ?? "(not computed)");
+
+        var signature = review.IsSigned
+            ? $"{review.KeyId} ({(review.IsSignedByTrustedKey ? "trusted" : "UNTRUSTED")})"
+            : "unsigned";
+        ConsoleOutput.WriteDetail("Signature", signature);
+
+        if (review.IsAlreadyInstalled)
+        {
+            ConsoleOutput.WriteDetail("Installed", review.InstalledVersion ?? "(unknown)");
+        }
+
+        ConsoleOutput.WriteDetail(
+            "Capabilities",
+            review.Capabilities.Count == 0 ? "(none requested)" : string.Join(", ", review.Capabilities));
+
+        ConsoleOutput.WriteDetail(
+            "Consent scopes",
+            review.UserConsentScopes.Count == 0 ? "(none requested)" : string.Join(", ", review.UserConsentScopes));
+
+        foreach (var warning in review.Warnings)
+        {
+            ConsoleOutput.WriteWarning($"[{warning.Code}] {warning.Message}");
+        }
+
+        foreach (var issue in review.Issues)
+        {
+            ConsoleOutput.WriteError($"[{issue.Code}] {issue.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Verifies a package without touching the installation.
+    /// </summary>
+    private static async Task<int> VerifyPackageAsync(string packagePath)
+    {
+        var path = Path.GetFullPath(packagePath);
+        if (!File.Exists(path))
+        {
+            ConsoleOutput.WriteError($"Package not found: {path}");
+            return 1;
+        }
+
+        var configuration = ServiceProviderFactory.BuildCliConfiguration();
+        var options = configuration.GetSection(ModuleStoreOptions.SectionName).Get<ModuleStoreOptions>()
+                      ?? new ModuleStoreOptions();
+
+        var verification = await ModulePackageVerifier.VerifyAsync(
+            path,
+            options: new ModulePackageVerificationOptions
+            {
+                TrustedKeys = options.GetEffectiveTrustedKeys(),
+            });
+
+        ConsoleOutput.WriteHeader("Package Verification");
+        ConsoleOutput.WriteDetail("Package", Path.GetFileName(path));
+        ConsoleOutput.WriteDetail("Module", verification.ModuleId ?? "(unknown)");
+        ConsoleOutput.WriteDetail("Version", verification.Version ?? "(unknown)");
+        ConsoleOutput.WriteDetail("SHA-256", verification.Sha256 ?? "(not computed)");
+        ConsoleOutput.WriteDetail(
+            "Signature",
+            verification.KeyId is null ? "unsigned (not accepted without --allow-unverified)" : verification.KeyId);
+        ConsoleOutput.WriteDetail("Entries", verification.EntryCount.ToString());
+        ConsoleOutput.WriteDetail("Uncompressed", $"{verification.UncompressedBytes:N0} bytes");
+
+        foreach (var warning in verification.Warnings)
+        {
+            ConsoleOutput.WriteWarning($"[{warning.Code}] {warning.Message}");
+        }
+
+        foreach (var issue in verification.Issues)
+        {
+            ConsoleOutput.WriteError($"[{issue.Code}] {issue.Message}");
+        }
+
+        if (verification.IsValid)
+        {
+            ConsoleOutput.WriteSuccess("The package is valid and signed by a trusted key.");
+            return 0;
+        }
+
+        ConsoleOutput.WriteError("The package did not pass verification.");
+        return 1;
+    }
+
+    /// <summary>
+    /// Shows the persisted installation record next to the installed manifest and install receipt.
+    /// </summary>
+    private static async Task<int> ShowModuleInfoAsync(string moduleId)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(moduleId);
+
+        await using var provider = ServiceProviderFactory.CreateFromConfig();
+        if (provider is null)
+            return 1;
+
+        using var scope = provider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<CoreDbContext>();
+
+        var module = await db.InstalledModules
+            .AsNoTracking()
+            .Include(m => m.CapabilityGrants)
+            .FirstOrDefaultAsync(m => m.ModuleId == moduleId);
+
+        if (module is null)
+        {
+            ConsoleOutput.WriteError($"Module '{moduleId}' is not installed.");
+            return 1;
+        }
+
+        var moduleDirectory = Path.Combine(ResolveModulesDirectory(), moduleId);
+        var manifest = ReadManifestIfPresent(Path.Combine(moduleDirectory, "manifest.json"));
+        var receipt = ReadReceipt(Path.Combine(moduleDirectory, ModulePackageInstaller.ReceiptFileName));
+
+        ConsoleOutput.WriteHeader($"Module {moduleId}");
+
+        ConsoleOutput.WriteDetail("Version", module.Version);
+        ConsoleOutput.WriteDetail("Status", ConsoleOutput.FormatStatus(module.Status));
+        ConsoleOutput.WriteDetail("Trust tier", module.TrustTier.ToString());
+        ConsoleOutput.WriteDetail("Data store", module.DataStoreMode.ToString());
+        ConsoleOutput.WriteDetail("Sandbox", module.SandboxStatus.ToString());
+        ConsoleOutput.WriteDetail("Publisher", module.PublisherId ?? "(none)");
+        ConsoleOutput.WriteDetail("Signed by", module.SignedByKeyId ?? "(unverified / bundled)");
+        ConsoleOutput.WriteDetail("Installed", module.InstalledAt.ToString("yyyy-MM-dd HH:mm 'UTC'"));
+        ConsoleOutput.WriteDetail("Directory", moduleDirectory);
+
+        if (manifest is not null)
+        {
+            ConsoleOutput.WriteDetail("Manifest", $"v{manifest.ManifestVersion}");
+            ConsoleOutput.WriteDetail(
+                "Capabilities",
+                manifest.Capabilities.Count == 0 ? "(none)" : string.Join(", ", manifest.Capabilities));
+        }
+
+        if (receipt is not null)
+        {
+            ConsoleOutput.WriteDetail("Package", receipt.PackageFile ?? "(unknown)");
+            ConsoleOutput.WriteDetail("Package hash", receipt.Sha256 ?? "(none)");
+            ConsoleOutput.WriteDetail("Install receipt", receipt.Unverified ? "UNVERIFIED" : "verified");
+        }
+
+        ConsoleOutput.WriteDetail(
+            "Grants",
+            module.CapabilityGrants.Count == 0
+                ? "(none)"
+                : string.Join(", ", module.CapabilityGrants.Select(grant => grant.CapabilityName)));
+
+        return 0;
+    }
+
+    /// <summary>
+    /// Restores the previous version retained by the last install.
+    /// </summary>
+    private static async Task<int> RollbackModuleAsync(string moduleId)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(moduleId);
+
+        await using var provider = ServiceProviderFactory.CreateForPackageInstall();
+        if (provider is null)
+            return 1;
+
+        using var scope = provider.CreateScope();
+        var installer = scope.ServiceProvider.GetRequiredService<IModulePackageInstaller>();
+
+        var result = await installer.RollbackAsync(moduleId);
+
+        if (!result.Success)
+        {
+            ConsoleOutput.WriteError(result.Error ?? "The rollback failed.");
+            return 1;
+        }
+
+        ConsoleOutput.WriteSuccess(
+            $"Rolled {moduleId} back to {result.Version} (was {result.PreviousVersion}).");
+        ConsoleOutput.WriteInfo("A running server restarts the module within 30 seconds.");
+        return 0;
+    }
+
+    private static ModuleManifestSnapshot? ReadManifestIfPresent(string manifestPath)
+    {
+        if (!File.Exists(manifestPath))
+        {
+            return null;
+        }
+
+        try
+        {
+            return ReadManifestSnapshot(manifestPath);
+        }
+        catch (Exception ex) when (ex is JsonException or IOException)
+        {
+            return null;
+        }
+    }
+
+    private static ModuleManifestSnapshot ReadManifestSnapshot(string manifestPath)
+    {
+        using var stream = File.OpenRead(manifestPath);
+        using var document = JsonDocument.Parse(stream, new JsonDocumentOptions
+        {
+            CommentHandling = JsonCommentHandling.Skip,
+            AllowTrailingCommas = true,
+        });
+
+        var root = document.RootElement;
+
+        var manifestVersion = root.TryGetProperty("manifestVersion", out var versionElement)
+                              && versionElement.TryGetInt32(out var parsedVersion)
+            ? parsedVersion
+            : 1;
+
+        var capabilities = new List<string>();
+        foreach (var property in new[] { "capabilities", "requiredCapabilities" })
+        {
+            if (!root.TryGetProperty(property, out var array) || array.ValueKind != JsonValueKind.Array)
+            {
+                continue;
+            }
+
+            capabilities.AddRange(array.EnumerateArray()
+                .Where(item => item.ValueKind == JsonValueKind.String)
+                .Select(item => item.GetString() ?? string.Empty)
+                .Where(value => value.Length > 0));
+
+            if (capabilities.Count > 0)
+            {
+                break;
+            }
+        }
+
+        return new ModuleManifestSnapshot(manifestVersion, capabilities);
+    }
+
+    private static InstallReceiptSnapshot? ReadReceipt(string receiptPath)
+    {
+        if (!File.Exists(receiptPath))
+        {
+            return null;
+        }
+
+        try
+        {
+            using var stream = File.OpenRead(receiptPath);
+            using var document = JsonDocument.Parse(stream);
+            var root = document.RootElement;
+
+            return new InstallReceiptSnapshot(
+                root.TryGetProperty("packageFile", out var file) ? file.GetString() : null,
+                root.TryGetProperty("sha256", out var hash) ? hash.GetString() : null,
+                root.TryGetProperty("unverified", out var unverified)
+                && unverified.ValueKind == JsonValueKind.True);
+        }
+        catch (Exception ex) when (ex is JsonException or IOException)
+        {
+            return null;
+        }
+    }
+
+    private sealed record ModuleManifestSnapshot(int ManifestVersion, IReadOnlyList<string> Capabilities);
+
+    private sealed record InstallReceiptSnapshot(string? PackageFile, string? Sha256, bool Unverified);
+
+    private static async Task<int> RegisterInstalledModuleAsync(string moduleId)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(moduleId);
 

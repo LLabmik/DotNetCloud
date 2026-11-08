@@ -175,9 +175,10 @@ Rejected entry names — zip-slip and its cousins:
 requires the relative path to stay inside the root (no rooted path, no `..` first segment, not the
 root itself) before writing.
 
-**Not yet covered here (B3):** the download path (SSRF allow-list for index-provided URLs,
-`https:`-only, redirect re-checks) and index anti-replay. Those belong to the installer that fetches
-packages, not to the archive format.
+**Not covered here:** the download path (remote index fetch, SSRF allow-list for index-provided
+URLs, `https:`-only, redirect re-checks) and index anti-replay. Those belong to the deferred store
+client; the first release installs only from a local file or a local feed directory, so no URL is
+involved. See [`MODULE_STORE.md`](MODULE_STORE.md).
 
 ---
 
@@ -265,14 +266,15 @@ tests (B3) consume, and the job fails if determinism, archive safety or manifest
 
 ---
 
-## 10. Deferred to B2/B3
+## 10. Implemented after B1 / still deferred
 
-| Item                                              | Where      |
-| ------------------------------------------------- | ---------- |
-| store index build + curated key signing           | B2         |
-| publisher key registry, revocation/yank           | B2/B5      |
-| remote index client, mirrors, update checks       | B3         |
-| download URL allow-list (SSRF), redirect re-check | B3         |
-| index anti-replay (`generatedAt` monotonic)       | B3         |
-| installer state machine + rollback                | B3         |
-| provenance attestations (SLSA)                    | B5         |
+| Item                                              | Where | Status |
+| ------------------------------------------------- | ----- | ------ |
+| store index build + curated key signing           | B2    | ✓ `DotNetCloud.ModuleStore` |
+| publisher key registry, revocation/yank           | B2/B5 | ✓ registry + `yanked.json`; trust program remains in B5 |
+| installer state machine + rollback                | B3    | ✓ [`MODULE_STORE.md`](MODULE_STORE.md) |
+| local feed + `--file` install, admin review       | B3    | ✓ CLI, admin API and `/admin/store` |
+| remote index client, mirrors, update checks       | later | ☐ deferred (D6) |
+| download URL allow-list (SSRF), redirect re-check | later | ☐ deferred — no download path exists yet |
+| index anti-replay (`generatedAt` monotonic)       | later | ☐ deferred with the client |
+| provenance attestations (SLSA)                    | B5    | ☐ |

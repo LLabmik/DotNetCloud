@@ -3,6 +3,7 @@ using DotNetCloud.Core.Data.Context;
 using DotNetCloud.Core.Data.Entities.Modules;
 using DotNetCloud.Core.DTOs;
 using DotNetCloud.Core.Modules;
+using DotNetCloud.Core.Modules.Store;
 using DotNetCloud.Core.Modules.Supervisor;
 using DotNetCloud.Core.Server.Grpc.ModuleAccess;
 using DotNetCloud.Core.Server.ModuleLoading;
@@ -28,6 +29,8 @@ internal sealed class AdminModuleService : IAdminModuleService
     private readonly IModuleAccessEvaluator _accessEvaluator;
     private readonly ModuleDiscoveryService _discovery;
     private readonly ModuleCredentialStore _credentials;
+    private readonly IModulePackageInstaller _installer;
+    private readonly IModuleStoreService _store;
     private readonly ILogger<AdminModuleService> _logger;
 
     /// <summary>
@@ -42,6 +45,8 @@ internal sealed class AdminModuleService : IAdminModuleService
         IModuleAccessEvaluator accessEvaluator,
         ModuleDiscoveryService discovery,
         ModuleCredentialStore credentials,
+        IModulePackageInstaller installer,
+        IModuleStoreService store,
         ILogger<AdminModuleService> logger)
     {
         _dbContext = dbContext;
@@ -52,6 +57,8 @@ internal sealed class AdminModuleService : IAdminModuleService
         _accessEvaluator = accessEvaluator;
         _discovery = discovery;
         _credentials = credentials;
+        _installer = installer;
+        _store = store;
         _logger = logger;
     }
 
@@ -737,6 +744,82 @@ internal sealed class AdminModuleService : IAdminModuleService
             UpdatedAtUtc = store.UpdatedAtUtc,
             CredentialsReadable = false,
         }).ToList().AsReadOnly();
+    }
+
+    /// <inheritdoc/>
+    public async Task<IReadOnlyList<ModuleStorePackageDto>> ListStorePackagesAsync(
+        CancellationToken cancellationToken = default)
+    {
+        var packages = await _store.ListPackagesAsync(cancellationToken);
+
+        var installed = await _dbContext.InstalledModules
+            .AsNoTracking()
+            .Select(module => new { module.ModuleId, module.Version })
+            .ToDictionaryAsync(row => row.ModuleId, row => row.Version, cancellationToken);
+
+        return packages
+            .Select(package => new ModuleStorePackageDto
+            {
+                ModuleId = package.ModuleId,
+                Name = package.Name,
+                Version = package.Version,
+                File = package.File,
+                SizeBytes = package.SizeBytes,
+                Sha256 = package.Sha256,
+                PublisherId = package.PublisherId,
+                Capabilities = package.Capabilities,
+                UserConsentScopes = package.UserConsentScopes,
+                KeyId = package.KeyId,
+                Yanked = package.Yanked,
+                YankReason = package.YankReason,
+                InstalledVersion = installed.GetValueOrDefault(package.ModuleId),
+            })
+            .ToList()
+            .AsReadOnly();
+    }
+
+    /// <inheritdoc/>
+    public Task<ModulePackageReviewDto> InspectPackageAsync(
+        string packagePath, CancellationToken cancellationToken = default) =>
+        _installer.InspectAsync(packagePath, signaturePath: null, cancellationToken);
+
+    /// <inheritdoc/>
+    public Task<ModuleInstallResultDto> InstallPackageAsync(
+        string packagePath,
+        InstallModulePackageDto dto,
+        Guid installedByUserId,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(packagePath);
+        ArgumentNullException.ThrowIfNull(dto);
+
+        return _installer.InstallAsync(
+            new ModulePackageInstallRequest
+            {
+                PackagePath = packagePath,
+                ExpectedSha256 = dto.ExpectedSha256,
+                AllowUnverified = dto.AllowUnverified,
+                StartAfterInstall = dto.StartAfterInstall,
+                AcknowledgedCapabilities = dto.AcknowledgedCapabilities,
+                AcknowledgedScopes = dto.AcknowledgedScopes,
+                InstalledByUserId = installedByUserId,
+            },
+            cancellationToken);
+    }
+
+    /// <inheritdoc/>
+    public Task<ModuleInstallResultDto> RollbackModuleAsync(
+        string moduleId,
+        Guid rolledBackByUserId,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(moduleId);
+
+        _logger.LogInformation(
+            "Module {ModuleId} rollback requested by user {UserId}",
+            LogSanitizer.Sanitize(moduleId), rolledBackByUserId);
+
+        return _installer.RollbackAsync(moduleId, cancellationToken);
     }
 
     private ModuleCredentialDto MapCredential(string moduleId)

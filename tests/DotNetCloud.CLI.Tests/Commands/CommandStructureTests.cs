@@ -96,8 +96,42 @@ public class CommandStructureTests
         CollectionAssert.Contains(subNames, "stop");
         CollectionAssert.Contains(subNames, "restart");
         CollectionAssert.Contains(subNames, "install");
+        CollectionAssert.Contains(subNames, "verify");
+        CollectionAssert.Contains(subNames, "info");
+        CollectionAssert.Contains(subNames, "rollback");
         CollectionAssert.Contains(subNames, "uninstall");
-        Assert.AreEqual(6, command.Subcommands.Count);
+        Assert.AreEqual(9, command.Subcommands.Count);
+    }
+
+    [TestMethod]
+    public void ModuleInstallCommand_HasPackageSourceOptions()
+    {
+        var installCmd = ModuleCommands.Create().Subcommands.First(c => c.Name == "install");
+
+        var optionNames = installCmd.Options.Select(o => o.Name).ToList();
+        CollectionAssert.Contains(optionNames, "--file");
+        CollectionAssert.Contains(optionNames, "--from-feed");
+        CollectionAssert.Contains(optionNames, "--version");
+        CollectionAssert.Contains(optionNames, "--allow-unverified");
+        CollectionAssert.Contains(optionNames, "--yes");
+    }
+
+    [TestMethod]
+    public void ModuleVerifyCommand_HasPackageArgument()
+    {
+        var verifyCmd = ModuleCommands.Create().Subcommands.First(c => c.Name == "verify");
+
+        Assert.AreEqual(1, verifyCmd.Arguments.Count);
+        Assert.AreEqual("package", verifyCmd.Arguments[0].Name);
+    }
+
+    [TestMethod]
+    public void ModuleRollbackCommand_HasModuleArgument()
+    {
+        var rollbackCmd = ModuleCommands.Create().Subcommands.First(c => c.Name == "rollback");
+
+        Assert.AreEqual(1, rollbackCmd.Arguments.Count);
+        Assert.AreEqual("module", rollbackCmd.Arguments[0].Name);
     }
 
     [TestMethod]

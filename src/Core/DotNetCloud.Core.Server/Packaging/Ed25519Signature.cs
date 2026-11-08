@@ -55,8 +55,11 @@ public static class Ed25519Signature
     /// <summary>The only accepted algorithm name.</summary>
     public const string AlgorithmName = "ed25519";
 
-    private const int KeySizeBytes = 32;
-    private const int SignatureSizeBytes = 64;
+    /// <summary>Raw key length in bytes (seed or public key).</summary>
+    public const int KeySizeBytes = 32;
+
+    /// <summary>Signature length in bytes.</summary>
+    public const int SignatureSizeBytes = 64;
 
     /// <summary>Generates a new key pair.</summary>
     /// <param name="keyId">The stable key identifier.</param>

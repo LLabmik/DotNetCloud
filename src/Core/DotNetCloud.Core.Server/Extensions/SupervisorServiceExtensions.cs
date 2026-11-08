@@ -1,4 +1,5 @@
 using DotNetCloud.Core.Modules;
+using DotNetCloud.Core.Modules.Store;
 using DotNetCloud.Core.Modules.Supervisor;
 using DotNetCloud.Core.Server.Grpc.Configuration;
 using DotNetCloud.Core.Server.Grpc.Interceptors;
@@ -10,6 +11,7 @@ using DotNetCloud.Core.Server.Sandbox;
 using DotNetCloud.Core.Server.Services;
 using DotNetCloud.Core.Server.Supervisor;
 using DotNetCloud.Core.Services;
+using DotNetCloud.ModulePackaging;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
@@ -98,6 +100,13 @@ internal static class SupervisorServiceExtensions
 
         // Sandboxed module data stores (scoped schema + principal, encrypted connection string).
         services.AddSingleton<IModuleDataStoreProvisioningService, ModuleDataStoreProvisioningService>();
+
+        // Module store client + package installer (B3). The first release resolves packages from a
+        // local feed or an explicit .dncpkg file; remote indexes are deferred (decision D6).
+        services.AddOptions<ModuleStoreOptions>().BindConfiguration(ModuleStoreOptions.SectionName);
+        services.AddSingleton<IModuleStoreService, LocalModuleFeedStoreService>();
+        services.AddSingleton<IModuleInstallRunner, SupervisorModuleInstallRunner>();
+        services.AddScoped<IModulePackageInstaller, ModulePackageInstaller>();
 
         // Upgrade path (§9): adopt already-installed modules' core-managed schemas before the
         // supervisor spawns anything. Registered before the supervisor so StartAsync completes first.

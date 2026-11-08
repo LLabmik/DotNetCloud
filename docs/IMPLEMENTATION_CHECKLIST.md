@@ -3529,7 +3529,20 @@ Plan: `docs/THIRD_PARTY_MODULE_SANDBOX_AND_STORE_PLAN.md` (phase A0). Branch `fe
   - ✓ Static store frontend (browse/search, package detail, publisher page) reusing the website's visual language; no npm, `textContent`-only rendering, URL scheme checks
   - ✓ 20 tooling tests; local end-to-end pack → build → verify → yank → verify passes
   - ✓ Unified the detached-signature field on `file` across the packer (B1) and the store
-- ☐ Phases B3–B5 / C / D per the plan
+- ✓ Phase B3 — core package installer (first release, decision D6)
+  - ✓ Packaging primitives moved into `DotNetCloud.Core.Server/Packaging` (BouncyCastle on the server) so the installer and the packer share one verifier without a project cycle
+  - ✓ `IModuleStoreService` + `LocalModuleFeedStoreService` (local feed `index.json`, containment-checked resolution, `yanked.json`); remote index/mirrors/update checks deferred per D6
+  - ✓ `ModulePackageInstaller` state machine: verify → review → acknowledge → provision → stage → swap → record → start → health-check → rollback; `install-receipt.json` written per installed module
+  - ✓ Verification hardening on every install path: pinned trusted key ids with revocation, SHA-256 + Ed25519 re-verification, archive safety, staged-manifest identity check, `manifest.id` = install directory name
+  - ✓ Rollback: the replaced version is retained under `modules/.previous/<id>/<version>`, `module rollback` swaps it back, and a withdrawn (yanked) version is refused (F16); `.staging`/`.previous` are skipped by discovery
+  - ✓ Isolated data store provisioned before the swap; a provisioning failure leaves the previous install untouched; a failed health check restores the previous binaries and record (first-install failures remove both)
+  - ✓ CLI: `module install --file|--from-feed [--version] [--allow-unverified] [--yes]`, `module verify`, `module info`, `module rollback`; the disk-only registration path is kept for bundled deployments
+  - ✓ Admin API: `GET modules/store`, `POST modules/install/inspect`, `POST modules/install` (multipart + reviewed hash + capability/scope acknowledgements), `POST modules/{id}/rollback`
+  - ✓ Admin UI `/admin/store` (upload → review → approve → install) with an explicit unverified acknowledgement; nav entry added
+  - ✓ Config `Modules:Store` — `LocalFeedPath`, `TrustedKeys`, `RevokedKeyIds`, `AllowUnverified` (default false), `HealthCheckTimeout`, `KeepPreviousVersion`
+  - ✓ Audit: `ModuleInstalled`/`ModuleUpdated` on install and rollback, `ModulePackageVerificationFailed` on rejected and unverified installs
+  - ✓ Tests: 31 packaging/installer tests (review, trust gates, acknowledgements, hash binding, hostile archive, RID selection, upgrade/rollback retention, health-failure rollback, data-store failure) + CLI command-structure coverage
+- ☐ Phases B4–B5 / C / D per the plan
 
 ---
 

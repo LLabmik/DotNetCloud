@@ -3,6 +3,7 @@ using DotNetCloud.Core.Data.Entities.Modules;
 using DotNetCloud.Core.Data.Naming;
 using DotNetCloud.Core.DTOs;
 using DotNetCloud.Core.Modules;
+using DotNetCloud.Core.Modules.Store;
 using DotNetCloud.Core.Modules.Supervisor;
 using DotNetCloud.Core.Server.Grpc.ModuleAccess;
 using DotNetCloud.Core.Server.ModuleLoading;
@@ -85,6 +86,8 @@ public class AdminModuleServiceTests
             Mock.Of<IModuleAccessEvaluator>(),
             discovery,
             credentials ?? new ModuleCredentialStore(),
+            Mock.Of<IModulePackageInstaller>(),
+            Mock.Of<IModuleStoreService>(),
             NullLogger<AdminModuleService>.Instance);
     }
 

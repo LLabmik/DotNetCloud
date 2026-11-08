@@ -1,6 +1,4 @@
 using System.IO.Compression;
-using System.Text.Json;
-using Microsoft.Extensions.Logging.Abstractions;
 using DotNetCloud.Core.Server.ModuleLoading;
 
 namespace DotNetCloud.ModulePackaging;
@@ -17,6 +15,13 @@ public sealed class ModulePackageVerificationOptions
 
     /// <summary>Whether an unsigned package may be accepted (sideload only).</summary>
     public bool AllowUnsigned { get; init; }
+
+    /// <summary>
+    /// Whether a package signed by a key this verifier does not trust may be accepted. Downgrades
+    /// <see cref="PackageIssueCodes.SignatureUntrustedKey"/> to a warning; the caller must record
+    /// that the install was unverified. Never the default.
+    /// </summary>
+    public bool AllowUntrustedKeys { get; init; }
 }
 
 /// <summary>The outcome of verifying a package.</summary>
@@ -170,7 +175,7 @@ public static class ModulePackageVerifier
 
         var effectiveSignaturePath = signaturePath ?? ModulePackageFormat.GetSignaturePath(packagePath);
         issues.AddRange(VerifySignature(
-            packagePath, effectiveSignaturePath, sha256, options, inlineSignature, out keyId));
+            packagePath, effectiveSignaturePath, sha256, options, inlineSignature, warnings, out keyId));
 
         return Finish(issues, warnings, moduleId, version, keyId, sha256, entryCount, uncompressedBytes);
     }
@@ -246,87 +251,46 @@ public static class ModulePackageVerifier
         CancellationToken cancellationToken)
     {
         var issues = new List<PackageIssue>();
-        var temporaryDirectory = Path.Combine(
-            Path.GetTempPath(), "dnc-package-verify-" + Guid.CreateVersion7().ToString("N"));
 
-        try
+        var load = await ModulePackageManifest.LoadAsync(manifestEntry, cancellationToken);
+        issues.AddRange(load.Issues);
+
+        if (load.Manifest is null)
         {
-            Directory.CreateDirectory(temporaryDirectory);
-            var manifestPath = Path.Combine(temporaryDirectory, ModulePackageFormat.ManifestEntryName);
-
-            await using (var source = manifestEntry.Open())
-            await using (var destination = File.Create(manifestPath))
-            {
-                await source.CopyToAsync(destination, cancellationToken);
-            }
-
-            var loader = new ModuleManifestLoader(NullLogger<ModuleManifestLoader>.Instance);
-
-            // Structure is validated against the manifest's own id; identity against the package
-            // name afterwards, so a mismatch is reported as a mismatch rather than a parse error.
-            var manifestId = PeekManifestId(manifestPath);
-            var result = loader.LoadAndValidate(manifestPath, manifestId);
-
-            if (!result.IsValid || result.Manifest is null)
-            {
-                foreach (var error in result.Errors)
-                {
-                    issues.Add(new PackageIssue(PackageIssueCodes.ManifestInvalid, error));
-                }
-
-                return issues;
-            }
-
-            var manifest = result.Manifest;
-
-            if (expectedId is not null && !string.Equals(manifest.Id, expectedId, StringComparison.Ordinal))
-            {
-                issues.Add(new PackageIssue(
-                    PackageIssueCodes.ManifestMismatch,
-                    $"manifest id '{manifest.Id}' does not match the package name '{expectedId}'."));
-            }
-
-            if (expectedVersion is not null
-                && !string.Equals(manifest.Version, expectedVersion, StringComparison.Ordinal))
-            {
-                issues.Add(new PackageIssue(
-                    PackageIssueCodes.ManifestMismatch,
-                    $"manifest version '{manifest.Version}' does not match the package name '{expectedVersion}'."));
-            }
-
-            if (ModuleCompatibility.TryGetIncompatibilityReason(manifest, out var reason))
-            {
-                issues.Add(new PackageIssue(
-                    PackageIssueCodes.IncompatibleCore,
-                    reason ?? "The manifest is incompatible with this core."));
-            }
-
-            if (manifest.ManifestVersion < 2)
-            {
-                // Accepted for bundled first-party modules until Track C migrates them; recorded so
-                // the packer output is honest about what it contains.
-                warnings.Add(new PackageIssue(
-                    "MANIFEST_LEGACY_V1",
-                    "The manifest is v1 (legacy). Non-required modules must ship a v2 manifest at launch."));
-            }
+            return issues;
         }
-        catch (JsonException ex)
+
+        var manifest = load.Manifest;
+
+        if (expectedId is not null && !string.Equals(manifest.Id, expectedId, StringComparison.Ordinal))
         {
-            issues.Add(new PackageIssue(PackageIssueCodes.ManifestInvalid, $"Invalid manifest JSON: {ex.Message}"));
+            issues.Add(new PackageIssue(
+                PackageIssueCodes.ManifestMismatch,
+                $"manifest id '{manifest.Id}' does not match the package name '{expectedId}'."));
         }
-        finally
+
+        if (expectedVersion is not null
+            && !string.Equals(manifest.Version, expectedVersion, StringComparison.Ordinal))
         {
-            try
-            {
-                if (Directory.Exists(temporaryDirectory))
-                {
-                    Directory.Delete(temporaryDirectory, recursive: true);
-                }
-            }
-            catch (IOException)
-            {
-                // Best effort: a leftover temporary directory is not a verification failure.
-            }
+            issues.Add(new PackageIssue(
+                PackageIssueCodes.ManifestMismatch,
+                $"manifest version '{manifest.Version}' does not match the package name '{expectedVersion}'."));
+        }
+
+        if (ModuleCompatibility.TryGetIncompatibilityReason(manifest, out var reason))
+        {
+            issues.Add(new PackageIssue(
+                PackageIssueCodes.IncompatibleCore,
+                reason ?? "The manifest is incompatible with this core."));
+        }
+
+        if (manifest.ManifestVersion < 2)
+        {
+            // Accepted for bundled first-party modules until Track C migrates them; recorded so
+            // the packer output is honest about what it contains.
+            warnings.Add(new PackageIssue(
+                "MANIFEST_LEGACY_V1",
+                "The manifest is v1 (legacy). Non-required modules must ship a v2 manifest at launch."));
         }
 
         return issues;
@@ -338,6 +302,7 @@ public static class ModulePackageVerifier
         string sha256,
         ModulePackageVerificationOptions options,
         ModulePackageSignatureFile? inlineSignature,
+        List<PackageIssue> warnings,
         out string? keyId)
     {
         var issues = new List<PackageIssue>();
@@ -399,6 +364,34 @@ public static class ModulePackageVerifier
 
         if (!options.TrustedKeys.TryGetValue(signature.KeyId, out var publicKey))
         {
+            if (options.AllowUntrustedKeys)
+            {
+                // Sideload of a package signed by a key this server does not pin. The hash still
+                // binds the signature file to these bytes, but nothing proves who built it — so the
+                // finding becomes a warning and the install is recorded as unverified.
+                warnings.Add(new PackageIssue(
+                    PackageIssueCodes.SignatureUntrustedKey,
+                    $"Signing key '{signature.KeyId}' is not trusted by this verifier; the install is unverified."));
+
+                try
+                {
+                    if (Convert.FromBase64String(signature.Signature).Length != Ed25519Signature.SignatureSizeBytes)
+                    {
+                        issues.Add(new PackageIssue(
+                            PackageIssueCodes.SignatureInvalid,
+                            "The signature is not a 64-byte Ed25519 signature."));
+                    }
+                }
+                catch (FormatException)
+                {
+                    issues.Add(new PackageIssue(
+                        PackageIssueCodes.SignatureInvalid,
+                        "The signature is not valid base64."));
+                }
+
+                return issues;
+            }
+
             issues.Add(new PackageIssue(
                 PackageIssueCodes.SignatureUntrustedKey,
                 $"Signing key '{signature.KeyId}' is not trusted by this verifier."));
@@ -414,21 +407,6 @@ public static class ModulePackageVerifier
         }
 
         return issues;
-    }
-
-    private static string PeekManifestId(string manifestPath)
-    {
-        try
-        {
-            using var document = JsonDocument.Parse(File.ReadAllText(manifestPath));
-            return document.RootElement.TryGetProperty("id", out var id) && id.ValueKind == JsonValueKind.String
-                ? id.GetString() ?? string.Empty
-                : string.Empty;
-        }
-        catch (JsonException)
-        {
-            return string.Empty;
-        }
     }
 
     private static ModulePackageVerification Failure(string code, string message) =>

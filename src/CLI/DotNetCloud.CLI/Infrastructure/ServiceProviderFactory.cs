@@ -2,10 +2,12 @@ using DotNetCloud.Core.Data.Context;
 using DotNetCloud.Core.Data.Extensions;
 using DotNetCloud.Core.Data.Naming;
 using DotNetCloud.Core.Modules;
+using DotNetCloud.Core.Modules.Store;
 using DotNetCloud.Core.Modules.Supervisor;
 using DotNetCloud.Core.Server.Quotas;
 using DotNetCloud.Core.Server.Sandbox;
 using DotNetCloud.Core.Server.Services;
+using DotNetCloud.ModulePackaging;
 using DotNetCloud.Modules.AI.Data;
 using DotNetCloud.Modules.Bookmarks.Data;
 using DotNetCloud.Modules.Calendar.Data;
@@ -20,6 +22,7 @@ using DotNetCloud.Modules.Tracks.Data;
 using DotNetCloud.Modules.Video.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Migrations;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.AspNetCore.DataProtection;
 
@@ -128,7 +131,64 @@ internal static class ServiceProviderFactory
     /// ring here would make every stored credential unreadable and strand the running server.
     /// </remarks>
     /// <returns>A configured <see cref="ServiceProvider"/>, or <see langword="null"/> if no configuration exists.</returns>
-    public static ServiceProvider? CreateForDataStore()
+    public static ServiceProvider? CreateForDataStore() => CreateForModuleDataStores(configure: null);
+
+    /// <summary>
+    /// Creates a service provider for the <c>module install|rollback</c> commands: the core database
+    /// context, the data-store provisioning service (so an upgrade can provision an isolated
+    /// schema), the module store client and the package installer.
+    /// </summary>
+    /// <remarks>
+    /// The CLI never spawns module processes: <see cref="OfflineModuleInstallRunner"/> records the
+    /// install and lets the running server's 30-second reconcile start the module.
+    /// </remarks>
+    /// <returns>A configured <see cref="ServiceProvider"/>, or <see langword="null"/> if no configuration exists.</returns>
+    public static ServiceProvider? CreateForPackageInstall()
+    {
+        var configuration = BuildCliConfiguration();
+
+        return CreateForModuleDataStores(services =>
+        {
+            services.AddOptions<ModuleStoreOptions>().Bind(configuration.GetSection(ModuleStoreOptions.SectionName));
+            services.AddOptions<ProcessSupervisorOptions>().Bind(configuration.GetSection(ProcessSupervisorOptions.SectionName));
+            services.AddSingleton<IModuleStoreService, LocalModuleFeedStoreService>();
+            services.AddSingleton<IModuleInstallRunner>(OfflineModuleInstallRunner.Instance);
+            services.AddScoped<IModulePackageInstaller, ModulePackageInstaller>();
+        });
+    }
+
+    /// <summary>
+    /// Builds the configuration source the server uses (<c>config.json</c> plus environment
+    /// variables), so the CLI and the server read the same <c>Modules:Store</c> trust settings.
+    /// </summary>
+    /// <returns>The configuration root.</returns>
+    public static IConfigurationRoot BuildCliConfiguration()
+    {
+        var builder = new ConfigurationBuilder();
+        var path = CliConfiguration.GetConfigFilePath();
+
+        if (File.Exists(path))
+        {
+            builder.AddJsonFile(path, optional: true, reloadOnChange: false);
+        }
+
+        builder.AddEnvironmentVariables();
+
+        return builder.Build();
+    }
+
+    /// <summary>
+    /// Creates a service provider for the <c>datastore</c> commands: the core database context plus
+    /// the module data-store provisioning service.
+    /// </summary>
+    /// <remarks>
+    /// Module connection strings are encrypted with the server's DataProtection key ring, so this
+    /// factory reuses the same application name and the persisted key directory. Using a private key
+    /// ring here would make every stored credential unreadable and strand the running server.
+    /// </remarks>
+    /// <param name="configure">Optional extra registrations.</param>
+    /// <returns>A configured <see cref="ServiceProvider"/>, or <see langword="null"/> if no configuration exists.</returns>
+    private static ServiceProvider? CreateForModuleDataStores(Action<IServiceCollection>? configure)
     {
         if (!CliConfiguration.ConfigExists())
         {
@@ -174,6 +234,8 @@ internal static class ServiceProviderFactory
         services.AddSingleton<ModuleQuotaResolver>();
 
         services.AddScoped<IModuleDataStoreProvisioningService, ModuleDataStoreProvisioningService>();
+
+        configure?.Invoke(services);
 
         return services.BuildServiceProvider();
     }

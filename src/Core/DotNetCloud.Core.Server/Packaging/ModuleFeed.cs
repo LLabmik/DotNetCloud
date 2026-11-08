@@ -55,11 +55,105 @@ public sealed record ModuleFeedIndex
     public IReadOnlyList<ModuleFeedEntry> Packages { get; init; } = [];
 }
 
+/// <summary>
+/// The revocation file (<c>yanked.json</c>) of a local feed.
+/// </summary>
+/// <remarks>
+/// The shape mirrors the store repository's file so an operator can copy it between the two, and so
+/// the deferred remote-index client can consume the same model without a conversion step.
+/// </remarks>
+public sealed class ModuleFeedYankRecord
+{
+    /// <summary>Revocation schema version.</summary>
+    public int SchemaVersion { get; init; } = 1;
+
+    /// <summary>The withdrawn versions.</summary>
+    public IReadOnlyList<ModuleFeedYankedVersion> Yanked { get; init; } = [];
+}
+
+/// <summary>
+/// One withdrawn version.
+/// </summary>
+public sealed class ModuleFeedYankedVersion
+{
+    /// <summary>Module id.</summary>
+    public required string Id { get; init; }
+
+    /// <summary>Module version.</summary>
+    public required string Version { get; init; }
+
+    /// <summary>
+    /// <c>deprecation</c> (block new installs and updates) or <c>security</c> (also worth warning
+    /// about for already-installed copies).
+    /// </summary>
+    public required string Severity { get; init; }
+
+    /// <summary>Operator-facing reason.</summary>
+    public required string Reason { get; init; }
+
+    /// <summary>When the version was withdrawn.</summary>
+    public required DateTime YankedAt { get; init; }
+}
+
 /// <summary>Reads, writes and verifies a local package feed.</summary>
 public static class ModuleFeed
 {
     /// <summary>The index file name inside a feed directory.</summary>
     public const string IndexFileName = "index.json";
+
+    /// <summary>The revocation file name inside a feed directory.</summary>
+    public const string YankFileName = "yanked.json";
+
+    /// <summary>
+    /// Reads the withdrawn versions of a feed. The file is optional; a feed without one withdraws
+    /// nothing.
+    /// </summary>
+    /// <param name="feedDirectory">The feed directory.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The withdrawn versions; empty when <c>yanked.json</c> does not exist.</returns>
+    /// <exception cref="ModulePackageException">The file exists but is not valid JSON.</exception>
+    public static async Task<IReadOnlyList<ModuleFeedYankedVersion>> ReadYankedAsync(
+        string feedDirectory, CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(feedDirectory);
+
+        var path = Path.Combine(Path.GetFullPath(feedDirectory), YankFileName);
+        if (!File.Exists(path))
+        {
+            return [];
+        }
+
+        try
+        {
+            var record = JsonSerializer.Deserialize<ModuleFeedYankRecord>(
+                await File.ReadAllTextAsync(path, cancellationToken), SerializerOptions);
+
+            return record?.Yanked ?? [];
+        }
+        catch (JsonException ex)
+        {
+            throw new ModulePackageException($"Revocation file '{path}' is not valid JSON: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Finds the withdrawal record for one version, if the feed has withdrawn it.
+    /// </summary>
+    /// <param name="yanked">The feed's withdrawal records.</param>
+    /// <param name="moduleId">The module id.</param>
+    /// <param name="version">The module version.</param>
+    /// <returns>The matching record, or <see langword="null"/> when the version is not withdrawn.</returns>
+    public static ModuleFeedYankedVersion? FindYank(
+        IReadOnlyList<ModuleFeedYankedVersion> yanked, string moduleId, string version)
+    {
+        ArgumentNullException.ThrowIfNull(yanked);
+        ArgumentException.ThrowIfNullOrWhiteSpace(moduleId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(version);
+
+        return yanked.FirstOrDefault(candidate =>
+            string.Equals(candidate.Id, moduleId, StringComparison.Ordinal)
+            && string.Equals(candidate.Version, version, StringComparison.Ordinal));
+    }
 
     /// <summary>
     /// Reads a feed index, returning an empty index when none exists.

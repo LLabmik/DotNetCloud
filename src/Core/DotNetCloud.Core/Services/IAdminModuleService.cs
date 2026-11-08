@@ -165,4 +165,49 @@ public interface IAdminModuleService
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>The orphaned stores an administrator can inspect and drop.</returns>
     Task<IReadOnlyList<ModuleDataStoreDto>> ListOrphanedDataStoresAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Lists the packages available from the configured module store source.
+    /// </summary>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The catalogue entries, each annotated with the installed version when known.</returns>
+    Task<IReadOnlyList<ModuleStorePackageDto>> ListStorePackagesAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Verifies an uploaded package and returns the manifest facts an administrator must review.
+    /// Nothing is installed.
+    /// </summary>
+    /// <param name="packagePath">Path of a package already written to a temporary location.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The review, including every verification finding.</returns>
+    Task<ModulePackageReviewDto> InspectPackageAsync(string packagePath, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Installs an uploaded package after the administrator reviewed it.
+    /// </summary>
+    /// <param name="packagePath">Path of the package to install.</param>
+    /// <param name="dto">
+    /// The reviewed hash plus the acknowledged capabilities and scopes. Both lists must equal the
+    /// manifest's declarations exactly, which is what binds the approval to this package.
+    /// </param>
+    /// <param name="installedByUserId">The administrator performing the install.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The outcome; a failed health check is rolled back before returning.</returns>
+    Task<ModuleInstallResultDto> InstallPackageAsync(
+        string packagePath,
+        InstallModulePackageDto dto,
+        Guid installedByUserId,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Restores the previous version retained by the last install.
+    /// </summary>
+    /// <param name="moduleId">The module identifier.</param>
+    /// <param name="rolledBackByUserId">The administrator performing the rollback.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The outcome.</returns>
+    Task<ModuleInstallResultDto> RollbackModuleAsync(
+        string moduleId,
+        Guid rolledBackByUserId,
+        CancellationToken cancellationToken = default);
 }

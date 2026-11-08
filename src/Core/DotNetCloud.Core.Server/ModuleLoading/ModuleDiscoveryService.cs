@@ -75,6 +75,13 @@ internal sealed class ModuleDiscoveryService
 
         foreach (var moduleDir in Directory.GetDirectories(modulesDir))
         {
+            // Dot-directories are installer working areas (".staging", ".previous"), never live
+            // modules. Skipping them keeps a half-extracted tree out of discovery and the log.
+            if (Path.GetFileName(moduleDir).StartsWith('.'))
+            {
+                continue;
+            }
+
             var module = TryDiscoverModule(moduleDir);
             if (module is not null)
             {

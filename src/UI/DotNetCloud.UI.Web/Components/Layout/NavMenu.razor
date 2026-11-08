@@ -105,6 +105,16 @@
                             </NavLink>
                         </li>
                         <li class="nav-item">
+                            <NavLink href="/admin/store" Match="NavLinkMatch.Prefix" class="nav-link"
+                                     title="Module Store" aria-label="Module Store">
+                                <MaterialIcon Icon="extension" CssClass="nav-icon" />
+                                @if (!Collapsed)
+                                {
+                                    <span class="nav-text">Module Store</span>
+                                }
+                            </NavLink>
+                        </li>
+                        <li class="nav-item">
                             <NavLink href="/admin/erasure" Match="NavLinkMatch.Prefix" class="nav-link"
                                      title="Data Erasure" aria-label="Data Erasure">
                                 <MaterialIcon Icon="delete_sweep" CssClass="nav-icon" />

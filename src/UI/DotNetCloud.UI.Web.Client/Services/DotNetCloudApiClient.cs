@@ -541,6 +541,111 @@ public sealed class DotNetCloudApiClient
         }
     }
 
+    /// <summary>Lists the packages available from the configured module store source (admin only).</summary>
+    public async Task<IReadOnlyList<ModuleStorePackageDto>> ListStorePackagesAsync(CancellationToken ct = default)
+    {
+        try
+        {
+            var envelope = await _http.GetFromJsonAsync<ApiEnvelope<IReadOnlyList<ModuleStorePackageDto>>>(
+                "api/v1/core/admin/modules/store", ct);
+            return envelope?.Data ?? [];
+        }
+        catch
+        {
+            return [];
+        }
+    }
+
+    /// <summary>Verifies an uploaded package and returns its review without installing it (admin only).</summary>
+    public async Task<ModulePackageReviewDto?> InspectModulePackageAsync(
+        Stream packageStream, string fileName, CancellationToken ct = default)
+    {
+        using var content = new MultipartFormDataContent();
+        using var streamContent = new StreamContent(packageStream);
+        streamContent.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("application/octet-stream");
+        content.Add(streamContent, "file", fileName);
+
+        var response = await _http.PostAsync("api/v1/core/admin/modules/install/inspect", content, ct);
+        if (!response.IsSuccessStatusCode)
+        {
+            return null;
+        }
+
+        var envelope = await response.Content.ReadFromJsonAsync<ApiEnvelope<ModulePackageReviewDto>>(JsonOptions, ct);
+        return envelope?.Data;
+    }
+
+    /// <summary>Installs an uploaded package after its capabilities were reviewed (admin only).</summary>
+    public async Task<ModuleInstallResultDto?> InstallModulePackageAsync(
+        Stream packageStream, string fileName, InstallModulePackageDto dto, CancellationToken ct = default)
+    {
+        using var content = new MultipartFormDataContent();
+        using var streamContent = new StreamContent(packageStream);
+        streamContent.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("application/octet-stream");
+        content.Add(streamContent, "file", fileName);
+
+        if (!string.IsNullOrWhiteSpace(dto.ExpectedSha256))
+        {
+            content.Add(new StringContent(dto.ExpectedSha256), "expectedSha256");
+        }
+
+        foreach (var capability in dto.AcknowledgedCapabilities)
+        {
+            content.Add(new StringContent(capability), "acknowledgedCapabilities");
+        }
+
+        foreach (var scope in dto.AcknowledgedScopes)
+        {
+            content.Add(new StringContent(scope), "acknowledgedScopes");
+        }
+
+        content.Add(new StringContent(dto.AllowUnverified ? "true" : "false"), "allowUnverified");
+        content.Add(new StringContent(dto.StartAfterInstall ? "true" : "false"), "startAfterInstall");
+
+        var response = await _http.PostAsync("api/v1/core/admin/modules/install", content, ct);
+        return await ReadInstallResultAsync(response, ct);
+    }
+
+    /// <summary>Restores the previous version retained by the last install (admin only).</summary>
+    public async Task<ModuleInstallResultDto?> RollbackModuleAsync(string moduleId, CancellationToken ct = default)
+    {
+        var response = await _http.PostAsync(
+            $"api/v1/core/admin/modules/{Uri.EscapeDataString(moduleId)}/rollback", null, ct);
+        return await ReadInstallResultAsync(response, ct);
+    }
+
+    private static async Task<ModuleInstallResultDto?> ReadInstallResultAsync(
+        HttpResponseMessage response, CancellationToken ct)
+    {
+        try
+        {
+            var envelope = await response.Content.ReadFromJsonAsync<ApiEnvelope<ModuleInstallResultDto>>(JsonOptions, ct);
+            if (envelope?.Data is not null)
+            {
+                return envelope.Data;
+            }
+
+            if (envelope?.Error?.Message is { } message)
+            {
+                return new ModuleInstallResultDto { Success = false, Error = message };
+            }
+
+            return new ModuleInstallResultDto
+            {
+                Success = false,
+                Error = $"Request failed with status {(int)response.StatusCode}.",
+            };
+        }
+        catch
+        {
+            return new ModuleInstallResultDto
+            {
+                Success = false,
+                Error = "The server returned an unreadable response.",
+            };
+        }
+    }
+
     // -----------------------------------------------------------------------
     // Consent ("Connected apps") and account erasure
     // -----------------------------------------------------------------------

@@ -251,6 +251,9 @@ public static class PackageIssueCodes
 
     /// <summary>A file to be packaged does not exist.</summary>
     public const string SourceFileMissing = "PACKAGE_SOURCE_MISSING";
+
+    /// <summary>The package contains no binaries for the host runtime.</summary>
+    public const string NoMatchingRuntime = "PACKAGE_NO_MATCHING_RUNTIME";
 }
 
 /// <summary>Thrown when a package cannot be produced or is rejected.</summary>
