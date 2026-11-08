@@ -3,8 +3,39 @@
 > **Document Version:** 1.0  
 > **Purpose:** Comprehensive task breakdown for implementing the DotNetCloud architecture  
 > **Scope:** All phases from Foundation (Phase 0) through Auto-Updates (Phase 11)  
-> **Last Updated:** 2026-10-25
+> **Last Updated:** 2026-11-08
 > **Audience:** Development team, project managers, technical leads
+
+---
+
+## Recent Work — Module store trust program (2026-11-08, `feature/third-party-modules`)
+
+Phase B5 of `docs/THIRD_PARTY_MODULE_SANDBOX_AND_STORE_PLAN.md`, implemented across this repository and
+`DotNetCloud.ModuleStore`.
+
+**Trust tiers**
+
+- ✓ Store derives the tier from the publisher registry (`official` flag → `official`, `verified` → `verified-publisher`, registered key only → `community`) and writes `trustTier` into every signed catalogue version.
+- ✓ `verify-index` recomputes the tier and fails on a contradiction (a re-signed hand edit cannot promote itself).
+- ✓ Core carries the tier through the store client → review DTO → install result → `install-receipt.json`; `unverified` is derived locally, never published.
+- ✓ Admin store list (**Trust** column), review panel (badge + community warning), CLI review output and the store site badge the tier.
+- ✓ Tests: derivation matrix, contradiction, registry `official`-without-`verified`, known/unknown wire values, previous-key acceptance, revoked-key refusal, local-feed tier, receipt tier.
+
+**Key management and provenance**
+
+- ✓ `DotNetCloud.ModuleStore/docs/KEY_MANAGEMENT.md` — generation, secret storage, offline backup, current+previous pinning, rotation and compromise response.
+- ✓ Publisher agreement codifies key custody, rotation overlap and build attestations; submission guide documents `actions/attest-build-provenance` + `gh attestation verify` (required for official, recommended otherwise).
+- ✓ Review checklist requires erasure **test evidence**, network/telemetry declaration, licence and provenance.
+
+**Takedown and revocation**
+
+- ✓ Store runbook §7 (yank → coordinate → remove → advise → record) cross-linked with `docs/security/VULNERABILITY_DISCLOSURE.md`, which now lists store packages in scope and owns triage/advisory.
+- ✓ The catalogue builder refuses to drop a published version that has no `yanked.json` record, so a takedown cannot be a silent directory delete.
+
+**Open follow-ups**
+
+- ✓ Automatic in-product warning for an installed copy of a security-yanked version — implemented: `yankedSeverity` in the catalogue, `/admin/store` withdrawal card with **Review upgrade**, `dotnetcloud module list` warnings and `GET admin/modules/store/revocations`.
+- ☐ `www.dotnetcloud.net` store page and the B4 pre-launch gate remain open (tracked in the store plan).
 
 ---
 

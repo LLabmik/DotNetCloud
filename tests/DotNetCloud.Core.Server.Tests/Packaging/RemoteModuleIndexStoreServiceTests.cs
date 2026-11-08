@@ -53,8 +53,89 @@ public class RemoteModuleIndexStoreServiceTests
         Assert.AreEqual(RemoteIndexFixture.PackageSha256, listed.Sha256);
         Assert.AreEqual("example-org", listed.PublisherId);
         Assert.AreEqual(_fixture.PublisherKey.KeyId, listed.KeyId);
+        Assert.AreEqual(ModuleStoreTrustTier.Official, listed.TrustTier);
         CollectionAssert.Contains(listed.Capabilities.ToArray(), "IStorageProvider");
         Assert.IsFalse(listed.Yanked);
+    }
+
+    [TestMethod]
+    public async Task ListPackagesAsync_UnknownTier_IsReportedAsUnknown()
+    {
+        var handler = new StubHttpHandler();
+        _fixture.PublishIndex(handler, trustTier: "gold");
+
+        var packages = await CreateService(handler).ListPackagesAsync();
+
+        Assert.AreEqual(ModuleStoreTrustTier.Unknown, packages[0].TrustTier);
+    }
+
+    [TestMethod]
+    public async Task ListPackagesAsync_OfficialTierWithoutOfficialPublisher_Throws()
+    {
+        var handler = new StubHttpHandler();
+        _fixture.PublishIndex(handler, publisherOfficial: false);
+
+        var error = await Assert.ThrowsExactlyAsync<ModulePackageException>(
+            () => CreateService(handler).ListPackagesAsync());
+
+        StringAssert.Contains(error.Message, "official");
+    }
+
+    [TestMethod]
+    public async Task ListPackagesAsync_IndexSignedWithPreviousKey_IsAccepted()
+    {
+        // Rotation overlap: both the current and the previous store key are pinned, so an index
+        // signed with either verifies. This is what lets a store rotate without a flag day.
+        var previousKey = Ed25519Signature.GenerateKeyPair("store-previous-key");
+        var handler = new StubHttpHandler();
+        _fixture.PublishIndex(handler, indexKey: previousKey);
+
+        var options = _fixture.CreateOptions();
+        options.TrustedKeys[previousKey.KeyId] = previousKey.PublicKey;
+
+        var packages = await CreateService(handler, options).ListPackagesAsync();
+
+        Assert.AreEqual(ModuleId, packages[0].ModuleId);
+    }
+
+    [TestMethod]
+    public async Task ListPackagesAsync_RevokedIndexKey_IsRejected()
+    {
+        var handler = new StubHttpHandler();
+        _fixture.PublishIndex(handler);
+
+        var options = _fixture.CreateOptions();
+        options.RevokedKeyIds = [_fixture.StoreKey.KeyId];
+
+        var error = await Assert.ThrowsExactlyAsync<ModulePackageException>(
+            () => CreateService(handler, options).ListPackagesAsync());
+
+        StringAssert.Contains(error.Message, "does not trust");
+    }
+
+    [TestMethod]
+    public async Task ListPackagesAsync_YankedVersion_CarriesThePublishedSeverity()
+    {
+        var handler = new StubHttpHandler();
+        _fixture.PublishIndex(handler, yanked: true, yankReason: "Credential leak", yankedSeverity: "security");
+
+        var packages = await CreateService(handler).ListPackagesAsync();
+
+        Assert.IsTrue(packages[0].Yanked);
+        Assert.AreEqual("security", packages[0].YankSeverity);
+        Assert.AreEqual("Credential leak", packages[0].YankReason);
+    }
+
+    [TestMethod]
+    public async Task ListPackagesAsync_UnknownYankSeverity_IsRejected()
+    {
+        var handler = new StubHttpHandler();
+        _fixture.PublishIndex(handler, yanked: true, yankReason: "Unknown", yankedSeverity: "catastrophe");
+
+        var error = await Assert.ThrowsExactlyAsync<ModulePackageException>(
+            () => CreateService(handler).ListPackagesAsync());
+
+        StringAssert.Contains(error.Message, "withdrawal severity");
     }
 
     [TestMethod]
@@ -432,7 +513,10 @@ public class RemoteModuleIndexStoreServiceTests
             long? sizeOverride = null,
             byte[]? servedPackageOverride = null,
             bool yanked = false,
-            string? yankReason = null)
+            string? yankReason = null,
+            string trustTier = "official",
+            bool publisherOfficial = true,
+            string yankedSeverity = "security")
         {
             var sha256 = sha256Override ?? PackageSha256;
             var size = sizeOverride ?? PackageBytes.Length;
@@ -444,6 +528,9 @@ public class RemoteModuleIndexStoreServiceTests
                 size,
                 yanked,
                 yankReason,
+                trustTier,
+                publisherOfficial,
+                yankedSeverity,
                 Ed25519Signature.Sign(Convert.FromHexString(sha256), PublisherKey.PrivateKey));
 
             var indexBytes = Encoding.UTF8.GetBytes(json);
@@ -485,10 +572,13 @@ public class RemoteModuleIndexStoreServiceTests
             long size,
             bool yanked,
             string? yankReason,
+            string trustTier,
+            bool publisherOfficial,
+            string yankedSeverity,
             string packageSignature)
         {
             var yankFields = yanked
-                ? $",\n                          \"yanked\": true,\n                          \"yankReason\": \"{yankReason}\""
+                ? $",\n                          \"yanked\": true,\n                          \"yankReason\": \"{yankReason}\",\n                          \"yankedSeverity\": \"{yankedSeverity}\""
                 : ",\n                          \"yanked\": false";
 
             return $$"""
@@ -499,10 +589,11 @@ public class RemoteModuleIndexStoreServiceTests
                     {
                       "id": "{{ModuleId}}",
                       "name": "Receipts",
-                      "publisher": { "id": "example-org", "name": "Example Org", "verified": true },
+                      "publisher": { "id": "example-org", "name": "Example Org", "verified": true, "official": {{(publisherOfficial ? "true" : "false")}} },
                       "versions": [
                         {
                           "version": "1.0.0",
+                          "trustTier": "{{trustTier}}",
                           "moduleApiVersion": 1,
                           "dataStore": "isolated",
                           "capabilities": ["IAuditLogger", "IStorageProvider"],

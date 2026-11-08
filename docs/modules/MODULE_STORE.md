@@ -83,6 +83,51 @@ a key id in `Modules:Store:TrustedKeys`. Otherwise:
 - the install is recorded with **no** `SignedByKeyId`, the receipt says `"unverified": true`, and
   `ModulePackageVerificationFailed` is audited with the hash.
 
+### Trust tiers
+
+Every catalogue entry carries the tier the store **derived** for it, and the client shows it: the
+admin store list has a **Trust** column, the review panel repeats it, and the CLI prints it before
+asking for confirmation.
+
+| Tier                 | Meaning                                                                                  |
+| -------------------- | ---------------------------------------------------------------------------------------- |
+| `official`           | Signed by the DotNetCloud project's publisher key — the project itself publishes it       |
+| `verified-publisher` | Registered publisher whose identity the store has verified                                 |
+| `community`          | Registered publisher, published after review, identity not verified by the store          |
+| `unverified`         | Not signed by a key this server pins — sideload only, with an explicit override           |
+
+`unverified` is never published in a catalogue; this server derives it from its own signature check.
+A file or local-feed package that passes the key check is `community`, because there is no store
+curation behind it to claim more. A catalogue value this client does not recognise is shown as
+`Unspecified` rather than guessed at.
+
+The tier is **informational** and deliberately distinct from `InstalledModule.TrustTier`
+(`Required` / `Bundled` / `Store`): only the latter decides whether capabilities are auto-granted. A
+community-tier package still needs explicit admin approval for every capability it declares.
+
+The store recomputes the tier on every validation, so a hand-edited catalogue cannot promote itself;
+the store-side rules are in `DotNetCloud.ModuleStore/policy/STORE_POLICY.md` §2.
+
+### Revocation warnings for installed versions
+
+Yanking never stops a running module, so the server has to tell an administrator when a version it
+**already runs** has changed status. The admin store page (`/admin/store`) and `dotnetcloud module
+list` compare every store-tier install with the configured catalogue and report:
+
+| Severity       | Meaning                                                                        |
+| -------------- | ------------------------------------------------------------------------------ |
+| `security`     | Withdrawn for a vulnerability or malicious behaviour — upgrade or uninstall     |
+| `deprecation`  | Withdrawn as broken or superseded — it keeps working, but no update will come   |
+| `unlisted`     | The catalogue no longer lists the installed version at all (a takedown)         |
+
+Each warning names the installed version, the store's reason and the newest **non-withdrawn**
+version, which is what the admin store page's **Review upgrade** action fetches. The severity is
+published in the catalogue (`yankedSeverity`) so the client never has to guess it, and
+the endpoint (`GET api/v1/core/admin/modules/store/revocations`) returns nothing when the store cannot
+be reached — "cannot check" is deliberately not reported as "all clear".
+
+Bundle modules are never checked: only installs whose provenance is `Store` come from the catalogue.
+
 ## 3. Configuration
 
 `config.json` (or environment variables using `__` as the separator):
@@ -131,6 +176,23 @@ a key id in `Modules:Store:TrustedKeys`. Otherwise:
 
 The trusted key list is the whole trust root: a feed and an index are data, so keys they carry are
 ignored. Pin both the store index key and every publisher key you intend to accept.
+
+### Key rotation
+
+Pin the **current and previous** index key ids while the store rotates:
+
+```json
+"TrustedKeys": {
+  "store-2027": "<base64 current>",
+  "store-2026": "<base64 previous>"
+}
+```
+
+An index signed by either verifies, so servers do not have to move in lock-step with the store.
+`RevokedKeyIds` wins over `TrustedKeys`, so a compromised key can be disabled without deleting its
+entry. Drop the previous id once the overlap release has shipped. The store-side procedure (key
+generation, secret storage, offline backup, rotation, compromise response) is
+`DotNetCloud.ModuleStore/docs/KEY_MANAGEMENT.md`.
 
 ### Prerequisites on the host
 

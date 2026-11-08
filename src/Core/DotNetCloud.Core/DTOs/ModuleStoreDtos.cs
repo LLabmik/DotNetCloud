@@ -68,6 +68,14 @@ public class ModulePackageReviewDto
     /// <summary>Gets or sets the signing key id, when the package is signed.</summary>
     public string? KeyId { get; set; }
 
+    /// <summary>
+    /// Gets or sets the store trust tier for this package: <c>official</c>,
+    /// <c>verified-publisher</c>, <c>community</c> or <c>unverified</c>. Derived by the store when the
+    /// package comes from the catalogue, and by this server (untrusted key → unverified, otherwise
+    /// community) for a file or local-feed install.
+    /// </summary>
+    public string TrustTier { get; set; } = "unknown";
+
     /// <summary>Gets or sets the lower-case hex SHA-256 of the package bytes.</summary>
     public string? Sha256 { get; set; }
 
@@ -259,6 +267,13 @@ public class ModuleInstallResultDto
     /// <summary>Gets or sets the persisted trust tier (<c>Store</c> for every package install).</summary>
     public string? TrustTier { get; set; }
 
+    /// <summary>
+    /// Gets or sets the store trust tier the package carried (<c>official</c>,
+    /// <c>verified-publisher</c>, <c>community</c> or <c>unverified</c>). Informational: unlike
+    /// <see cref="TrustTier"/> it does not change how capabilities are granted.
+    /// </summary>
+    public string? StoreTrustTier { get; set; }
+
     /// <summary>Gets or sets the signing key id, or null when the package was unverified.</summary>
     public string? KeyId { get; set; }
 
@@ -322,12 +337,54 @@ public class ModuleStorePackageDto
     /// <summary>Gets or sets the signing key id recorded by the index.</summary>
     public string? KeyId { get; set; }
 
+    /// <summary>
+    /// Gets or sets the trust tier the catalogue derives for this version (<c>official</c>,
+    /// <c>verified-publisher</c> or <c>community</c>).
+    /// </summary>
+    public string? TrustTier { get; set; }
+
     /// <summary>Gets or sets whether the version is withdrawn.</summary>
     public bool Yanked { get; set; }
 
     /// <summary>Gets or sets the withdrawal reason, when <see cref="Yanked"/> is true.</summary>
     public string? YankReason { get; set; }
 
+    /// <summary>Gets or sets the withdrawal severity (<c>deprecation</c>/<c>security</c>), when withdrawn.</summary>
+    public string? YankSeverity { get; set; }
+
     /// <summary>Gets or sets the version currently installed on this server, when any.</summary>
     public string? InstalledVersion { get; set; }
+}
+
+/// <summary>
+/// A warning about a version this server **already runs** whose status in the configured store has
+/// changed since it was installed (phase B5).
+/// </summary>
+/// <remarks>
+/// A yanked version keeps running — yanking never stops a module — but an administrator must know:
+/// <c>security</c> means the version is unsafe to keep, <c>deprecation</c> means no further updates
+/// will come from it, and <c>unlisted</c> means the store no longer publishes it at all (a takedown).
+/// </remarks>
+public class ModuleRevocationWarningDto
+{
+    /// <summary>Gets or sets the module id.</summary>
+    public string ModuleId { get; set; } = null!;
+
+    /// <summary>Gets or sets the version that is installed here.</summary>
+    public string InstalledVersion { get; set; } = null!;
+
+    /// <summary>
+    /// Gets or sets the severity: <c>security</c>, <c>deprecation</c>, or <c>unlisted</c> when the
+    /// catalogue no longer lists the installed version.
+    /// </summary>
+    public string Severity { get; set; } = null!;
+
+    /// <summary>Gets or sets the store's reason, or an explanation for an unlisted version.</summary>
+    public string? Reason { get; set; }
+
+    /// <summary>
+    /// Gets or sets the newest version the store still lists for this module, when there is one; this
+    /// is what an administrator is expected to upgrade to.
+    /// </summary>
+    public string? AvailableVersion { get; set; }
 }

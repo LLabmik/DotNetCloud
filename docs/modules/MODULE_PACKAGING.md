@@ -98,9 +98,10 @@ Rejected by design:
 dotnetcloud-pack keygen --key-id store-2026 --output keys/store-2026.key.json
 ```
 
-The public key is what a verifier pins; the private key never leaves the signing environment. Store
-key management (offline backup, rotation, current+previous key pinning) is phase B5; the verifier
-already accepts an arbitrary set of trusted key ids.
+The public key is what a verifier pins; the private key never leaves the signing environment. Key
+management — generation, secret storage, offline backup, rotation with an overlap window and
+current+previous pinning — is specified in the store repository's `docs/KEY_MANAGEMENT.md`, and the
+verifier accepts an arbitrary set of trusted key ids (see `MODULE_STORE.md` §3).
 
 ### 3.4 Why BouncyCastle
 

@@ -1,4 +1,5 @@
 using System.Text.Json;
+using DotNetCloud.Core.Modules.Store;
 using DotNetCloud.Core.Server.ModuleLoading;
 
 namespace DotNetCloud.ModulePackaging;
@@ -60,6 +61,9 @@ public sealed class ModuleStoreIndexPublisher
 
     /// <summary>Gets whether the store has verified the publisher.</summary>
     public bool Verified { get; init; }
+
+    /// <summary>Gets whether the publisher is the DotNetCloud project itself.</summary>
+    public bool Official { get; init; }
 }
 
 /// <summary>One published version of a store package.</summary>
@@ -67,6 +71,13 @@ public sealed class ModuleStoreIndexVersion
 {
     /// <summary>Gets the module version.</summary>
     public string Version { get; init; } = string.Empty;
+
+    /// <summary>
+    /// Gets the trust tier the store derived for this version (<c>official</c>,
+    /// <c>verified-publisher</c> or <c>community</c>), or null/unknown when the index predates the
+    /// field or a newer store introduced a tier this client does not know.
+    /// </summary>
+    public string? TrustTier { get; init; }
 
     /// <summary>Gets the minimum core version the package requires.</summary>
     public string? MinCoreVersion { get; init; }
@@ -109,6 +120,12 @@ public sealed class ModuleStoreIndexVersion
 
     /// <summary>Gets the operator-facing withdrawal reason, when withdrawn.</summary>
     public string? YankReason { get; init; }
+
+    /// <summary>
+    /// Gets the withdrawal severity (<c>deprecation</c> or <c>security</c>), when withdrawn. A
+    /// <c>security</c> withdrawal additionally warns servers that already run the version.
+    /// </summary>
+    public string? YankedSeverity { get; init; }
 }
 
 /// <summary>The Ed25519 signature a store index publishes for a package version.</summary>
@@ -274,6 +291,33 @@ public static class ModuleStoreIndexReader
                 if (!seen.Add(identity))
                 {
                     throw new ModulePackageException($"The store index lists '{identity}' twice.");
+                }
+
+                // The tier is derived data, so it must not contradict the publisher flags it is
+                // derived from. Unknown values are tolerated (a newer store may add a tier) and are
+                // surfaced as "unspecified" rather than guessed at.
+                var tier = ModuleStoreTrustTiers.Parse(version.TrustTier);
+
+                if (tier == ModuleStoreTrustTier.Official
+                    && (package.Publisher is null || !package.Publisher.Official || !package.Publisher.Verified))
+                {
+                    throw new ModulePackageException(
+                        $"The store index marks '{identity}' official, but its publisher is not the verified DotNetCloud publisher.");
+                }
+
+                if (tier == ModuleStoreTrustTier.VerifiedPublisher && package.Publisher?.Verified != true)
+                {
+                    throw new ModulePackageException(
+                        $"The store index marks '{identity}' verified-publisher, but the publisher is not verified.");
+                }
+
+                // Severity decides whether a server that already runs this version is warned, so a
+                // value outside the vocabulary is refused rather than silently treated as benign.
+                if (version.YankedSeverity is { Length: > 0 } severity
+                    && severity is not ("deprecation" or "security"))
+                {
+                    throw new ModulePackageException(
+                        $"The store index entry '{identity}' has an unknown withdrawal severity '{severity}'.");
                 }
             }
         }

@@ -8,9 +8,10 @@ namespace DotNetCloud.ModulePackaging;
 /// <remarks>
 /// A store index is JSON, so versions arrive as strings. Ordering them with
 /// <see cref="StringComparer.Ordinal"/> would put <c>1.10.0</c> before <c>1.9.0</c> and make
-/// "latest" wrong; every store source therefore shares this comparer.
+/// "latest" wrong; every store source therefore shares this comparer. Public so the CLI can answer
+/// "is there a newer version?" against the same rules the server uses.
 /// </remarks>
-internal sealed class ModuleStoreVersionComparer : IComparer<string>
+public sealed class ModuleStoreVersionComparer : IComparer<string>
 {
     /// <summary>The shared instance.</summary>
     public static readonly ModuleStoreVersionComparer Instance = new();

@@ -217,7 +217,10 @@ internal static class ModuleCommands
     {
         ConsoleOutput.WriteHeader("Installed Modules");
 
-        await using var provider = ServiceProviderFactory.CreateFromConfig();
+        // The package-install factory is used for its side effect: it registers the configured module
+        // store source, which is what lets `list` warn about withdrawn versions. It provides the same
+        // CoreDbContext.
+        await using var provider = ServiceProviderFactory.CreateForPackageInstall();
         if (provider is null)
             return 1;
 
@@ -252,7 +255,89 @@ internal static class ModuleCommands
         Console.WriteLine();
         ConsoleOutput.WriteInfo($"Total: {modules.Count} module(s)");
 
+        await WriteWithdrawalWarningsAsync(scope, modules);
+
         return 0;
+    }
+
+    /// <summary>
+    /// Best-effort warning for installed store packages the catalogue has withdrawn or stopped
+    /// listing. A store that cannot be reached is silent: "cannot check" is not "all clear", and a
+    /// list command must never fail because the store is offline.
+    /// </summary>
+    /// <param name="scope">The command's service scope.</param>
+    /// <param name="modules">The installed modules just listed.</param>
+    private static async Task WriteWithdrawalWarningsAsync(
+        IServiceScope scope, IReadOnlyList<InstalledModule> modules)
+    {
+        var storeInstalls = modules.Where(module => module.TrustTier == ModuleTrustTier.Store).ToList();
+        if (storeInstalls.Count == 0)
+        {
+            return;
+        }
+
+        var store = scope.ServiceProvider.GetService<IModuleStoreService>();
+        if (store is null)
+        {
+            return;
+        }
+
+        IReadOnlyList<ModuleStorePackage> catalogue;
+        try
+        {
+            // A warning is a courtesy: the store gets a few seconds, never the full download timeout,
+            // so `module list` stays useful on an offline or slow server.
+            using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+            catalogue = await store.ListPackagesAsync(timeout.Token);
+        }
+        catch (Exception ex) when (ex is ModulePackageException or IOException
+                                       or UnauthorizedAccessException or HttpRequestException
+                                       or OperationCanceledException)
+        {
+            return;
+        }
+
+        var warnings = new List<string>();
+
+        foreach (var module in storeInstalls)
+        {
+            var listed = catalogue
+                .Where(package => string.Equals(package.ModuleId, module.ModuleId, StringComparison.Ordinal))
+                .ToList();
+
+            var available = listed
+                .Where(package => !package.Yanked)
+                .OrderByDescending(package => package.Version, ModuleStoreVersionComparer.Instance)
+                .FirstOrDefault();
+
+            var entry = listed.FirstOrDefault(package =>
+                string.Equals(package.Version, module.Version, StringComparison.Ordinal));
+
+            var upgrade = available is null ? string.Empty : $" Upgrade to {available.Version} is available.";
+
+            if (entry is null)
+            {
+                warnings.Add(
+                    $"{module.ModuleId} {module.Version}: no longer published by the store.{upgrade}");
+            }
+            else if (entry.Yanked)
+            {
+                warnings.Add(
+                    $"{module.ModuleId} {module.Version}: withdrawn ({entry.YankSeverity ?? "deprecation"}) — "
+                    + $"{entry.YankReason ?? "no reason recorded"}.{upgrade}");
+            }
+        }
+
+        if (warnings.Count == 0)
+        {
+            return;
+        }
+
+        Console.WriteLine();
+        foreach (var warning in warnings)
+        {
+            ConsoleOutput.WriteWarning(warning);
+        }
     }
 
     private static async Task<int> ChangeModuleStatusAsync(string moduleId, string newStatus, string verb)
@@ -607,6 +692,12 @@ internal static class ModuleCommands
             $"Installed {result.ModuleId} {result.Version}"
             + (result.PreviousVersion is null ? string.Empty : $" (replacing {result.PreviousVersion})"));
 
+        if (result.StoreTrustTier is not null)
+        {
+            ConsoleOutput.WriteInfo(
+                $"Store trust tier: {ModuleStoreTrustTiers.Parse(result.StoreTrustTier).ToDisplayName()}");
+        }
+
         if (result.DataStoreProvisioned)
         {
             ConsoleOutput.WriteInfo("Provisioned the module's isolated data store.");
@@ -628,6 +719,9 @@ internal static class ModuleCommands
         ConsoleOutput.WriteDetail("Version", review.Version ?? "(unknown)");
         ConsoleOutput.WriteDetail("Manifest", review.ManifestVersion == 0 ? "unreadable" : $"v{review.ManifestVersion}");
         ConsoleOutput.WriteDetail("Publisher", review.PublisherId ?? "(none)");
+        ConsoleOutput.WriteDetail(
+            "Trust tier",
+            ModuleStoreTrustTiers.Parse(review.TrustTier).ToDisplayName());
         ConsoleOutput.WriteDetail("Data store", review.DataStoreMode);
         ConsoleOutput.WriteDetail("Erasure support", review.HandlesUserErasure ? "yes" : "no");
         ConsoleOutput.WriteDetail("SHA-256", review.Sha256 ?? "(not computed)");
@@ -649,6 +743,12 @@ internal static class ModuleCommands
         ConsoleOutput.WriteDetail(
             "Consent scopes",
             review.UserConsentScopes.Count == 0 ? "(none requested)" : string.Join(", ", review.UserConsentScopes));
+
+        if (ModuleStoreTrustTiers.Parse(review.TrustTier) == ModuleStoreTrustTier.Community)
+        {
+            ConsoleOutput.WriteWarning(
+                "Community tier: signed by a registered publisher whose identity the store has not verified.");
+        }
 
         foreach (var warning in review.Warnings)
         {

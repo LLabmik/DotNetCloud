@@ -15,6 +15,58 @@
     with an explicit unverified approval, and every install is written to the audit trail.
 </p>
 
+@if (_warnings.Count > 0)
+{
+    <div class="card store-panel">
+        <h2>Installed versions needing attention</h2>
+
+        <p class="text-muted">
+            The store's status for these installed versions changed after they were installed.
+            Withdrawing a version never stops a running module — you decide whether to review an
+            upgrade, roll back, or uninstall it.
+        </p>
+
+        <div class="table-container">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Module</th>
+                        <th>Installed</th>
+                        <th>Severity</th>
+                        <th>Reason</th>
+                        <th>Available</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var warning in _warnings)
+                    {
+                        <tr>
+                            <td>@warning.ModuleId</td>
+                            <td>@warning.InstalledVersion</td>
+                            <td>
+                                <span class="badge badge-@SeverityVariant(warning.Severity)">@SeverityLabel(warning.Severity)</span>
+                            </td>
+                            <td>@(warning.Reason ?? "—")</td>
+                            <td>@(warning.AvailableVersion ?? "—")</td>
+                            <td>
+                                @if (warning.AvailableVersion is not null)
+                                {
+                                    <button class="btn btn-outline"
+                                            @onclick="() => ReviewStoreVersionAsync(warning.ModuleId, warning.AvailableVersion)"
+                                            disabled="@(_inspecting || _installing)">
+                                        Review upgrade
+                                    </button>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+}
+
 <div class="card store-panel">
     <h2>Install a package</h2>
 
@@ -77,6 +129,11 @@
             <dt>Publisher</dt>
             <dd>@(_review.PublisherId ?? "none declared")</dd>
 
+            <dt>Trust tier</dt>
+            <dd>
+                <span class="badge badge-@TrustVariant(_review.TrustTier)">@TrustLabel(_review.TrustTier)</span>
+            </dd>
+
             <dt>Signature</dt>
             <dd>
                 <span class="badge badge-@(_review.IsSignedByTrustedKey ? "success" : "danger")">
@@ -127,6 +184,14 @@
         @foreach (var warning in _review.Warnings)
         {
             <p class="store-issue">@warning.Message</p>
+        }
+
+        @if (IsCommunityTier(_review.TrustTier))
+        {
+            <p class="store-issue">
+                This is a community-tier package: the store reviewed it, but has not verified the
+                publisher's identity. Approve it only if you trust the source listed above.
+            </p>
         }
 
         @foreach (var issue in _review.Issues)
@@ -180,6 +245,7 @@
                     <tr>
                         <th>Module</th>
                         <th>Version</th>
+                        <th>Trust</th>
                         <th>Publisher</th>
                         <th>Capabilities</th>
                         <th>Installed</th>
@@ -196,13 +262,16 @@
                                 <small class="text-muted">@package.ModuleId</small>
                             </td>
                             <td>@package.Version</td>
+                            <td>
+                                <span class="badge badge-@TrustVariant(package.TrustTier)">@TrustLabel(package.TrustTier)</span>
+                            </td>
                             <td>@(package.PublisherId ?? "—")</td>
                             <td>@(package.Capabilities.Count == 0 ? "—" : string.Join(", ", package.Capabilities))</td>
                             <td>@(package.InstalledVersion ?? "—")</td>
                             <td>
                                 @if (package.Yanked)
                                 {
-                                    <span class="badge badge-danger">Withdrawn</span>
+                                    <span class="badge badge-danger">Withdrawn (@SeverityLabel(package.YankSeverity))</span>
                                 }
                                 else
                                 {

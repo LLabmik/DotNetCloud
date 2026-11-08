@@ -556,6 +556,24 @@ public sealed class DotNetCloudApiClient
         }
     }
 
+    /// <summary>
+    /// Lists installed store packages whose catalogue status changed after installation (admin only).
+    /// </summary>
+    public async Task<IReadOnlyList<ModuleRevocationWarningDto>> ListRevocationWarningsAsync(
+        CancellationToken ct = default)
+    {
+        try
+        {
+            var envelope = await _http.GetFromJsonAsync<ApiEnvelope<IReadOnlyList<ModuleRevocationWarningDto>>>(
+                "api/v1/core/admin/modules/store/revocations", ct);
+            return envelope?.Data ?? [];
+        }
+        catch
+        {
+            return [];
+        }
+    }
+
     /// <summary>Verifies an uploaded package and returns its review without installing it (admin only).</summary>
     public async Task<ModulePackageReviewDto?> InspectModulePackageAsync(
         Stream packageStream, string fileName, CancellationToken ct = default)

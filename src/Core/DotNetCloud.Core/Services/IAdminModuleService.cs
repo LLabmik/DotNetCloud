@@ -174,6 +174,19 @@ public interface IAdminModuleService
     Task<IReadOnlyList<ModuleStorePackageDto>> ListStorePackagesAsync(CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Lists installed store packages whose catalogue status changed after they were installed: a
+    /// withdrawn version (with its severity) or a version the store no longer lists at all.
+    /// </summary>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>Warnings ordered by severity, security first. Empty when the store is unreachable.</returns>
+    /// <remarks>
+    /// An unreachable store produces no warnings on purpose: "cannot check" must never be reported as
+    /// "all clear", and it must not break the admin page either.
+    /// </remarks>
+    Task<IReadOnlyList<ModuleRevocationWarningDto>> ListRevocationWarningsAsync(
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Verifies an uploaded package and returns the manifest facts an administrator must review.
     /// Nothing is installed.
     /// </summary>

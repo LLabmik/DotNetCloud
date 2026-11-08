@@ -25,8 +25,10 @@ public enum ModuleStoreSourceKind
 /// <param name="Capabilities">Capabilities declared by the manifest.</param>
 /// <param name="UserConsentScopes">Consent scopes declared by the manifest.</param>
 /// <param name="KeyId">Signing key id recorded by the index, when signed.</param>
+/// <param name="TrustTier">The trust tier the catalogue derives for this version.</param>
 /// <param name="Yanked">Whether the version has been withdrawn.</param>
 /// <param name="YankReason">Why the version was withdrawn, when it was.</param>
+/// <param name="YankSeverity">The withdrawal severity (<c>deprecation</c>/<c>security</c>), when withdrawn.</param>
 public sealed record ModuleStorePackage(
     string ModuleId,
     string Name,
@@ -38,8 +40,10 @@ public sealed record ModuleStorePackage(
     IReadOnlyList<string> Capabilities,
     IReadOnlyList<string> UserConsentScopes,
     string? KeyId,
+    ModuleStoreTrustTier TrustTier,
     bool Yanked,
-    string? YankReason);
+    string? YankReason,
+    string? YankSeverity);
 
 /// <summary>
 /// A resolved package: the catalogue entry plus the verified-on-disk location of its bytes.

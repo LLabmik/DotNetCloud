@@ -149,9 +149,14 @@ public sealed class ModulePackageInstaller : IModulePackageInstaller
             });
         }
 
-        var (yanked, yankReason) = moduleId is null || version is null
-            ? (false, null)
-            : await CheckYankedAsync(moduleId, version, cancellationToken);
+        // One resolution serves both questions: is this version withdrawn, and what tier does the
+        // store derive for it.
+        var storeListing = moduleId is null || version is null
+            ? null
+            : await ResolveStoreListingAsync(moduleId, version, cancellationToken);
+
+        var yanked = storeListing?.Yanked ?? false;
+        var yankReason = storeListing?.YankReason;
 
         if (yanked)
         {
@@ -193,6 +198,13 @@ public sealed class ModulePackageInstaller : IModulePackageInstaller
         var isTrusted = isSigned
             && trustedKeys.ContainsKey(verification.KeyId!);
 
+        // Store trust is derived, in this order: an untrusted signature means unverified whatever any
+        // catalogue says; otherwise the catalogue's own derived tier applies; a package from a file or
+        // a local feed (no catalogue entry) is community at best.
+        var trustTier = !isTrusted
+            ? ModuleStoreTrustTier.Unverified
+            : storeListing?.TrustTier ?? ModuleStoreTrustTier.Community;
+
         return new ModulePackageReviewDto
         {
             IsValid = issues.Count == 0,
@@ -207,6 +219,7 @@ public sealed class ModulePackageInstaller : IModulePackageInstaller
             IsSigned = isSigned,
             IsSignedByTrustedKey = isTrusted,
             KeyId = verification.KeyId,
+            TrustTier = trustTier.ToWireValue(),
             Sha256 = verification.Sha256,
             SizeBytes = new FileInfo(fullPath).Length,
             EntryCount = verification.EntryCount,
@@ -364,7 +377,14 @@ public sealed class ModulePackageInstaller : IModulePackageInstaller
         string stagedRoot;
         try
         {
-            stagedRoot = await StageAsync(packagePath, moduleId, version, review, unverified, cancellationToken);
+            stagedRoot = await StageAsync(
+                packagePath,
+                moduleId,
+                version,
+                review,
+                unverified,
+                ModuleStoreTrustTiers.Parse(review.TrustTier),
+                cancellationToken);
         }
         catch (ModulePackageException ex)
         {
@@ -504,6 +524,7 @@ public sealed class ModulePackageInstaller : IModulePackageInstaller
                 Version = version,
                 PreviousVersion = previousVersion,
                 TrustTier = ModuleTrustTier.Store.ToString(),
+                StoreTrustTier = review.TrustTier,
                 KeyId = review.IsSignedByTrustedKey ? review.KeyId : null,
                 Sha256 = review.Sha256,
                 DataStoreProvisioned = dataStoreProvisioned,
@@ -524,6 +545,7 @@ public sealed class ModulePackageInstaller : IModulePackageInstaller
             Version = version,
             PreviousVersion = previousVersion,
             TrustTier = ModuleTrustTier.Store.ToString(),
+            StoreTrustTier = review.TrustTier,
             KeyId = review.IsSignedByTrustedKey ? review.KeyId : null,
             Sha256 = review.Sha256,
             DataStoreProvisioned = dataStoreProvisioned,
@@ -566,15 +588,15 @@ public sealed class ModulePackageInstaller : IModulePackageInstaller
         }
 
         // F16: a rollback must not restore a build the store has withdrawn.
-        var (yanked, yankReason) = await CheckYankedAsync(moduleId, retained.Value.Version, cancellationToken);
-        if (yanked)
+        var retainedListing = await ResolveStoreListingAsync(moduleId, retained.Value.Version, cancellationToken);
+        if (retainedListing is { Yanked: true })
         {
             return new ModuleInstallResultDto
             {
                 Success = false,
                 ModuleId = moduleId,
                 Version = retained.Value.Version,
-                Error = $"Refusing to roll back to a withdrawn version: {yankReason ?? "no reason recorded"}.",
+                Error = $"Refusing to roll back to a withdrawn version: {retainedListing.YankReason ?? "no reason recorded"}.",
             };
         }
 
@@ -651,6 +673,7 @@ public sealed class ModulePackageInstaller : IModulePackageInstaller
                     ModuleId = moduleId,
                     Version = retained.Value.Version,
                     PreviousVersion = currentVersion,
+                    StoreTrustTier = retainedListing?.TrustTier.ToWireValue(),
                     Started = false,
                     Error = "Rolled back, but the restored version did not report healthy: "
                             + (health.Reason ?? "no health response"),
@@ -668,6 +691,7 @@ public sealed class ModulePackageInstaller : IModulePackageInstaller
             Version = retained.Value.Version,
             PreviousVersion = currentVersion,
             TrustTier = ModuleTrustTier.Store.ToString(),
+            StoreTrustTier = retainedListing?.TrustTier.ToWireValue(),
             Started = started,
         };
     }
@@ -682,6 +706,7 @@ public sealed class ModulePackageInstaller : IModulePackageInstaller
         string version,
         ModulePackageReviewDto review,
         bool unverified,
+        ModuleStoreTrustTier trustTier,
         CancellationToken cancellationToken)
     {
         var layout = new ModuleInstallLayout(_supervisorOptions.Value);
@@ -738,6 +763,7 @@ public sealed class ModulePackageInstaller : IModulePackageInstaller
             Sha256 = review.Sha256,
             KeyId = review.IsSignedByTrustedKey ? review.KeyId : null,
             Unverified = unverified,
+            TrustTier = trustTier.ToWireValue(),
             PublisherId = review.PublisherId,
             EntryPoint = $"{moduleId}.dll",
             InstalledAtUtc = DateTime.UtcNow,
@@ -975,27 +1001,42 @@ public sealed class ModulePackageInstaller : IModulePackageInstaller
         }
     }
 
-    private async Task<(bool Yanked, string? Reason)> CheckYankedAsync(
+    /// <summary>
+    /// Resolves the configured store's entry for a package version, when it lists one.
+    /// </summary>
+    /// <remarks>
+    /// This is the only place the installer learns a store-provided trust tier: it comes from the
+    /// verified catalogue entry, never from the package. A missing feed, an unreadable one or an
+    /// unlisted version is not an error — it only means there is nothing to withdraw and no curated
+    /// tier to report.
+    /// </remarks>
+    private async Task<StoreListing?> ResolveStoreListingAsync(
         string moduleId, string version, CancellationToken cancellationToken)
     {
         try
         {
             var resolved = await _store.ResolveAsync(moduleId, version, cancellationToken);
 
-            return resolved is { Package.Yanked: true }
-                ? (true, resolved.Package.YankReason)
-                : (false, null);
+            return resolved is null
+                ? null
+                : new StoreListing(
+                    resolved.Package.Yanked,
+                    resolved.Package.YankReason,
+                    resolved.Package.TrustTier);
         }
         catch (Exception ex) when (ex is ModulePackageException or IOException or UnauthorizedAccessException)
         {
             // No feed configured (or an unreadable one) withdraws nothing by itself.
             _logger.LogDebug(
-                "Withdrawal check for {ModuleId} {Version} skipped: {Error}",
+                "Store lookup for {ModuleId} {Version} skipped: {Error}",
                 LogSanitizer.Sanitize(moduleId), LogSanitizer.Sanitize(version), ex.Message);
 
-            return (false, null);
+            return null;
         }
     }
+
+    /// <summary>What the configured store says about a version, when it lists one.</summary>
+    private sealed record StoreListing(bool Yanked, string? YankReason, ModuleStoreTrustTier TrustTier);
 
     private async Task AuditAsync(
         AuditAction action,
@@ -1048,6 +1089,7 @@ public sealed class ModulePackageInstaller : IModulePackageInstaller
             ModuleId = review.ModuleId,
             Version = review.Version,
             TrustTier = ModuleTrustTier.Store.ToString(),
+            StoreTrustTier = review.TrustTier,
             KeyId = review.KeyId,
             Sha256 = review.Sha256,
             Error = error,
@@ -1076,6 +1118,9 @@ public sealed class ModulePackageInstaller : IModulePackageInstaller
         public string? KeyId { get; init; }
 
         public bool Unverified { get; init; }
+
+        /// <summary>The store trust tier the version carried at install time, or <c>unverified</c>.</summary>
+        public string? TrustTier { get; init; }
 
         public string? PublisherId { get; init; }
 

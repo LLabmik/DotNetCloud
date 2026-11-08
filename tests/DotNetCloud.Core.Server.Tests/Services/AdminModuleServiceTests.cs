@@ -10,6 +10,7 @@ using DotNetCloud.Core.Server.ModuleLoading;
 using DotNetCloud.Core.Server.Quotas;
 using DotNetCloud.Core.Server.Services;
 using DotNetCloud.Core.Server.Supervisor;
+using DotNetCloud.ModulePackaging;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -65,7 +66,8 @@ public class AdminModuleServiceTests
         IProcessSupervisor supervisor,
         IModuleDataStoreProvisioningService? dataStores = null,
         ModuleCredentialStore? credentials = null,
-        string? modulesDirectory = null)
+        string? modulesDirectory = null,
+        IModuleStoreService? store = null)
     {
         var quotas = CreateQuotaResolver(db);
 
@@ -87,7 +89,7 @@ public class AdminModuleServiceTests
             discovery,
             credentials ?? new ModuleCredentialStore(),
             Mock.Of<IModulePackageInstaller>(),
-            Mock.Of<IModuleStoreService>(),
+            store ?? Mock.Of<IModuleStoreService>(),
             NullLogger<AdminModuleService>.Instance);
     }
 
@@ -113,17 +115,20 @@ public class AdminModuleServiceTests
         string status,
         bool isRequired = false,
         ModuleDataStoreMode dataStoreMode = ModuleDataStoreMode.None,
-        ModuleSandboxStatus sandboxStatus = ModuleSandboxStatus.Active)
+        ModuleSandboxStatus sandboxStatus = ModuleSandboxStatus.Active,
+        ModuleTrustTier trustTier = ModuleTrustTier.Bundled,
+        string version = "1.0.0")
     {
         db.InstalledModules.Add(new InstalledModule
         {
             ModuleId = ModuleId,
-            Version = "1.0.0",
+            Version = version,
             Status = status,
             InstalledAt = DateTime.UtcNow,
             IsRequired = isRequired,
             DataStoreMode = dataStoreMode,
-            SandboxStatus = sandboxStatus
+            SandboxStatus = sandboxStatus,
+            TrustTier = trustTier,
         });
         db.SaveChanges();
     }
@@ -796,5 +801,148 @@ public class AdminModuleServiceTests
         Assert.AreEqual(1, result.Count);
         Assert.AreEqual(ModuleId, result[0].ModuleId);
         Assert.AreEqual("Orphaned", result[0].Status);
+    }
+
+    // ------------------------------------------------- revocation warnings (B5)
+
+    private static ModuleStorePackage Package(
+        string version,
+        bool yanked = false,
+        string? severity = null,
+        string? reason = null) =>
+        new(
+            ModuleId,
+            "Test Module",
+            version,
+            $"{ModuleId}-{version}.dncpkg",
+            1,
+            new string('a', 64),
+            "example-org",
+            [],
+            [],
+            "example-org-2026",
+            ModuleStoreTrustTier.VerifiedPublisher,
+            yanked,
+            reason,
+            severity);
+
+    private static IModuleStoreService StoreListing(params ModuleStorePackage[] packages)
+    {
+        var store = new Mock<IModuleStoreService>();
+        store
+            .Setup(s => s.ListPackagesAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(packages.ToList());
+        return store.Object;
+    }
+
+    [TestMethod]
+    public async Task ListRevocationWarningsAsync_SecurityYankOfInstalledVersion_ReportsSeverityAndUpgrade()
+    {
+        using var db = CreateContext();
+        SeedModule(db, "Enabled", trustTier: ModuleTrustTier.Store);
+
+        var service = CreateService(
+            db,
+            CreateSupervisor().Object,
+            store: StoreListing(
+                Package("1.0.0", yanked: true, severity: "security", reason: "Credential leak"),
+                Package("1.1.0")));
+
+        var warnings = await service.ListRevocationWarningsAsync(CancellationToken.None);
+
+        Assert.AreEqual(1, warnings.Count);
+        Assert.AreEqual(ModuleId, warnings[0].ModuleId);
+        Assert.AreEqual("1.0.0", warnings[0].InstalledVersion);
+        Assert.AreEqual("security", warnings[0].Severity);
+        Assert.AreEqual("Credential leak", warnings[0].Reason);
+        Assert.AreEqual("1.1.0", warnings[0].AvailableVersion);
+    }
+
+    [TestMethod]
+    public async Task ListRevocationWarningsAsync_Deprecation_KeepsTheDeprecationSeverity()
+    {
+        using var db = CreateContext();
+        SeedModule(db, "Enabled", trustTier: ModuleTrustTier.Store);
+
+        var service = CreateService(
+            db,
+            CreateSupervisor().Object,
+            store: StoreListing(
+                Package("1.0.0", yanked: true, severity: "deprecation", reason: "Superseded")));
+
+        var warnings = await service.ListRevocationWarningsAsync(CancellationToken.None);
+
+        Assert.AreEqual(1, warnings.Count);
+        Assert.AreEqual("deprecation", warnings[0].Severity);
+        Assert.IsNull(warnings[0].AvailableVersion, "a withdrawn version is never an upgrade target");
+    }
+
+    [TestMethod]
+    public async Task ListRevocationWarningsAsync_InstalledVersionNoLongerListed_ReportsUnlisted()
+    {
+        using var db = CreateContext();
+        SeedModule(db, "Enabled", trustTier: ModuleTrustTier.Store);
+
+        var service = CreateService(
+            db,
+            CreateSupervisor().Object,
+            store: StoreListing(Package("2.0.0")));
+
+        var warnings = await service.ListRevocationWarningsAsync(CancellationToken.None);
+
+        Assert.AreEqual(1, warnings.Count);
+        Assert.AreEqual("unlisted", warnings[0].Severity);
+        Assert.AreEqual("2.0.0", warnings[0].AvailableVersion);
+        StringAssert.Contains(warnings[0].Reason ?? string.Empty, "taken down");
+    }
+
+    [TestMethod]
+    public async Task ListRevocationWarningsAsync_InstalledVersionStillPublished_ReportsNothing()
+    {
+        using var db = CreateContext();
+        SeedModule(db, "Enabled", trustTier: ModuleTrustTier.Store);
+
+        var service = CreateService(
+            db,
+            CreateSupervisor().Object,
+            store: StoreListing(Package("1.0.0"), Package("1.1.0")));
+
+        var warnings = await service.ListRevocationWarningsAsync(CancellationToken.None);
+
+        Assert.AreEqual(0, warnings.Count);
+    }
+
+    [TestMethod]
+    public async Task ListRevocationWarningsAsync_BundledModuleIsNeverChecked()
+    {
+        using var db = CreateContext();
+        SeedModule(db, "Enabled", trustTier: ModuleTrustTier.Bundled);
+
+        var service = CreateService(
+            db,
+            CreateSupervisor().Object,
+            store: StoreListing(Package("1.0.0", yanked: true, severity: "security", reason: "Leak")));
+
+        var warnings = await service.ListRevocationWarningsAsync(CancellationToken.None);
+
+        Assert.AreEqual(0, warnings.Count, "only store-tier installs come from the catalogue");
+    }
+
+    [TestMethod]
+    public async Task ListRevocationWarningsAsync_StoreUnreachable_ReportsNothing()
+    {
+        using var db = CreateContext();
+        SeedModule(db, "Enabled", trustTier: ModuleTrustTier.Store);
+
+        var store = new Mock<IModuleStoreService>();
+        store
+            .Setup(s => s.ListPackagesAsync(It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new ModulePackageException("store is offline"));
+
+        var service = CreateService(db, CreateSupervisor().Object, store: store.Object);
+
+        var warnings = await service.ListRevocationWarningsAsync(CancellationToken.None);
+
+        Assert.AreEqual(0, warnings.Count, "an unreachable store must not be reported as all clear or throw");
     }
 }

@@ -113,6 +113,56 @@ public class ModulePackageInstallerTests
         CollectionAssert.AreEquivalent(
             new[] { "IAuditLogger", "IStorageProvider" }, review.Capabilities.ToArray());
         CollectionAssert.AreEqual(new[] { "files:read" }, review.UserConsentScopes.ToArray());
+        Assert.AreEqual(
+            ModuleStoreTrustTiers.Community,
+            review.TrustTier,
+            "a file install with no catalogue entry is community at best");
+    }
+
+    [TestMethod]
+    public async Task InspectAsync_UntrustedPackage_ReportsUnverifiedTier()
+    {
+        var package = await _fixture.CreatePackageAsync(
+            signWith: Ed25519Signature.GenerateKeyPair("someone-else"));
+
+        await using var db = CreateContext();
+        var review = await CreateInstaller(db).InspectAsync(package);
+
+        Assert.AreEqual(ModuleStoreTrustTiers.Unverified, review.TrustTier);
+    }
+
+    [TestMethod]
+    public async Task InspectAsync_StoreListsOfficialVersion_ReportsOfficialTier()
+    {
+        var package = await _fixture.CreatePackageAsync();
+
+        var store = new Mock<IModuleStoreService>();
+        store
+            .Setup(service => service.ResolveAsync(
+                PackageInstallerFixture.ModuleId, "1.0.0", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ModuleStoreResolution(
+                new ModuleStorePackage(
+                    PackageInstallerFixture.ModuleId,
+                    "Receipts",
+                    "1.0.0",
+                    Path.GetFileName(package),
+                    new FileInfo(package).Length,
+                    "sha",
+                    "example-org",
+                    [],
+                    [],
+                    "test-store-key",
+                    ModuleStoreTrustTier.Official,
+                    false,
+                    null,
+                    null),
+                package,
+                null));
+
+        await using var db = CreateContext();
+        var review = await CreateInstaller(db, store: store.Object).InspectAsync(package);
+
+        Assert.AreEqual(ModuleStoreTrustTiers.Official, review.TrustTier);
     }
 
     [TestMethod]
@@ -228,6 +278,7 @@ public class ModulePackageInstallerTests
 
         Assert.IsTrue(result.Success, result.Error);
         Assert.AreEqual(ModuleTrustTier.Store.ToString(), result.TrustTier);
+        Assert.AreEqual(ModuleStoreTrustTiers.Community, result.StoreTrustTier);
         Assert.AreEqual("test-store-key", result.KeyId);
 
         var moduleDirectory = Path.Combine(_fixture.ModulesRoot, PackageInstallerFixture.ModuleId);
@@ -236,6 +287,10 @@ public class ModulePackageInstallerTests
             File.Exists(Path.Combine(moduleDirectory, PackageInstallerFixture.ModuleId + ".dll")),
             "the runtime binaries were not flattened to the module root");
         Assert.IsTrue(File.Exists(Path.Combine(moduleDirectory, ModulePackageInstaller.ReceiptFileName)));
+
+        var receipt = await File.ReadAllTextAsync(
+            Path.Combine(moduleDirectory, ModulePackageInstaller.ReceiptFileName));
+        StringAssert.Contains(receipt, $"\"trustTier\": \"{ModuleStoreTrustTiers.Community}\"");
 
         var row = await db.InstalledModules.SingleAsync(m => m.ModuleId == PackageInstallerFixture.ModuleId);
         Assert.AreEqual("1.0.0", row.Version);
@@ -607,8 +662,10 @@ public class ModulePackageInstallerTests
             .ReturnsAsync((string id, string? version, CancellationToken _) => new ModuleStoreResolution(
                 new ModuleStorePackage(id, "Receipts", version ?? "1.0.0", "x.dncpkg", 1, "abc",
                     "example-org", [], [], "test-store-key",
+                    ModuleStoreTrustTier.Official,
                     Yanked: version == withdrawnVersion,
-                    YankReason: version == withdrawnVersion ? "Critical vulnerability" : null),
+                    YankReason: version == withdrawnVersion ? "Critical vulnerability" : null,
+                    YankSeverity: version == withdrawnVersion ? "security" : null),
                 "unused",
                 null));
 

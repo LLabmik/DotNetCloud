@@ -154,8 +154,13 @@ public sealed class LocalModuleFeedStoreService : IModuleStoreService
             entry.Capabilities ?? [],
             entry.UserConsentScopes ?? [],
             entry.KeyId,
+            // A local feed carries no publisher registry and no review record: whoever built the feed
+            // decided what to put in it. That is the community tier at best, and the operator's key
+            // pinning (not this value) is what actually decides whether an install is trusted.
+            ModuleStoreTrustTier.Community,
             yank is not null,
-            yank?.Reason);
+            yank?.Reason,
+            yank?.Severity);
     }
 
     /// <summary>

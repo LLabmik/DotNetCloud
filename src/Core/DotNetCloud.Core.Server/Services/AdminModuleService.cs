@@ -771,10 +771,98 @@ internal sealed class AdminModuleService : IAdminModuleService
                 Capabilities = package.Capabilities,
                 UserConsentScopes = package.UserConsentScopes,
                 KeyId = package.KeyId,
+                TrustTier = package.TrustTier.ToWireValue(),
                 Yanked = package.Yanked,
                 YankReason = package.YankReason,
+                YankSeverity = package.YankSeverity,
                 InstalledVersion = installed.GetValueOrDefault(package.ModuleId),
             })
+            .ToList()
+            .AsReadOnly();
+    }
+
+    /// <inheritdoc/>
+    public async Task<IReadOnlyList<ModuleRevocationWarningDto>> ListRevocationWarningsAsync(
+        CancellationToken cancellationToken = default)
+    {
+        var installed = await _dbContext.InstalledModules
+            .AsNoTracking()
+            .Where(module => module.TrustTier == ModuleTrustTier.Store)
+            .Select(module => new { module.ModuleId, module.Version })
+            .ToListAsync(cancellationToken);
+
+        if (installed.Count == 0)
+        {
+            return [];
+        }
+
+        IReadOnlyList<ModuleStorePackage> catalogue;
+        try
+        {
+            catalogue = await _store.ListPackagesAsync(cancellationToken);
+        }
+        catch (Exception ex) when (ex is ModulePackageException or IOException
+                                       or UnauthorizedAccessException or HttpRequestException
+                                       or TaskCanceledException)
+        {
+            // A store that cannot be reached produces no warnings: "cannot check" is not "all clear",
+            // and an offline store must not break the admin page.
+            _logger.LogWarning(
+                "Module store status check skipped: {Error}", LogSanitizer.Sanitize(ex.Message));
+            return [];
+        }
+
+        var warnings = new List<ModuleRevocationWarningDto>();
+
+        foreach (var module in installed)
+        {
+            var listed = catalogue
+                .Where(package => string.Equals(package.ModuleId, module.ModuleId, StringComparison.Ordinal))
+                .ToList();
+
+            // The newest version an operator can actually upgrade to: a withdrawn version is never a
+            // destination, which is exactly why rollback refuses one.
+            var available = listed
+                .Where(package => !package.Yanked)
+                .OrderByDescending(package => package.Version, ModuleStoreVersionComparer.Instance)
+                .FirstOrDefault();
+
+            var entry = listed.FirstOrDefault(package =>
+                string.Equals(package.Version, module.Version, StringComparison.Ordinal));
+
+            if (entry is null)
+            {
+                warnings.Add(new ModuleRevocationWarningDto
+                {
+                    ModuleId = module.ModuleId,
+                    InstalledVersion = module.Version,
+                    Severity = "unlisted",
+                    Reason = "The configured store no longer lists this version. It may have been "
+                             + "taken down; check the store's security advisory.",
+                    AvailableVersion = available?.Version,
+                });
+            }
+            else if (entry.Yanked)
+            {
+                warnings.Add(new ModuleRevocationWarningDto
+                {
+                    ModuleId = module.ModuleId,
+                    InstalledVersion = module.Version,
+                    Severity = entry.YankSeverity ?? "deprecation",
+                    Reason = entry.YankReason,
+                    AvailableVersion = available?.Version,
+                });
+            }
+        }
+
+        return warnings
+            .OrderBy(warning => warning.Severity switch
+            {
+                "security" => 0,
+                "unlisted" => 1,
+                _ => 2,
+            })
+            .ThenBy(warning => warning.ModuleId, StringComparer.Ordinal)
             .ToList()
             .AsReadOnly();
     }

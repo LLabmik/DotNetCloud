@@ -1,4 +1,5 @@
 using DotNetCloud.Core.DTOs;
+using DotNetCloud.Core.Modules.Store;
 using DotNetCloud.UI.Web.Client.Services;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Forms;
@@ -36,6 +37,7 @@ public partial class Store : ComponentBase
     private ModulePackageReviewDto? _review;
     private ModuleInstallResultDto? _result;
     private IReadOnlyList<ModuleStorePackageDto> _catalogue = [];
+    private IReadOnlyList<ModuleRevocationWarningDto> _warnings = [];
 
     /// <summary>The store package the current review belongs to, when it came from the catalogue.</summary>
     private string? _storeModuleId;
@@ -62,6 +64,50 @@ public partial class Store : ComponentBase
         && _acknowledged
         && (_review.IsSignedByTrustedKey || _unverifiedAcknowledged);
 
+    /// <summary>The CSS badge variant for a store trust tier.</summary>
+    /// <param name="tier">The catalogue value.</param>
+    /// <returns>A badge variant name.</returns>
+    private static string TrustVariant(string? tier) => ModuleStoreTrustTiers.Parse(tier) switch
+    {
+        ModuleStoreTrustTier.Official => "success",
+        ModuleStoreTrustTier.VerifiedPublisher => "primary",
+        ModuleStoreTrustTier.Community => "warning",
+        _ => "danger",
+    };
+
+    /// <summary>The operator-facing label for a store trust tier.</summary>
+    /// <param name="tier">The catalogue value.</param>
+    /// <returns>A short label.</returns>
+    private static string TrustLabel(string? tier) => ModuleStoreTrustTiers.Parse(tier).ToDisplayName();
+
+    /// <summary>Whether the tier needs an explicit reviewer warning.</summary>
+    /// <param name="tier">The catalogue value.</param>
+    /// <returns><see langword="true"/> for the community tier.</returns>
+    private static bool IsCommunityTier(string? tier) =>
+        ModuleStoreTrustTiers.Parse(tier) == ModuleStoreTrustTier.Community;
+
+    /// <summary>The CSS badge variant for a withdrawal severity.</summary>
+    /// <param name="severity">The severity reported by the store.</param>
+    /// <returns>A badge variant name.</returns>
+    private static string SeverityVariant(string? severity) => severity switch
+    {
+        "security" => "danger",
+        "unlisted" => "danger",
+        "deprecation" => "warning",
+        _ => "warning",
+    };
+
+    /// <summary>The operator-facing label for a withdrawal severity.</summary>
+    /// <param name="severity">The severity reported by the store.</param>
+    /// <returns>A short label.</returns>
+    private static string SeverityLabel(string? severity) => severity switch
+    {
+        "security" => "Security",
+        "unlisted" => "No longer published",
+        "deprecation" => "Deprecated",
+        _ => "Withdrawn",
+    };
+
     /// <inheritdoc/>
     protected override async Task OnInitializedAsync()
     {
@@ -75,6 +121,7 @@ public partial class Store : ComponentBase
         try
         {
             _catalogue = await Api.ListStorePackagesAsync();
+            _warnings = await Api.ListRevocationWarningsAsync();
         }
         finally
         {
@@ -210,25 +257,34 @@ public partial class Store : ComponentBase
     /// Fetches a catalogue package and shows the same review the upload flow uses, so the approval
     /// (hash + exact capability and scope lists) is identical whichever way the bytes arrived.
     /// </summary>
-    private async Task ReviewStorePackageAsync(ModuleStorePackageDto package)
+    private Task ReviewStorePackageAsync(ModuleStorePackageDto package) =>
+        ReviewStoreVersionAsync(package.ModuleId, package.Version);
+
+    /// <summary>
+    /// Fetches and reviews a specific store version. Used by the catalogue table and by the
+    /// upgrade action on a withdrawn installed version.
+    /// </summary>
+    /// <param name="moduleId">The module id.</param>
+    /// <param name="version">The version to review.</param>
+    private async Task ReviewStoreVersionAsync(string moduleId, string? version)
     {
         _result = null;
         _review = null;
         _acknowledged = false;
         _unverifiedAcknowledged = false;
         _selectedFile = null;
-        _storeModuleId = package.ModuleId;
-        _storeVersion = package.Version;
+        _storeModuleId = moduleId;
+        _storeVersion = version;
         _inspecting = true;
         StateHasChanged();
 
         try
         {
-            _review = await Api.InspectStorePackageAsync(package.ModuleId, package.Version);
+            _review = await Api.InspectStorePackageAsync(moduleId, version);
 
             if (_review is null)
             {
-                Toast.ShowError($"Could not fetch {package.ModuleId} {package.Version} from the store.");
+                Toast.ShowError($"Could not fetch {moduleId} {version} from the store.");
                 _storeModuleId = null;
                 _storeVersion = null;
             }

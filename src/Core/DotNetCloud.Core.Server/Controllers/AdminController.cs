@@ -712,6 +712,19 @@ public class AdminController : ControllerBase
     }
 
     /// <summary>
+    /// Lists installed store packages whose catalogue status changed after they were installed
+    /// (withdrawn, with its severity, or no longer published).
+    /// </summary>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The warnings, security first; empty when the store cannot be reached.</returns>
+    [HttpGet("modules/store/revocations")]
+    public async Task<IActionResult> ListRevocationWarningsAsync(CancellationToken cancellationToken)
+    {
+        var warnings = await _moduleService.ListRevocationWarningsAsync(cancellationToken);
+        return Ok(new { success = true, data = warnings });
+    }
+
+    /// <summary>
     /// Fetches a package the configured store source lists and returns its review without
     /// installing it.
     /// </summary>

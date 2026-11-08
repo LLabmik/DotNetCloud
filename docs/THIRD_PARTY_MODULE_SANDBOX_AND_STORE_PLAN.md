@@ -961,17 +961,40 @@ Per-module directories: `<dataDir>/modules/<moduleId>/{config,data,run}` created
 
 ### Phase B5 — Trust program
 
-**Status:** ☐ Not started
+**Status:** ✓ implemented 2026-11-08 (both repositories)
 **Effort:** Medium (~1 week, ongoing policy)
 **Depends on:** B2.
 
 **Deliverables**
 
-- ☐ Trust tiers: Official (DotNetCloud-signed), Verified publisher (registered Ed25519 keys), Community (curated-signed after review), Unverified (sideload only, `--allow-unverified` + admin warning).
-- ☐ Signing key management: key generation, storage in Actions secrets, offline backup, rotation procedure, key pinning list in the core (accepts current + previous key ids).
-- ☐ Security review checklist (manifest, capabilities/scopes least-privilege, **erasure implementation + test evidence**, network behavior, telemetry declaration, license).
-- ☐ Provenance: recommend build attestations (e.g. GitHub Actions attestations/SLSA) for official packages; codify publisher signing-key requirements in the publisher agreement.
-- ☐ Takedown/revocation runbook coordinated with `docs/security/VULNERABILITY_DISCLOSURE.md`.
+- ✓ **Trust tiers, derived not claimed.** The store derives a tier per version from the publisher registry (`official: true` on the DotNetCloud publisher → `official`, `verified: true` → `verified-publisher`, a registered key without vetting → `community`) and writes it as `trustTier` into the signed catalogue. `verify-index` recomputes it and fails when the catalogue contradicts the registry (including a catalogue re-signed after a hand edit). The core carries it through `ModuleStorePackage` → review → install result → `install-receipt.json`, and shows it in the admin store list/review panel, the CLI review and the store site. `unverified` is never published: the server derives it locally (untrusted/unsigned → `unverified`; no catalogue entry → `community`, because a file or local feed carries no curation).
+- ✓ **Signing key management.** `keygen` for store and publisher keys, the `STORE_SIGNING_KEY` secret written to a runner temp file with `umask 077`, and `pubkey` asserting secret ↔ registry on **every** CI run. Generation, secret storage, two encrypted offline copies, rotation with a current+previous overlap and compromise response are specified in `DotNetCloud.ModuleStore/docs/KEY_MANAGEMENT.md`. Servers pin **current and previous** key ids in `Modules:Store:TrustedKeys`; `RevokedKeyIds` overrides pinning as the kill switch. New tests prove an index signed by the previous key is accepted while a revoked key is refused.
+- ✓ **Security review checklist.** `policy/REVIEW_CHECKLIST.md` now requires erasure **test evidence** (the linked test/command, not just the manifest flag), the README network-endpoint and telemetry declaration, the licence, provenance evidence and least-privilege justification for every capability and scope, plus the derived `trustTier` in the catalogue diff.
+- ✓ **Provenance.** `docs/SUBMISSION.md` §2b documents `actions/attest-build-provenance` (subject-path = the signed package) and `gh attestation verify`; required for official packages, recommended for the other tiers and recorded in review. `policy/PUBLISHER_AGREEMENT.md` codifies key custody (offline copies), rotation overlap (current+previous) and the attestation expectation. Attestation is treated as **evidence, not trust** — the signature still has to verify against a registered key.
+- ✓ **Takedown/revocation runbook coordinated with `docs/security/VULNERABILITY_DISCLOSURE.md`.** The store runbook gained §7 (yank first → coordinate → remove → advise operators → record), the disclosure policy now lists store packages in scope and owns receipt/triage/advisory while the runbook owns the catalogue action, and both documents link to each other. The builder now **refuses to drop a published version that has no yank record**, so a takedown cannot be a silent directory delete.
+- ✓ **Installed-version revocation warnings.** The catalogue publishes the withdrawal severity (`yankedSeverity`: `deprecation`/`security`, derived from `yanked.json` and recomputed by `verify-index`). The server compares every `Store`-tier install with the configured catalogue and reports a `security`, `deprecation` or `unlisted` (takedown) warning — with the store's reason and the newest non-withdrawn version — on `/admin/store` (**Review upgrade** fetches it) and in `dotnetcloud module list`; `GET api/v1/core/admin/modules/store/revocations` backs both. An unreachable store yields no warnings: "cannot check" is never reported as "all clear".
+
+**Findings recorded during implementation**
+
+1. **The community tier was unreachable.** `StorePolicy` refused any publisher without `verified: true`, so the policy's own fourth-row table described a tier no package could ever have. The rule is now "a registered signing key plus review" — `verified` only decides *which* tier, not whether publishing is possible. Without that change the whole tier model would have been decoration.
+2. **A catalogue field cannot be `required` when the builder has to read history.** The first rebuild failed to deserialize the previously published index (`trustTier` missing). The property is nullable on read and always written on build; `verify-index` reports a missing tier as `(missing)` rather than a deserialization crash. Same lesson as `publishedAt`: the builder must be able to read the format it is about to replace.
+3. **A signature cannot make a claim true.** The tier had to be recomputed by `verify-index`, not merely schema-validated: the test tampers with the tier **and re-signs the index**, so signature validity alone would have passed. Derived fields need a derivation check on the consuming side too.
+4. **Store trust is not capability trust.** `InstalledModule.TrustTier` (`Required`/`Bundled`/`Store`) decides whether capabilities are auto-granted; the new `ModuleStoreTrustTier` only informs the administrator. Conflating them would have meant a database migration and a change to the auto-grant rule for no security gain, so they stay separate and the DTOs carry both (`TrustTier` = provenance, `StoreTrustTier` = catalogue tier).
+5. **A local feed has no registry, so it cannot claim a curated tier.** Packages from a file or a feed are `community` when the pin check passes and `unverified` when it does not — the operator's key pinning, not the label, is what actually authorises them.
+6. **`InspectAsync` resolved the store twice.** The withdrawal check and the tier lookup were separate `ResolveAsync` calls, which for a remote catalog risked two different index generations. One `ResolveStoreListingAsync` now answers both questions, and rollback reuses it.
+7. **Takedown would have been invisible in git.** Append-only protected *changed* versions but not *deleted* ones: removing a package directory simply dropped the catalogue entry. The builder now requires a `yanked.json` record for every published version that disappears, which is what makes the runbook's "yank first" step enforceable rather than advisory.
+8. **Unknown tiers must degrade, not fail.** A client older than a newly added tier shows `Unspecified` and keeps installing; only a *contradiction* between the tier and the publisher flags (for example `official` on a publisher that is not the verified DotNetCloud publisher) is fatal.
+9. **A withdrawal without a severity cannot be acted on.** The catalogue originally carried only `yanked` + reason, so the core could not tell a deprecated build from a security revocation — the policy promised a warning the client could not produce. `yankedSeverity` is now published, derived from `yanked.json`, recomputed by `verify-index` and refused by the client when it is outside the vocabulary, so the severity an operator sees is the one the store recorded.
+10. **"Store unreachable" must not read as "no warnings".** The revocation endpoint swallows transport failures and returns an empty list, and the UI/CLI say nothing in that case; an error box or a scary "0 issues" would both be wrong.
+
+**Implementation notes**
+
+1. The wire vocabulary is the catalogue's own — `official`, `verified-publisher`, `community`, `unverified` — in `publishers.json` (`official` flag), `schemas/*.schema.json`, the signed index, the core enum (`ModuleStoreTrustTier`) and the admin/CLI output, so one string is compared end to end.
+2. `ModuleStoreIndexReader` cross-checks the tier against `publisher.official` / `publisher.verified`; an inconsistent catalogue is refused before anything is downloaded.
+3. `install-receipt.json` gained `trustTier`, so an installed module's tier is auditable after the fact without the catalogue.
+4. The store site badges each version with its tier, and its package page's install instructions now name `dotnetcloud module install --from-store <id>` (the previous copy claimed no remote client existed).
+5. Key material stays out of the repository: `.gitignore` plus the CI secret scan, and `build-index.yml` derives the public half on every run rather than trusting a stored `publicKey`.
+
 
 ---
 

@@ -205,8 +205,10 @@ public sealed class RemoteModuleIndexStoreService : IModuleStoreService
             version.Capabilities ?? [],
             version.UserConsentScopes ?? [],
             version.Signature?.KeyId,
+            ModuleStoreTrustTiers.Parse(version.TrustTier),
             version.Yanked,
-            version.Yanked ? version.YankReason ?? "Withdrawn by the store." : null);
+            version.Yanked ? version.YankReason ?? "Withdrawn by the store." : null,
+            version.Yanked ? version.YankedSeverity ?? "deprecation" : null);
 
     private static string GetDisplayFileName(string downloadUrl)
     {
