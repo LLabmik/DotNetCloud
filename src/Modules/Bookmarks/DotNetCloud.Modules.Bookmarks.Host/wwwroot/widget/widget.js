@@ -76,7 +76,7 @@
   async function load() {
     try {
       var response = await fetch(ENDPOINT, {
-        credentials: 'same-origin',
+        credentials: 'include',
         headers: { Accept: 'application/json' }
       });
 

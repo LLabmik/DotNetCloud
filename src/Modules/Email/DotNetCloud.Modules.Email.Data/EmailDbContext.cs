@@ -58,7 +58,11 @@ public class EmailDbContext : DbContext
     /// <inheritdoc />
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
-        modelBuilder.HasDefaultSchema(_namingStrategy.GetSchemaForModule("email"));
+        // Schema-neutral on purpose (Track C): a sandboxed module does not own the database, so it
+        // must not name a schema. The connection string the core provisions pins search_path to the
+        // schema the module owns, and unqualified DDL — including the migration-history table — lands
+        // there. Naming a schema here would also require CREATE on the database, which the module
+        // principal deliberately does not have (PostgreSQL 42501).
         base.OnModelCreating(modelBuilder);
         modelBuilder.ApplyConfiguration(new Configuration.EmailAccountConfiguration());
         modelBuilder.ApplyConfiguration(new Configuration.EmailMailboxConfiguration());
@@ -71,5 +75,12 @@ public class EmailDbContext : DbContext
         modelBuilder.ApplyConfiguration(new Configuration.EmailRuleActionConfiguration());
 
         SequentialGuidConfigurationExtensions.ApplySequentialGuidDefaults(modelBuilder, _namingStrategy.Provider);
+
+        // The JSON payload columns are declared with their PostgreSQL type (jsonb); the SQL Server
+        // model swaps them for nvarchar(max) so both providers keep the same logical schema.
+        if (_namingStrategy.Provider == DatabaseProvider.SqlServer)
+        {
+            modelBuilder.FixColumnTypesForSqlServer();
+        }
     }
 }

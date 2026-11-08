@@ -112,16 +112,7 @@ public sealed class EmailApiClient : IEmailApiClient
         return (stream, fileName, contentType);
     }
 
-    public async Task DetachAttachmentAsync(Guid attachmentId, Guid? targetFolderId = null, CancellationToken ct = default)
-    {
-        var url = $"api/v1/email/attachments/{attachmentId}/detach";
-        if (targetFolderId.HasValue)
-            url += $"?targetFolderId={targetFolderId.Value}";
-
-        var response = await _httpClient.PostAsync(url, null, ct);
-        await EnsureSuccessOrThrowAsync(response);
-    }
-
+    /// <summary>Uploads a file as a temp compose attachment. Returns storage metadata.</summary>
     public async Task<UploadAttachmentResult> UploadAttachmentAsync(Stream content, string fileName, string contentType, CancellationToken ct = default)
     {
         using var formContent = new MultipartFormDataContent();
@@ -137,29 +128,6 @@ public sealed class EmailApiClient : IEmailApiClient
 
         if (!TryGetPropertyIgnoreCase(document.RootElement, "data", out var dataElement))
             throw new HttpRequestException("Invalid upload response format.");
-
-        return new UploadAttachmentResult
-        {
-            StorageKey = dataElement.GetProperty("storageKey").GetString()!,
-            FileName = dataElement.GetProperty("fileName").GetString()!,
-            ContentType = dataElement.GetProperty("contentType").GetString()!,
-            Size = dataElement.GetProperty("size").GetInt64(),
-            ContentHash = dataElement.GetProperty("contentHash").GetString()!
-        };
-    }
-
-    // ── Files Module Attachments ──────────────────────────
-
-    public async Task<UploadAttachmentResult> AttachFromFilesModuleAsync(Guid fileNodeId, CancellationToken ct = default)
-    {
-        var response = await _httpClient.PostAsync($"api/v1/email/attach-from-files/{fileNodeId}", null, ct);
-        await EnsureSuccessOrThrowAsync(response);
-
-        var json = await response.Content.ReadAsStringAsync(ct);
-        using var document = JsonDocument.Parse(json);
-
-        if (!TryGetPropertyIgnoreCase(document.RootElement, "data", out var dataElement))
-            throw new HttpRequestException("Invalid attach-from-files response format.");
 
         return new UploadAttachmentResult
         {

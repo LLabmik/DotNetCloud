@@ -35,12 +35,6 @@ public interface IEmailApiClient
     /// <summary>Uploads a file as a temp compose attachment. Returns storage metadata.</summary>
     Task<UploadAttachmentResult> UploadAttachmentAsync(Stream content, string fileName, string contentType, CancellationToken ct = default);
 
-    /// <summary>Detaches an attachment to the Files module.</summary>
-    Task DetachAttachmentAsync(Guid attachmentId, Guid? targetFolderId = null, CancellationToken ct = default);
-
-    /// <summary>Attaches a file from the Files module as an email attachment.</summary>
-    Task<UploadAttachmentResult> AttachFromFilesModuleAsync(Guid fileNodeId, CancellationToken ct = default);
-
     // Sync
     Task TriggerSyncAsync(Guid accountId, CancellationToken ct = default);
 

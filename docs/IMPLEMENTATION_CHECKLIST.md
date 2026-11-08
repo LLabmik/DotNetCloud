@@ -8,6 +8,54 @@
 
 ---
 
+## Recent Work — Track C dogfood: Email module UI plane (2026-11-08, `feature/third-party-modules`)
+
+Third Track C module of `docs/THIRD_PARTY_MODULE_SANDBOX_AND_STORE_PLAN.md`, and the first with a
+long-lived credential store, an external consent flow (Gmail OAuth) and a large UI surface.
+
+**Data plane**
+
+- ✓ `EmailDbContext` and both provider migration sets are schema-neutral (no `HasDefaultSchema`, no `EnsureSchema`, no `schema:`/`principalSchema:` arguments), so unqualified DDL lands in the schema the core provisioned.
+- ✓ Repaired a latent model/snapshot drift: the JSON payload columns were declared `jsonb` in the snapshot but produced `text` by the model, so the module's first insert would have failed on PostgreSQL. They are now mapped explicitly (`HasColumnType("jsonb")`, swapped for `nvarchar(max)` for SQL Server by `FixColumnTypesForSqlServer`), and `EmailDbContextModelTests` guards both the snapshot match and schema-neutrality on both providers.
+- ✓ `EmailDbInitializer` applies the module's own migrations (`MigrateAsync`) with retry, then continues in degraded mode.
+- ✓ `EmailUserErasureHandler` deletes the user's accounts, mailboxes, threads, messages, attachments (including their blobs) and rules, in dependency order and with `IgnoreQueryFilters`.
+- ✓ Sandboxed host: `module.json` topology, module-private DataProtection ring, scoped connection string, attachments under `DOTNETCLOUD_MODULE_DATA_DIR`, no cookie scheme.
+
+**Manifest**
+
+- ✓ v2 with publisher, `dataStore: "isolated"`, `handlesUserErasure: true`, capabilities narrowed to `IAuditLogger` + `ISearchProvider`, consent scopes `mail:read`/`mail:write`, `ui` block (iframe, entry `/`, Material icon `mail`) and `ui.widget.path`. Version `1.1.0`.
+- ✓ The old manifest declared five capabilities the code never used and named events that did not exist (`EmailReceivedEvent`); the shipped list now matches the event types and the host's actual capability use.
+
+**UI plane**
+
+- ✓ `wwwroot/index.html` + `assets/email-ui.{js,css}`: accounts (IMAP/SMTP and Gmail), folders, thread list, thread detail with bodies, compose with uploads, a full rules editor (condition groups + actions), sync, delete-account confirmation (a `<dialog>` modal), and in-frame help.
+- ✓ Message HTML renders inside a nested `sandbox=""` frame (`srcdoc`) — injected handlers cannot run in the module's origin; attachments and the Gmail consent page open through `dnc:openExternal`.
+- ✓ `wwwroot/widget/`: Home-page card with the five most recent inbox threads, widget-role height reporting and a `?threadId=` deep link back into the app.
+- ✓ Gmail OAuth reworked for the plane: DataProtection-signed `state` bound to the asserted user (no cookie — the proxy strips `Set-Cookie`), redirect targets under `/apps/dotnetcloud.email/`, and `{configured:false}` instead of a 500 when unconfigured.
+
+**Plane fixes (core, not module)**
+
+- ✓ `allow-modals` added to `ModuleAppHost` and `ModuleWidgetFrame` — confirmation dialogs were impossible before; docs and the SDK bridge comment updated.
+- ✓ The proxy now answers a CORS preflight **before** its authentication gate and adds `Access-Control-Allow-Origin: null` + `Access-Control-Allow-Credentials: true` to every proxied response. Without this an opaque-origin frame cannot call its own module API at all. Example and Bookmarks UIs switched to `credentials: 'include'`.
+
+**Decoupling**
+
+- ✓ `Core.Server` drops the library/Data/Data.SqlServer/Widget references (the gRPC clients keep using the proto), `UI.Web` drops the library, the CLI drops the migration assembly, and the `EmailDbContext` registration, HTTP client, descriptor entries (`ModuleUiRegistrationHostedService`, `WidgetUiRegistrationHostedService`), `AddAdditionalAssemblies` entry and `DbContextSchemaProvider` mapping are gone.
+- ✓ The module `UI/` and `Widget/` projects and the `/apps/email` shell + help pages are deleted; the library is a plain class library; `EmailGrpcApiClient` no longer depends on module models.
+- ✓ Two Files-module integration endpoints (`attach-from-files`, `detach`) removed with the `IFileDirectory` capability they depended on — they could never work from a sandboxed host.
+
+**Defect found and fixed**
+
+- ✓ An unauthenticated call answered 500 rather than 401 (no filter translated `UnauthorizedAccessException`). Added `EmailExceptionFilter` + `[ResponseCache(NoStore = true)]` on the controller base.
+
+**Verification**
+
+- ✓ `DotNetCloud.Modules.Email.Tests` 53 passed (9 asset, 4 filter, 3 model/snapshot, plus the existing service tests); `DotNetCloud.Core.Server.Tests` 1570 passed / 2 skipped; Bookmarks 37, Example 81, SDK 33; CI solution build 0 warnings.
+- ✓ Published-host smoke test: `/`, `/widget/index.html`, `/assets/email-ui.{js,css}`, `/widget/widget.js`, `/dncModuleBridge.js` → 200 with correct content types; `/api/v1/email/accounts` → 401 with the standard envelope and `Cache-Control: no-store,no-cache`; `/api/v1/email/gmail/oauth/status` → 200 `{configured:false}`.
+- ☐ Iframe rendering through the live core proxy + bridge handshake (needs a deployed server), and publishing `1.1.0` to the store.
+
+---
+
 ## Recent Work — Track C dogfood: Bookmarks module UI plane (2026-11-08, `feature/third-party-modules`)
 
 Second Track C module of `docs/THIRD_PARTY_MODULE_SANDBOX_AND_STORE_PLAN.md`. Bookmarks already owned

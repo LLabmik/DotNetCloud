@@ -88,9 +88,20 @@ No npm, no bundler: it is a plain static asset.
 
 ### Things to design for
 
-- **Opaque origin.** Your document is sandboxed with `allow-scripts allow-forms allow-popups` and
-  **no** `allow-same-origin`. `document.cookie`, `localStorage` and `sessionStorage` are unavailable.
-  Keep state on your server and reach it through the same proxied path the document came from.
+- **Opaque origin.** Your document is sandboxed with
+  `allow-scripts allow-forms allow-popups allow-modals` and **no** `allow-same-origin`.
+  `document.cookie`, `localStorage` and `sessionStorage` are unavailable. Keep state on your server
+  and reach it through the same proxied path the document came from.
+- **Your own API is cross-origin.** Because the frame's origin is opaque, every `fetch` is a
+  cross-origin request and must use `credentials: 'include'`. The core answers the preflight and
+  returns `Access-Control-Allow-Origin: null` plus `Access-Control-Allow-Credentials: true`, then
+  authenticates the real request itself. Fetch only paths **under your module's prefix**; core
+  endpoints carry no CORS headers.
+- **Modals are available.** `allow-modals` is granted, so `alert`/`confirm`/`prompt` and
+  `<dialog>.showModal()` work. Prefer `<dialog>`: it does not freeze the page and cannot be
+  suppressed by a browser setting.
+- **Downloads are not.** Use `dncModuleBridge.openExternal(url)` to hand a download or external link
+  to the core, which opens it in a real tab.
 - **Never trust `event.origin`.** It is `"null"` for every sandboxed frame. The bridge already
   validates `event.source === window.parent`; use its `on(...)` API instead of adding your own
   listener.

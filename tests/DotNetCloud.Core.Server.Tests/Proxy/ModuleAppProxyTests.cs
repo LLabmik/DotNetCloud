@@ -171,6 +171,50 @@ public class ModuleAppProxyTests
     }
 
     [TestMethod]
+    public void Apply_AllowsTheOpaqueFrameOriginSoTheFrameCanReadItsOwnApi()
+    {
+        // The frame is sandboxed without allow-same-origin, so its document's origin is opaque and
+        // every fetch it makes is cross-origin. Without these two headers the module's own API
+        // responses are unreadable and the UI is dead on arrival.
+        var response = new HttpResponseMessage(System.Net.HttpStatusCode.OK);
+
+        ModuleAppResponsePolicy.Apply(response.Headers);
+
+        Assert.AreEqual(
+            ModuleAppResponsePolicy.CrossOriginFrameOrigin,
+            response.Headers.GetValues("Access-Control-Allow-Origin").Single());
+        Assert.AreEqual("true", response.Headers.GetValues("Access-Control-Allow-Credentials").Single());
+    }
+
+    [TestMethod]
+    public void Apply_ReplacesAModulesOwnCorsHeaders()
+    {
+        var response = new HttpResponseMessage(System.Net.HttpStatusCode.OK);
+        response.Headers.TryAddWithoutValidation("Access-Control-Allow-Origin", "https://evil.example");
+
+        ModuleAppResponsePolicy.Apply(response.Headers);
+
+        // The proxy is the CORS authority for the plane; a module cannot widen it to a real origin.
+        Assert.AreEqual(
+            ModuleAppResponsePolicy.CrossOriginFrameOrigin,
+            response.Headers.GetValues("Access-Control-Allow-Origin").Single());
+    }
+
+    [TestMethod]
+    public void ApplyPreflight_AllowsTheMethodsAndHeadersAModuleUiNeeds()
+    {
+        var response = new HttpResponseMessage(System.Net.HttpStatusCode.OK);
+
+        ModuleAppResponsePolicy.ApplyPreflight(response.Headers);
+
+        Assert.AreEqual(ModuleAppResponsePolicy.PreflightAllowedMethods, response.Headers.GetValues("Access-Control-Allow-Methods").Single());
+        Assert.AreEqual(ModuleAppResponsePolicy.PreflightAllowedHeaders, response.Headers.GetValues("Access-Control-Allow-Headers").Single());
+        Assert.IsTrue(
+            response.Headers.GetValues("Access-Control-Allow-Methods").Single().Contains("PATCH", StringComparison.Ordinal),
+            "the Email module patches accounts, and the plane must not block it");
+    }
+
+    [TestMethod]
     public void TryStripAppBasePath_Root_BecomesSlash()
     {
         var context = CreateContext(Guid.CreateVersion7());

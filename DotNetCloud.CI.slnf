@@ -82,7 +82,6 @@
       "src\\Modules\\Calendar\\DotNetCloud.Modules.Calendar.Widget\\DotNetCloud.Modules.Calendar.Widget.csproj",
       "src\\Modules\\Chat\\DotNetCloud.Modules.Chat.Widget\\DotNetCloud.Modules.Chat.Widget.csproj",
       "src\\Modules\\Contacts\\DotNetCloud.Modules.Contacts.Widget\\DotNetCloud.Modules.Contacts.Widget.csproj",
-      "src\\Modules\\Email\\DotNetCloud.Modules.Email.Widget\\DotNetCloud.Modules.Email.Widget.csproj",
       "src\\Modules\\Files\\DotNetCloud.Modules.Files.Widget\\DotNetCloud.Modules.Files.Widget.csproj",
       "src\\Modules\\Music\\DotNetCloud.Modules.Music.Widget\\DotNetCloud.Modules.Music.Widget.csproj",
       "src\\Modules\\Notes\\DotNetCloud.Modules.Notes.Widget\\DotNetCloud.Modules.Notes.Widget.csproj",

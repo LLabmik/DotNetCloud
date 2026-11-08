@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Email</title>
+
+  <!--
+    Everything is referenced RELATIVELY. The core frames this document at
+    /apps/dotnetcloud.email/ and strips that prefix before forwarding, so the browser resolves
+    "assets/email-ui.css" to /apps/dotnetcloud.email/assets/email-ui.css and this process sees
+    /assets/email-ui.css. A leading-slash path would leave the module and hit a core route.
+  -->
+  <link rel="stylesheet" href="assets/email-ui.css" />
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar" id="sidebar" aria-label="Email navigation">
+      <div class="sidebar-header">
+        <span class="sidebar-title" id="sidebar-title">Email</span>
+        <button type="button" class="icon-btn" id="sidebar-toggle"
+                aria-label="Collapse sidebar" title="Collapse sidebar"></button>
+      </div>
+
+      <div class="sidebar-actions">
+        <button type="button" class="btn btn-primary" id="compose-button">
+          <span data-icon="edit" aria-hidden="true"></span><span class="nav-text">Compose</span>
+        </button>
+        <button type="button" class="btn btn-secondary" id="account-button">
+          <span data-icon="person_add" aria-hidden="true"></span><span class="nav-text">Account</span>
+        </button>
+      </div>
+
+      <div class="sidebar-section" id="account-section" hidden>
+        <p class="sidebar-section-header">Accounts</p>
+        <select class="select" id="account-select" aria-label="Account"></select>
+      </div>
+
+      <div class="sidebar-section" id="mailbox-section" hidden>
+        <p class="sidebar-section-header">Folders</p>
+        <div id="mailbox-list"></div>
+        <p class="sidebar-empty" id="mailbox-empty" hidden>No folders yet</p>
+      </div>
+
+      <div class="sidebar-section sidebar-section-tools">
+        <p class="sidebar-section-header">Settings</p>
+        <button type="button" class="nav-item" id="nav-rules">
+          <span data-icon="settings" aria-hidden="true"></span><span class="nav-text">Rules</span>
+        </button>
+        <button type="button" class="nav-item" id="nav-sync">
+          <span data-icon="sync" aria-hidden="true"></span><span class="nav-text">Sync now</span>
+        </button>
+        <button type="button" class="nav-item nav-item-danger" id="nav-delete-account">
+          <span data-icon="delete" aria-hidden="true"></span><span class="nav-text">Delete account</span>
+        </button>
+        <button type="button" class="nav-item" id="nav-help">
+          <span data-icon="help" aria-hidden="true"></span><span class="nav-text">Help</span>
+        </button>
+      </div>
+    </aside>
+
+    <main class="main">
+      <div class="banner" id="banner" role="status" hidden>
+        <span id="banner-text"></span>
+        <button type="button" class="icon-btn" id="banner-close" data-icon="close" aria-label="Dismiss"></button>
+      </div>
+
+      <p class="status" id="status" role="status" hidden></p>
+
+      <div class="panel" id="panel"></div>
+    </main>
+  </div>
+
+  <script src="dncModuleBridge.js"></script>
+  <script src="assets/email-ui.js"></script>
+</body>
+</html>

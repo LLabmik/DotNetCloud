@@ -38,7 +38,6 @@ using DotNetCloud.Modules.Chat.Data.Services;
 using DotNetCloud.Modules.Chat.Services;
 using DotNetCloud.Modules.Calendar.Data;
 using DotNetCloud.Modules.Contacts.Data;
-using DotNetCloud.Modules.Email.Data;
 using DotNetCloud.Modules.Files.Data;
 using DotNetCloud.UI.Web.Client.Services;
 using DotNetCloud.UI.Web.Services;
@@ -402,22 +401,19 @@ public class Program
             ModuleDbContextConfiguration.Configure(options, provider, connectionString, "DotNetCloud.Modules.AI.Data.SqlServer"),
             ServiceLifetime.Transient);
 
-        // Contacts/Email DbContexts for schema creation by DbContextSchemaProvider.
-        // These modules are process-isolated — their hosts query the shared DB directly, but the
-        // schema must exist before the module host starts. Without these registrations the schema
-        // provider skipped them entirely and no contacts/email tables were ever created on
+        // Contacts DbContext for schema creation by DbContextSchemaProvider.
+        // The module is process-isolated — its host queries the shared DB directly, but the
+        // schema must exist before the module host starts. Without this registration the schema
+        // provider skipped it entirely and no contacts tables were ever created on
         // server-only (Docker/Helm) installs that never run `dotnetcloud migrate`. The .Data.SqlServer
         // migrations assembly string is only used on SQL Server; on PostgreSQL Npgsql discovers the
         // (Postgres) migrations in the DbContext's own .Data assembly.
         //
-        // Bookmarks is deliberately absent: it owns its data store (dataStore: "isolated", Track C),
-        // so the core neither registers nor migrates its DbContext — the module self-migrates in the
-        // schema the provisioning service created for it.
+        // Bookmarks and Email are deliberately absent: they own their data stores
+        // (dataStore: "isolated", Track C), so the core neither registers nor migrates their
+        // DbContexts — each module self-migrates in the schema the provisioning service created.
         builder.Services.AddDbContext<ContactsDbContext>(options =>
             ModuleDbContextConfiguration.Configure(options, provider, connectionString, "DotNetCloud.Modules.Contacts.Data.SqlServer"),
-            ServiceLifetime.Transient);
-        builder.Services.AddDbContext<EmailDbContext>(options =>
-            ModuleDbContextConfiguration.Configure(options, provider, connectionString, "DotNetCloud.Modules.Email.Data.SqlServer"),
             ServiceLifetime.Transient);
 
         // Override Chat services with no-op/stub implementations for the global UI.
@@ -732,15 +728,6 @@ public class Program
 
         // Calendar API client for the Blazor CalendarPage component.
         builder.Services.AddHttpClient<DotNetCloud.Modules.Calendar.Services.ICalendarApiClient, DotNetCloud.Modules.Calendar.Services.CalendarApiClient>(client =>
-            client.BaseAddress = new Uri($"https://localhost:{httpsPort}"))
-            .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
-            {
-                ServerCertificateCustomValidationCallback = AcceptLoopbackCertificate
-            })
-            .AddHttpMessageHandler<DotNetCloud.Core.Server.Middleware.CookieForwardingHandler>();
-
-        // Email API client for the Blazor EmailPage component.
-        builder.Services.AddHttpClient<DotNetCloud.Modules.Email.Services.IEmailApiClient, DotNetCloud.Modules.Email.Services.EmailApiClient>(client =>
             client.BaseAddress = new Uri($"https://localhost:{httpsPort}"))
             .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
             {
@@ -1111,7 +1098,6 @@ public class Program
                 typeof(DotNetCloud.Modules.Contacts.UI.ContactsPage).Assembly,
                 typeof(DotNetCloud.Modules.Tracks.UI.TracksPage).Assembly,
                 typeof(DotNetCloud.Modules.Files.UI.FileBrowser).Assembly,
-                typeof(DotNetCloud.Modules.Email.UI.EmailPage).Assembly,
                 typeof(DotNetCloud.Modules.About.UI.AboutPage).Assembly);
     }
 

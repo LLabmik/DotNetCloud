@@ -1,0 +1,84 @@
+/*
+ * Email home-page widget.
+ *
+ * A widget frame is the same opaque-origin sandbox as the module app, framed inside a shell card.
+ * It reports its own height through the bridge (widget role) and opens a thread through the shell,
+ * because a sandboxed frame may not navigate a top-level window.
+ */
+
+:root {
+  --text: #1f2933;
+  --text-muted: #5f6b7a;
+  --border: #dfe3e8;
+  --link: #2563eb;
+  --hover: #f1f3f6;
+}
+
+html[data-theme="dark"] {
+  --text: #e8eaed;
+  --text-muted: #a1a8b3;
+  --border: #333844;
+  --link: #7ea6ff;
+  --hover: #262a32;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  color: var(--text);
+  font-family: "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.widget-message {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.widget-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.widget-list-item {
+  border-bottom: 1px solid var(--border);
+}
+
+.widget-list-item:last-child {
+  border-bottom: 0;
+}
+
+.widget-link {
+  display: block;
+  padding: 6px 8px;
+  border-radius: 8px;
+  color: var(--link);
+  text-decoration: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.widget-link:hover {
+  background: var(--hover);
+}
+
+.widget-meta {
+  display: block;
+  color: var(--text-muted);
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

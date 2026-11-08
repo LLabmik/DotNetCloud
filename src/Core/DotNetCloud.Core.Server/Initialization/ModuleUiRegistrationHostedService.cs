@@ -99,14 +99,6 @@ internal sealed class ModuleUiRegistrationHostedService : BackgroundService
             RouteKey: "ai.page",
             ComponentType: typeof(DotNetCloud.Modules.AI.UI.AiChatPage)),
         new(
-            ModuleId: "dotnetcloud.email",
-            Label: "Email",
-            Href: "/apps/email",
-            Icon: ModuleIconProvider.GetIcon("dotnetcloud.email"),
-            SortOrder: 120,
-            RouteKey: "email.page",
-            ComponentType: typeof(DotNetCloud.Modules.Email.UI.EmailPage)),
-        new(
             ModuleId: "dotnetcloud.about",
             Label: "About",
             Href: "/apps/about",

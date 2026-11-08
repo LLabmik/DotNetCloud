@@ -12,13 +12,18 @@ namespace DotNetCloud.UI.Web.Components.Modules;
 /// </summary>
 /// <remarks>
 /// <para>
-/// The sandbox is deliberately <c>allow-scripts allow-forms allow-popups</c> with <b>no</b>
-/// <c>allow-same-origin</c>. The frame therefore has an opaque origin: it cannot read core storage,
-/// cookies or the DOM, and every message it sends reports <c>event.origin === "null"</c>. The peer
-/// is authenticated by identity instead — the JS bridge only forwards messages whose
-/// <c>event.source</c> is this exact frame — plus a direction-scoped type allow-list enforced in
-/// both the bridge and this component.
+/// The sandbox is deliberately <c>allow-scripts allow-forms allow-popups allow-modals</c> with
+/// <b>no</b> <c>allow-same-origin</c>. The frame therefore has an opaque origin: it cannot read core
+/// storage, cookies or the DOM, and every message it sends reports
+/// <c>event.origin === "null"</c>. The peer is authenticated by identity instead — the JS bridge only
+/// forwards messages whose <c>event.source</c> is this exact frame — plus a direction-scoped type
+/// allow-list enforced in both the bridge and this component.
 /// </para>
+/// <para>
+/// <c>allow-modals</c> is granted because a module UI is expected to use dialogs for confirmation
+/// and other blocking questions. It permits <c>alert</c>/<c>confirm</c>/<c>prompt</c> and
+/// <c>&lt;dialog&gt;.showModal()</c>; it does <b>not</b> grant any access to the core origin, the
+/// clipboard, geolocation or storage.</para>
 /// <para>
 /// Module UIs keep their state server-side behind the proxied <c>/apps/{moduleId}/**</c> path; the
 /// frame holds no credentials. Authentication reaches the module backend as the core-signed

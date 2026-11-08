@@ -26,7 +26,6 @@ internal sealed class WidgetUiRegistrationHostedService : BackgroundService
         Widget("dotnetcloud.music", "Music", "/apps/music", typeof(DotNetCloud.Modules.Music.Widget.MusicWidget), 80),
         Widget("dotnetcloud.video", "Video", "/apps/video", typeof(DotNetCloud.Modules.Video.Widget.VideoWidget), 90),
         Widget("dotnetcloud.ai", "AI Assistant", "/apps/ai", typeof(DotNetCloud.Modules.AI.Widget.AiWidget), 100),
-        Widget("dotnetcloud.email", "Email", "/apps/email", typeof(DotNetCloud.Modules.Email.Widget.EmailWidget), 120),
     ];
 
     /// <summary>

@@ -1,5 +1,4 @@
 using DotNetCloud.Core.Errors;
-using DotNetCloud.Core.Events;
 using DotNetCloud.Core.Security;
 using DotNetCloud.Modules.Email.Data;
 using DotNetCloud.Modules.Email.Data.Services;
@@ -22,8 +21,6 @@ public class EmailController : EmailControllerBase
     private readonly IEmailSyncService _syncService;
     private readonly IAttachmentStorage _attachmentStorage;
     private readonly IFileValidationService _fileValidation;
-    private readonly IEventBus _eventBus;
-    private readonly IHttpClientFactory _httpClientFactory;
     private readonly EmailDbContext _db;
     private readonly ILogger<EmailController> _logger;
 
@@ -37,8 +34,6 @@ public class EmailController : EmailControllerBase
         IEmailSyncService syncService,
         IAttachmentStorage attachmentStorage,
         IFileValidationService fileValidation,
-        IEventBus eventBus,
-        IHttpClientFactory httpClientFactory,
         EmailDbContext db,
         ILogger<EmailController> logger)
     {
@@ -48,8 +43,6 @@ public class EmailController : EmailControllerBase
         _syncService = syncService;
         _attachmentStorage = attachmentStorage;
         _fileValidation = fileValidation;
-        _eventBus = eventBus;
-        _httpClientFactory = httpClientFactory;
         _db = db;
         _logger = logger;
     }
@@ -157,24 +150,16 @@ public class EmailController : EmailControllerBase
         try
         {
             var caller = GetAuthenticatedCaller();
-            _logger.LogInformation("EmailController.Send: caller authenticated, userId={UserId}", caller.UserId);
             await _sendService.SendAsync(id, request, caller);
-            _logger.LogInformation("EmailController.Send: succeeded");
             return Ok(Envelope(new { sent = true }));
         }
         catch (ValidationException ex)
         {
-            _logger.LogWarning("EmailController.Send: ValidationException - {Code}: {Msg}", ex.ErrorCode, ex.Message);
             return ex.ErrorCode switch
             {
                 ErrorCodes.EmailAccountNotFound => NotFound(ErrorEnvelope(ex.ErrorCode, ex.Message)),
                 _ => BadRequest(ErrorEnvelope(ex.ErrorCode, ex.Message))
             };
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "EmailController.Send: unhandled exception");
-            throw;
         }
     }
 
@@ -590,201 +575,4 @@ public class EmailController : EmailControllerBase
         }
     }
 
-    /// <summary>Attaches a file from the Files module as an email attachment.</summary>
-    [HttpPost("attach-from-files/{fileNodeId:guid}")]
-    public async Task<IActionResult> AttachFromFilesModule(Guid fileNodeId)
-    {
-        try
-        {
-            var fileDirectory = HttpContext.RequestServices.GetService<DotNetCloud.Core.Capabilities.IFileDirectory>();
-            if (fileDirectory is null)
-                return BadRequest(ErrorEnvelope("files_module_unavailable", "The Files module is not available."));
-
-            var caller = GetAuthenticatedCaller();
-
-            var stream = await fileDirectory.OpenReadAsync(caller.UserId, fileNodeId, HttpContext.RequestAborted);
-            if (stream is null)
-                return NotFound(ErrorEnvelope("file_not_found", "File not found or inaccessible."));
-
-            // Resolve file metadata from the Files module
-            var fileInfo = await fileDirectory.GetFileInfoAsync(caller.UserId, fileNodeId, HttpContext.RequestAborted);
-            var fileName = fileInfo?.Name ?? "attachment";
-            var contentType = fileInfo?.MimeType ?? "application/octet-stream";
-
-            await using var streamToStore = stream;
-            var result = await _attachmentStorage.StoreAsync(streamToStore, fileName, contentType, HttpContext.RequestAborted);
-
-            return Ok(Envelope(new
-            {
-                storageKey = result.StorageKey,
-                fileName,
-                contentType,
-                size = result.Size,
-                contentHash = result.ContentHash
-            }));
-        }
-        catch (ValidationException ex)
-        {
-            return BadRequest(ErrorEnvelope(ex.ErrorCode, ex.Message));
-        }
-    }
-
-    /// <summary>Saves an email attachment to the Files module via the chunked upload API.</summary>
-    [HttpPost("attachments/{attachmentId:guid}/detach")]
-    public async Task<IActionResult> DetachAttachment(Guid attachmentId, [FromQuery] Guid? targetFolderId)
-    {
-        try
-        {
-            var caller = GetAuthenticatedCaller();
-
-            var attachment = await _db.EmailAttachments
-                .AsNoTracking()
-                .Include(a => a.Message)
-                .FirstOrDefaultAsync(a => a.Id == attachmentId);
-
-            if (attachment is null)
-                return NotFound(ErrorEnvelope("attachment_not_found", "Attachment not found."));
-
-            // Verify caller ownership
-            var account = await _db.EmailAccounts
-                .AsNoTracking()
-                .FirstOrDefaultAsync(a => a.Id == attachment.Message!.AccountId && a.OwnerId == caller.UserId);
-
-            if (account is null)
-                return Forbid();
-
-            if (string.IsNullOrWhiteSpace(attachment.StorageKey))
-                return BadRequest(ErrorEnvelope("attachment_not_stored",
-                    "This attachment was synced before content storage was implemented. Re-sync to download content."));
-
-            // Read attachment content from email storage
-            var contentStream = await _attachmentStorage.OpenReadAsync(attachment.StorageKey, HttpContext.RequestAborted);
-            if (contentStream is null)
-                return BadRequest(ErrorEnvelope("attachment_content_missing",
-                    "Attachment content is no longer available in storage."));
-
-            await using (contentStream)
-            {
-                using var ms = new MemoryStream();
-                await contentStream.CopyToAsync(ms, HttpContext.RequestAborted);
-                var data = ms.ToArray();
-
-                // SHA-256 hash required by Files chunked upload API
-                var hash = Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(data));
-
-                // Build an HTTP client that calls the same server's Files API,
-                // forwarding the caller's auth credentials (Bearer token or session cookie).
-                var baseUrl = $"{Request.Scheme}://{Request.Host}";
-                var httpClient = _httpClientFactory.CreateClient("FilesApiInternal");
-                httpClient.BaseAddress = new Uri(baseUrl);
-
-                var authHeader = Request.Headers.Authorization.ToString();
-                if (!string.IsNullOrEmpty(authHeader))
-                {
-                    httpClient.DefaultRequestHeaders.TryAddWithoutValidation("Authorization", authHeader);
-                }
-                else if (Request.Headers.TryGetValue("Cookie", out var cookieHeader))
-                {
-                    httpClient.DefaultRequestHeaders.TryAddWithoutValidation("Cookie", cookieHeader.ToString());
-                }
-
-                // Step 1 — Initiate upload session
-                var initiatePayload = System.Text.Json.JsonSerializer.Serialize(new
-                {
-                    fileName = attachment.FileName,
-                    parentId = targetFolderId,
-                    totalSize = data.LongLength,
-                    mimeType = attachment.ContentType,
-                    chunkHashes = new[] { hash }
-                });
-
-                var initiateResp = await httpClient.PostAsync(
-                    "api/v1/files/upload/initiate",
-                    new StringContent(initiatePayload, System.Text.Encoding.UTF8, "application/json"),
-                    HttpContext.RequestAborted);
-
-                if (!initiateResp.IsSuccessStatusCode)
-                {
-                    var err = await initiateResp.Content.ReadAsStringAsync(HttpContext.RequestAborted);
-                    _logger.LogError("Files upload initiate failed ({Status}): {Error}", initiateResp.StatusCode, err);
-                    return StatusCode(502, ErrorEnvelope("files_upload_failed",
-                        "Failed to initiate upload to Files module."));
-                }
-
-                using var initiateDoc = System.Text.Json.JsonDocument.Parse(
-                    await initiateResp.Content.ReadAsStringAsync(HttpContext.RequestAborted));
-                var sessionData = initiateDoc.RootElement.GetProperty("data");
-                var sessionId = sessionData.GetProperty("sessionId").GetGuid();
-                var existingChunks = sessionData.TryGetProperty("existingChunks", out var ec)
-                    ? ec.EnumerateArray().Select(x => x.GetString()!).ToHashSet(StringComparer.OrdinalIgnoreCase)
-                    : [];
-
-                // Step 2 — Upload chunk (skipped if server already has it via content-hash dedup)
-                if (!existingChunks.Contains(hash))
-                {
-                    var chunkContent = new ByteArrayContent(data);
-                    chunkContent.Headers.ContentType =
-                        new System.Net.Http.Headers.MediaTypeHeaderValue("application/octet-stream");
-                    var chunkResp = await httpClient.PutAsync(
-                        $"api/v1/files/upload/{sessionId}/chunks/{hash}",
-                        chunkContent,
-                        HttpContext.RequestAborted);
-
-                    if (!chunkResp.IsSuccessStatusCode)
-                    {
-                        var err = await chunkResp.Content.ReadAsStringAsync(HttpContext.RequestAborted);
-                        _logger.LogError("Files chunk upload failed ({Status}): {Error}", chunkResp.StatusCode, err);
-                        return StatusCode(502, ErrorEnvelope("files_upload_failed",
-                            "Failed to upload attachment content to Files module."));
-                    }
-                }
-
-                // Step 3 — Complete upload and create file node
-                var completeResp = await httpClient.PostAsync(
-                    $"api/v1/files/upload/{sessionId}/complete",
-                    content: null,
-                    HttpContext.RequestAborted);
-
-                if (!completeResp.IsSuccessStatusCode)
-                {
-                    var err = await completeResp.Content.ReadAsStringAsync(HttpContext.RequestAborted);
-                    _logger.LogError("Files upload complete failed ({Status}): {Error}", completeResp.StatusCode, err);
-                    return StatusCode(502, ErrorEnvelope("files_upload_failed",
-                        "Failed to finalise upload in Files module."));
-                }
-
-                using var completeDoc = System.Text.Json.JsonDocument.Parse(
-                    await completeResp.Content.ReadAsStringAsync(HttpContext.RequestAborted));
-                var nodeData = completeDoc.RootElement.GetProperty("data");
-                var fileNodeId = nodeData.GetProperty("id").GetGuid();
-                var savedFileName = nodeData.TryGetProperty("name", out var nameEl)
-                    ? nameEl.GetString()
-                    : attachment.FileName;
-
-                _logger.LogInformation(
-                    "Attachment {AttachmentId} ({FileName}) saved to Files module as node {FileNodeId}",
-                    attachmentId, attachment.FileName, fileNodeId);
-
-                // Publish audit event (fire-and-forget; no handler required)
-                await _eventBus.PublishAsync(new EmailAttachmentDetachedEvent
-                {
-                    EventId = Guid.CreateVersion7(),
-                    CreatedAt = DateTime.UtcNow,
-                    AttachmentId = attachmentId,
-                    StorageKey = attachment.StorageKey,
-                    FileName = attachment.FileName,
-                    ContentType = attachment.ContentType,
-                    Size = attachment.Size,
-                    OwnerId = caller.UserId,
-                    TargetFolderId = targetFolderId
-                }, caller, HttpContext.RequestAborted);
-
-                return Ok(Envelope(new { detached = true, fileNodeId, fileName = savedFileName }));
-            }
-        }
-        catch (ValidationException ex)
-        {
-            return BadRequest(ErrorEnvelope(ex.ErrorCode, ex.Message));
-        }
-    }
 }

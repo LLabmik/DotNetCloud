@@ -379,11 +379,17 @@ The user identity reaches the module exactly as it does for the REST API plane: 
 
 ### 10.2 The iframe itself
 
-`ModuleAppHost` frames the module with `sandbox="allow-scripts allow-forms allow-popups"` — deliberately
-**without** `allow-same-origin`. The document therefore has an opaque origin:
+`ModuleAppHost` frames the module with `sandbox="allow-scripts allow-forms allow-popups allow-modals"`
+— deliberately **without** `allow-same-origin`. The document therefore has an opaque origin:
 
 - It cannot read core cookies, `localStorage`, the DOM, or core storage.
-- It cannot read the response of anything it fetches from the core.
+- It cannot read the response of anything it fetches from the core. It **can** read its own module's
+  API responses: those calls are cross-origin (opaque origin), so the proxy answers the preflight and
+  returns `Access-Control-Allow-Origin: null` with `Access-Control-Allow-Credentials: true`. That is
+  safe because the proxy authenticates the call and mints the assertion; a third-party page's request
+  to the same path is cross-site, so the SameSite cookie is not attached and it gets 401.
+- `allow-modals` permits `alert`/`confirm`/`prompt` and `<dialog>.showModal()`. It grants no access to
+  storage, clipboard, geolocation or the core origin.
 - Every message it sends reports `event.origin === "null"`, so **origin checks are useless**. Both
   sides authenticate the peer by identity: the host requires `event.source === iframe.contentWindow`
   for that specific frame, and `dncModuleBridge.js` requires `event.source === window.parent`. Message

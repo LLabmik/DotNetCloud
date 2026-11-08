@@ -5,8 +5,8 @@
 //   <script src="/dncModuleBridge.js"></script>
 //   <script>window.dncModuleBridge.start({ title: 'My App' });</script>
 //
-// The core frames your UI with sandbox="allow-scripts allow-forms allow-popups" and NO
-// allow-same-origin, so this document has an opaque origin. Consequences you must design for:
+// The core frames your UI with sandbox="allow-scripts allow-forms allow-popups allow-modals" and
+// NO allow-same-origin, so this document has an opaque origin. Consequences you must design for:
 //
 //   * `document.cookie`, `localStorage` and `sessionStorage` are unavailable. Keep state on your
 //     server; it is reached through the same proxy path the document was loaded from.
@@ -15,6 +15,12 @@
 //     direction-scoped type allow-list. Do not add your own origin check — it cannot work.
 //   * `window.top` is cross-origin. Use `dncModuleBridge.navigate()` instead of touching the
 //     parent URL.
+//   * Modals ARE available: `allow-modals` lets you use `alert`/`confirm`/`prompt` and
+//     `<dialog>.showModal()`. Prefer a `<dialog>` — it does not freeze the rest of the page and
+//     cannot be suppressed by a browser setting the way `confirm()` can.
+//   * Your own API is reachable, but every call is cross-origin (the frame's origin is opaque), so
+//     use `credentials: 'include'`: the core proxy reads the session cookie, mints the module
+//     assertion and returns `Access-Control-Allow-Origin: null`.
 //
 // Protocol (mirrors DotNetCloud.Core.Modules.Ui.ModuleAppProtocol):
 //   host → frame : dnc:init, dnc:theme, dnc:consentResult

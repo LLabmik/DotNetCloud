@@ -13,8 +13,15 @@
     <InternalsVisibleTo Include="DotNetCloud.Modules.Email.Tests" />
   </ItemGroup>
 
+  <!--
+    DataProtection is used to encrypt stored provider credentials at rest. The framework reference is
+    declared here rather than inherited: the module library is a plain class library since Track C.
+  -->
   <ItemGroup>
-    <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" />
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="MailKit" />
     <PackageReference Include="Google.Apis.Gmail.v1" />
     <PackageReference Include="Google.Apis.Auth" />

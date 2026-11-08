@@ -1852,6 +1852,32 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 
 ---
 
+### Step: third-party-module-track-c-email-ui-2026-11-08 - Track C (dogfood) — Email module data plane, UI plane, plane fixes, decoupling
+
+**Status:** completed ✅
+**Description:** Third Track C module — the largest surface so far, and the first with a stored credential blob, an external OAuth consent flow and a multi-view UI. It moves Email's data store, UI and widget out of the core, and repairs two UI-plane gaps that only appeared once a real module UI was written against it.
+**Deliverables:**
+
+- ✓ Schema-neutral data layer: `EmailDbContext` no longer names a schema, and **both** migration sets (PostgreSQL and SQL Server) lost `EnsureSchema`, `schema:` and `principalSchema:` arguments, keeping their original migration ids so adopted installs still line up.
+- ✓ Repaired a latent model/snapshot drift: the JSON columns (`SyncStateJson`, `ParticipantsJson`, `FromJson`, `ToJson`, `CcJson`, `BccJson`, `FlagsJson`) were `jsonb` in the snapshot but produced `text` by the model — the module's first insert would have failed on PostgreSQL. They are now mapped explicitly and swapped for `nvarchar(max)` on SQL Server, exactly as the core's own JSON columns are.
+- ✓ `EmailDbInitializer` applies the module's migrations (`MigrateAsync`) with retry and degrades instead of crashing; `EmailUserErasureHandler` erases accounts, mailboxes, threads, messages, attachments (and their blobs) and rules.
+- ✓ Sandboxed host: `module.json` topology, module-private DataProtection ring, scoped connection string, attachment storage under the module data directory, and **no cookie scheme** — identity comes from the proxy's assertion, and `EmailExceptionFilter` maps a missing assertion to 401.
+- ✓ Manifest v2 (`1.1.0`): publisher, `dataStore: "isolated"`, `handlesUserErasure: true`, capabilities trimmed to `IAuditLogger` + `ISearchProvider` (the previous list named four interfaces the code never used), consent scopes `mail:read`/`mail:write`, `ui` block and `ui.widget.path`.
+- ✓ Module-hosted app: `wwwroot/index.html` + `assets/email-ui.{js,css}` (accounts, IMAP/Gmail setup, folders, thread list/detail, compose with uploads, full rules editor, delete-account `<dialog>` modal, help) and `wwwroot/widget/` (five most recent inbox threads + `?threadId=` deep link).
+- ✓ Untrusted message HTML renders inside a nested `sandbox=""` frame, not the module's own DOM.
+- ✓ Gmail OAuth adapted to the plane: DataProtection-signed `state` bound to the asserted user, `/apps/dotnetcloud.email/…` redirect targets, and a non-throwing `{configured:false}` status.
+- ✓ **Plane fix — modals:** `allow-modals` added to `ModuleAppHost` and `ModuleWidgetFrame`; module UIs can use `alert`/`confirm`/`prompt` and `<dialog>.showModal()`.
+- ✓ **Plane fix — CORS:** the opaque-origin frame's preflight is answered before the proxy's authentication gate, and `Access-Control-Allow-Origin: null` + `Access-Control-Allow-Credentials: true` are added to proxied responses; Example and Bookmarks UIs switched to `credentials: 'include'`.
+- ✓ Decoupled: library/Data/Data.SqlServer/Widget references removed from `Core.Server`, the library from `UI.Web`, the migration assembly from the CLI, the `EmailDbContext` registration, Blazor HTTP client and `AddAdditionalAssemblies` entry removed, both UI descriptors and the `DbContextSchemaProvider` mapping removed, the module `UI/`/`Widget/` projects and the `/apps/email` + help pages deleted, and the library reduced to a plain class library. Two Files-module integration endpoints were removed with the capability they depended on.
+- ✓ Tests: `EmailUiAssetsTests` (9), `EmailExceptionFilterTests` (4), `EmailDbContextModelTests` (3 — snapshot match and schema-neutrality on both providers), `ShippedEmailModuleManifestTests` (4), and three proxy CORS tests. Existing service tests still pass.
+- ✓ Runtime smoke test of the published host: `/`, `/widget/index.html`, `/assets/email-ui.{js,css}`, `/widget/widget.js`, `/dncModuleBridge.js` → 200; `/api/v1/email/accounts` → 401 with the standard envelope and `Cache-Control: no-store,no-cache`; `/api/v1/email/gmail/oauth/status` → 200 `{configured:false}`; module-private DataProtection key ring created under the module data directory.
+
+**Dependencies:** `third-party-module-track-c-bookmarks-ui-2026-11-08`
+**Blocking Issues:** None
+**Notes:** Two pre-existing defects surfaced during the migration. (1) The model/snapshot drift above — it had been invisible because the core owned the migrations. (2) The UI plane could not actually be used from a browser: an opaque-origin frame's `fetch` is cross-origin (so it is preflighted) and `alert`/`confirm`/`prompt` were blocked. Both are fixed in the plane, so Example and Bookmarks benefit too. Two features were removed rather than left broken: "Browse Files" and "Save to Files" depended on an in-process `IFileDirectory`/forwarded core credentials that a sandboxed host cannot have; they need a core-provided capability API. Iframe rendering through the live core proxy and publishing `1.1.0` to the store remain open. Next Track C module: AI.
+
+---
+
 ## Phase 2: Chat & Notifications & Android
 
 **STATUS:** ✅ COMPLETED (13/13 sub-phases)

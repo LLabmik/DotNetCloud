@@ -11,12 +11,8 @@ namespace DotNetCloud.Modules.Email.Data.SqlServer.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.EnsureSchema(
-                name: "email");
-
             migrationBuilder.CreateTable(
                 name: "EmailAccounts",
-                schema: "email",
                 columns: table => new
                 {
                     Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
@@ -39,7 +35,6 @@ namespace DotNetCloud.Modules.Email.Data.SqlServer.Migrations
 
             migrationBuilder.CreateTable(
                 name: "EmailRules",
-                schema: "email",
                 columns: table => new
                 {
                     Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
@@ -59,7 +54,6 @@ namespace DotNetCloud.Modules.Email.Data.SqlServer.Migrations
 
             migrationBuilder.CreateTable(
                 name: "EmailThreads",
-                schema: "email",
                 columns: table => new
                 {
                     Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
@@ -80,7 +74,6 @@ namespace DotNetCloud.Modules.Email.Data.SqlServer.Migrations
 
             migrationBuilder.CreateTable(
                 name: "EmailMailboxes",
-                schema: "email",
                 columns: table => new
                 {
                     Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
@@ -98,7 +91,6 @@ namespace DotNetCloud.Modules.Email.Data.SqlServer.Migrations
                     table.ForeignKey(
                         name: "FK_EmailMailboxes_EmailAccounts_AccountId",
                         column: x => x.AccountId,
-                        principalSchema: "email",
                         principalTable: "EmailAccounts",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Cascade);
@@ -106,7 +98,6 @@ namespace DotNetCloud.Modules.Email.Data.SqlServer.Migrations
 
             migrationBuilder.CreateTable(
                 name: "EmailRuleActions",
-                schema: "email",
                 columns: table => new
                 {
                     Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
@@ -122,7 +113,6 @@ namespace DotNetCloud.Modules.Email.Data.SqlServer.Migrations
                     table.ForeignKey(
                         name: "FK_EmailRuleActions_EmailRules_RuleId",
                         column: x => x.RuleId,
-                        principalSchema: "email",
                         principalTable: "EmailRules",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Cascade);
@@ -130,7 +120,6 @@ namespace DotNetCloud.Modules.Email.Data.SqlServer.Migrations
 
             migrationBuilder.CreateTable(
                 name: "EmailRuleConditionGroups",
-                schema: "email",
                 columns: table => new
                 {
                     Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
@@ -145,7 +134,6 @@ namespace DotNetCloud.Modules.Email.Data.SqlServer.Migrations
                     table.ForeignKey(
                         name: "FK_EmailRuleConditionGroups_EmailRules_RuleId",
                         column: x => x.RuleId,
-                        principalSchema: "email",
                         principalTable: "EmailRules",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Cascade);
@@ -153,7 +141,6 @@ namespace DotNetCloud.Modules.Email.Data.SqlServer.Migrations
 
             migrationBuilder.CreateTable(
                 name: "EmailMessages",
-                schema: "email",
                 columns: table => new
                 {
                     Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
@@ -186,7 +173,6 @@ namespace DotNetCloud.Modules.Email.Data.SqlServer.Migrations
                     table.ForeignKey(
                         name: "FK_EmailMessages_EmailThreads_ThreadId",
                         column: x => x.ThreadId,
-                        principalSchema: "email",
                         principalTable: "EmailThreads",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Cascade);
@@ -194,7 +180,6 @@ namespace DotNetCloud.Modules.Email.Data.SqlServer.Migrations
 
             migrationBuilder.CreateTable(
                 name: "EmailRuleConditions",
-                schema: "email",
                 columns: table => new
                 {
                     Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
@@ -210,7 +195,7 @@ namespace DotNetCloud.Modules.Email.Data.SqlServer.Migrations
                     table.ForeignKey(
                         name: "FK_EmailRuleConditions_EmailRuleConditionGroups_ConditionGroupId",
                         column: x => x.ConditionGroupId,
-                        principalSchema: "email",
+
                         principalTable: "EmailRuleConditionGroups",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Cascade);
@@ -218,7 +203,6 @@ namespace DotNetCloud.Modules.Email.Data.SqlServer.Migrations
 
             migrationBuilder.CreateTable(
                 name: "EmailAttachments",
-                schema: "email",
                 columns: table => new
                 {
                     Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
@@ -237,7 +221,6 @@ namespace DotNetCloud.Modules.Email.Data.SqlServer.Migrations
                     table.ForeignKey(
                         name: "FK_EmailAttachments_EmailMessages_MessageId",
                         column: x => x.MessageId,
-                        principalSchema: "email",
                         principalTable: "EmailMessages",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Cascade);
@@ -245,44 +228,37 @@ namespace DotNetCloud.Modules.Email.Data.SqlServer.Migrations
 
             migrationBuilder.CreateIndex(
                 name: "ix_email_accounts_email",
-                schema: "email",
                 table: "EmailAccounts",
                 column: "EmailAddress");
 
             migrationBuilder.CreateIndex(
                 name: "ix_email_accounts_owner_id",
-                schema: "email",
                 table: "EmailAccounts",
                 column: "OwnerId");
 
             migrationBuilder.CreateIndex(
                 name: "ix_email_attachments_message_id",
-                schema: "email",
                 table: "EmailAttachments",
                 column: "MessageId");
 
             migrationBuilder.CreateIndex(
                 name: "ix_email_mailboxes_account_id",
-                schema: "email",
                 table: "EmailMailboxes",
                 column: "AccountId");
 
             migrationBuilder.CreateIndex(
                 name: "ix_email_mailboxes_account_provider",
-                schema: "email",
                 table: "EmailMailboxes",
                 columns: new[] { "AccountId", "ProviderId" },
                 unique: true);
 
             migrationBuilder.CreateIndex(
                 name: "ix_email_messages_account_id",
-                schema: "email",
                 table: "EmailMessages",
                 column: "AccountId");
 
             migrationBuilder.CreateIndex(
                 name: "ix_email_messages_account_mailbox_provider",
-                schema: "email",
                 table: "EmailMessages",
                 columns: new[] { "AccountId", "MailboxId", "ProviderMessageId" },
                 unique: true,
@@ -290,62 +266,52 @@ namespace DotNetCloud.Modules.Email.Data.SqlServer.Migrations
 
             migrationBuilder.CreateIndex(
                 name: "ix_email_messages_date_received",
-                schema: "email",
                 table: "EmailMessages",
                 column: "DateReceived");
 
             migrationBuilder.CreateIndex(
                 name: "ix_email_messages_thread_id",
-                schema: "email",
                 table: "EmailMessages",
                 column: "ThreadId");
 
             migrationBuilder.CreateIndex(
                 name: "ix_email_rule_actions_rule_id",
-                schema: "email",
                 table: "EmailRuleActions",
                 column: "RuleId");
 
             migrationBuilder.CreateIndex(
                 name: "ix_email_rule_condition_groups_rule_id",
-                schema: "email",
                 table: "EmailRuleConditionGroups",
                 column: "RuleId");
 
             migrationBuilder.CreateIndex(
                 name: "ix_email_rule_conditions_group_id",
-                schema: "email",
                 table: "EmailRuleConditions",
                 column: "ConditionGroupId");
 
             migrationBuilder.CreateIndex(
                 name: "ix_email_rules_owner_account",
-                schema: "email",
                 table: "EmailRules",
                 columns: new[] { "OwnerId", "AccountId" });
 
             migrationBuilder.CreateIndex(
                 name: "ix_email_rules_owner_id",
-                schema: "email",
                 table: "EmailRules",
                 column: "OwnerId");
 
             migrationBuilder.CreateIndex(
                 name: "ix_email_threads_account_id",
-                schema: "email",
                 table: "EmailThreads",
                 column: "AccountId");
 
             migrationBuilder.CreateIndex(
                 name: "ix_email_threads_account_provider",
-                schema: "email",
                 table: "EmailThreads",
                 columns: new[] { "AccountId", "ProviderThreadId" },
                 unique: true);
 
             migrationBuilder.CreateIndex(
                 name: "ix_email_threads_last_message",
-                schema: "email",
                 table: "EmailThreads",
                 column: "LastMessageAt");
         }
@@ -354,40 +320,31 @@ namespace DotNetCloud.Modules.Email.Data.SqlServer.Migrations
         protected override void Down(MigrationBuilder migrationBuilder)
         {
             migrationBuilder.DropTable(
-                name: "EmailAttachments",
-                schema: "email");
+                name: "EmailAttachments");
 
             migrationBuilder.DropTable(
-                name: "EmailMailboxes",
-                schema: "email");
+                name: "EmailMailboxes");
 
             migrationBuilder.DropTable(
-                name: "EmailRuleActions",
-                schema: "email");
+                name: "EmailRuleActions");
 
             migrationBuilder.DropTable(
-                name: "EmailRuleConditions",
-                schema: "email");
+                name: "EmailRuleConditions");
 
             migrationBuilder.DropTable(
-                name: "EmailMessages",
-                schema: "email");
+                name: "EmailMessages");
 
             migrationBuilder.DropTable(
-                name: "EmailAccounts",
-                schema: "email");
+                name: "EmailAccounts");
 
             migrationBuilder.DropTable(
-                name: "EmailRuleConditionGroups",
-                schema: "email");
+                name: "EmailRuleConditionGroups");
 
             migrationBuilder.DropTable(
-                name: "EmailThreads",
-                schema: "email");
+                name: "EmailThreads");
 
             migrationBuilder.DropTable(
-                name: "EmailRules",
-                schema: "email");
+                name: "EmailRules");
         }
     }
 }

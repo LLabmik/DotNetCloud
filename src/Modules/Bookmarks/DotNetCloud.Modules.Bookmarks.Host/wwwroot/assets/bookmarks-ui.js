@@ -6,8 +6,10 @@
  *     server through the same proxied path this document was loaded from;
  *   * event.origin is "null" for every message — the parent is identified by the SDK bridge, so never
  *     add your own window.message listener;
- *   * alert()/confirm()/prompt() are blocked and downloads are not permitted, so outcomes are
- *     reported inline and export opens in a core-controlled tab via the bridge.
+ *   * every fetch is cross-origin (the frame's origin is opaque), so requests use
+ *     credentials: 'include' and the core proxy answers the preflight;
+ *   * modals are available (allow-modals), and downloads are not — export opens in a core-controlled
+ *     tab via the bridge.
  *
  * All requests are RELATIVE on purpose (see index.html): the core strips /apps/dotnetcloud.bookmarks
  * before forwarding, so "api/v1/bookmarks" resolves to this process's own REST API.
@@ -1127,7 +1129,7 @@
     try {
       var response = await fetch(path, {
         method: 'POST',
-        credentials: 'same-origin',
+        credentials: 'include',
         headers: { Accept: 'application/json' },
         body: form
       });

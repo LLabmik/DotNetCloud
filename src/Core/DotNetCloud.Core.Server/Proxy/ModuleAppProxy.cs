@@ -69,6 +69,21 @@ internal static class ModuleAppProxy
                 return;
             }
 
+            // CORS preflight (phase A5). The frame is sandboxed without allow-same-origin, so its
+            // document has an opaque origin (serialized as "null") and every call it makes is
+            // cross-origin; a
+            // non-simple request (JSON POST, PUT, DELETE) is therefore preflighted. A preflight carries
+            // no credentials by definition, so it must be answered before the authentication gate —
+            // otherwise the browser sees 401 and never sends the real request. That real request does
+            // carry the user's cookies (same site), and the proxy authenticates it as usual.
+            if (HttpMethods.IsOptions(context.Request.Method)
+                && context.Request.Headers.ContainsKey("Access-Control-Request-Method"))
+            {
+                context.Response.StatusCode = StatusCodes.Status204NoContent;
+                ModuleAppResponsePolicy.ApplyPreflight(context.Response.Headers);
+                return;
+            }
+
             if (context.User?.Identity?.IsAuthenticated != true)
             {
                 // 401 rather than a login redirect: this endpoint is loaded by an iframe, where a
@@ -349,6 +364,22 @@ internal static class ModuleAppResponsePolicy
     internal const string ContentSecurityPolicy =
         "frame-ancestors 'self'; base-uri 'none'; object-src 'none'; form-action 'self'";
 
+    /// <summary>
+    /// The origin a sandboxed module frame reports. The frame is served without
+    /// <c>allow-same-origin</c>, so the browser gives its document an opaque origin and serializes it
+    /// as the string <c>null</c> in <c>Origin</c> and <c>Access-Control-Allow-Origin</c>.
+    /// </summary>
+    internal const string CrossOriginFrameOrigin = "null";
+
+    /// <summary>Methods a module UI may use from its frame.</summary>
+    internal const string PreflightAllowedMethods = "GET, POST, PUT, PATCH, DELETE, OPTIONS";
+
+    /// <summary>Request headers a module UI may send from its frame.</summary>
+    internal const string PreflightAllowedHeaders = "Content-Type, Accept";
+
+    /// <summary>How long a browser may cache the preflight answer.</summary>
+    internal const string PreflightMaxAgeSeconds = "600";
+
     /// <summary>The <c>Referrer-Policy</c> applied to every module UI response.</summary>
     internal const string ReferrerPolicy = "no-referrer";
 
@@ -386,6 +417,7 @@ internal static class ModuleAppResponsePolicy
         headers.TryAddWithoutValidation("Content-Security-Policy", ContentSecurityPolicy);
         headers.TryAddWithoutValidation("X-Content-Type-Options", "nosniff");
         headers.TryAddWithoutValidation("Referrer-Policy", ReferrerPolicy);
+        ApplyCors(headers);
 
         if (IsHtmlDocument(contentType))
         {
@@ -403,6 +435,56 @@ internal static class ModuleAppResponsePolicy
     private static bool IsHtmlDocument(string? contentType) =>
         contentType is not null
         && contentType.StartsWith("text/html", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Allows the sandboxed frame to read its own module's API responses.
+    /// </summary>
+    /// <remarks>
+    /// Credentials are allowed because the proxy is what authenticates the call — it reads the user's
+    /// session cookie and mints the module assertion — and the request is same-site, so that cookie
+    /// travels. Credentials cannot be combined with <c>*</c>, hence the explicit <c>null</c> origin.
+    /// A third-party page cannot exploit this: its requests to the core origin are cross-site, so the
+    /// SameSite cookie is not attached and the proxy answers 401.
+    /// </remarks>
+    public static void ApplyCors(HttpResponseHeaders headers)
+    {
+        ArgumentNullException.ThrowIfNull(headers);
+
+        headers.Remove("Access-Control-Allow-Origin");
+        headers.Remove("Access-Control-Allow-Credentials");
+        headers.TryAddWithoutValidation("Access-Control-Allow-Origin", CrossOriginFrameOrigin);
+        headers.TryAddWithoutValidation("Access-Control-Allow-Credentials", "true");
+    }
+
+    /// <summary>
+    /// Answers a CORS preflight for a module app route.
+    /// </summary>
+    /// <param name="headers">The preflight response headers.</param>
+    public static void ApplyPreflight(HttpResponseHeaders headers)
+    {
+        ApplyCors(headers);
+
+        headers.TryAddWithoutValidation("Access-Control-Allow-Methods", PreflightAllowedMethods);
+        headers.TryAddWithoutValidation("Access-Control-Allow-Headers", PreflightAllowedHeaders);
+        headers.TryAddWithoutValidation("Access-Control-Max-Age", PreflightMaxAgeSeconds);
+    }
+
+    /// <summary>
+    /// Answers a CORS preflight for a module app route on the inbound response.
+    /// </summary>
+    /// <param name="headers">The ASP.NET Core response headers.</param>
+    public static void ApplyPreflight(IHeaderDictionary headers)
+    {
+        ArgumentNullException.ThrowIfNull(headers);
+
+        headers.Remove("Access-Control-Allow-Origin");
+        headers.Remove("Access-Control-Allow-Credentials");
+        headers["Access-Control-Allow-Origin"] = CrossOriginFrameOrigin;
+        headers["Access-Control-Allow-Credentials"] = "true";
+        headers["Access-Control-Allow-Methods"] = PreflightAllowedMethods;
+        headers["Access-Control-Allow-Headers"] = PreflightAllowedHeaders;
+        headers["Access-Control-Max-Age"] = PreflightMaxAgeSeconds;
+    }
 }
 
 /// <summary>

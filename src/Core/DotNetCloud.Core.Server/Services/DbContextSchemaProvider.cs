@@ -3,7 +3,6 @@ using DotNetCloud.Modules.AI.Data;
 using DotNetCloud.Modules.Calendar.Data;
 using DotNetCloud.Modules.Chat.Data;
 using DotNetCloud.Modules.Contacts.Data;
-using DotNetCloud.Modules.Email.Data;
 using DotNetCloud.Modules.Files.Data;
 using DotNetCloud.Modules.Music.Data;
 using DotNetCloud.Modules.Notes.Data;
@@ -42,7 +41,6 @@ public class DbContextSchemaProvider : IModuleSchemaProvider
         ["dotnetcloud.music"] = typeof(MusicDbContext),
         ["dotnetcloud.video"] = typeof(VideoDbContext),
         ["dotnetcloud.ai"] = typeof(AiDbContext),
-        ["dotnetcloud.email"] = typeof(EmailDbContext),
     };
 
     public DbContextSchemaProvider(IServiceScopeFactory scopeFactory, ILogger<DbContextSchemaProvider> logger)

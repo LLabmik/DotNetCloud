@@ -103,7 +103,7 @@ Events follow these conventions:
 
 ### 6. Module-hosted web UI (`Host/wwwroot` + `Host/Ui`)
 
-- The module serves its **own** web UI from its own process (`UseDefaultFiles` + `UseStaticFiles`); the core reverse-proxies it at `/apps/dotnetcloud.example/` and frames it with `sandbox="allow-scripts allow-forms allow-popups"` (no `allow-same-origin`).
+- The module serves its **own** web UI from its own process (`UseDefaultFiles` + `UseStaticFiles`); the core reverse-proxies it at `/apps/dotnetcloud.example/` and frames it with `sandbox="allow-scripts allow-forms allow-popups allow-modals"` (no `allow-same-origin`).
 - `manifest.json` declares `ui.type = "iframe"`, `ui.entryPath = "/"` and a Material-icon nav entry, so the shell registers the module without a line of core code.
 - Every asset and API reference in `index.html` / `example-ui.js` is **relative**. The proxy strips `/apps/<moduleId>` before forwarding, so an absolute `/assets/...` would leave the module and hit a core route.
 - `dncModuleBridge.js` comes from the SDK (`src/SDK/DotNetCloud.Modules.Sdk/wwwroot`) and is copied into `wwwroot` at build time — no npm, no bundler. It provides the `dnc:init`/`theme`/`ready`/`title`/`notify` handshake.

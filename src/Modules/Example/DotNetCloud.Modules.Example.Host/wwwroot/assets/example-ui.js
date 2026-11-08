@@ -158,7 +158,7 @@
     try {
       var response = await fetch(ENDPOINT, {
         method: 'GET',
-        credentials: 'same-origin',
+        credentials: 'include',
         headers: { Accept: 'application/json' }
       });
 
@@ -198,7 +198,7 @@
     try {
       var response = await fetch(ENDPOINT, {
         method: 'POST',
-        credentials: 'same-origin',
+        credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
           Accept: 'application/json'
@@ -241,7 +241,7 @@
     try {
       var response = await fetch(ENDPOINT + '/' + encodeURIComponent(noteId), {
         method: 'DELETE',
-        credentials: 'same-origin',
+        credentials: 'include',
         headers: { Accept: 'application/json' }
       });
 
