@@ -10,7 +10,7 @@
 
 DotNetCloud is a modern alternative to NextCloud and OwnCloud, designed to leverage .NET's async, multithreaded capabilities to provide a comprehensive, extensible cloud solution that anyone can install on their own server.
 
-🌐 **Website:** [dotnetcloud.net](https://dotnetcloud.net) (Coming soon)
+🌐 **Website:** [www.dotnetcloud.net](https://www.dotnetcloud.net) · **Module store:** [modules.dotnetcloud.net](https://modules.dotnetcloud.net)
 
 ---
 

@@ -721,7 +721,13 @@ If a host name has already been committed or pushed, do **not** rewrite shared h
 
 ## Domain Information
 
-**IMPORTANT:** The dotnetcloud.net domain has no content yet. References to dotnetcloud.net/docs are incorrect — documentation is only available from the GitHub repository (https://github.com/LLabmik/DotNetCloud). Only generic informational references to dotnetcloud.net are acceptable (website coming soon, contact, domain name). No URLs pointing to specific resources on dotnetcloud.net (docs, downloads, install scripts, etc.).
+**As of 2026-11-08 the domain serves two static IIS sites** (plain files, no application — see `docs/admin/SITES.md`):
+
+- `https://www.dotnetcloud.net` — marketing site (`DotNetCloud-WebSite` repo): home, server install, client pages, module store page, support.
+- `https://modules.dotnetcloud.net` — module store: store frontend, the signed catalogue (`index/v1/index.json` + `.sig`), `packages/<id>/<version>/<file>.dncpkg`, `publishers.json`, `yanked.json`.
+- `https://dotnetcloud.net` redirects to `https://www.dotnetcloud.net`.
+
+**Still incorrect:** `dotnetcloud.net/docs`, `/downloads`, `/install.sh` and similar paths do not exist. Documentation lives only in the GitHub repository (https://github.com/LLabmik/DotNetCloud/tree/main/docs), and installers are served from `raw.githubusercontent.com` or release assets. Do not invent URLs on the domain beyond the three sites listed above.
 
 ---
 
