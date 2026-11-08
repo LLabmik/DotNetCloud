@@ -84,6 +84,42 @@ internal static class ModuleDataStoreNaming
     public static string QuotePostgreSql(string identifier) =>
         "\"" + identifier.Replace("\"", "\"\"", StringComparison.Ordinal) + "\"";
 
+    /// <summary>
+    /// Determines whether a value is a plain, unquoted identifier of the shape this codebase
+    /// generates and accepts for schemas, roles and relations.
+    /// </summary>
+    /// <param name="value">The candidate identifier.</param>
+    /// <returns><see langword="true"/> when the value is lower-case ASCII letters, digits or underscores.</returns>
+    /// <remarks>
+    /// This is a defence-in-depth check applied to names that come back from a database catalog or
+    /// from a module's historical naming, <i>before</i> they are interpolated into DDL. Catalog
+    /// names are already quoted through <see cref="QuotePostgreSql"/>/<see cref="QuoteSqlServer"/>,
+    /// but rejecting anything that is not a plain identifier means a surprising name can never reach
+    /// a statement at all.
+    /// </remarks>
+    public static bool IsPlainIdentifier(string? value)
+    {
+        if (string.IsNullOrEmpty(value) || value.Length > MaxIdentifierLength)
+        {
+            return false;
+        }
+
+        if (!char.IsAsciiLetter(value[0]) && value[0] != '_')
+        {
+            return false;
+        }
+
+        foreach (var ch in value)
+        {
+            if (!char.IsAsciiLetterOrDigit(ch) && ch != '_')
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
     /// <summary>Quotes a SQL Server identifier, doubling embedded closing brackets defensively.</summary>
     public static string QuoteSqlServer(string identifier) =>
         "[" + identifier.Replace("]", "]]", StringComparison.Ordinal) + "]";

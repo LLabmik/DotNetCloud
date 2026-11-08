@@ -42,6 +42,10 @@ public class ModuleDataStoreProvisioningIntegrationTests
     private const string AdoptModule = "org.example.itest.adopt";
     private const string DestroyModule = "org.example.itest.destroy";
     private const string RetryModule = "org.example.itest.retry";
+    private const string LegacyModule = "org.example.itest.legacy";
+
+    /// <summary>The schema a bundled module used before it was sandboxed (Track C conversion).</summary>
+    private const string LegacySchema = "itest_legacy";
 
     private static DatabaseContainerFixture? s_fixture;
     private static bool s_available;
@@ -89,11 +93,25 @@ public class ModuleDataStoreProvisioningIntegrationTests
         if (s_services is not null)
         {
             var provisioning = s_services.GetRequiredService<IModuleDataStoreProvisioningService>();
-            foreach (var moduleId in new[] { ProvisionModule, OtherModule, AdoptModule, DestroyModule, RetryModule })
+            foreach (var moduleId in new[] { ProvisionModule, OtherModule, AdoptModule, DestroyModule, RetryModule, LegacyModule })
             {
                 try
                 {
                     await provisioning.DestroyAsync(moduleId);
+                }
+                catch
+                {
+                    // Best effort cleanup.
+                }
+            }
+
+            if (s_connectionString is not null)
+            {
+                try
+                {
+                    await ExecuteAsync(s_connectionString, s_provider == DatabaseProvider.SqlServer
+                        ? $"IF SCHEMA_ID('{LegacySchema}') IS NOT NULL EXEC('DROP SCHEMA {Quote(LegacySchema)}')"
+                        : $"DROP SCHEMA IF EXISTS {Quote(LegacySchema)} CASCADE");
                 }
                 catch
                 {
@@ -426,6 +444,71 @@ public class ModuleDataStoreProvisioningIntegrationTests
             s_provider == DatabaseProvider.SqlServer
                 ? $"INSERT INTO {Quote(schema)}.{Quote("__EFMigrationsHistory")} (MigrationId, ProductVersion) VALUES ('20260101000000_Init', '10.0.0')"
                 : $"INSERT INTO {Quote(schema)}.\"__EFMigrationsHistory\" (\"MigrationId\", \"ProductVersion\") VALUES ('20260101000000_Init', '10.0.0')");
+    }
+
+    /// <summary>
+    /// Track C: a bundled module keeps its data. Adoption provisions the module's own schema and
+    /// moves the objects the core created earlier into it — rows included — then transfers ownership
+    /// so the module's next self-migration sees its history and can write to it.
+    /// </summary>
+    [TestMethod]
+    public async Task Adopt_WithLegacySchema_MovesObjectsRowsAndOwnership()
+    {
+        SkipIfUnavailable();
+
+        await EnsureInstalledModuleAsync(LegacyModule);
+        var (schema, principal) = NamesFor(LegacyModule);
+
+        // Pre-sandbox state: a core-created schema named after the module, with its migration
+        // history and a data table holding a row, all owned by the core role.
+        if (s_provider == DatabaseProvider.SqlServer)
+        {
+            await ExecuteAsync(s_connectionString!,
+                $"IF SCHEMA_ID('{LegacySchema}') IS NULL EXEC('CREATE SCHEMA {Quote(LegacySchema)}')");
+            await ExecuteAsync(s_connectionString!,
+                $"CREATE TABLE {Quote(LegacySchema)}.{Quote("__EFMigrationsHistory")} (MigrationId nvarchar(150) NOT NULL PRIMARY KEY, ProductVersion nvarchar(32) NOT NULL)");
+            await ExecuteAsync(s_connectionString!,
+                $"CREATE TABLE {Quote(LegacySchema)}.{Quote("items")} (id int NOT NULL PRIMARY KEY)");
+            await ExecuteAsync(s_connectionString!, $"INSERT INTO {Quote(LegacySchema)}.{Quote("items")} (id) VALUES (42)");
+        }
+        else
+        {
+            await ExecuteAsync(s_connectionString!, $"CREATE SCHEMA IF NOT EXISTS {Quote(LegacySchema)}");
+            await ExecuteAsync(s_connectionString!,
+                $"CREATE TABLE {Quote(LegacySchema)}.\"__EFMigrationsHistory\" (\"MigrationId\" varchar(150) PRIMARY KEY, \"ProductVersion\" varchar(32) NOT NULL)");
+            await ExecuteAsync(s_connectionString!,
+                $"CREATE TABLE {Quote(LegacySchema)}.{Quote("items")} (id int PRIMARY KEY)");
+            await ExecuteAsync(s_connectionString!, $"INSERT INTO {Quote(LegacySchema)}.{Quote("items")} (id) VALUES (42)");
+        }
+
+        var adopted = await Provisioning.AdoptExistingStoreAsync(LegacyModule, LegacySchema);
+        Assert.IsTrue(adopted.Success, adopted.Error);
+
+        // No data movement loss: the row travelled with its table.
+        var rows = await ScalarAsync(s_connectionString!, $"SELECT COUNT(*) FROM {Quote(schema)}.{Quote("items")}");
+        Assert.AreEqual(1L, Convert.ToInt64(rows, System.Globalization.CultureInfo.InvariantCulture));
+
+        // Nothing is left behind in the historical schema.
+        var leftBehind = await ScalarAsync(s_connectionString!, s_provider == DatabaseProvider.SqlServer
+            ? $"SELECT COUNT(*) FROM sys.tables t JOIN sys.schemas s ON s.schema_id = t.schema_id WHERE s.name = '{LegacySchema}'"
+            : $"SELECT COUNT(*) FROM pg_tables WHERE schemaname = '{LegacySchema}'");
+        Assert.AreEqual(0L, Convert.ToInt64(leftBehind, System.Globalization.CultureInfo.InvariantCulture));
+
+        // Ownership followed the objects, including the migration history table.
+        var historyOwner = await ScalarAsync(s_connectionString!, s_provider == DatabaseProvider.SqlServer
+            ? $"SELECT USER_NAME(t.principal_id) FROM sys.tables t JOIN sys.schemas s ON s.schema_id = t.schema_id WHERE s.name = '{schema}' AND t.name = '__EFMigrationsHistory'"
+            : $"SELECT tableowner FROM pg_tables WHERE schemaname = '{schema}' AND tablename = '__EFMigrationsHistory'");
+        Assert.AreEqual(principal, historyOwner as string);
+
+        // The module principal reaches the moved data through its own scoped connection string.
+        var moduleConnectionString = await Provisioning.GetConnectionStringAsync(LegacyModule);
+        Assert.IsNotNull(moduleConnectionString);
+        var visible = await ScalarAsync(moduleConnectionString, $"SELECT id FROM {Quote("items")}");
+        Assert.AreEqual(42, Convert.ToInt32(visible, System.Globalization.CultureInfo.InvariantCulture));
+
+        // Idempotent: a second adoption on an already-converted store is a no-op that still succeeds.
+        var again = await Provisioning.AdoptExistingStoreAsync(LegacyModule, LegacySchema);
+        Assert.IsTrue(again.Success, again.Error);
     }
 
     [TestMethod]

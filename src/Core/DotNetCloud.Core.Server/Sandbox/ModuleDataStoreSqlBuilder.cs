@@ -147,7 +147,28 @@ internal sealed class ModuleDataStoreSqlBuilder
         ];
     }
 
-    /// <summary>Statements that rotate the module principal's password.</summary>
+    /// <summary>
+    /// Statements that let the core role act inside the module's schema before
+    /// <see cref="AdoptStatements"/> runs its final revoke.
+    /// </summary>
+    /// <remarks>
+    /// PostgreSQL: membership in the module's owner role is what grants <c>CREATE</c> on the schema,
+    /// which <c>ALTER TABLE … SET SCHEMA</c> needs when objects are moved in. <see cref="AdoptStatements"/>
+    /// grants the same membership itself and revokes it last, so this is only needed when a move runs
+    /// <i>before</i> that list. SQL Server: the app role already needs schema ownership to adopt, so
+    /// nothing extra is required.
+    /// </remarks>
+    /// <returns>The statements to execute, possibly empty.</returns>
+    public IReadOnlyList<string> TemporaryOwnershipGrantStatements() => _provider == DatabaseProvider.SqlServer
+        ? []
+        :
+        [
+            $"GRANT {ModuleDataStoreNaming.QuotePostgreSql(_principal)} TO {ModuleDataStoreNaming.QuotePostgreSql(_applicationPrincipal)};",
+        ];
+
+    /// <summary>
+    /// Statements that rotate the module principal's password.
+    /// </summary>
     /// <param name="password">The new password.</param>
     /// <param name="connectionLimit">
     /// Optional new connection limit for PostgreSQL; SQL Server contained users have no login-level cap.

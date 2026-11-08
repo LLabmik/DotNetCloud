@@ -184,7 +184,14 @@ internal sealed class ModuleAdoptionService
             return Entry(ModuleAdoptionOutcome.Skipped, "dataStore: none — no schema to adopt.");
         }
 
-        var result = await _provisioning.AdoptExistingStoreAsync(moduleId, cancellationToken);
+        // A bundled module's data lives in the schema the core created for it before the sandbox
+        // existed (for example "bookmarks"). The schema name is derived from the module id here, in
+        // the core — never read from a manifest — and the provisioning service moves the objects
+        // into the generated schema the module now owns before transferring ownership.
+        var result = ModuleLegacySchema.TryResolve(moduleId, out var legacySchema, out _)
+            ? await _provisioning.AdoptExistingStoreAsync(moduleId, legacySchema, cancellationToken)
+            : await _provisioning.AdoptExistingStoreAsync(moduleId, cancellationToken);
+
         if (result.Success)
         {
             await SetSandboxStatusAsync(moduleId, ModuleSandboxStatus.Active, cancellationToken);

@@ -87,6 +87,29 @@ public interface IModuleDataStoreProvisioningService
         CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Adopts a bundled module's data store <i>and</i> moves the objects it already had out of its
+    /// pre-sandbox schema into the schema the module now owns.
+    /// </summary>
+    /// <param name="moduleId">The module id.</param>
+    /// <param name="legacySchemaName">
+    /// The schema the core used before the module became sandboxed (for example <c>bookmarks</c>),
+    /// or <see langword="null"/> when the module never had one. The caller must derive this from the
+    /// module id — never from a manifest or operator input.
+    /// </param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The outcome; idempotent, and a no-op once the legacy schema is empty.</returns>
+    /// <remarks>
+    /// Objects are moved in place (no rows are copied), ownership is transferred afterwards, and
+    /// <c>__EFMigrationsHistory</c> travels with the data so the module's first self-migration sees
+    /// the migrations the core already applied. A name that already exists in the target schema is
+    /// never overwritten.
+    /// </remarks>
+    Task<ModuleDataStoreProvisioningResult> AdoptExistingStoreAsync(
+        string moduleId,
+        string? legacySchemaName,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Drops the module schema and principal. Used on uninstall with "destroy data".
     /// </summary>
     /// <param name="moduleId">The module id.</param>

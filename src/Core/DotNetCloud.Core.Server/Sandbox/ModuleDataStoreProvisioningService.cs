@@ -203,8 +203,13 @@ public sealed class ModuleDataStoreProvisioningService : IModuleDataStoreProvisi
     }
 
     /// <inheritdoc />
+    public Task<ModuleDataStoreProvisioningResult> AdoptExistingStoreAsync(
+        string moduleId, CancellationToken cancellationToken = default) =>
+        AdoptExistingStoreAsync(moduleId, legacySchemaName: null, cancellationToken);
+
+    /// <inheritdoc />
     public async Task<ModuleDataStoreProvisioningResult> AdoptExistingStoreAsync(
-        string moduleId, CancellationToken cancellationToken = default)
+        string moduleId, string? legacySchemaName, CancellationToken cancellationToken = default)
     {
         if (!ModuleDataStoreNaming.TryCreate(moduleId, out _, out _, out var namingError))
         {
@@ -234,6 +239,23 @@ public sealed class ModuleDataStoreProvisioningService : IModuleDataStoreProvisi
 
         try
         {
+            // A bundled module keeps its data: move the objects it already had (including
+            // __EFMigrationsHistory) into the schema it now owns. This runs BEFORE the ownership
+            // transfer below, because the moved objects are still owned by the app role.
+            if (!string.IsNullOrEmpty(legacySchemaName)
+                && !string.Equals(legacySchemaName, store.SchemaName, StringComparison.Ordinal))
+            {
+                var moveError = await MoveLegacyObjectsAsync(store, legacySchemaName, cancellationToken);
+                if (moveError is not null)
+                {
+                    store.Status = ModuleDataStoreStatus.Error;
+                    store.LastError = moveError;
+                    store.UpdatedAtUtc = DateTime.UtcNow;
+                    await SaveStoreRowAsync(store, cancellationToken);
+                    return ModuleDataStoreProvisioningResult.Failed(moveError);
+                }
+            }
+
             var builder = ModuleDataStoreSqlBuilder.Create(
                 _database.Provider, _database.ConnectionString, store.SchemaName, store.PrincipalName);
 
@@ -246,7 +268,7 @@ public sealed class ModuleDataStoreProvisioningService : IModuleDataStoreProvisi
 
             _logger.LogInformation(
                 "Adopted the existing data store for module {ModuleId} (schema {Schema}, principal {Principal})",
-                moduleId, store.SchemaName, store.PrincipalName);
+                LogSanitizer.Sanitize(moduleId), LogSanitizer.Sanitize(store.SchemaName), LogSanitizer.Sanitize(store.PrincipalName));
 
             return new ModuleDataStoreProvisioningResult(true, store.SchemaName, store.PrincipalName, null);
         }
@@ -456,10 +478,110 @@ public sealed class ModuleDataStoreProvisioningService : IModuleDataStoreProvisi
         return effective.ConnectionLimit;
     }
 
+    /// <summary>
+    /// Moves a bundled module's pre-sandbox objects (tables, sequences, views and the migration
+    /// history) from its historical schema into the schema it now owns.
+    /// </summary>
+    /// <param name="store">The provisioned store row.</param>
+    /// <param name="legacySchemaName">The schema the core used before the module was sandboxed.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns><see langword="null"/> on success, otherwise a sanitized error to persist.</returns>
+    /// <remarks>
+    /// Idempotent: once the legacy schema is empty the move is a no-op, so it is safe on every start.
+    /// Objects whose name already exists in the target schema are never overwritten (the transfer
+    /// reports them instead), which is what keeps a partially completed conversion from destroying
+    /// data.
+    /// </remarks>
+    private async Task<string?> MoveLegacyObjectsAsync(
+        ModuleDataStore store, string legacySchemaName, CancellationToken cancellationToken)
+    {
+        var sourceQuery = ModuleSchemaTransfer.SourceRelationsQuery(_database.Provider, legacySchemaName);
+        var targetQuery = ModuleSchemaTransfer.TargetRelationNamesQuery(_database.Provider, store.SchemaName);
+
+        if (sourceQuery is null || targetQuery is null)
+        {
+            return "The schema names are not plain identifiers; refusing to move objects.";
+        }
+
+        await using var connection = CreateConnection();
+        await connection.OpenAsync(cancellationToken);
+
+        var source = await ReadRelationsAsync(connection, sourceQuery, cancellationToken);
+        if (source.Count == 0)
+        {
+            // Nothing left to move: this is the steady state after the conversion.
+            return null;
+        }
+
+        var target = await ReadRelationsAsync(connection, targetQuery, cancellationToken);
+
+        if (!ModuleSchemaTransfer.TryBuild(
+                _database.Provider,
+                legacySchemaName,
+                store.SchemaName,
+                source,
+                target.Select(relation => relation.Name).ToArray(),
+                out var statements,
+                out var buildError))
+        {
+            return buildError ?? "The legacy schema could not be moved.";
+        }
+
+        if (statements.Count == 0)
+        {
+            _logger.LogWarning(
+                "Legacy schema {Schema} of module {ModuleId} holds {Count} object(s) but none could be moved; the target schema {Target} already has objects with those names.",
+                LogSanitizer.Sanitize(legacySchemaName),
+                LogSanitizer.Sanitize(store.ModuleId),
+                source.Count,
+                LogSanitizer.Sanitize(store.SchemaName));
+            return null;
+        }
+
+        // Moving an object into the module's schema requires CREATE on it, which the app role only
+        // has while it is a member of the module's owner role. AdoptStatements (run by the caller
+        // afterwards) grants that membership and revokes it last, so the grant is issued here too.
+        var builder = ModuleDataStoreSqlBuilder.Create(
+            _database.Provider, _database.ConnectionString, store.SchemaName, store.PrincipalName);
+
+        await ExecuteAsync(
+            [.. builder.TemporaryOwnershipGrantStatements(), .. statements],
+            cancellationToken);
+
+        _logger.LogInformation(
+            "Moved {MovedCount} object(s) from the legacy schema {Schema} of module {ModuleId} into {Target}",
+            statements.Count,
+            LogSanitizer.Sanitize(legacySchemaName),
+            LogSanitizer.Sanitize(store.ModuleId),
+            LogSanitizer.Sanitize(store.SchemaName));
+
+        return null;
+    }
+
+    /// <summary>Reads relations (name plus engine kind) from a catalog query.</summary>
+    private async Task<List<SchemaRelation>> ReadRelationsAsync(
+        DbConnection connection, string sql, CancellationToken cancellationToken)
+    {
+        List<SchemaRelation> relations = [];
+
+        await using var command = connection.CreateCommand();
+        command.CommandText = sql;
+        command.CommandTimeout = CommandTimeoutSeconds;
+
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            var name = reader.GetString(0);
+            var kind = reader.FieldCount > 1 && !reader.IsDBNull(1) ? reader.GetString(1)[0] : 'r';
+            relations.Add(new SchemaRelation(name, kind));
+        }
+
+        return relations;
+    }
+
     private DbConnection CreateConnection() => _database.Provider == DatabaseProvider.SqlServer
         ? new Microsoft.Data.SqlClient.SqlConnection(_database.ConnectionString)
-        : new Npgsql.NpgsqlConnection(_database.ConnectionString);
-    private async Task ExecuteAsync(IReadOnlyList<string> statements, CancellationToken cancellationToken)
+        : new Npgsql.NpgsqlConnection(_database.ConnectionString);    private async Task ExecuteAsync(IReadOnlyList<string> statements, CancellationToken cancellationToken)
     {
         await using var connection = CreateConnection();
         await connection.OpenAsync(cancellationToken);

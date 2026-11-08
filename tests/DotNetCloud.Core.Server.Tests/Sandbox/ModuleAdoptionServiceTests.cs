@@ -274,4 +274,51 @@ public class ModuleAdoptionServiceTests
         await Assert.ThrowsExactlyAsync<InvalidOperationException>(
             () => service.AdoptAsync("org.example.missing", CancellationToken.None));
     }
+
+    [TestMethod]
+    public async Task AdoptAsync_BundledNamespaceModule_PassesTheHistoricalSchemaToProvisioning()
+    {
+        // Track C: a bundled module keeps its data, so adoption must also move the objects out of
+        // the schema the core used before the sandbox existed. The name is derived by the core.
+        const string moduleId = "dotnetcloud.bookmarks";
+        SeedModule(moduleId);
+
+        using var provider = CreateProvider();
+        var provisioning = ProvisioningWithPrerequisites(satisfied: true);
+        provisioning
+            .Setup(p => p.AdoptExistingStoreAsync(moduleId, "bookmarks", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ModuleDataStoreProvisioningResult(
+                true, "dnc_bookmarks_1a2b3c4d", "dnc_mod_bookmarks_1a2b3c4d", null));
+
+        var service = CreateService(provider, provisioning);
+
+        var entry = await service.AdoptAsync(moduleId, CancellationToken.None);
+
+        Assert.AreEqual(ModuleAdoptionOutcome.Adopted, entry.Outcome);
+        provisioning.Verify(
+            p => p.AdoptExistingStoreAsync(moduleId, "bookmarks", It.IsAny<CancellationToken>()),
+            Times.Once);
+        Assert.AreEqual(ModuleSandboxStatus.Active, ReadStatus(moduleId));
+    }
+
+    [TestMethod]
+    public async Task AdoptAsync_ThirdPartyModule_DoesNotAskForAnySchemaMove()
+    {
+        SeedModule(BundledModule);
+
+        using var provider = CreateProvider();
+        var provisioning = ProvisioningWithPrerequisites(satisfied: true);
+        provisioning
+            .Setup(p => p.AdoptExistingStoreAsync(BundledModule, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ModuleDataStoreProvisioningResult(
+                true, "dnc_example_00000000", "dnc_mod_example_00000000", null));
+
+        var service = CreateService(provider, provisioning);
+
+        await service.AdoptAsync(BundledModule, CancellationToken.None);
+
+        provisioning.Verify(
+            p => p.AdoptExistingStoreAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
 }
