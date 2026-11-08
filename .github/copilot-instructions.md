@@ -690,6 +690,19 @@ For commands that require elevation (e.g. `sudo ./scripts/deploy.sh --force --ve
 - After the user enters the password, check **once** with `get_terminal_output` to confirm the command is underway, then **wait for the automatic completion notification** — do NOT poll repeatedly.
 - ❌ **NEVER kill** the command — not even if it looks slow or stuck. A full build/publish can take 10+ minutes.
 
+### Commit Message Content (MANDATORY)
+
+Commit messages are pushed to public GitHub and are effectively permanent. **Never put private deployment topology in them.**
+
+- ❌ No server, machine or workstation names (`mint22`, `portal6`, …), IP addresses, OS user names, host-specific paths (`C:\inetpub\…`, `/home/<user>/…`), or aliases that resolve to a specific box.
+- ❌ No database / site names taken from one deployment.
+- ✅ Describe the code, the failing symptom and the evidence — "verified live against the published catalogue", "`Notes` + `__EFMigrationsHistory` in the generated schema", "`/health/ready` 15/15" — without saying where it ran.
+- ✅ Public project domains already documented in this repo (`dotnetcloud.net`, `modules.dotnetcloud.net`) are fine; anything that identifies a specific machine is not.
+
+The same rule applies to **branch names** and **PR descriptions**. It is the same prohibition as §3.5 of `docs/THIRD_PARTY_MODULE_SANDBOX_AND_STORE_PLAN.md` ("no committed document may reference private deployment topology"), extended to git metadata.
+
+If a host name has already been committed or pushed, do **not** rewrite shared history on your own initiative — report the commit hash and let the user decide.
+
 ### Git Push Responsibility
 
 - ⚠️ **Push only after the user has explicitly approved it** (rule #1 — no commit or push without approval). If the approval covers "commit and push", push the working branch; if it covers only the commit, stop after committing and report the branch + hash.
