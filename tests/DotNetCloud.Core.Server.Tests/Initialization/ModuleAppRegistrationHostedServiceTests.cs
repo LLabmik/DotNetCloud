@@ -84,7 +84,7 @@ public class ModuleAppRegistrationHostedServiceTests
     public async Task RefreshAsync_DeclaredIcon_IsResolvedThroughModuleIconProvider()
     {
         SeedInstalled(IframeModule, "Enabled");
-        DeclareUi(IframeModule, navItems: [("open", "Receipts", icon: null, path: "/")]);
+        DeclareUi(IframeModule, navItems: [("open", "Receipts", Icon: null, Path: "/")]);
 
         await CreateService().RefreshAsync(CancellationToken.None);
 
@@ -96,7 +96,7 @@ public class ModuleAppRegistrationHostedServiceTests
     public async Task RefreshAsync_EmojiIconDeclaration_FallsBackToTheCanonicalIcon()
     {
         SeedInstalled(IframeModule, "Enabled");
-        DeclareUi(IframeModule, navItems: [("open", "Receipts", icon: "\U0001F4C1", path: "/")]);
+        DeclareUi(IframeModule, navItems: [("open", "Receipts", Icon: "\U0001F4C1", Path: "/")]);
 
         await CreateService().RefreshAsync(CancellationToken.None);
 

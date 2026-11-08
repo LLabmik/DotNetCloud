@@ -313,7 +313,7 @@ public class DbInitializerTests
             x => x.Log(
                 LogLevel.Information,
                 It.IsAny<EventId>(),
-                It.Is<It.IsAnyType>((v, t) => v.ToString()!.Contains("Starting database initialization")),
+                It.Is<It.IsAnyType>((v, t) => v != null && v.ToString()!.Contains("Starting database initialization")),
                 It.IsAny<Exception>(),
                 It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
             Times.Once);
@@ -322,7 +322,7 @@ public class DbInitializerTests
             x => x.Log(
                 LogLevel.Information,
                 It.IsAny<EventId>(),
-                It.Is<It.IsAnyType>((v, t) => v.ToString()!.Contains("Database initialization completed successfully")),
+                It.Is<It.IsAnyType>((v, t) => v != null && v.ToString()!.Contains("Database initialization completed successfully")),
                 It.IsAny<Exception>(),
                 It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
             Times.Once);

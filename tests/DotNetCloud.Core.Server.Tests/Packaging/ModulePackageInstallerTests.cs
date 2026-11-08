@@ -84,13 +84,13 @@ public class ModulePackageInstallerTests
         string packagePath,
         ModulePackageReviewDto review,
         bool allowUnverified = false) => new()
-    {
-        PackagePath = packagePath,
-        ExpectedSha256 = review.Sha256,
-        AllowUnverified = allowUnverified,
-        AcknowledgedCapabilities = review.Capabilities,
-        AcknowledgedScopes = review.UserConsentScopes,
-    };
+        {
+            PackagePath = packagePath,
+            ExpectedSha256 = review.Sha256,
+            AllowUnverified = allowUnverified,
+            AcknowledgedCapabilities = review.Capabilities,
+            AcknowledgedScopes = review.UserConsentScopes,
+        };
 
     // ---------------------------------------------------------------- review
 

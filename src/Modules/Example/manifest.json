@@ -13,11 +13,7 @@
   "minCoreVersion": "0.7.0",
   "dataStore": "isolated",
   "handlesUserErasure": true,
-  "capabilities": [
-    "INotificationService",
-    "IStorageProvider",
-    "IAuditLogger"
-  ],
+  "capabilities": ["INotificationService", "IStorageProvider", "IAuditLogger"],
   "userConsentScopes": [],
   "events": {
     "publishes": ["NoteCreatedEvent", "NoteDeletedEvent"],

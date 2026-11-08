@@ -19,7 +19,6 @@
   <!-- Test project settings -->
   <PropertyGroup Condition="'$(IsTestProject)' == 'true'">
     <GenerateDocumentationFile>false</GenerateDocumentationFile>
-    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
   </PropertyGroup>
 
   <!-- Security patches for transitive dependencies are applied by

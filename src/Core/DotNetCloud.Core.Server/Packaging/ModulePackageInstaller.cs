@@ -975,19 +975,19 @@ public sealed class ModulePackageInstaller : IModulePackageInstaller
         string code,
         string error,
         IReadOnlyList<ModulePackageIssueDto> issues) => new()
-    {
-        Success = false,
-        ModuleId = review.ModuleId,
-        Version = review.Version,
-        TrustTier = ModuleTrustTier.Store.ToString(),
-        KeyId = review.KeyId,
-        Sha256 = review.Sha256,
-        Error = error,
-        Issues = issues.Count == 0
+        {
+            Success = false,
+            ModuleId = review.ModuleId,
+            Version = review.Version,
+            TrustTier = ModuleTrustTier.Store.ToString(),
+            KeyId = review.KeyId,
+            Sha256 = review.Sha256,
+            Error = error,
+            Issues = issues.Count == 0
             ? [new ModulePackageIssueDto { Code = code, Message = error }]
             : issues,
-        Warnings = review.Warnings,
-    };
+            Warnings = review.Warnings,
+        };
 
     private static readonly JsonSerializerOptions ReceiptJsonOptions = new(JsonSerializerDefaults.Web)
     {

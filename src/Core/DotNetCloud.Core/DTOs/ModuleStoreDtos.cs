@@ -209,7 +209,8 @@ public class ModulePackageInstallRequest
 /// <summary>
 /// The outcome of an install or rollback.
 /// </summary>
-public class ModuleInstallResultDto{
+public class ModuleInstallResultDto
+{
     /// <summary>Gets or sets whether the module is now installed at the requested version.</summary>
     public bool Success { get; set; }
 

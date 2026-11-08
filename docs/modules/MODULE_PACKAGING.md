@@ -6,7 +6,7 @@
 
 A `.dncpkg` file is a **deterministic, signed ZIP** that contains a module manifest, its licence and
 documentation, and one self-contained publish output per runtime identifier. The format is designed
-so that a package can be verified *before* a single entry is extracted, and so that two independent
+so that a package can be verified _before_ a single entry is extracted, and so that two independent
 builders of the same inputs produce the same bytes — and therefore the same signature.
 
 ---
@@ -25,12 +25,12 @@ builders of the same inputs produce the same bytes — and therefore the same si
     └── win-x64/         (one directory per RID)
 ```
 
-* The file name **is** part of the identity: `<id>` and `<version>` must match the manifest. Module
+- The file name **is** part of the identity: `<id>` and `<version>` must match the manifest. Module
   ids may contain hyphens, so the parser splits on the **last** hyphen whose suffix is a version —
   `org.example.receipt-scanner-1.2.3.dncpkg` yields `org.example.receipt-scanner` + `1.2.3`.
-* `signature.json` **is not** inside the archive. A file cannot sign its own bytes (finding F8); the
+- `signature.json` **is not** inside the archive. A file cannot sign its own bytes (finding F8); the
   signature is detached as `<package>.sig` — see §3.
-* Directories are implicit; the packer never writes directory entries.
+- Directories are implicit; the packer never writes directory entries.
 
 ---
 
@@ -38,14 +38,14 @@ builders of the same inputs produce the same bytes — and therefore the same si
 
 The packer guarantees that the same input tree produces byte-identical output:
 
-| Rule                        | Implementation                                                             |
-| --------------------------- | -------------------------------------------------------------------------- |
-| Entry order                 | sorted with `StringComparer.Ordinal` on the entry name                     |
+| Rule                        | Implementation                                                                |
+| --------------------------- | ----------------------------------------------------------------------------- |
+| Entry order                 | sorted with `StringComparer.Ordinal` on the entry name                        |
 | Timestamps                  | every entry gets `1980-01-01T00:00:00` (ZIP has no time zone, 2 s resolution) |
-| Compression                 | `CompressionLevel.Optimal` for every entry                                 |
-| Directory entries           | never written                                                              |
-| Owner / permissions / xattr | never recorded                                                             |
-| Ignored files               | `.DS_Store`, `Thumbs.db`, `desktop.ini` are skipped                        |
+| Compression                 | `CompressionLevel.Optimal` for every entry                                    |
+| Directory entries           | never written                                                                 |
+| Owner / permissions / xattr | never recorded                                                                |
+| Ignored files               | `.DS_Store`, `Thumbs.db`, `desktop.ini` are skipped                           |
 
 Repository tests pack the same staging directory twice and assert both the byte arrays and the
 SHA-256 match, so a regression is caught immediately.
@@ -68,10 +68,10 @@ must also forge an Ed25519 signature over the new digest.
 
 Rejected by design:
 
-* `algorithm` other than `ed25519` — the **key id** selects the algorithm, the field is informational
+- `algorithm` other than `ed25519` — the **key id** selects the algorithm, the field is informational
   and any other value fails.
-* a `.sig` naming a different package file (prevents moving a signature between packages).
-* a key id the verifier does not trust — unknown keys are never "accepted on faith".
+- a `.sig` naming a different package file (prevents moving a signature between packages).
+- a key id the verifier does not trust — unknown keys are never "accepted on faith".
 
 ### 3.2 Signature file
 
@@ -88,11 +88,11 @@ Rejected by design:
 
 ### 3.3 Key formats and generation
 
-| Item        | Format                                                                 |
-| ----------- | ---------------------------------------------------------------------- |
-| Private key | base64 of the raw **32-byte Ed25519 seed** (written `0600` on Unix)    |
-| Public key  | base64 of the raw **32-byte Ed25519 public key**                       |
-| Key file    | JSON `{ "keyId", "publicKey", "privateKey" }` produced by `keygen`     |
+| Item        | Format                                                              |
+| ----------- | ------------------------------------------------------------------- |
+| Private key | base64 of the raw **32-byte Ed25519 seed** (written `0600` on Unix) |
+| Public key  | base64 of the raw **32-byte Ed25519 public key**                    |
+| Key file    | JSON `{ "keyId", "publicKey", "privateKey" }` produced by `keygen`  |
 
 ```bash
 dotnetcloud-pack keygen --key-id store-2026 --output keys/store-2026.key.json
@@ -116,21 +116,21 @@ a native asset to a cross-platform build tool. `BouncyCastle.Cryptography` is pi
 `verify` (and the installer in B3) runs the checks in this order. A valid signature over an unsafe
 archive is still rejected.
 
-| #  | Check                                                         | Failure code                 |
-| -- | ------------------------------------------------------------- | ---------------------------- |
-| 1  | package exists, size ≤ 512 MiB                                | `PACKAGE_NOT_FOUND`, `PACKAGE_TOO_LARGE` |
-| 2  | file name is `<id>-<version>.dncpkg`                          | `PACKAGE_FILENAME_INVALID`   |
-| 3  | archive opens, structure passes §5                            | `PACKAGE_INVALID_ZIP`, `ARCHIVE_*` |
-| 4  | `manifest.json`, `LICENSE`, `README.md`, `CHANGELOG.md` exist | `PACKAGE_ENTRY_MISSING`      |
-| 5  | at least one `files/<rid>/` binary exists                     | `PACKAGE_ENTRY_MISSING`      |
-| 6  | manifest validates with the **core's own loader**             | `MANIFEST_INVALID`           |
-| 7  | `manifest.id` / `manifest.version` match the file name        | `MANIFEST_MISMATCH`          |
-| 8  | `minCoreVersion` parses and this core satisfies it            | `MANIFEST_INCOMPATIBLE_CORE` |
-| 9  | signature present (unless `--allow-unverified`)               | `SIGNATURE_MISSING`          |
-| 10 | signature is well-formed, `ed25519`, names this file          | `SIGNATURE_INVALID`          |
-| 11 | hash matches the signature's `sha256`                         | `SIGNATURE_HASH_MISMATCH`    |
-| 12 | key id is trusted                                             | `SIGNATURE_UNTRUSTED_KEY`    |
-| 13 | Ed25519 signature verifies over the digest                    | `SIGNATURE_INVALID`          |
+| #   | Check                                                         | Failure code                             |
+| --- | ------------------------------------------------------------- | ---------------------------------------- |
+| 1   | package exists, size ≤ 512 MiB                                | `PACKAGE_NOT_FOUND`, `PACKAGE_TOO_LARGE` |
+| 2   | file name is `<id>-<version>.dncpkg`                          | `PACKAGE_FILENAME_INVALID`               |
+| 3   | archive opens, structure passes §5                            | `PACKAGE_INVALID_ZIP`, `ARCHIVE_*`       |
+| 4   | `manifest.json`, `LICENSE`, `README.md`, `CHANGELOG.md` exist | `PACKAGE_ENTRY_MISSING`                  |
+| 5   | at least one `files/<rid>/` binary exists                     | `PACKAGE_ENTRY_MISSING`                  |
+| 6   | manifest validates with the **core's own loader**             | `MANIFEST_INVALID`                       |
+| 7   | `manifest.id` / `manifest.version` match the file name        | `MANIFEST_MISMATCH`                      |
+| 8   | `minCoreVersion` parses and this core satisfies it            | `MANIFEST_INCOMPATIBLE_CORE`             |
+| 9   | signature present (unless `--allow-unverified`)               | `SIGNATURE_MISSING`                      |
+| 10  | signature is well-formed, `ed25519`, names this file          | `SIGNATURE_INVALID`                      |
+| 11  | hash matches the signature's `sha256`                         | `SIGNATURE_HASH_MISMATCH`                |
+| 12  | key id is trusted                                             | `SIGNATURE_UNTRUSTED_KEY`                |
+| 13  | Ed25519 signature verifies over the digest                    | `SIGNATURE_INVALID`                      |
 
 Step 6 deliberately reuses `ModuleManifestLoader` (the loader the supervisor uses) rather than a
 second implementation, so packaging cannot drift from runtime validation. A v1 manifest is accepted
@@ -141,35 +141,35 @@ migrates them, while every non-required module must ship v2 at store launch.
 
 ## 5. Archive hardening (F13)
 
-Signature verification proves *who* built an archive, not that it is safe to expand. These checks run
+Signature verification proves _who_ built an archive, not that it is safe to expand. These checks run
 before extraction, and extraction re-checks every resolved path against the destination root.
 
-| Limit                     | Value         | Rationale                                      |
-| ------------------------- | ------------- | ---------------------------------------------- |
-| entries                   | 20 000        | bounded metadata cost                          |
-| package size              | 512 MiB       | bounded download                               |
-| uncompressed total        | 2 GiB         | bounded disk use                               |
-| single entry              | 512 MiB       | bounded single-file expansion                  |
-| compression ratio         | 200:1         | zip bomb (entries ≥ 1 MiB only)                |
-| path length               | 200 chars     | Windows `MAX_PATH` headroom                    |
-| path segments             | 16            | bounded depth                                  |
-| manifest size             | 256 KiB       | bounded parse                                  |
+| Limit              | Value     | Rationale                       |
+| ------------------ | --------- | ------------------------------- |
+| entries            | 20 000    | bounded metadata cost           |
+| package size       | 512 MiB   | bounded download                |
+| uncompressed total | 2 GiB     | bounded disk use                |
+| single entry       | 512 MiB   | bounded single-file expansion   |
+| compression ratio  | 200:1     | zip bomb (entries ≥ 1 MiB only) |
+| path length        | 200 chars | Windows `MAX_PATH` headroom     |
+| path segments      | 16        | bounded depth                   |
+| manifest size      | 256 KiB   | bounded parse                   |
 
 Rejected entry names — zip-slip and its cousins:
 
-| Shape                                        | Code                          |
-| -------------------------------------------- | ----------------------------- |
-| absolute (`/etc/passwd`), drive letter (`C:`) | `ARCHIVE_ABSOLUTE_PATH`       |
-| `..` segment                                  | `ARCHIVE_PATH_TRAVERSAL`      |
-| backslash separator                           | `ARCHIVE_INVALID_NAME`        |
-| empty or `.` segment                          | `ARCHIVE_INVALID_NAME`        |
-| control characters                            | `ARCHIVE_INVALID_NAME`        |
-| trailing dot or space (Windows strips them)   | `ARCHIVE_ALTERNATE_DATA_STREAM` |
-| `:` alternate data stream                     | `ARCHIVE_ALTERNATE_DATA_STREAM` |
-| reserved device name (`CON`, `NUL`, `COM1`…)  | `ARCHIVE_RESERVED_NAME`       |
-| same name twice                               | `ARCHIVE_DUPLICATE_ENTRY`     |
-| case-only collision                           | `ARCHIVE_CASE_COLLISION`      |
-| symbolic link (unix `S_IFLNK` / reparse point) | `ARCHIVE_SYMLINK`             |
+| Shape                                          | Code                            |
+| ---------------------------------------------- | ------------------------------- |
+| absolute (`/etc/passwd`), drive letter (`C:`)  | `ARCHIVE_ABSOLUTE_PATH`         |
+| `..` segment                                   | `ARCHIVE_PATH_TRAVERSAL`        |
+| backslash separator                            | `ARCHIVE_INVALID_NAME`          |
+| empty or `.` segment                           | `ARCHIVE_INVALID_NAME`          |
+| control characters                             | `ARCHIVE_INVALID_NAME`          |
+| trailing dot or space (Windows strips them)    | `ARCHIVE_ALTERNATE_DATA_STREAM` |
+| `:` alternate data stream                      | `ARCHIVE_ALTERNATE_DATA_STREAM` |
+| reserved device name (`CON`, `NUL`, `COM1`…)   | `ARCHIVE_RESERVED_NAME`         |
+| same name twice                                | `ARCHIVE_DUPLICATE_ENTRY`       |
+| case-only collision                            | `ARCHIVE_CASE_COLLISION`        |
+| symbolic link (unix `S_IFLNK` / reparse point) | `ARCHIVE_SYMLINK`               |
 
 `ModulePackageVerifier.ExtractAsync` resolves `Path.GetFullPath(Path.Combine(root, name))` and
 requires the relative path to stay inside the root (no rooted path, no `..` first segment, not the
@@ -198,7 +198,11 @@ A local feed is a directory with the package files next to an `index.json`:
       "file": "dotnetcloud.example-1.0.0.dncpkg",
       "size": 21138267,
       "sha256": "12759d5c…",
-      "capabilities": ["INotificationService", "IStorageProvider", "IAuditLogger"],
+      "capabilities": [
+        "INotificationService",
+        "IStorageProvider",
+        "IAuditLogger"
+      ],
       "userConsentScopes": [],
       "keyId": "dev-local",
       "signature": "base64…"
@@ -209,11 +213,11 @@ A local feed is a directory with the package files next to an `index.json`:
 
 Rules enforced when reading a feed:
 
-* entries are sorted by id then version when written;
-* a feed entry's `file` may not resolve outside the feed directory (a feed is data, not authority);
-* verification prefers the sibling `<package>.sig` and falls back to the `keyId` + `signature`
+- entries are sorted by id then version when written;
+- a feed entry's `file` may not resolve outside the feed directory (a feed is data, not authority);
+- verification prefers the sibling `<package>.sig` and falls back to the `keyId` + `signature`
   recorded in the index, so a single-file distribution still verifies;
-* the package is copied into the feed directory if it came from elsewhere — a feed never records an
+- the package is copied into the feed directory if it came from elsewhere — a feed never records an
   external path.
 
 This format is a trimmed version of the store index (§4.9 of the plan), so the installer's
@@ -268,13 +272,13 @@ tests (B3) consume, and the job fails if determinism, archive safety or manifest
 
 ## 10. Implemented after B1 / still deferred
 
-| Item                                              | Where | Status |
-| ------------------------------------------------- | ----- | ------ |
-| store index build + curated key signing           | B2    | ✓ `DotNetCloud.ModuleStore` |
+| Item                                              | Where | Status                                                  |
+| ------------------------------------------------- | ----- | ------------------------------------------------------- |
+| store index build + curated key signing           | B2    | ✓ `DotNetCloud.ModuleStore`                             |
 | publisher key registry, revocation/yank           | B2/B5 | ✓ registry + `yanked.json`; trust program remains in B5 |
-| installer state machine + rollback                | B3    | ✓ [`MODULE_STORE.md`](MODULE_STORE.md) |
-| local feed + `--file` install, admin review       | B3    | ✓ CLI, admin API and `/admin/store` |
-| remote index client, mirrors, update checks       | later | ☐ deferred (D6) |
-| download URL allow-list (SSRF), redirect re-check | later | ☐ deferred — no download path exists yet |
-| index anti-replay (`generatedAt` monotonic)       | later | ☐ deferred with the client |
-| provenance attestations (SLSA)                    | B5    | ☐ |
+| installer state machine + rollback                | B3    | ✓ [`MODULE_STORE.md`](MODULE_STORE.md)                  |
+| local feed + `--file` install, admin review       | B3    | ✓ CLI, admin API and `/admin/store`                     |
+| remote index client, mirrors, update checks       | later | ☐ deferred (D6)                                         |
+| download URL allow-list (SSRF), redirect re-check | later | ☐ deferred — no download path exists yet                |
+| index anti-replay (`generatedAt` monotonic)       | later | ☐ deferred with the client                              |
+| provenance attestations (SLSA)                    | B5    | ☐                                                       |

@@ -69,9 +69,13 @@ public class ModuleRuntimeArtifactsTests
     {
         var socketPath = Path.Combine(_root, "module.sock");
         File.WriteAllText(socketPath, "socket");
-        File.SetUnixFileMode(
-            socketPath,
-            UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.GroupRead | UnixFileMode.OtherRead);
+
+        if (!OperatingSystem.IsWindows())
+        {
+            File.SetUnixFileMode(
+                socketPath,
+                UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.GroupRead | UnixFileMode.OtherRead);
+        }
 
         var restricted = ModuleRuntimeArtifacts.RestrictSocket(ModuleEndpoint.UnixDomainSocket(socketPath));
 
