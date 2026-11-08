@@ -88,6 +88,32 @@ public class ModuleManifestReaderTests
     }
 
     [TestMethod]
+    public void Read_WidgetBlock_ParsesItsPath()
+    {
+        var json = ValidManifest.Replace(
+            "\"navItems\": [{ \"id\": \"custom\", \"label\": \"Custom\", \"icon\": \"widgets\", \"path\": \"/\" }]",
+            "\"navItems\": [{ \"id\": \"custom\", \"label\": \"Custom\", \"icon\": \"widgets\", \"path\": \"/\" }], \"widget\": { \"path\": \"/widget/index.html\" }");
+
+        var result = ModuleManifestReader.Read(json);
+
+        Assert.IsTrue(result.IsValid, string.Join("; ", result.Errors));
+        Assert.AreEqual("/widget/index.html", result.Manifest!.Ui!.Widget!.Path);
+    }
+
+    [TestMethod]
+    public void Read_WidgetPathWithoutLeadingSlash_IsRejected()
+    {
+        var json = ValidManifest.Replace(
+            "\"navItems\": [{ \"id\": \"custom\", \"label\": \"Custom\", \"icon\": \"widgets\", \"path\": \"/\" }]",
+            "\"navItems\": [{ \"id\": \"custom\", \"label\": \"Custom\", \"icon\": \"widgets\", \"path\": \"/\" }], \"widget\": { \"path\": \"widget/index.html\" }");
+
+        var result = ModuleManifestReader.Read(json);
+
+        Assert.IsFalse(result.IsValid, "a widget path must be site-relative, like ui.entryPath");
+        StringAssert.Contains(string.Join("; ", result.Errors), "ui.widget.path");
+    }
+
+    [TestMethod]
     public void Read_TrailingComma_IsRejected()
     {
         var json = ValidManifest.Replace("\"cpuPercent\": 25 }", "\"cpuPercent\": 25, }");

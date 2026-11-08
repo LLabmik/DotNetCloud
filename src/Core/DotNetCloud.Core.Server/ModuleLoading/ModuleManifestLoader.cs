@@ -155,6 +155,21 @@ internal sealed record ManifestUi
 
     /// <summary>Navigation entries contributed to the core chrome.</summary>
     public IReadOnlyList<ManifestNavItem> NavItems { get; init; } = [];
+
+    /// <summary>Home-page widget contributed by the module, or <see langword="null"/> for none.</summary>
+    public ManifestWidget? Widget { get; init; }
+}
+
+/// <summary>Home-page widget descriptor from a v2 manifest.</summary>
+/// <remarks>
+/// A module-hosted widget is the same sandboxed document plane as the module's app, framed inside a
+/// shell widget card. The path is module-relative and usually points at a compact page rather than
+/// the module's full UI.
+/// </remarks>
+internal sealed record ManifestWidget
+{
+    /// <summary>Module-relative path the widget frame loads (for example <c>/widget/index.html</c>).</summary>
+    public string? Path { get; init; }
 }
 
 /// <summary>Navigation entry from a v2 manifest.</summary>
@@ -566,6 +581,12 @@ internal sealed class ModuleManifestLoader
                 {
                     errors.Add($"ui.navItems '{navItem.Id}' path must start with '/'.");
                 }
+            }
+
+            if (ui.Widget is { } widget
+                && (string.IsNullOrWhiteSpace(widget.Path) || !widget.Path.StartsWith('/')))
+            {
+                errors.Add("ui.widget.path must be a site-relative path starting with '/'.");
             }
         }
 

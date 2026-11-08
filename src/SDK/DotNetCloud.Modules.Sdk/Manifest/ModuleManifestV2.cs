@@ -112,7 +112,16 @@ public sealed record ModuleEvents(IReadOnlyList<string> Publishes, IReadOnlyList
 /// <param name="Type">UI type; only <c>iframe</c> is accepted for non-required modules.</param>
 /// <param name="EntryPath">Path the core proxies to (relative to the module root).</param>
 /// <param name="NavItems">Navigation entries contributed to the core chrome.</param>
-public sealed record ModuleUi(string Type, string EntryPath, IReadOnlyList<ModuleNavItem> NavItems);
+/// <param name="Widget">Optional home-page widget contributed by the module.</param>
+public sealed record ModuleUi(
+    string Type,
+    string EntryPath,
+    IReadOnlyList<ModuleNavItem> NavItems,
+    ModuleWidget? Widget = null);
+
+/// <summary>A home-page widget contributed by a module.</summary>
+/// <param name="Path">Module-relative path the widget frame loads (for example <c>/widget/index.html</c>).</param>
+public sealed record ModuleWidget(string Path);
 
 /// <summary>A navigation entry contributed by a module.</summary>
 /// <param name="Id">Stable id, unique within the module.</param>

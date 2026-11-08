@@ -27,9 +27,9 @@ namespace DotNetCloud.Core.Server.Initialization;
 /// them), so the two paths cannot register the same id.
 /// </para>
 /// <para>
-/// Note: no in-repo module declares a UI yet — every manifest is still version 1 and Track C
-/// migrates them. The service is therefore exercised by unit tests against a fake manifest registry
-/// today, and starts doing real work the moment the first v2 UI module is installed.
+/// Note: <c>dotnetcloud.example</c> and <c>dotnetcloud.bookmarks</c> are the first in-repo modules
+/// with a v2 manifest that declares a UI; the rest are migrated by Track C. Until then the service
+/// is exercised mostly by unit tests against a fake manifest registry.
 /// </para>
 /// </remarks>
 internal sealed class ModuleAppRegistrationHostedService : BackgroundService
@@ -159,6 +159,7 @@ internal sealed class ModuleAppRegistrationHostedService : BackgroundService
 
         // The nav set for this module is owned entirely by the manifest, so drop stale entries.
         _moduleUiRegistry.UnregisterModule(moduleId);
+        _widgetUiRegistry.UnregisterModule(moduleId);
 
         _moduleUiRegistry.RegisterApp(new ModuleAppDescriptor(
             moduleId,
@@ -180,18 +181,33 @@ internal sealed class ModuleAppRegistrationHostedService : BackgroundService
             sortOrder++;
         }
 
-        // A module that declares a nav entry but no explicit path still needs a way into its app.
+        // A module that declares navItems but no explicit path still needs a way into its app.
         if (ui.NavItems.Count == 0)
         {
             _moduleUiRegistry.RegisterNavItem(
                 moduleId, manifest.Name, shellPath, canonicalIcon, DefaultSortOrder);
         }
 
+        // A home-page widget is opt-in: the shell never guesses a path, because a module's full app
+        // is usually the wrong thing to embed in a card. The frame loads the declared page inside
+        // the same sandbox and message contract as the app.
+        if (!string.IsNullOrWhiteSpace(ui.Widget?.Path))
+        {
+            _widgetUiRegistry.RegisterIframeWidget(
+                moduleId,
+                manifest.Name,
+                canonicalIcon,
+                shellPath,
+                ModuleAppUrls.NormalizeEntryPath(ui.Widget.Path),
+                DefaultSortOrder);
+        }
+
         _logger.LogInformation(
-            "Registered iframe UI for {ModuleId} at {BasePath} ({NavItems} nav item(s))",
+            "Registered iframe UI for {ModuleId} at {BasePath} ({NavItems} nav item(s), widget: {HasWidget})",
             LogSanitizer.Sanitize(moduleId),
             basePath,
-            ui.NavItems.Count);
+            ui.NavItems.Count,
+            ui.Widget is not null);
     }
 
     private static string BuildFingerprint(ModuleManifestData manifest, ManifestUi ui)
@@ -200,6 +216,6 @@ internal sealed class ModuleAppRegistrationHostedService : BackgroundService
             '\u001f',
             ui.NavItems.Select(item => $"{item.Id}|{item.Label}|{item.Icon}|{item.Path}"));
 
-        return $"{manifest.Version}\u001e{ui.EntryPath}\u001e{manifest.Name}\u001e{navItems}";
+        return $"{manifest.Version}\u001e{ui.EntryPath}\u001e{manifest.Name}\u001e{ui.Widget?.Path}\u001e{navItems}";
     }
 }

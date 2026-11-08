@@ -1,8 +1,8 @@
 # Third-Party Module Sandbox & Module Store — Implementation Plan
 
-> **Status:** Approved — ready for implementation · **security review applied 2026-09-15 (§2.1)** · **reconciled against current code 2026-11-06 (§0, §2.1)** · **all decisions D1–D6 locked 2026-11-06 (§14)** · **security verification 2026-11-06 (§15)** · **phase A0 implemented 2026-11-06 (§5)** · **phase A1 implemented 2026-11-06 (§5)** · **phase A2 implemented 2026-11-07 (§5)** · **phase A3 implemented 2026-11-07 (§5)** · **phase A4 implemented 2026-11-07 (§5)** · **phase A5 implemented 2026-11-07 (§5)** · **phase A6 implemented 2026-11-07 (§5)** · **phase B1 implemented 2026-11-07 (§6)** · **phase B2 implemented 2026-11-07 (§6, separate repository)** · **phase B3 implemented 2026-11-07 (§6, local feed + `--file` + remote signed index)** · **phase B4 live 2026-11-08 (§6, both sites, pre-launch gate open)** · **phase B5 implemented 2026-11-08 (§6, trust program)** · **Track C started 2026-11-08 (Example module complete, §7)**
+> **Status:** Approved — ready for implementation · **security review applied 2026-09-15 (§2.1)** · **reconciled against current code 2026-11-06 (§0, §2.1)** · **all decisions D1–D6 locked 2026-11-06 (§14)** · **security verification 2026-11-06 (§15)** · **phase A0 implemented 2026-11-06 (§5)** · **phase A1 implemented 2026-11-06 (§5)** · **phase A2 implemented 2026-11-07 (§5)** · **phase A3 implemented 2026-11-07 (§5)** · **phase A4 implemented 2026-11-07 (§5)** · **phase A5 implemented 2026-11-07 (§5)** · **phase A6 implemented 2026-11-07 (§5)** · **phase B1 implemented 2026-11-07 (§6)** · **phase B2 implemented 2026-11-07 (§6, separate repository)** · **phase B3 implemented 2026-11-07 (§6, local feed + `--file` + remote signed index)** · **phase B4 live 2026-11-08 (§6, both sites, pre-launch gate open)** · **phase B5 implemented 2026-11-08 (§6, trust program)** · **Track C started 2026-11-08 (Example and Bookmarks complete, §7)**
 > **Branch:** `feature/third-party-modules` (the plan's original name `feature/third-party-module-support` was never created)
-> **Last Updated:** 2026-11-08 (Track C — the Example module now serves its own UI through the A5 iframe plane, declares its consent scopes, and is decoupled from the core; §7)
+> **Last Updated:** 2026-11-08 (Track C — Bookmarks now serves its own UI app and declares a sandboxed Home-page widget through the new `ui.widget` manifest key, and is fully decoupled from the core; §7)
 > **Code baseline:** version `0.7.0` (`Directory.Build.props`), .NET SDK `10.0.100` (`global.json`)
 > **Audience:** implementation agents (assumes knowledge of .NET 10 / EF Core / gRPC / Blazor, not of this repo's module history)
 
@@ -277,7 +277,8 @@ flowchart LR
 - `dnc:openExternal` accepts `https:` only (no `javascript:`/`data:`), opened with `noopener,noreferrer`; `dnc:navigate` targets pass a core allow-list (no open redirect).
 - Home widgets for non-required modules render as iframe widget cards using the same plane; widgets use the same source-bound message rules (a widget cannot spoof height/notify messages for another widget).
 - **Registration seam:** `ModuleUiRegistry` and `WidgetUiRegistry` already exist (`src/UI/DotNetCloud.UI.Web/Services/`) and are fed by the two hosted services. A5 adds an iframe descriptor shape; it does not need a new registry.
-- **Icon rule:** the existing static descriptors use emoji literals (`📁`, `💬`, …) which violate this repo's mandatory `MaterialIcon` rule. v2 manifests must carry Material icon names (`ui.navItems[].icon`, e.g. `widgets`) and `ModuleIconProvider` must be the single mapping point.
+- **Icon rule:** the existing static descriptors use emoji literals (`📁`, `💬`, …) which violate this repo's mandatory `MaterialIcon` rule. v2 manifests must carry Material icon names (`ui.navItems[].icon`, e.g. `widgets`) and `ModuleIconProvider` must be the single mapping point. ✓ Enforced for Example and Bookmarks.
+- **Widgets:** a module-declared Home-page card is `ui.widget.path` (added with the Bookmarks Track C migration); the core frames it with the same sandbox and message contract rather than embedding a compiled component.
 - **Fullscreen pages:** Tracks registers an extra `tracks.item` page (`ModuleUiRegistrationHostedService.cs:66–67`). The iframe plane needs an equivalent route/`navigate` target contract before Tracks can be migrated.
 - **Host component standards:** `ModuleAppHost.razor` and widget cards must follow the repo's Blazor rules — markup only in `.razor`, logic in `.razor.cs`, styles in `.razor.css`, Material icons only.
 
@@ -323,7 +324,8 @@ flowchart LR
     "entryPath": "/",
     "navItems": [
       { "id": "custom", "label": "Custom App", "icon": "widgets", "path": "/" }
-    ]
+    ],
+    "widget": { "path": "/widget/index.html" }
   },
   "resources": {
     "memoryLimitMb": 256,
@@ -340,7 +342,7 @@ Validation rules (enforced by `ModuleManifestLoader`):
 
 - `manifestVersion` defaults to 1. **Required modules keep today's behavior under v1 manifests; every non-required module — including already-installed ones — is migrated to the v2 sandboxed model per §9** (no v1 escape hatch for non-required modules beyond the transitional override in §9).
 - `dataStore` must be `"isolated"` or `"none"`; any other value fails validation. Default for v2 non-required modules without `dataStore`: `"none"` (safe default; supported because D4 ships the settings plane in A1).
-- `ui.type` only supports `"iframe"` for non-required modules.
+- `ui.type` only supports `"iframe"` for non-required modules. `ui.widget.path` is optional; when present it must be a site-relative module path and the core renders it as a sandboxed Home-page card.
 - `resources` values are **requests, not entitlements**: the effective limit is `min(manifest request, admin/store policy, Modules:Quotas:Max*)`. Supported keys: `memoryLimitMb`, `cpuPercent`, `dataDirMb`, `databaseMb`, `connectionLimit` (see §4.11). A manifest requesting more than policy is rejected at install and store review.
 - `handlesUserErasure` must be `true` for any module with `dataStore != "none"` or at least one `userConsentScopes` entry; store review rejects packages without it (§4.12).
 - Required modules must NOT declare `dataStore`/`ui`; new fields are ignored for them.
@@ -751,7 +753,7 @@ Per-module directories: `<dataDir>/modules/<moduleId>/{config,data,run}` created
 2. **The frame origin cannot be authenticated.** Every sandboxed opaque-origin frame reports `origin: "null"`, so both sides authenticate by identity (`event.source`) and the payload is deliberately secret-free. `targetOrigin` must be `'*'` in the inverse direction.
 3. **`SameSite=Lax` is the CSRF control, not the sandbox.** An opaque-origin document's requests are cross-site, so the core's session cookie (Lax, HttpOnly, Secure) is not attached to them; on top of that the proxy strips the cookie. The residual risk is documented in `MODULE_SECURITY.md` §10, and the dedicated `apps.<host>` origin stays a public-store launch gate (§13) rather than a first-pass requirement.
 4. **`dnc:requestConsent` is a core-rendered _banner_, not an OIDC popup.** Starting an authorization flow from inside a framed document needs a module-side PKCE client and a redirect-URI contract that does not exist yet; the banner lists the requested scopes in plain language and links to `/connected-apps`. Upgrading to the OIDC popup flow is tracked with the store client.
-5. **No in-repo module declares a `ui` block yet** — all manifests are still v1, so the registration path is exercised by unit tests and starts doing real work at Track C.
+5. **No in-repo module declared a `ui` block at the time of A5** — the registration path was exercised only by unit tests. Example (1.1.0) and Bookmarks (1.2.0) now declare one, and Bookmarks added the `ui.widget` key this phase; the rest are migrated by Track C.
 6. **Incidental fix found by the SQL Server integration suite.** The A3 `ModuleUserConsent` migration created two cascading actions from `Users` (`UserId` CASCADE plus `GrantedByUserId` SET NULL), which SQL Server rejects as a multiple cascade path — the migration could never have applied. `GrantedByUserId` is now a plain audit column with an index and no FK, and both provider migrations were regenerated.
 
 **Implementation notes**
@@ -1000,7 +1002,7 @@ Per-module directories: `<dataDir>/modules/<moduleId>/{config,data,run}` created
 
 ## 7. Track C — Dogfood migrations (non-required first-party modules)
 
-**Status:** 🔄 In progress — **Example complete (2026-11-08)**: UI plane, consent scopes and decoupling done. Next: Bookmarks.
+**Status:** 🔄 In progress — **Example complete (2026-11-08)** and **Bookmarks complete (2026-11-08)**: data plane, module-hosted UI (app + manifest-declared iframe widget) and decoupling. Next: Email.
 **Effort:** Large (per-module; order below balances risk)
 **Depends on:** A1/A2 for the data plane, A5 for the UI plane.
 
@@ -1031,7 +1033,14 @@ Order and module checklist:
   - ✓ **Iframe UI plane (2026-11-08)** — the module serves its own page from `DotNetCloud.Modules.Example.Host/wwwroot` (`index.html`, `assets/example-ui.{js,css}`) and the core frames `/apps/dotnetcloud.example/`; the notes page and the help content that used to live in core are now inside the frame. The SDK bridge is copied from `src/SDK/DotNetCloud.Modules.Sdk/wwwroot` at build time (no npm), every asset/API reference is relative (the proxy strips the prefix), and the module's JSON API (`GET/POST /api/notes`, `DELETE /api/notes/{id}`) takes its owner from the verified `dnc-user-assertion` — never from the payload — answers `404` for another user's note, and sets `no-store`.
   - ✓ **`userConsentScopes` (2026-11-08)** — `["notifications:send"]`, the scope `INotificationService` exposes, so the F18 rule holds and the store page no longer claims "no personal data access". Creating a note through the UI now actually sends that notification, which exercises the capability and the consent gate. **Least privilege applied:** `IStorageProvider` was dropped from the capabilities (with its `files:read` scope) because the module never touched file storage — the store review requires a justification for every capability, and the reference module should not teach over-requesting. Version `1.1.0` (not yet republished to the store).
   - ✓ **Decoupled (2026-11-08)** — `DotNetCloud.UI.Web` no longer references the Example module, `ExampleHelp.razor` and the module's in-core Blazor components are deleted, and the module library is a plain `Microsoft.NET.Sdk` class library with no `DotNetCloud.UI.Shared` and no ASP.NET Core framework reference (no module `Host` project was ever referenced by the core).
-- ☐ **Bookmarks** — smallest data + UI surface. Note its manifest exists twice (Host + RCL).
+- ✓ **Bookmarks** — **complete (2026-11-08)**; smallest data + UI surface, and the first module to ship a module-hosted widget.
+  - ✓ **Data plane** (earlier slice): schema-neutral `BookmarksDbContext` + both provider migrations re-stamped with their original ids, self-migration via `MigrateAsync`, sandboxed host (module.json topology, private DataProtection ring, scoped connection string), `BookmarksUserErasureHandler`, manifest v2 with `dataStore: "isolated"` and four consent scopes.
+  - ✓ **Schema transfer** (earlier slice): adoption moves the historical `bookmarks` schema objects into the generated `dnc_*` schema before ownership transfer, proven live on PostgreSQL and SQL Server.
+  - ✓ **UI plane**: the module serves its own app (`wwwroot/index.html` + `assets/bookmarks-ui.{js,css}`) — sidebar with views/folders/tools, grid and list, search, detail with preview fetch, bookmark and folder forms, import, export (opened in a core-controlled tab via the bridge), in-frame help. It reuses the existing REST API; no new endpoints, and the acting user is still the verified assertion subject.
+  - ✓ **`ui.widget.path` (new manifest key)**: a module can now declare a sandboxed Home-page card — core `ManifestUi.Widget` + SDK `ModuleUi.Widget`, validated in both loaders, registered by `ModuleAppRegistrationHostedService` with `WidgetUiRegistry.RegisterIframeWidget` and unregistered when the block disappears. Bookmarks ships `wwwroot/widget/index.html` (five most recent bookmarks, widget-role height reporting) so the Home-page feature is not lost by leaving the core.
+  - ✓ **Decoupled**: all four project references (library, Data, Data.SqlServer, Widget) removed from `Core.Server`, the library reference from `UI.Web`, an unused Data.SqlServer reference from the CLI, plus the entries in `ModuleUiRegistrationHostedService`, `WidgetUiRegistrationHostedService` and `AddAdditionalAssemblies`; the `UI/` and `Widget/` projects, the `/apps/bookmarks` shell page and `BookmarksHelp.razor` are deleted and the library is a plain class library.
+  - ✓ **Defect found by the runtime smoke test**: an unauthenticated API call answered 500, not 401, because no action translated the `UnauthorizedAccessException` thrown by `GetAuthenticatedCaller()`. Fixed with `BookmarksExceptionFilter` (401/404/403/400) and `[ResponseCache(NoStore = true)]` on the controller base.
+  - ☐ Iframe rendering through the live core proxy + bridge handshake (needs a deployed server), and republishing the module to the store as 1.2.0.
 - ☐ **Email** — data plane only needs settings + own storage; moderate UI. Same duplicate-manifest note.
 - ☐ **AI** — depends on core AI capability plumbing; verify provider settings migration.
 - ☐ **Music** — large UI; validate widget conversion.

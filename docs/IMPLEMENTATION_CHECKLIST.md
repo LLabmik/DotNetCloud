@@ -8,6 +8,37 @@
 
 ---
 
+## Recent Work — Track C dogfood: Bookmarks module UI plane (2026-11-08, `feature/third-party-modules`)
+
+Second Track C module of `docs/THIRD_PARTY_MODULE_SANDBOX_AND_STORE_PLAN.md`. Bookmarks already owned
+its data store; this slice moves its UI out of the core.
+
+**Module-hosted UI (phase A5 plane)**
+
+- ✓ `wwwroot/index.html` + `assets/bookmarks-ui.{js,css}` served by the module's own host: sidebar (views, folders, tools), grid/list, search, detail with preview fetch, bookmark/folder forms, import, export and in-frame help; every asset and API reference relative.
+- ✓ The page uses the module's existing REST API (`api/v1/bookmarks…`) — no new endpoints, and the acting user still comes from the verified `dnc-user-assertion`. DOM is built with `textContent`/`createElement` only.
+- ✓ Export opens `api/v1/bookmarks/export` in a core-controlled tab via `dncModuleBridge.openExternal` (a sandboxed frame cannot download; the top-level navigation carries the cookie the proxy needs).
+- ✓ **New `ui.widget.path` manifest key** (core + SDK models and validation): the module contributes a sandboxed Home-page card, `wwwroot/widget/index.html` listing the five most recent bookmarks with widget-role height reporting. `ModuleAppRegistrationHostedService` registers it and unregisters it when the block is removed.
+- ✓ Manifest v2 declares `ui` (`iframe`, entry `/`, Material icon `bookmark`) and `ui.widget`; version bumped to `1.2.0` everywhere.
+
+**Decoupling**
+
+- ✓ `Core.Server` drops the module's library/Data/Data.SqlServer/Widget project references (the gRPC search client keeps using the proto); `UI.Web` and the CLI drop their references.
+- ✓ Removed from `ModuleUiRegistrationHostedService`, `WidgetUiRegistrationHostedService` and `AddAdditionalAssemblies`; the module's `UI/` and `Widget/` projects, the `/apps/bookmarks` shell page and `BookmarksHelp.razor` are deleted.
+- ✓ The module library is a plain `Microsoft.NET.Sdk` class library — no Razor SDK, no ASP.NET Core framework reference, no `DotNetCloud.UI.Shared`.
+
+**Defect found and fixed**
+
+- ✓ An unauthenticated API call answered **500** instead of 401: `GetAuthenticatedCaller()` throws `UnauthorizedAccessException`, and no action translated it. Added `BookmarksExceptionFilter` (401/404/403/400 mapping, unexpected exceptions left to the host) plus `[ResponseCache(NoStore = true)]` on the controller base.
+
+**Verification**
+
+- ✓ `DotNetCloud.Modules.Bookmarks.Tests` 37 passed (6 asset tests, 3 filter tests); `DotNetCloud.Modules.Sdk.Tests` 33; `DotNetCloud.Core.Server.Tests` 1563 passed / 2 skipped; `DotNetCloud.CLI.Tests` 240; CI solution build 0 warnings.
+- ✓ Published-host smoke test: `/`, `/widget/index.html`, `/assets/bookmarks-ui.{js,css}`, `/widget/widget.js` → 200; `/api/v1/bookmarks` → 401 with the standard envelope and `Cache-Control: no-store`.
+- ☐ Iframe rendering through the live core proxy + bridge handshake (needs a deployed server).
+
+---
+
 ## Recent Work — Track C dogfood: Example module UI plane (2026-11-08, `feature/third-party-modules`)
 
 First Track C module of `docs/THIRD_PARTY_MODULE_SANDBOX_AND_STORE_PLAN.md`. The Example module already

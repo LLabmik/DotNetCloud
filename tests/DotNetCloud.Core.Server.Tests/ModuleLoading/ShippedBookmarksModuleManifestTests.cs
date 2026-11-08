@@ -58,6 +58,25 @@ public class ShippedBookmarksModuleManifestTests
         CollectionAssert.Contains(manifest.EffectiveCapabilities.ToList(), "ISearchProvider");
     }
 
+    [TestMethod]
+    public void ShippedManifest_DeclaresItsIframeUiAndWidget()
+    {
+        var manifest = LoadManifest().Manifest;
+
+        Assert.IsNotNull(manifest);
+        Assert.IsNotNull(manifest.Ui, "the module serves its own UI from its host process (Track C)");
+        Assert.AreEqual("iframe", manifest.Ui.Type);
+        Assert.AreEqual("/", manifest.Ui.EntryPath);
+
+        var navItem = manifest.Ui.NavItems.Single();
+        Assert.AreEqual("bookmarks", navItem.Id);
+        Assert.AreEqual("/", navItem.Path);
+        Assert.AreEqual("bookmark", navItem.Icon, "icons are Material names, never emoji");
+
+        Assert.IsNotNull(manifest.Ui.Widget, "the home page keeps a Bookmarks card, now served by the module");
+        Assert.AreEqual("/widget/index.html", manifest.Ui.Widget.Path);
+    }
+
     private static ManifestValidationResult LoadManifest()
     {
         var root = FindRepositoryRoot();

@@ -41,6 +41,7 @@ Add a `ui` section to your **version 2** manifest:
 | `ui.navItems[].label` | Sidebar label. |
 | `ui.navItems[].icon` | **Google Material Icons ligature name** (`[a-z][a-z0-9_]*`) — never an emoji. If omitted or invalid, the core falls back to the module's canonical icon from `ModuleIconProvider`. |
 | `ui.navItems[].path` | Module-relative path (`/`, `/settings`). |
+| `ui.widget.path` | Optional. Module-relative path of a compact page for the Home-page widget card (for example `/widget/index.html`). Omit it and the module gets no widget. |
 
 The core registers each nav item as `<label>` → `/modules/<moduleId><path>`, and that shell page
 frames your app.
@@ -144,14 +145,28 @@ You cannot mint an assertion, and you cannot use one issued for another module.
 
 ---
 
-## 6. Widgets (first pass)
+## 6. Widgets
 
-A Home-page widget can be a framed document instead of a compiled Blazor component:
+A Home-page widget is a framed document, declared in the same `ui` block:
 
-- The core registers it with `WidgetUiRegistry.RegisterIframeWidget(moduleId, title, icon, href,
-  appPath)` — there is no manifest key for widgets yet.
+```json
+"ui": {
+  "type": "iframe",
+  "entryPath": "/",
+  "navItems": [ { "id": "receipts", "label": "Receipts", "icon": "receipt_long", "path": "/" } ],
+  "widget": { "path": "/widget/index.html" }
+}
+```
+
+- The core registers the card with `WidgetUiRegistry.RegisterIframeWidget(...)`, using the module's
+  name, canonical icon and shell path as the card's **Open** target.
 - The frame is rendered by `ModuleWidgetFrame` and uses the same protocol with `role: "widget"`, so
   `dnc:resize` is honoured (the card grows to your reported height) and notifications work.
+- The widget path is usually a **separate, compact page**, not your full app — a sidebar layout in a
+  small card is unusable. Bookmarks ships `/widget/index.html` alongside its app at `/`.
+- Removing the `ui.widget` block on the next refresh unregisters the card; the shell never guesses a
+  path.
+- A widget frame has the same opaque origin and the same relative-path rule as the app frame.
 
 ---
 

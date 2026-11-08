@@ -33,7 +33,6 @@ using DotNetCloud.Modules.Music.Data;
 using DotNetCloud.Modules.Photos.Data;
 using DotNetCloud.Modules.Video.Data;
 using DotNetCloud.Modules.AI.Data;
-using DotNetCloud.Modules.Bookmarks.Data;
 using DotNetCloud.Modules.Chat.Data;
 using DotNetCloud.Modules.Chat.Data.Services;
 using DotNetCloud.Modules.Chat.Services;
@@ -740,15 +739,6 @@ public class Program
             })
             .AddHttpMessageHandler<DotNetCloud.Core.Server.Middleware.CookieForwardingHandler>();
 
-        // Bookmarks API client for the Blazor BookmarksPage component.
-        builder.Services.AddHttpClient<DotNetCloud.Modules.Bookmarks.Services.IBookmarksApiClient, DotNetCloud.Modules.Bookmarks.Services.BookmarksApiClient>(client =>
-            client.BaseAddress = new Uri($"https://localhost:{httpsPort}"))
-            .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
-            {
-                ServerCertificateCustomValidationCallback = AcceptLoopbackCertificate
-            })
-            .AddHttpMessageHandler<DotNetCloud.Core.Server.Middleware.CookieForwardingHandler>();
-
         // Email API client for the Blazor EmailPage component.
         builder.Services.AddHttpClient<DotNetCloud.Modules.Email.Services.IEmailApiClient, DotNetCloud.Modules.Email.Services.EmailApiClient>(client =>
             client.BaseAddress = new Uri($"https://localhost:{httpsPort}"))
@@ -1121,7 +1111,6 @@ public class Program
                 typeof(DotNetCloud.Modules.Contacts.UI.ContactsPage).Assembly,
                 typeof(DotNetCloud.Modules.Tracks.UI.TracksPage).Assembly,
                 typeof(DotNetCloud.Modules.Files.UI.FileBrowser).Assembly,
-                typeof(DotNetCloud.Modules.Bookmarks.UI.BookmarksPage).Assembly,
                 typeof(DotNetCloud.Modules.Email.UI.EmailPage).Assembly,
                 typeof(DotNetCloud.Modules.About.UI.AboutPage).Assembly);
     }

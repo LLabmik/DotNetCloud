@@ -16,7 +16,7 @@ public sealed class BookmarksModuleManifest : IModuleManifest
     public string Name => "Bookmarks";
 
     /// <inheritdoc />
-    public string Version => "1.1.0";
+    public string Version => "1.2.0";
 
     /// <inheritdoc />
     public IReadOnlyCollection<string> RequiredCapabilities => new[]

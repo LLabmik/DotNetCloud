@@ -29,6 +29,21 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- The packaged manifest is asserted directly, so the test reads the file that ships in the .dncpkg. -->
+    <None Include="..\..\src\Modules\Bookmarks\manifest.json" Link="manifest.json" CopyToOutputDirectory="PreserveNewest" />
+
+    <!-- The module-hosted UI assets (phase A5) are asserted for relative references and safe DOM use. -->
+    <None Include="..\..\src\Modules\Bookmarks\DotNetCloud.Modules.Bookmarks.Host\wwwroot\index.html" Link="ui\index.html" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\src\Modules\Bookmarks\DotNetCloud.Modules.Bookmarks.Host\wwwroot\assets\bookmarks-ui.js" Link="ui\assets\bookmarks-ui.js" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\src\Modules\Bookmarks\DotNetCloud.Modules.Bookmarks.Host\wwwroot\assets\bookmarks-ui.css" Link="ui\assets\bookmarks-ui.css" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\src\Modules\Bookmarks\DotNetCloud.Modules.Bookmarks.Host\wwwroot\widget\index.html" Link="ui\widget\index.html" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\src\Modules\Bookmarks\DotNetCloud.Modules.Bookmarks.Host\wwwroot\widget\widget.js" Link="ui\widget\widget.js" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\src\Modules\Bookmarks\DotNetCloud.Modules.Bookmarks.Host\wwwroot\widget\widget.css" Link="ui\widget\widget.css" CopyToOutputDirectory="PreserveNewest" />
+    <!-- The bridge is the SDK's single copy of the UI protocol; the host copies it at build time. -->
+    <None Include="..\..\src\SDK\DotNetCloud.Modules.Sdk\wwwroot\dncModuleBridge.js" Link="ui\dncModuleBridge.js" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
     <Using Include="Microsoft.VisualStudio.TestTools.UnitTesting" />
   </ItemGroup>
 

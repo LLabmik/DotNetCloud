@@ -99,14 +99,6 @@ internal sealed class ModuleUiRegistrationHostedService : BackgroundService
             RouteKey: "ai.page",
             ComponentType: typeof(DotNetCloud.Modules.AI.UI.AiChatPage)),
         new(
-            ModuleId: "dotnetcloud.bookmarks",
-            Label: "Bookmarks",
-            Href: "/apps/bookmarks",
-            Icon: ModuleIconProvider.GetIcon("dotnetcloud.bookmarks"),
-            SortOrder: 110,
-            RouteKey: "bookmarks.page",
-            ComponentType: typeof(DotNetCloud.Modules.Bookmarks.UI.BookmarksPage)),
-        new(
             ModuleId: "dotnetcloud.email",
             Label: "Email",
             Href: "/apps/email",

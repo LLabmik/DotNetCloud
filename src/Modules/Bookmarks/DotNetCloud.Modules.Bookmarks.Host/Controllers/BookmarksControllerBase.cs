@@ -18,6 +18,7 @@ namespace DotNetCloud.Modules.Bookmarks.Host.Controllers;
 /// answered with 401 rather than being treated as anonymous.
 /// </remarks>
 [ApiController]
+[ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
 public abstract class BookmarksControllerBase : ControllerBase
 {
     /// <summary>

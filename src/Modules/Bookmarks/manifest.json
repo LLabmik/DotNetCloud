@@ -2,7 +2,7 @@
     "manifestVersion": 2,
     "id": "dotnetcloud.bookmarks",
     "name": "Bookmarks",
-    "version": "1.1.0",
+    "version": "1.2.0",
     "description": "Bookmark management with folders, previews, import/export, and full-text search.",
     "publisher": {
         "id": "dotnetcloud",
@@ -33,5 +33,20 @@
             "BookmarkDeletedEvent"
         ],
         "subscribes": []
+    },
+    "ui": {
+        "type": "iframe",
+        "entryPath": "/",
+        "navItems": [
+            {
+                "id": "bookmarks",
+                "label": "Bookmarks",
+                "icon": "bookmark",
+                "path": "/"
+            }
+        ],
+        "widget": {
+            "path": "/widget/index.html"
+        }
     }
 }

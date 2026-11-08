@@ -150,6 +150,12 @@ public static partial class ModuleManifestReader
                     errors.Add("ui.navItems entries need an id, a label and a Material icon name.");
                 }
             }
+
+            if (manifest.Ui.Widget is { } widget
+                && (string.IsNullOrWhiteSpace(widget.Path) || !widget.Path.StartsWith('/')))
+            {
+                errors.Add("ui.widget.path must be a site-relative path starting with '/'.");
+            }
         }
 
         foreach (var (name, value) in new (string, int?)[]

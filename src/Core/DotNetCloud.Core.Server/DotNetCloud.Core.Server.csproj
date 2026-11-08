@@ -90,9 +90,6 @@
     <ProjectReference Include="..\..\Modules\AI\DotNetCloud.Modules.AI\DotNetCloud.Modules.AI.csproj" />
     <ProjectReference Include="..\..\Modules\AI\DotNetCloud.Modules.AI.Data\DotNetCloud.Modules.AI.Data.csproj" />
     <ProjectReference Include="..\..\Modules\AI\DotNetCloud.Modules.AI.Data.SqlServer\DotNetCloud.Modules.AI.Data.SqlServer.csproj" />
-    <ProjectReference Include="..\..\Modules\Bookmarks\DotNetCloud.Modules.Bookmarks\DotNetCloud.Modules.Bookmarks.csproj" />
-    <ProjectReference Include="..\..\Modules\Bookmarks\DotNetCloud.Modules.Bookmarks.Data\DotNetCloud.Modules.Bookmarks.Data.csproj" />
-    <ProjectReference Include="..\..\Modules\Bookmarks\DotNetCloud.Modules.Bookmarks.Data.SqlServer\DotNetCloud.Modules.Bookmarks.Data.SqlServer.csproj" />
     <ProjectReference Include="..\..\Modules\Email\DotNetCloud.Modules.Email\DotNetCloud.Modules.Email.csproj" />
     <ProjectReference Include="..\..\Modules\Email\DotNetCloud.Modules.Email.Data\DotNetCloud.Modules.Email.Data.csproj" />
     <ProjectReference Include="..\..\Modules\Email\DotNetCloud.Modules.Email.Data.SqlServer\DotNetCloud.Modules.Email.Data.SqlServer.csproj" />
@@ -112,7 +109,6 @@
     <ProjectReference Include="..\..\Modules\Music\DotNetCloud.Modules.Music.Widget\DotNetCloud.Modules.Music.Widget.csproj" />
     <ProjectReference Include="..\..\Modules\Video\DotNetCloud.Modules.Video.Widget\DotNetCloud.Modules.Video.Widget.csproj" />
     <ProjectReference Include="..\..\Modules\AI\DotNetCloud.Modules.AI.Widget\DotNetCloud.Modules.AI.Widget.csproj" />
-    <ProjectReference Include="..\..\Modules\Bookmarks\DotNetCloud.Modules.Bookmarks.Widget\DotNetCloud.Modules.Bookmarks.Widget.csproj" />
     <ProjectReference Include="..\..\Modules\Email\DotNetCloud.Modules.Email.Widget\DotNetCloud.Modules.Email.Widget.csproj" />
     <ProjectReference Include="..\..\UI\DotNetCloud.UI.Web\DotNetCloud.UI.Web.csproj" />
     <ProjectReference Include="..\..\UI\DotNetCloud.UI.Web.Client\DotNetCloud.UI.Web.Client.csproj" />

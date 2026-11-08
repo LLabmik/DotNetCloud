@@ -140,6 +140,42 @@ public class ModuleAppRegistrationHostedServiceTests
     }
 
     [TestMethod]
+    public async Task RefreshAsync_ModuleWithWidget_RegistersAnIframeWidgetCard()
+    {
+        SeedInstalled(IframeModule, "Enabled");
+        DeclareUi(
+            IframeModule,
+            navItems: [("open", "Receipts", "receipt_long", "/")],
+            widgetPath: "/widget/index.html");
+
+        await CreateService().RefreshAsync(CancellationToken.None);
+
+        var widget = _widgetRegistry.Widgets.Single(w => w.ModuleId == IframeModule);
+        Assert.IsTrue(widget.IsIframe, "a manifest widget is a sandboxed frame, not a Blazor component");
+        Assert.AreEqual("/widget/index.html", widget.IframePath);
+        Assert.AreEqual($"/modules/{IframeModule}", widget.Href, "the card's open link is the module's app shell");
+    }
+
+    [TestMethod]
+    public async Task RefreshAsync_ModuleDropsItsWidget_UnregistersTheCard()
+    {
+        SeedInstalled(IframeModule, "Enabled");
+        DeclareUi(
+            IframeModule,
+            navItems: [("open", "Receipts", "receipt_long", "/")],
+            widgetPath: "/widget/index.html");
+
+        var service = CreateService();
+        await service.RefreshAsync(CancellationToken.None);
+        Assert.AreEqual(1, _widgetRegistry.Widgets.Count);
+
+        DeclareUi(IframeModule, navItems: [("open", "Receipts", "receipt_long", "/")]);
+        await service.RefreshAsync(CancellationToken.None);
+
+        Assert.AreEqual(0, _widgetRegistry.Widgets.Count, "a removed ui.widget block must not leave a stale card");
+    }
+
+    [TestMethod]
     public async Task RefreshAsync_ModuleWithoutUi_IsNotRegistered()
     {
         SeedInstalled(IframeModule, "Enabled");
@@ -234,7 +270,10 @@ public class ModuleAppRegistrationHostedServiceTests
         db.SaveChanges();
     }
 
-    private void DeclareUi(string moduleId, (string Id, string Label, string? Icon, string Path)[] navItems) =>
+    private void DeclareUi(
+        string moduleId,
+        (string Id, string Label, string? Icon, string Path)[] navItems,
+        string? widgetPath = null) =>
         _manifests.Record(moduleId, new ModuleManifestData
         {
             Id = moduleId,
@@ -254,6 +293,7 @@ public class ModuleAppRegistrationHostedServiceTests
                         Path = item.Path,
                     })
                     .ToList(),
+                Widget = widgetPath is null ? null : new ManifestWidget { Path = widgetPath },
             },
         });
 }

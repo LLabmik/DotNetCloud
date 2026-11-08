@@ -5,6 +5,7 @@ using DotNetCloud.Core.Grpc;
 using DotNetCloud.Core.Security;
 using DotNetCloud.Modules.Bookmarks;
 using DotNetCloud.Modules.Bookmarks.Data;
+using DotNetCloud.Modules.Bookmarks.Host.Controllers;
 using DotNetCloud.Modules.Bookmarks.Host.Services;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
 using Microsoft.EntityFrameworkCore;
@@ -105,7 +106,9 @@ builder.Services.AddBookmarksServices(builder.Configuration);
 // gRPC
 builder.Services.AddGrpc(options =>
     options.Interceptors.Add<DotNetCloud.Core.Grpc.ModulePeerAuthenticationInterceptor>());
-builder.Services.AddControllers();
+builder.Services.AddControllers(options =>
+    // A request without a verified assertion must be a 401, never a 500 (see the filter's remarks).
+    options.Filters.Add<BookmarksExceptionFilter>());
 builder.Services.AddHealthChecks()
     .AddCheck<BookmarksHealthCheck>("bookmarks_module");
 
@@ -161,6 +164,12 @@ if (app.Environment.IsDevelopment())
     app.UseDeveloperExceptionPage();
 }
 
+// Serve this module's own web UI (phase A5). The core frames /apps/dotnetcloud.bookmarks/ and
+// proxies it here, so the page and its assets are plain static files of this host — index.html is
+// the default document, and every reference in it is relative because the proxy strips the prefix.
+app.UseDefaultFiles();
+app.UseStaticFiles();
+
 // Map gRPC services
 app.MapGrpcService<BookmarksGrpcService>();
 app.MapGrpcService<BookmarksLifecycleService>();
@@ -181,7 +190,7 @@ app.MapHealthChecks("/health");
 app.MapGet("/api/info", () => Results.Ok(new
 {
     module = "dotnetcloud.bookmarks",
-    version = "1.1.0",
+    version = "1.2.0",
     status = "running"
 }));
 

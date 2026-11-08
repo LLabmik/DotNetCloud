@@ -28,7 +28,6 @@
     <ProjectReference Include="..\..\Core\DotNetCloud.Core.ServiceDefaults\DotNetCloud.Core.ServiceDefaults.csproj" />
 
     <ProjectReference Include="..\..\Modules\AI\DotNetCloud.Modules.AI.Data.SqlServer\DotNetCloud.Modules.AI.Data.SqlServer.csproj" />
-    <ProjectReference Include="..\..\Modules\Bookmarks\DotNetCloud.Modules.Bookmarks.Data.SqlServer\DotNetCloud.Modules.Bookmarks.Data.SqlServer.csproj" />
     <ProjectReference Include="..\..\Modules\Calendar\DotNetCloud.Modules.Calendar.Data.SqlServer\DotNetCloud.Modules.Calendar.Data.SqlServer.csproj" />
     <ProjectReference Include="..\..\Modules\Chat\DotNetCloud.Modules.Chat.Data.SqlServer\DotNetCloud.Modules.Chat.Data.SqlServer.csproj" />
     <ProjectReference Include="..\..\Modules\Contacts\DotNetCloud.Modules.Contacts.Data.SqlServer\DotNetCloud.Modules.Contacts.Data.SqlServer.csproj" />

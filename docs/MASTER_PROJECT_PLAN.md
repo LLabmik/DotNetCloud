@@ -1830,6 +1830,28 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 
 ---
 
+### Step: third-party-module-track-c-bookmarks-ui-2026-11-08 - Track C (dogfood) — Bookmarks module UI plane, iframe widget key, decoupling
+
+**Status:** completed ✅
+**Description:** Second Track C module. Bookmarks already owned its data store (schema-neutral migrations, adoption, erasure); this step moves its UI out of the core: the module serves a full app from its own process, declares a Home-page widget so the feature is not lost, and the core keeps no code or project reference to it.
+**Deliverables:**
+
+- ✓ Module-hosted app in `DotNetCloud.Modules.Bookmarks.Host/wwwroot` (`index.html`, `assets/bookmarks-ui.{js,css}`): sidebar (views, folders, tools), grid/list toggle, search, detail view with preview fetch, bookmark and folder forms, import and export, in-frame help. Served by `UseDefaultFiles`/`UseStaticFiles`; every asset and API reference is relative to `/apps/dotnetcloud.bookmarks/`.
+- ✓ The page talks to the module's **existing** REST API (`api/v1/bookmarks…`) with no new endpoints; the acting user still comes from `IModuleUserAssertionAccessor`. DOM is built with `textContent`/`createElement` only (bookmark titles, URLs, notes and preview text are user data).
+- ✓ Export opens `api/v1/bookmarks/export` in a core-controlled tab through `dncModuleBridge.openExternal` — a sandboxed frame cannot download, and the top-level navigation carries the session cookie the proxy needs.
+- ✓ **New manifest key `ui.widget.path`** (core `ManifestUi.Widget`, SDK `ModuleUi.Widget`, validated in both loaders) so a module can contribute a sandboxed Home-page card; `ModuleAppRegistrationHostedService` registers it with `WidgetUiRegistry.RegisterIframeWidget` and unregisters it when the block disappears. Bookmarks ships `wwwroot/widget/index.html` (five most recent bookmarks, `role: "widget"` height reporting).
+- ✓ Manifest v2 gains `ui` (`iframe`, entry `/`, nav icon `bookmark`) plus `ui.widget`, version bumped to `1.2.0` (packaged manifest, code manifest and `/api/info` agree).
+- ✓ Decoupled: `DotNetCloud.Core.Server` drops the module's library, `.Data`, `.Data.SqlServer` and `.Widget` references (the gRPC search client keeps using the proto, which stays); `DotNetCloud.UI.Web` drops the library reference; the CLI drops an unused `.Data.SqlServer` reference; the `ModuleUiRegistrationHostedService`, `WidgetUiRegistrationHostedService` and `AddAdditionalAssemblies` entries are gone; the module's `UI/` and `Widget/` projects, the `/apps/bookmarks` shell page and `BookmarksHelp.razor` are deleted; the library is a plain `Microsoft.NET.Sdk` class library with no Razor SDK, no ASP.NET Core framework reference and no `UI.Shared` dependency.
+- ✓ `BookmarksControllerBase` gained `[ResponseCache(NoStore = true)]` (per-user JSON) and a `BookmarksExceptionFilter` that maps domain exceptions for actions which do not catch them, so an unauthenticated call is **401**, not 500.
+- ✓ Tests: `BookmarksUiAssetsTests` (6 — relative references, no HTML-injection sinks, relative API paths, the declared widget document exists, bridge shipped), `BookmarksExceptionFilterTests` (3), two `ModuleAppRegistrationHostedService` widget tests (registered with the shell path, removed when the block disappears), `ShippedBookmarksModuleManifestTests` UI/widget assertions, and two SDK reader tests for `ui.widget`.
+- ✓ Runtime smoke test of the published host: `/`, `/widget/index.html`, `/assets/bookmarks-ui.{js,css}`, `/widget/widget.js` → 200 with correct content types; `/api/v1/bookmarks` and `/api/v1/bookmarks/folders` → **401** with the standard error envelope and `Cache-Control: no-store`.
+
+**Dependencies:** `third-party-module-track-c-example-2026-11-08`
+**Blocking Issues:** None
+**Notes:** The smoke test caught a real defect: the previous data-plane slice made `GetAuthenticatedCaller()` throw `UnauthorizedAccessException`, but no action translated it, so every unauthenticated API call answered 500. The filter also covers `NotFoundException`, `ForbiddenException` and `Core.Errors.InvalidOperationException`. Iframe rendering through the live core proxy still needs a deployed server. Next Track C module: Email.
+
+---
+
 ## Phase 2: Chat & Notifications & Android
 
 **STATUS:** ✅ COMPLETED (13/13 sub-phases)
