@@ -1810,6 +1810,26 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 
 ---
 
+### Step: third-party-module-track-c-example-2026-11-08 - Track C (dogfood) — Example module UI plane, consent scopes, decoupling
+
+**Status:** completed ✅
+**Description:** First Track C module of `docs/THIRD_PARTY_MODULE_SANDBOX_AND_STORE_PLAN.md`. The Example module already ran sandboxed with an isolated data store; this step completes its dogfooding contract: it now serves its own UI from its own process (phase A5 plane), declares the consent scopes its capabilities expose, and no longer has any code or project reference inside the core.
+**Deliverables:**
+
+- ✓ Module-hosted UI in `DotNetCloud.Modules.Example.Host/wwwroot` (`index.html`, `assets/example-ui.{js,css}`) served by `UseDefaultFiles`/`UseStaticFiles`; framed by the core at `/apps/dotnetcloud.example/`. All asset and API references are **relative** (the proxy strips the prefix, absolute paths would leave the module).
+- ✓ The SDK's `dncModuleBridge.js` is copied from `src/SDK/DotNetCloud.Modules.Sdk/wwwroot` at build time — one copy of the protocol in the repository, no npm.
+- ✓ `ExampleNotesService` (scoped, ownership-filtered) + assertion-authenticated JSON API `GET/POST /api/notes`, `DELETE /api/notes/{id}`; the acting user comes only from `IModuleUserAssertionAccessor`, another user's note answers 404, `Cache-Control: no-store`, audit written through `IDncModuleApi`.
+- ✓ Manifest v2 gains `ui` (`iframe`, entry `/`, nav icon `note`) and `userConsentScopes: ["notifications:send"]`, satisfying the F18 capability→scope rule; version bumped to `1.1.0`. Least privilege applied: `IStorageProvider`/`files:read` dropped (never used), and note creation now sends a real notification through `IDncModuleApi`.
+- ✓ Decoupled: `DotNetCloud.UI.Web` no longer references the Example module, `ExampleHelp.razor` is deleted, the module's in-core Blazor page components are removed, and the module library is a plain `Microsoft.NET.Sdk` class library (no `UI.Shared`, no ASP.NET Core framework reference).
+- ✓ Tests: `ExampleNotesServiceTests` (10 — cross-user isolation, ordering, validation, ownership on delete), `ExampleUiAssetsTests` (6 — relative references, no HTML-injection sinks, bridge shipped), `ShippedExampleModuleManifestTests` in `Core.Server.Tests` (4 — the shipped manifest through the real v2 loader), plus UI/consent assertions on the packaged `manifest.json`.
+- ✓ Runtime smoke test of the published host: `/` → `200 text/html`, `/dncModuleBridge.js` and `/assets/example-ui.js` → 200, `/api/info` → 200, `/api/notes` → 401 without an assertion and 401 with a forged one.
+
+**Dependencies:** `third-party-module-sandbox-a2-2026-11-07`
+**Blocking Issues:** None
+**Notes:** Found and fixed while verifying: `MapGet("/")` returned JSON and shadowed `wwwroot/index.html`, because static files skip a request whose endpoint routing already matched — the version probe moved to `/api/info`. Module UI verification through the real core proxy (iframe + handshake) needs a deployed server and is the remaining end-to-end check. Next Track C module: Bookmarks.
+
+---
+
 ## Phase 2: Chat & Notifications & Android
 
 **STATUS:** ✅ COMPLETED (13/13 sub-phases)

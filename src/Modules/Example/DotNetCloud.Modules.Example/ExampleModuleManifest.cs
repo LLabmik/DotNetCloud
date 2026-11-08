@@ -16,13 +16,13 @@ public sealed class ExampleModuleManifest : IModuleManifest
     public string Name => "Example";
 
     /// <inheritdoc />
-    public string Version => "1.0.2";
+    public string Version => "1.1.0";
 
     /// <inheritdoc />
     public IReadOnlyCollection<string> RequiredCapabilities => new[]
     {
         nameof(Core.Capabilities.INotificationService),
-        nameof(Core.Capabilities.IStorageProvider)
+        nameof(Core.Capabilities.IAuditLogger)
     };
 
     /// <inheritdoc />

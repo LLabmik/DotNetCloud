@@ -4,7 +4,7 @@
 
 ## Overview
 
-This module serves as a **complete reference implementation** for building DotNetCloud modules. It demonstrates every major integration point: module lifecycle, capability usage, event publishing/subscription, gRPC services, EF Core data access, and Blazor UI components.
+This module serves as a **complete reference implementation** for building DotNetCloud modules. It demonstrates every major integration point: module lifecycle, capability usage, event publishing/subscription, gRPC services, EF Core data access, and a **web UI served from the module's own process** and framed by the core.
 
 Use this module as a starting point when building your own modules.
 
@@ -13,30 +13,36 @@ Use this module as a starting point when building your own modules.
 ```
 src/Modules/Example/
 ├── manifest.json                              # Module manifest (filesystem discovery)
-├── DotNetCloud.Modules.Example/               # Core logic
+├── DotNetCloud.Modules.Example/               # Core logic (plain class library)
 │   ├── ExampleModule.cs                       # IModuleLifecycle implementation
 │   ├── ExampleModuleManifest.cs               # IModuleManifest implementation
 │   ├── Models/
 │   │   └── ExampleNote.cs                     # Domain model
-│   ├── Events/
-│   │   ├── NoteCreatedEvent.cs                # Domain event
-│   │   ├── NoteDeletedEvent.cs                # Domain event
-│   │   └── NoteCreatedEventHandler.cs         # Event handler
-│   └── UI/
-│       ├── ExampleNotesPage.razor             # Main page component
-│       ├── ExampleNoteForm.razor              # Create form component
-│       └── ExampleNoteDisplay.razor           # Note card component
+│   └── Events/
+│       ├── NoteCreatedEvent.cs                # Domain event
+│       ├── NoteDeletedEvent.cs                # Domain event
+│       └── NoteCreatedEventHandler.cs         # Event handler
 ├── DotNetCloud.Modules.Example.Data/          # Data access layer
 │   ├── ExampleDbContext.cs                    # Module-specific DbContext
 │   └── Configuration/
 │       └── ExampleNoteConfiguration.cs        # EF Core entity configuration
-└── DotNetCloud.Modules.Example.Host/          # gRPC host process
+└── DotNetCloud.Modules.Example.Host/          # Host process (gRPC + its own web UI)
     ├── Program.cs                             # Entry point
+    ├── wwwroot/                               # The module's own UI (served by this process)
+    │   ├── index.html                         # Notes page (also the help panel)
+    │   ├── dncModuleBridge.js                 # Copied from the SDK at build time
+    │   └── assets/
+    │       ├── example-ui.js                  # Calls this module's own JSON API
+    │       └── example-ui.css
     ├── Protos/
     │   └── example_service.proto              # gRPC service definition
+    ├── Ui/
+    │   └── ExampleNotesApi.cs                 # JSON API behind the UI (/api/notes)
     └── Services/
         ├── ExampleGrpcService.cs              # gRPC CRUD service
         ├── ExampleLifecycleService.cs         # Lifecycle gRPC service
+        ├── ExampleNotesService.cs             # Notes logic (owner-scoped)
+        ├── ExampleUserErasureHandler.cs       # Account erasure (F12)
         └── ExampleHealthCheck.cs              # ASP.NET health check
 ```
 
@@ -51,11 +57,11 @@ public sealed class ExampleModuleManifest : IModuleManifest
 {
     public string Id => "dotnetcloud.example";
     public string Name => "Example";
-    public string Version => "1.0.0";
+    public string Version => "1.1.0";
     public IReadOnlyCollection<string> RequiredCapabilities => new[]
     {
         nameof(INotificationService),
-        nameof(IStorageProvider)
+        nameof(IAuditLogger)
     };
     public IReadOnlyCollection<string> PublishedEvents => new[]
     {
@@ -95,24 +101,30 @@ Events follow these conventions:
 - Self-managed schema with `HasDefaultSchema` for table isolation
 - Standard EF Core entity configuration with fluent API
 
-### 6. Blazor UI (`UI/`)
+### 6. Module-hosted web UI (`Host/wwwroot` + `Host/Ui`)
 
-- Self-contained Razor components in the module assembly
-- Loaded dynamically by the core web shell's module plugin system
+- The module serves its **own** web UI from its own process (`UseDefaultFiles` + `UseStaticFiles`); the core reverse-proxies it at `/apps/dotnetcloud.example/` and frames it with `sandbox="allow-scripts allow-forms allow-popups"` (no `allow-same-origin`).
+- `manifest.json` declares `ui.type = "iframe"`, `ui.entryPath = "/"` and a Material-icon nav entry, so the shell registers the module without a line of core code.
+- Every asset and API reference in `index.html` / `example-ui.js` is **relative**. The proxy strips `/apps/<moduleId>` before forwarding, so an absolute `/assets/...` would leave the module and hit a core route.
+- `dncModuleBridge.js` comes from the SDK (`src/SDK/DotNetCloud.Modules.Sdk/wwwroot`) and is copied into `wwwroot` at build time — no npm, no bundler. It provides the `dnc:init`/`theme`/`ready`/`title`/`notify` handshake.
+- The frame has an **opaque origin**: no cookies, no `localStorage`, no `window.top`. State lives in the module; identity arrives as the core-signed `dnc-user-assertion` that the proxy mints for the signed-in user.
+- The UI calls this module's own JSON API (`GET/POST /api/notes`, `DELETE /api/notes/{id}`). The owner is always the verified assertion user — never a payload field — and another user's note answers `404`.
+
+See `docs/modules/MODULE_UI_HOSTING.md` for the full contract.
 
 ## Database Schema Management
 
 The Example module uses a **self-managed schema** pattern, which is the correct approach for all third-party modules. The module owns its database schema and migrations, independent of the DotNetCloud core.
 
-### `schemaProvider: "self"`
+### No `schemaProvider` field
 
-The `manifest.json` declares `"schemaProvider": "self"`, which tells the core server: **"this module manages its own database schema — do not try to migrate it."** The core will skip this module during its schema management and will not attempt to create or migrate tables for it.
+The old `schemaProvider: "self"` field was removed from the manifest format (decision D5): schema mode is now derived from whether the module is required — required modules are migrated by the core into the shared `core` schema, every non-required module owns its own provisioned schema and self-migrates. There is nothing for the module to declare.
 
 Optional (third-party) modules should always use `"schemaProvider": "self"`. Required modules (files, chat, search) share the `core` schema and are migrated by the core server.
 
-### `ITableNamingStrategy` and Schema Naming
+### `ITableNamingStrategy`
 
-The `ExampleDbContext` injects `ITableNamingStrategy` and calls `HasDefaultSchema`:
+The `ExampleDbContext` injects `ITableNamingStrategy` for provider-appropriate **table** naming and for the sequential-Guid column defaults:
 
 ```csharp
 public ExampleDbContext(DbContextOptions<ExampleDbContext> options, ITableNamingStrategy namingStrategy)
@@ -123,12 +135,12 @@ public ExampleDbContext(DbContextOptions<ExampleDbContext> options, ITableNaming
 
 protected override void OnModelCreating(ModelBuilder modelBuilder)
 {
-    modelBuilder.HasDefaultSchema(_namingStrategy.GetSchemaForModule("example"));
-    // ...
+    modelBuilder.ApplyConfiguration(new ExampleNoteConfiguration());
+    SequentialGuidConfigurationExtensions.ApplySequentialGuidDefaults(modelBuilder, _namingStrategy.Provider);
 }
 ```
 
-`GetSchemaForModule("example")` returns `"example"` — the Example module is not architecturally required, so it gets its own dedicated schema. This keeps the module's tables isolated from the core and other modules.
+Do **not** call `HasDefaultSchema(...)` here — see the sandbox rule below.
 
 ### Connection String & Database Provider
 
@@ -157,7 +169,7 @@ using (var scope = app.Services.CreateScope())
 }
 ```
 
-The migration history table is scoped to the `example` schema (`__EFMigrationsHistory` in the `example` schema) to avoid collisions with the core or other modules.
+The migration history table is **schema-neutral** too: the provisioned connection string pins `search_path` to the module's own schema, so `__EFMigrationsHistory` is created there along with the module's tables.
 
 ### Dual-Provider Migrations
 
@@ -183,15 +195,17 @@ Two design-time factories exist for the EF CLI (one per project):
 5. **Define your events** in `Events/`
 6. **Create your DbContext** in `Data/`
 7. **Implement your gRPC service** in `Host/`
-8. **Build your UI** in `UI/`
-9. **Place the compiled output** in the `modules/` directory
+8. **Build your UI** in `Host/wwwroot` and declare it in the manifest (`ui.type = "iframe"`, entry path, Material-icon nav items) — see `docs/modules/MODULE_UI_HOSTING.md`
+9. **Package it** with `dotnetcloud-pack pack` (`.dncpkg`) and install it with `dotnetcloud module install --file`
 
 ## Capabilities Used
 
-| Capability             | Tier       | Purpose                                        |
-| ---------------------- | ---------- | ---------------------------------------------- |
-| `INotificationService` | Public     | Send user notifications when notes are created |
-| `IStorageProvider`     | Restricted | Store note attachments (future)                |
+| Capability             | Tier      | Purpose                                                                                                  |
+| ---------------------- | --------- | -------------------------------------------------------------------------------------------------------- |
+| `INotificationService` | Public    | Notifies the acting user when a note is created through the module UI (gated by `notifications:send` consent) |
+| `IAuditLogger`         | Public    | Writes an audit entry for each note created or deleted                                                    |
+
+Least privilege matters: an earlier revision also requested `IStorageProvider` while never touching file storage. A store submission is rejected for a capability it cannot justify, so the reference module asks only for what it uses. The matching consent scope (`notifications:send`) is declared in `userConsentScopes`; the core's F18 rule would reject a manifest that requested the capability without it.
 
 ## Events Published
 
@@ -213,6 +227,17 @@ dotnet run --project src/Modules/Example/DotNetCloud.Modules.Example.Host
 ```
 
 If the database configuration is missing, the host throws `InvalidOperationException` at startup instead of booting with an empty in-memory database. The module self-migrates its schema on startup.
+
+When it is running, the host serves:
+
+| Path                | What it is                                                                 |
+| ------------------- | -------------------------------------------------------------------------- |
+| `/`                 | The module's own UI (`wwwroot/index.html`) — the document the core frames     |
+| `/assets/*`         | The UI's script and stylesheet                                              |
+| `/dncModuleBridge.js` | The SDK's UI bridge (copied at build time)                                |
+| `/api/notes`        | The UI's JSON API — **401** unless the request carries a valid core-signed `dnc-user-assertion` |
+| `/api/info`         | Liveness/version probe (the old `/` JSON probe moved here so it cannot shadow the UI document) |
+| `/health`           | Health check                                                                |
 
 ### Sandbox rule: keep the model and migrations schema-neutral
 

@@ -23,6 +23,18 @@
     <Protobuf Include="Protos\example_service.proto" GrpcServices="Server" />
   </ItemGroup>
 
+  <!--
+    The module-side half of the core's iframe UI plane, taken from the SDK so there is exactly one
+    copy of the protocol in the repository. It is served as a static asset of this host's wwwroot,
+    which is what an SDK consumer gets from the package's contentFiles.
+  -->
+  <ItemGroup>
+    <Content Include="..\..\..\SDK\DotNetCloud.Modules.Sdk\wwwroot\dncModuleBridge.js"
+             Link="wwwroot\dncModuleBridge.js"
+             CopyToOutputDirectory="PreserveNewest"
+             CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
+
   <ItemGroup>
     <ProjectReference Include="..\DotNetCloud.Modules.Example\DotNetCloud.Modules.Example.csproj" />
     <ProjectReference Include="..\DotNetCloud.Modules.Example.Data\DotNetCloud.Modules.Example.Data.csproj" />

@@ -5,6 +5,10 @@ How a (non-required) DotNetCloud module ships its own web UI, and how the core f
 > Required modules are the exception: they are part of the core and their Blazor pages live inside
 > the core process. A manifest for a required module must not declare a `ui` block — the validator
 > rejects it.
+>
+> **Reference implementation:** `src/Modules/Example` — `manifest.json` (`ui` block, consent scopes),
+> `DotNetCloud.Modules.Example.Host/wwwroot` (the page and the bridge) and `Host/Ui/ExampleNotesApi.cs`
+> (the assertion-authenticated JSON API the page calls).
 
 ---
 
@@ -52,9 +56,11 @@ frames your app.
 
 Consequences:
 
-- **Your absolute paths keep working.** Because the prefix is stripped, `/assets/app.js` in your
-  markup resolves correctly — the browser requests `/apps/<moduleId>/assets/app.js`, and your process
-  sees `/assets/app.js`.
+- **Reference every asset relatively.** The core serves your document at `/apps/<moduleId>/`, so
+  `assets/app.js` resolves to `/apps/<moduleId>/assets/app.js` and your process sees `/assets/app.js`.
+  A leading-slash path (`/assets/app.js`) is **not** rewritten by the browser or by the proxy: it
+  leaves your module and hits a core route (404 at best, a core endpoint at worst). Same rule for
+  your own API calls (`api/notes`, not `/api/notes`) — the core has `/api/...` routes of its own.
 - **Never hard-code `/apps/<moduleId>`** in your own links. Use relative paths (`./settings`) or read
   `window.location.pathname` (which already includes the prefix).
 - Your listener is whatever Kestrel endpoint the supervisor assigned (a Unix socket by default, phase

@@ -3,6 +3,7 @@ using DotNetCloud.Core.Grpc;
 using DotNetCloud.Modules.Example;
 using DotNetCloud.Modules.Example.Data;
 using DotNetCloud.Modules.Example.Host.Services;
+using DotNetCloud.Modules.Example.Host.Ui;
 using DotNetCloud.Modules.Sdk;
 using DotNetCloud.Modules.Sdk.Api;
 using DotNetCloud.Modules.Sdk.Testing;
@@ -55,6 +56,9 @@ public static partial class Program
 
         // Register the Example module as a singleton for lifecycle management
         builder.Services.AddSingleton<ExampleModule>();
+
+        // The notes logic behind the module's own web UI (scoped: it uses the request-scoped DbContext).
+        builder.Services.AddScoped<ExampleNotesService>();
 
         // Register EF Core with the configured database provider (no in-memory fallback).
         // Sandboxed hosts get a scoped connection string from the supervisor and the engine name
@@ -141,10 +145,19 @@ public static partial class Program
         // handler is materialized before the first call arrives.
         builder.Services.AddModuleUserErasureHandler<ExampleUserErasureHandler>();
 
+        // Resolves the verified end user of a proxied UI request from the core-signed assertion.
+        // The module's own API never accepts a user id from the caller.
+        builder.Services.AddModuleUserAssertionAccessor();
+
         var app = builder.Build();
 
         // Adopt the core-signed end-user assertion before anything can call back into the core.
         app.UseModuleUserAssertion();
+
+        // The module serves its own UI. The core frames /apps/dotnetcloud.example/ and proxies it here,
+        // so these are plain static assets of this process — there is no core code involved.
+        app.UseDefaultFiles();
+        app.UseStaticFiles();
 
         // Self-migrate on startup (dataStore: "isolated" means the module owns its schema).
         // A connection string is now mandatory, so this is unconditional.
@@ -184,8 +197,15 @@ public static partial class Program
 
         app.MapGrpcService<ExampleGrpcService>();
         app.MapGrpcService<ExampleLifecycleService>();
+
+        // The JSON API the module's own UI calls (same proxied origin, assertion-authenticated).
+        app.MapExampleNotesApi();
+
         app.MapHealthChecks("/health");
-        app.MapGet("/", () => Results.Ok(new { module = "dotnetcloud.example", version = "1.0.2", status = "running" }));
+
+        // Liveness/version probe for operators. Deliberately NOT "/", which belongs to the module's
+        // own UI document (UseDefaultFiles serves wwwroot/index.html there).
+        app.MapGet("/api/info", () => Results.Ok(new { module = "dotnetcloud.example", version = "1.1.0", status = "running" }));
 
         await app.RunAsync();
     }

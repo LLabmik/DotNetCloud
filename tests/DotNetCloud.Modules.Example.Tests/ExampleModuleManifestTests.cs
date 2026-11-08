@@ -59,7 +59,7 @@ public class ExampleModuleManifestTests
         Assert.IsNotNull(capabilities);
         Assert.AreEqual(2, capabilities.Count);
         CollectionAssert.Contains(capabilities.ToList(), "INotificationService");
-        CollectionAssert.Contains(capabilities.ToList(), "IStorageProvider");
+        CollectionAssert.Contains(capabilities.ToList(), "IAuditLogger");
     }
 
     [TestMethod]

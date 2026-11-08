@@ -8,6 +8,38 @@
 
 ---
 
+## Recent Work — Track C dogfood: Example module UI plane (2026-11-08, `feature/third-party-modules`)
+
+First Track C module of `docs/THIRD_PARTY_MODULE_SANDBOX_AND_STORE_PLAN.md`. The Example module already
+ran sandboxed with an isolated data store; this slice completes its dogfooding contract.
+
+**Module-hosted UI (phase A5 plane)**
+
+- ✓ `wwwroot/index.html` + `assets/example-ui.{js,css}` served by the module's own host (`UseDefaultFiles`/`UseStaticFiles`); the core frames `/apps/dotnetcloud.example/` and proxies it.
+- ✓ All asset and API references are relative — the proxy strips `/apps/<moduleId>`, so an absolute path would leave the module.
+- ✓ `dncModuleBridge.js` copied from the SDK at build time (one copy of the protocol; no npm, no bundler).
+- ✓ JSON API `GET/POST /api/notes`, `DELETE /api/notes/{id}` behind `ExampleNotesService`; the owner is the verified `dnc-user-assertion` user (never the payload), another user's note answers 404, responses are `no-store`, audit goes through `IDncModuleApi`.
+
+**Manifest and consent**
+
+- ✓ Manifest v2 declares `ui` (`iframe`, entry `/`, Material icon `note`) and `userConsentScopes: ["notifications:send"]` — the F18 capability→scope rule holds for `INotificationService`.
+- ✓ Least privilege: `IStorageProvider` (and its `files:read` scope) removed — the module never touched file storage, and store review requires a justification per capability. Note creation now really sends a notification, exercising the capability and the consent gate.
+- ✓ Version bumped to `1.1.0` (code manifest, packaged manifest and the host's version probe agree).
+
+**Decoupling**
+
+- ✓ `DotNetCloud.UI.Web` no longer references the Example module; `ExampleHelp.razor` and the module's in-core Blazor components are deleted.
+- ✓ The module library is a plain `Microsoft.NET.Sdk` class library — no `DotNetCloud.UI.Shared`, no ASP.NET Core framework reference.
+
+**Verification**
+
+- ✓ `DotNetCloud.Modules.Example.Tests` 81 passed (10 new notes-service tests, 6 new asset tests, new manifest UI/consent assertions).
+- ✓ `ShippedExampleModuleManifestTests` in `Core.Server.Tests` loads the packaged manifest through the real v2 loader (4 passed).
+- ✓ Published-host smoke test: `/` → 200 `text/html`, bridge and script → 200, `/api/info` → 200, `/api/notes` → 401 (no assertion and forged assertion).
+- ☐ Iframe rendering through the live core proxy + bridge handshake (needs a deployed server).
+
+---
+
 ## Recent Work — Module store trust program (2026-11-08, `feature/third-party-modules`)
 
 Phase B5 of `docs/THIRD_PARTY_MODULE_SANDBOX_AND_STORE_PLAN.md`, implemented across this repository and
