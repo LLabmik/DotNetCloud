@@ -225,7 +225,7 @@ Phase B5 of `docs/THIRD_PARTY_MODULE_SANDBOX_AND_STORE_PLAN.md`, implemented acr
 **Open follow-ups**
 
 - ✓ Automatic in-product warning for an installed copy of a security-yanked version — implemented: `yankedSeverity` in the catalogue, `/admin/store` withdrawal card with **Review upgrade**, `dotnetcloud module list` warnings and `GET admin/modules/store/revocations`.
-- ☐ `www.dotnetcloud.net` store page and the B4 pre-launch gate remain open (tracked in the store plan).
+- ✓ `www.dotnetcloud.net` store page is live; the B4 pre-launch gate is **resolved as "no gate" (2026-11-09, D7)** — the store is public by design, with review + signatures + trust tiers as the controls (tracked in the store plan).
 
 ---
 
@@ -3768,6 +3768,7 @@ Plan: `docs/THIRD_PARTY_MODULE_SANDBOX_AND_STORE_PLAN.md` (phase A0). Branch `fe
   - ✓ Live end-to-end verification against `https://modules.dotnetcloud.net` (2026-11-08): `module install dotnetcloud.example --from-store --version 1.0.0` verified the index signature, the 31,376,184-byte package hash and the `dotnetcloud-official-2026` package signature, provisioned the isolated schema/principal and started the module (gRPC health 200); `module list` shows it as the only `Trust = Store` row
   - ✓ RID fallback fixed (found by that run): a portable `files/linux-x64` package now installs on a distro host (`ubuntu.24.04-x64`) via OS-family + architecture matching; 8 unit tests
 - 🔄 Phase B4 — websites (`www` + `modules`) on **self-hosted IIS (`portal6`)** — **both sites live on the release/`current` layout (2026-11-08)**: `DotNetCloud-Website` and `DotNetCloud-Modules` point at `<root>\current` junctions (`releases\20261108-081731`); Cloudflare Pages dropped (no Cloudflare account); TLS renewal is automated by Certify The Web. Remaining: the pre-launch gate choice; CI deploys deferred until chosen
+  - ✓ **Pre-launch gate decision (2026-11-09): no gate.** The store stays public — review + `store-2026` index signature + publisher signature/trust tier are the controls; an IIS IP/Domain Restrictions allow-list remains the one-config fallback. CI deploys still deferred (needs a deployment credential on the host)
   - ✓ `modules.dotnetcloud.net` is live on `portal6` (IIS 10, Let's Encrypt, `C:\inetpub\Apps\DotNetCloud-Modules`): store frontend, signed catalogue, `.dncpkg`/`.sig` served as `application/octet-stream`
   - ✓ The live catalogue is consumed by a real server end-to-end (index → signature → download → hash → package signature → provision → start), 2026-11-08
   - ✓ `deploy/sites/www/web.config` + `deploy/sites/modules/web.config` — default document, compression, cache policy (no-cache root, 60 s catalogue, 30 d icons, 365 d packages), MIME maps for `.dncpkg`/`.sig`/`.json`/webp/woff/woff2/svg, `http`→`https` and apex→`www` 301s, security headers
@@ -3779,7 +3780,8 @@ Plan: `docs/THIRD_PARTY_MODULE_SANDBOX_AND_STORE_PLAN.md` (phase A0). Branch `fe
   - ✓ `www` store page: `DotNetCloud-WebSite/modules.html` (isolation model, trust tiers, config/install/verify/rollback commands, what is published today, yanked-version note) + **Modules** nav entry and **Module Store** footer link on all six pages; verified locally in light and dark mode, and live
   - ✓ Docs/link updates: `README.md` website line names both sites; `.github/copilot-instructions.md` "Domain Information" rewritten for the two live sites (instruction-file diff pending explicit user approval)
   - ✓ Automated certificate renewal — handled by **Certify The Web** (`Certify Management Agent` service, owns `dotnetcloud.net`/`modules.dotnetcloud.net`/`llabmik.net`/`messagebase.net`), validating through its own HTTP challenge listener; current pair expires 2027-02-05. Note recorded that a webroot-based challenge would fail here (extensionless files are not served, `404.17`), so do not add a second ACME client or switch to webroot validation without testing
-  - ☐ Pre-launch gate choice
+  - ✓ First-party module packages published to the live store (2026-11-09): `dotnetcloud.ai` 2.0.0 and `dotnetcloud.bookmarks` 1.2.0 added alongside `dotnetcloud.email` 1.2.0 and `dotnetcloud.example` 1.0.0–1.0.2 (`trustTier: official`) — catalogue rebuilt and signed (`store-2026`), `validate` 6 packages OK, `verify-index` clean; site root + `current` junctions updated (index last), served `index.json`/`.sig` byte-identical to the verified local files, and both packages downloaded from the public URL pass `dotnetcloud module verify` ("signed by a trusted key `dotnetcloud-official-2026`")
+  - ✓ Pre-launch gate choice — **no gate** (2026-11-09, D7): the store is public by design; review + index/package signatures + derived trust tier are the controls
 - 🔄 Phase C — dogfood migration, **Example** module (started 2026-11-07)
   - ✓ Sandboxed host: Kestrel endpoint, module-private DataProtection keys, `module.json` topology, `DOTNETCLOUD_MODULE_DB_CONNECTION_STRING`, self-migration with retry
   - ✓ v2 manifest: publisher `dotnetcloud`, `dataStore: isolated`, `handlesUserErasure: true`, capabilities/events in v2 fields
