@@ -68,6 +68,9 @@ public partial class ModuleDetail : ComponentBase
     private bool SettingIsSecret { get; set; }
     private string? _editingSettingKey;
 
+    // Capability grant editor (store-tier modules are never granted automatically).
+    private string CapabilityToGrant { get; set; } = string.Empty;
+
     protected override async Task OnInitializedAsync()
     {
         await TimeProvider.EnsureInitializedAsync();
@@ -418,6 +421,57 @@ public partial class ModuleDetail : ComponentBase
             Toast.ShowSuccess("Setting deleted.");
         }
         finally { _actionInProgress = false; }
+    }
+
+    private async Task GrantCapabilityAsync()
+    {
+        var capability = CapabilityToGrant.Trim();
+        if (string.IsNullOrWhiteSpace(capability))
+        {
+            Toast.ShowError("Enter a capability name, for example IModuleSettings.");
+            return;
+        }
+
+        _actionInProgress = true;
+        try
+        {
+            if (!await Api.GrantModuleCapabilityAsync(ModuleId, capability))
+            {
+                Toast.ShowError("Failed to grant the capability.");
+                return;
+            }
+
+            CapabilityToGrant = string.Empty;
+            await ReloadModuleAsync();
+            Toast.ShowSuccess("Capability granted and audited.");
+        }
+        finally { _actionInProgress = false; }
+    }
+
+    private async Task RevokeCapabilityAsync(string capability)
+    {
+        _actionInProgress = true;
+        try
+        {
+            if (!await Api.RevokeModuleCapabilityAsync(ModuleId, capability))
+            {
+                Toast.ShowError("Failed to revoke the capability.");
+                return;
+            }
+
+            await ReloadModuleAsync();
+            Toast.ShowSuccess("Capability revoked.");
+        }
+        finally { _actionInProgress = false; }
+    }
+
+    private async Task ReloadModuleAsync()
+    {
+        var module = await Api.GetModuleAsync(ModuleId);
+        if (module is not null)
+        {
+            _module = module;
+        }
     }
 
     private async Task UninstallAsync()

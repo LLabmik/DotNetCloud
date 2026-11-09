@@ -27,7 +27,17 @@
   var MAX_HEIGHT = 20000;
   var NOTIFY_PER_MINUTE = 5;
 
+  // The shell applies the user's theme with the `dark-mode` class (see theme.js), not a data-theme
+  // attribute. Reading only data-theme left every module frame stuck in light mode. data-theme stays
+  // as a fallback for a host that sets the attribute instead.
   function currentTheme() {
+    if (
+      document.documentElement.classList.contains('dark-mode') ||
+      (document.body && document.body.classList.contains('dark-mode'))
+    ) {
+      return 'dark';
+    }
+
     var theme = document.documentElement.getAttribute('data-theme');
     return theme === 'dark' ? 'dark' : 'light';
   }
@@ -202,6 +212,40 @@
       frame.addEventListener('error', onError);
       window.addEventListener('message', onMessage);
 
+      // Push a theme/locale change into the frame as it happens. Nothing calls refresh() on a theme
+      // toggle, so without this observer a module keeps the theme it loaded with until it is
+      // remounted. The shell flips a class on <html>/<body> and may set lang on <html>.
+      var lastTheme = currentTheme();
+      var lastLocale = currentLocale();
+      var themeObserver = null;
+
+      function pushThemeIfChanged() {
+        if (disposed) {
+          return;
+        }
+
+        var theme = currentTheme();
+        var locale = currentLocale();
+        if (theme === lastTheme && locale === lastLocale) {
+          return;
+        }
+
+        lastTheme = theme;
+        lastLocale = locale;
+        post({ type: 'dnc:theme', theme: theme, locale: locale });
+      }
+
+      if (typeof MutationObserver === 'function') {
+        themeObserver = new MutationObserver(pushThemeIfChanged);
+        themeObserver.observe(document.documentElement, {
+          attributes: true,
+          attributeFilter: ['class', 'data-theme', 'lang']
+        });
+        if (document.body) {
+          themeObserver.observe(document.body, { attributes: true, attributeFilter: ['class'] });
+        }
+      }
+
       // A fast local module host can finish loading the frame before mount() runs. The load event
       // will then never fire again, and the frame's own dnc:ready was posted before this listener
       // existed — the shell would sit on "Starting …" forever. Sending dnc:init now makes the
@@ -210,7 +254,9 @@
 
       return {
         refresh: function () {
-          post({ type: 'dnc:theme', theme: currentTheme(), locale: currentLocale() });
+          lastTheme = currentTheme();
+          lastLocale = currentLocale();
+          post({ type: 'dnc:theme', theme: lastTheme, locale: lastLocale });
         },
 
         navigate: function (path) {
@@ -242,6 +288,10 @@
         dispose: function () {
           disposed = true;
           clearHandshake();
+          if (themeObserver !== null) {
+            themeObserver.disconnect();
+            themeObserver = null;
+          }
           frame.removeEventListener('load', onLoad);
           frame.removeEventListener('error', onError);
           window.removeEventListener('message', onMessage);

@@ -38,10 +38,10 @@ public class ShippedAiModuleManifestTests
         var manifest = LoadManifest().Manifest;
 
         Assert.IsNotNull(manifest);
-        CollectionAssert.AreEqual(
-            new[] { "IAuditLogger" },
+        CollectionAssert.AreEquivalent(
+            new[] { "IAuditLogger", "IModuleSettings" },
             manifest.EffectiveCapabilities.ToArray(),
-            "conversations live in the module's own schema and provider settings come from the settings plane");
+            "conversations live in the module's own schema; settings are read through the settings plane, which GetSetting gates on IModuleSettings");
 
         // Audit exposes no personal data, so the module asks the user for nothing.
         Assert.AreEqual(0, manifest.UserConsentScopes.Count, "the module must not over-request consent scopes");

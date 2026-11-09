@@ -128,6 +128,11 @@ internal static class SupervisorServiceExtensions
         services.AddSingleton<ModuleAdoptionService>();
         services.AddHostedService<ModuleSandboxMigrationHostedService>();
 
+        // Upgrade path for converted modules' administrator settings: copy them from SystemSettings
+        // into the module settings plane the sandboxed module actually reads, then drop the stale
+        // rows so there is one source of truth. Runs after adoption, before the supervisor.
+        services.AddHostedService<ModuleSettingsPlaneMigrationHostedService>();
+
         // Register gRPC interceptors
         services.AddSingleton<ICallerIdentityResolver, CallerIdentityResolver>();
         services.AddSingleton<AuthenticationInterceptor>();

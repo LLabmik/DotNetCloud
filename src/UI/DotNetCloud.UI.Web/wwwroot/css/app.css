@@ -469,6 +469,27 @@ a:hover {
   height: 100%;
 }
 
+/* Full-bleed module pages (the sandboxed iframe plane, phase A5).
+   A module's own markup lives inside an iframe, so none of the selectors above can see it — without
+   this rule the frame is capped at the 1400px reading width and inset by the page padding, which
+   leaves a module app using only part of the window. */
+.page-content:has(.module-app-host) {
+  padding: 0;
+  overflow: hidden;
+}
+
+.page-content:has(.module-app-host) .content-area {
+  max-width: none;
+  margin: 0;
+  height: 100%;
+}
+
+.page-content:has(.module-app-host) .module-app-host {
+  height: 100%;
+  min-height: 0;
+  border-radius: 0;
+}
+
 /* --- Page Header --- */
 .page-header {
   display: flex;

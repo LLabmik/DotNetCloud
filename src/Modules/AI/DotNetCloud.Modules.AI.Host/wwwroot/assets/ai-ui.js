@@ -107,6 +107,7 @@
       "M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z",
     copy:
       "M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z",
+    edit: "M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a.996.996 0 0 0 0-1.41l-2.34-2.34a.996.996 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z",
     check: "M9 16.17 4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z",
     assistant:
       "M20 9V7c0-1.1-.9-2-2-2h-3c0-1.66-1.34-3-3-3S9 3.34 9 5H6c-1.1 0-2 .9-2 2v2c-1.66 0-3 1.34-3 3s1.34 3 3 3v4c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2v-2c1.66 0 3-1.34 3-3s-1.34-3-3-3zM7.5 11.5c0-.83.67-1.5 1.5-1.5s1.5.67 1.5 1.5S9.83 13 9 13s-1.5-.67-1.5-1.5zM16 17H8v-2h8v2zm-.5-4c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5z",
@@ -400,13 +401,27 @@
         button.addEventListener("click", function () {
           openConversation(conversation.id);
         });
+        // Double-click still works, but it is not the only way in: the first click opens the
+        // conversation and re-renders this list, so the second click lands on a fresh element and the
+        // browser never emits dblclick. The pencil button below is the reliable affordance.
         button.addEventListener("dblclick", function (event) {
           event.preventDefault();
-          state.renamingId = conversation.id;
-          renderConversations();
+          startRenaming(conversation.id);
         });
 
         row.appendChild(button);
+
+        var rename = document.createElement("button");
+        rename.type = "button";
+        rename.className = "ai-icon-btn ai-conversation-rename";
+        rename.title = "Rename chat";
+        rename.setAttribute("aria-label", "Rename chat");
+        rename.appendChild(icon(ICONS.edit));
+        rename.addEventListener("click", function (event) {
+          event.stopPropagation();
+          startRenaming(conversation.id);
+        });
+        row.appendChild(rename);
 
         var remove = document.createElement("button");
         remove.type = "button";
@@ -477,6 +492,11 @@
       });
   }
 
+  function startRenaming(conversationId) {
+    state.renamingId = conversationId;
+    renderConversations();
+  }
+
   function openConversation(id) {
     if (state.streaming) {
       return;
@@ -501,7 +521,11 @@
           updatedAt: detail.updatedAt,
           messages: (detail.messages || []).slice(),
         };
-        renderConversations();
+        // Do not rebuild the list while a rename is being edited: that would replace the input and
+        // steal focus right after the user asked to rename.
+        if (state.renamingId === null) {
+          renderConversations();
+        }
         renderMessages();
         renderModelLabel();
         showWelcome(false);
@@ -649,11 +673,15 @@
         copyMessage(message, text, key, "html");
       });
       actions.appendChild(formattedButton);
-
-      body.appendChild(actions);
     }
 
     body.appendChild(text);
+
+    // Copy actions sit under the answer, after the text, so they do not push the message down.
+    if (message.role !== "user") {
+      body.appendChild(actions);
+    }
+
     wrapper.appendChild(body);
     return wrapper;
   }

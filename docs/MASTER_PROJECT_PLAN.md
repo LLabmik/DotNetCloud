@@ -4423,7 +4423,8 @@ The sync engine follows junction contents transparently. Caveat: deleting the ju
 
 - ✓ Schema-neutral `AiDbContext` + both provider migration sets, with a model-drift and schema-neutrality guard (`AiDbContextModelTests`) and `AiDbInitializer` baselining an adopted schema.
 - ✓ Sandboxed host: `module.json` topology, module-private DataProtection ring, scoped connection string, assertion identity (no cookie scheme), `AiExceptionFilter` 401 path, no core database access, static files for the module UI.
-- ✓ Manifest v2: isolated store, `handlesUserErasure`, capabilities narrowed to `IAuditLogger`, no consent scopes, no cross-module events, iframe app + widget, Material icon.
+- ✓ Manifest v2: isolated store, `handlesUserErasure`, capabilities narrowed to `IAuditLogger` + `IModuleSettings` (`GetSetting` is capability-gated), no consent scopes, no cross-module events, iframe app + widget, Material icon.
+- ✓ **Capabilities panel** on the module detail page (grant/revoke, audited): store-tier modules are never granted automatically, so `IModuleSettings` is approved by an administrator after install.
 - ✓ Settings moved to the module settings plane (`ModuleSettings`), encrypted secrets; the core gained `GET/PUT/DELETE api/v1/core/admin/modules/{id}/settings` and a module-detail settings panel; obsolete `SystemSettings` AI seeds removed.
 - ✓ Module-hosted UI (`index.html`, `assets/ai-ui.js|css`, `widget/*`) with a safe markdown renderer, streaming/queue/thinking/abort UI, copy actions and in-frame help.
 - ✓ `GET api/v1/ai/conversations/stats` for the widget, using the asserted user.
@@ -4431,6 +4432,7 @@ The sync engine follows junction contents transparently. Caveat: deleting the ju
 - ✓ Decoupled: no `Core.Server`/`UI.Web`/CLI project reference; Blazor UI, help page and widget project deleted; library is a plain class library.
 - ✓ `dotnetcloud.ai` 2.0.0 packs, signs and self-verifies (206 entries, both RIDs, wwwroot app + widget).
 - ✓ **Live-verified on the dev server (2026-11-09):** startup adopted the legacy `ai` schema (Active, Isolated, existing conversation preserved), 15/15 modules healthy; the signed package installed over the bundled copy (`trustTier: Store`); the host serves its UI over its socket and the API answers 401 without an assertion (`AiRequireUserAssertionFilter`, added after the live run showed `health/ollama` and `settings` were anonymously reachable).
+- ✓ **Settings migration:** `ModuleSettingsPlaneMigrator` + hosted service move a converted module's existing `SystemSettings` values into the module settings plane (no overwrite, empty skipped, credentials secret) and delete the stale rows; the live run copied 4 values and removed 7 rows, restoring the operator's `DefaultModel` and provider endpoint.
 - ☐ Browser check of the framed app and Home widget by a signed-in operator (frame, stream, copy, settings panel).
 
 **Notes:** AI is the first converted module whose settings had to move off the core `SystemSettings` table. The module settings plane is now the durable answer for every sandboxed module: an administrator writes values from the module page, the module reads them through `GetSetting`, and secret values are DataProtection-encrypted at rest. The settings panel on the module detail page is reusable for Music, Photos, Video and Tracks.

@@ -7,10 +7,11 @@ namespace DotNetCloud.Modules.AI;
 /// Declares capabilities and the (currently empty) event surface.
 /// </summary>
 /// <remarks>
-/// Audit logging is the only core capability the module reaches for: conversations live in the
-/// module's own schema, provider settings come from the module settings plane, and the module raises
-/// no cross-module events. Declaring capabilities or events the code does not use forces consent
-/// scopes a user cannot be asked to approve meaningfully, and the store review rejects it.
+/// Audit logging and the module settings plane are the only core capabilities the module reaches for:
+/// conversations live in the module's own schema, provider settings are read through <c>GetSetting</c>
+/// (gated by <c>IModuleSettings</c>), and the module raises no cross-module events. Declaring
+/// capabilities or events the code does not use forces consent scopes a user cannot be asked to
+/// approve meaningfully, and the store review rejects it.
 /// </remarks>
 public sealed class AiModuleManifest : IModuleManifest
 {
@@ -26,7 +27,8 @@ public sealed class AiModuleManifest : IModuleManifest
     /// <inheritdoc />
     public IReadOnlyCollection<string> RequiredCapabilities => new[]
     {
-        nameof(Core.Capabilities.IAuditLogger)
+        nameof(Core.Capabilities.IAuditLogger),
+        nameof(Core.Capabilities.IModuleSettings)
     };
 
     /// <inheritdoc />

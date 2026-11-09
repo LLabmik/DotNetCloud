@@ -124,8 +124,15 @@ module (`Provider`, `ApiBaseUrl`, `ApiKey`, `OrganizationId`, `DefaultModel`, `M
 `RequestTimeoutSeconds`). Tick **Secret** for the API key: the value is encrypted with the core
 DataProtection key ring and the listing shows only `Secret (set)`.
 
+The same page has a **Capabilities** panel. A module installed from a store package is never granted
+its capabilities automatically, so the settings panel only takes effect once **`IModuleSettings`** is
+granted there; the grant is audited. A bundled module is granted it from its manifest at startup.
+
 > The old **Admin → Settings** page is not used for AI any more: a sandboxed module cannot read the
 > core `SystemSettings` table, and duplicating the values there would create a second source of truth.
+> On upgrade the server copies the existing `dotnetcloud.ai` system settings into the module settings
+> plane once (credentials as secrets, without overwriting anything already set in the panel) and
+> deletes the stale rows, so the values you configured before the upgrade keep working.
 
 Changes take effect immediately after clicking **Save Settings**. Use **Reset to Defaults** to restore built-in values.
 

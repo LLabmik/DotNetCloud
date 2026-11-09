@@ -61,10 +61,10 @@ public class AiModuleTests
     [TestMethod]
     public void Manifest_DeclaresOnlyTheCapabilitiesTheModuleUses()
     {
-        // Conversations live in the module's own schema and provider settings come from the module
-        // settings plane, so audit logging is the only core capability the code reaches for.
+        // Conversations live in the module's own schema and provider settings are read through the
+        // settings plane, so audit logging and IModuleSettings are the only core capabilities used.
         CollectionAssert.AreEqual(
-            new[] { "IAuditLogger" },
+            new[] { "IAuditLogger", "IModuleSettings" },
             _module.Manifest.RequiredCapabilities.ToArray());
     }
 

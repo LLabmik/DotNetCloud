@@ -22,8 +22,9 @@ its own web UI and Home-page widget.
   in the core's **module settings plane** (`dotnetcloud.ai` namespace), written by an administrator
   from the module's admin page and read through `GetSetting` on the module API. Secret values are
   encrypted at rest by the core and are never returned to a browser.
-- **No capability over-request.** Audit logging is the only core capability the module uses.
-  Conversations never leave the module's schema, and the module publishes no cross-module events.
+- **No capability over-request.** The module declares only `IAuditLogger` and `IModuleSettings` — audit,
+  and the settings plane it reads its configuration through. Conversations never leave the module's
+  schema, and the module publishes no cross-module events.
 - **Erasure.** `AiUserErasureHandler` deletes the deleted user's conversations and messages,
   including conversations the user had soft-deleted.
 
@@ -33,7 +34,7 @@ its own web UI and Home-page widget.
 | ----- | ----- |
 | `id` | `dotnetcloud.ai` |
 | `dataStore` | `isolated` |
-| `capabilities` | `IAuditLogger` |
+| `capabilities` | `IAuditLogger`, `IModuleSettings` |
 | `userConsentScopes` | none — the module reads and writes only its own data |
 | `ui` | iframe app with a sidebar entry and a Home-page widget |
 

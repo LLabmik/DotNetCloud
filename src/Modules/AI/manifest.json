@@ -13,7 +13,7 @@
   "minCoreVersion": "0.7.0",
   "dataStore": "isolated",
   "handlesUserErasure": true,
-  "capabilities": ["IAuditLogger"],
+  "capabilities": ["IAuditLogger", "IModuleSettings"],
   "userConsentScopes": [],
   "events": {
     "publishes": [],

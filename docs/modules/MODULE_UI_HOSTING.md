@@ -76,6 +76,11 @@ Consequences:
   `window.location.pathname` (which already includes the prefix).
 - Your listener is whatever Kestrel endpoint the supervisor assigned (a Unix socket by default, phase
   A4) — you only need to serve HTTP/1.1 or HTTP/2 on it, as every module host already does.
+- **You get the whole content area.** The shell caps ordinary pages at a reading width and pads them;
+  the module page opts out (`app.css`: `.page-content:has(.module-app-host) { padding: 0 }` and
+  `max-width: none`, frame height 100%). A module that previously looked narrow on a wide window was
+  hitting that cap — the in-core full-bleed allow-list matched layout classes that live *inside* an
+  iframe and can therefore never match from the shell (found 2026-11-09).
 
 ---
 
@@ -147,6 +152,25 @@ Frame → host (rate-limited where noted):
 
 Messages larger than 8 KiB are dropped, unknown types are dropped, and messages whose source is not
 the expected window are dropped.
+
+### Theme
+
+The shell applies the user's choice by toggling the **`dark-mode` class** on `<html>` and `<body>`
+(`wwwroot/js/theme.js`) — there is no `data-theme` attribute on the shell. The host script reads that
+class (`module-app-host.js`: `currentTheme()`), sends it in `dnc:init`, and observes the class so a
+toggle pushes `dnc:theme` into every mounted frame without a remount. The bridge then sets
+`data-theme="dark|light"` on the module document's `<html>`, which is what a module stylesheet must
+key off:
+
+```css
+:root { --surface: #fff; }
+html[data-theme="dark"] { --surface: #1b1f26; }
+```
+
+Do not use `prefers-color-scheme` for this: the frame's media query follows the operating system, not
+the user's DotNetCloud setting, and a sandboxed frame has no access to the shell's preference. Reading
+only a `data-theme` attribute from the *shell* was a real defect — every module frame stayed light in
+dark mode until the host script was fixed (2026-11-09).
 
 ---
 

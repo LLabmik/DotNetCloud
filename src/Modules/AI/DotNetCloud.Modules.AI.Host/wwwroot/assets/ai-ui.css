@@ -179,13 +179,16 @@ body {
   font-size: 11.5px;
 }
 
-.ai-conversation-delete {
+.ai-conversation-delete,
+.ai-conversation-rename {
   opacity: 0;
   flex: 0 0 auto;
 }
 
 .ai-conversation:hover .ai-conversation-delete,
-.ai-conversation.is-active .ai-conversation-delete {
+.ai-conversation.is-active .ai-conversation-delete,
+.ai-conversation:hover .ai-conversation-rename,
+.ai-conversation.is-active .ai-conversation-rename {
   opacity: 1;
 }
 

@@ -494,6 +494,27 @@ public sealed class DotNetCloudApiClient
         return response.IsSuccessStatusCode;
     }
 
+    /// <summary>Grants a capability to a module (admin only). Store-tier modules are never auto-granted.</summary>
+    public async Task<bool> GrantModuleCapabilityAsync(
+        string moduleId, string capabilityName, CancellationToken ct = default)
+    {
+        var response = await _http.PostAsync(
+            $"api/v1/core/admin/modules/{Uri.EscapeDataString(moduleId)}/capabilities/{Uri.EscapeDataString(capabilityName)}/grant",
+            content: null,
+            ct);
+        return response.IsSuccessStatusCode;
+    }
+
+    /// <summary>Revokes a capability from a module (admin only).</summary>
+    public async Task<bool> RevokeModuleCapabilityAsync(
+        string moduleId, string capabilityName, CancellationToken ct = default)
+    {
+        var response = await _http.DeleteAsync(
+            $"api/v1/core/admin/modules/{Uri.EscapeDataString(moduleId)}/capabilities/{Uri.EscapeDataString(capabilityName)}",
+            ct);
+        return response.IsSuccessStatusCode;
+    }
+
     /// <summary>Gets a module's launch-credential lifecycle record (admin only).</summary>
     public async Task<ModuleCredentialDto?> GetModuleCredentialAsync(string moduleId, CancellationToken ct = default)
     {

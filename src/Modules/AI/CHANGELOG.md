@@ -24,8 +24,9 @@ Track C: the module leaves the core and runs as a sandboxed host with its own UI
   rendered by an escaping markdown renderer that only creates text nodes and a fixed element set.
 - **New REST endpoint.** `GET api/v1/ai/conversations/stats` answers the widget using the asserted
   user, replacing the old gRPC shape that took a user id from the payload.
-- **Least privilege.** The manifest declares only `IAuditLogger` and no consent scopes; the four
-  capabilities and two events the old manifest claimed were never used and are gone.
+- **Least privilege.** The manifest declares only `IAuditLogger` and `IModuleSettings` (the settings
+  plane it reads configuration through) and no consent scopes; the four capabilities and two events
+  the old manifest claimed were never used and are gone.
 - **Erasure.** `AiUserErasureHandler` deletes the user's conversations (including soft-deleted ones)
   and their messages, idempotently per request id.
 - **Decoupled.** No `Core.Server`, `UI.Web` or CLI reference remains; the in-core chat page, admin

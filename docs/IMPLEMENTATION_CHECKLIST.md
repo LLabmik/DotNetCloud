@@ -5952,7 +5952,11 @@ content-addressed chunks, so reads stream the blob directly with no temp-file re
 - ✓ **Tests:** model-drift/schema-neutrality guards, erasure matrix, UI asset guards, shipped-manifest v2 assertions, settings-store secret/list/delete tests, admin module service tests — 53 AI tests and the full CI suite green.
 - ✓ **Packaged:** `dotnetcloud.ai` 2.0.0 packs deterministically and self-verifies (`pack` → `inspect`: manifest v2, LICENSE/README/CHANGELOG, both RIDs, wwwroot app + widget + bridge).
 - ✓ **Live install (2026-11-09, dev server):** startup adopted the legacy `ai` schema (`sandboxStatus: Active`, 1 conversation preserved) and 15/15 modules reported healthy; the signed 2.0.0 package then installed over the bundled copy (`trustTier: Store`) and stayed healthy.
+- ✓ **Capabilities:** the manifest declares `IAuditLogger` + `IModuleSettings` (`GetSetting` is capability-gated); a **Capabilities** panel (grant/revoke, audited) was added to the module detail page because store-tier modules are never auto-granted.
 - ✓ **Auth gate:** `AiRequireUserAssertionFilter` requires a verified assertion on every REST action; the live API answers 401 without one (this closed a regression where `health/ollama` and `settings` were anonymous after the cookie scheme was removed).
+- ✓ **Settings migration:** `ModuleSettingsPlaneMigrator` moves a converted module's existing `SystemSettings` values into the module settings plane at startup (credentials as secrets, no overwrite, empty values skipped) and removes the stale rows; live run copied 4 values and removed 7 rows, so the operator's `DefaultModel` and provider endpoint are honoured again. Six tests.
+- ✓ **Dark mode:** module frames now follow the shell's `dark-mode` class (the host read a `data-theme` attribute the shell never sets) and a `MutationObserver` pushes `dnc:theme` live; documented in `MODULE_UI_HOSTING.md` §4 with a drift-guard test.
+- ✓ **Full-bleed module pages:** `app.css` no longer caps the module iframe at the 1400px reading width (the opt-out only matched in-core layouts, which are invisible from the shell); guarded by `ModuleAppPageLayoutTests`.
 
 ---
 
