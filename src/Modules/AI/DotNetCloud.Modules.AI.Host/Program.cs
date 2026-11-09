@@ -133,8 +133,13 @@ builder.Services.AddAiServices(builder.Configuration);
 builder.Services.AddGrpc(options =>
     options.Interceptors.Add<DotNetCloud.Core.Grpc.ModulePeerAuthenticationInterceptor>());
 builder.Services.AddControllers(options =>
+{
+    // Every action requires a verified end-user assertion: there is no cookie scheme here, and the
+    // health/settings reads are module data too (the administrator's provider and model).
+    options.Filters.Add<AiRequireUserAssertionFilter>();
     // A request without a verified assertion must be a 401, never a 500.
-    options.Filters.Add<AiExceptionFilter>());
+    options.Filters.Add<AiExceptionFilter>();
+});
 builder.Services.AddHealthChecks()
     .AddCheck<AiHealthCheck>("ai_module");
 

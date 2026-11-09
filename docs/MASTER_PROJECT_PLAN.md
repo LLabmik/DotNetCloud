@@ -4430,7 +4430,8 @@ The sync engine follows junction contents transparently. Caveat: deleting the ju
 - ✓ `AiUserErasureHandler` + erasure test matrix.
 - ✓ Decoupled: no `Core.Server`/`UI.Web`/CLI project reference; Blazor UI, help page and widget project deleted; library is a plain class library.
 - ✓ `dotnetcloud.ai` 2.0.0 packs, signs and self-verifies (206 entries, both RIDs, wwwroot app + widget).
-- ☐ Live install of 2.0.0 over a bundled deploy on a test server.
+- ✓ **Live-verified on the dev server (2026-11-09):** startup adopted the legacy `ai` schema (Active, Isolated, existing conversation preserved), 15/15 modules healthy; the signed package installed over the bundled copy (`trustTier: Store`); the host serves its UI over its socket and the API answers 401 without an assertion (`AiRequireUserAssertionFilter`, added after the live run showed `health/ollama` and `settings` were anonymously reachable).
+- ☐ Browser check of the framed app and Home widget by a signed-in operator (frame, stream, copy, settings panel).
 
 **Notes:** AI is the first converted module whose settings had to move off the core `SystemSettings` table. The module settings plane is now the durable answer for every sandboxed module: an administrator writes values from the module page, the module reads them through `GetSetting`, and secret values are DataProtection-encrypted at rest. The settings panel on the module detail page is reusable for Music, Photos, Video and Tracks.
 

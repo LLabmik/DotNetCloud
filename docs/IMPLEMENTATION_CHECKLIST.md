@@ -5951,7 +5951,8 @@ content-addressed chunks, so reads stream the blob directly with no temp-file re
 - ✓ **Decoupled:** no `Core.Server`/`UI.Web`/CLI reference remains; the Blazor chat/admin/help components and the `DotNetCloud.Modules.AI.Widget` project are deleted and the library is a plain class library.
 - ✓ **Tests:** model-drift/schema-neutrality guards, erasure matrix, UI asset guards, shipped-manifest v2 assertions, settings-store secret/list/delete tests, admin module service tests — 53 AI tests and the full CI suite green.
 - ✓ **Packaged:** `dotnetcloud.ai` 2.0.0 packs deterministically and self-verifies (`pack` → `inspect`: manifest v2, LICENSE/README/CHANGELOG, both RIDs, wwwroot app + widget + bridge).
-- ☐ Live install of 2.0.0 over a bundled deploy (needs a test server).
+- ✓ **Live install (2026-11-09, dev server):** startup adopted the legacy `ai` schema (`sandboxStatus: Active`, 1 conversation preserved) and 15/15 modules reported healthy; the signed 2.0.0 package then installed over the bundled copy (`trustTier: Store`) and stayed healthy.
+- ✓ **Auth gate:** `AiRequireUserAssertionFilter` requires a verified assertion on every REST action; the live API answers 401 without one (this closed a regression where `health/ollama` and `settings` were anonymous after the cookie scheme was removed).
 
 ---
 
