@@ -8,6 +8,46 @@
 
 ---
 
+## Recent Work — Track C: the sandboxed module UI plane, verified live (2026-11-08, `feature/third-party-modules`)
+
+Opening the converted modules for the first time found that **no sandboxed module UI could load at
+all**: the shell framed a document that then 401'd on its own CSS/JS. Four independent defects plus
+four deployment defects had to be fixed before the file-brokering flow could be exercised.
+
+**The frame cannot use the session cookie**
+
+- ✓ A frame with `sandbox` and no `allow-same-origin` has an **opaque origin**, so the browser classifies its subresource and `fetch` requests as cross-site and withholds the `SameSite=Lax` identity cookie. Only the initial document navigation carried it. Assumption recorded in `ModuleAppProxy` ("the request is same-site, so that cookie travels") was wrong.
+- ✓ New `IModuleFrameTickets` / `ModuleFrameTicketService`: a short-lived (15 min) ticket bound to user **and** module, protected with the core key ring. `ModuleAppHost` and `ModuleWidgetFrame` append `?dncTicket=`, the SDK bridge copies it into the `dnc-frame-ticket` header on the module's own API calls and strips it from the address bar, and the proxy adopts it (header or query) as the request principal.
+- ✓ The frame's static assets (`.css`, `.js`, fonts, images — an explicit allow-list) are forwarded **anonymously**; the module's own API still requires the ticket or a cookie.
+- ✓ The ticket is stripped from the outgoing query and from forwarded headers; an undeclared/expired/mismatched ticket is refused.
+
+**Three more plane defects**
+
+- ✓ The global `UseCors` middleware answered the frame's preflights with 204 and no CORS headers, so the proxy's own preflight branch was unreachable — `app.UseWhen(!/apps, UseCors)` now leaves the module plane to the proxy.
+- ✓ `TransformResponseAsync` applied the response policy **after** the base transform copied the headers, so `Access-Control-Allow-Origin` never reached the browser (module answered 200, UI said "Could not reach the module").
+- ✓ The host only sent `dnc:init` from the iframe `load` event; a fast module host finished loading before the listener existed, so the handshake never completed ("Starting …" forever). It now also sends init immediately after mounting.
+
+**Deployment defects found by the same run**
+
+- ✓ Module hosts did not ship `manifest.json`, so the supervisor fell back to a v1 default manifest, withheld the module directories and the host died writing its DataProtection ring under the read-only `/opt` tree. Fixed in the three Host `.csproj` files plus a deploy-time guard (v2 manifests only).
+- ✓ Adoption skipped a just-converted module because it trusted the persisted `InstalledModule.DataStoreMode` (stale until the supervisor's later upsert); the deployed manifest is now authoritative.
+- ✓ Module self-migration replayed `InitialCreate` against an adopted schema whose history was empty (`42P07 relation … already exists`); the core's baseline recovery moved to `ModuleSchemaInitializer` and is shared by the core provider and every module host.
+- ✓ The registry upsert silently dropped every write because `CoreDbContext` is `NoTracking`; `ModuleRegistryReconciler` now loads with `AsTracking()` and reports real versions/data-store modes.
+- ✓ The consent banner had **no approve action**: new `POST /api/v1/core/account/consents/{moduleId}` (validates the request against the module's declared scopes) and an Approve button.
+- ✓ Bookmarks' `markView()` indexed `el["nav-all"]` while the map is camelCase, throwing on every view change and aborting the module's `start()` before its first API call.
+
+**Verification (live, browser)**
+
+- ✓ Consent prompt → Approve → browse → attach `Test2.txt` to a compose form; the stored blob, the source download and the attachment `contentHash` all agree (`sha256 e712bd15…`, 31 bytes). Save-back created a new file version (3 → 4) with identical content.
+- ✓ Denials: no consent and revoke both give `403 FILES_CONSENT_REQUIRED`; killing the Files host gives 22 consecutive `503 FILES_UNAVAILABLE` and recovery once the supervisor restarts it.
+- ✓ Media scan (the assertion-principal path): Photos 101/101 skipped/0 failed, Music 33/33/0 failed.
+- ✓ Store: `dotnetcloud.email` **1.2.0** packed (38,453,392 bytes, sha256 `f5b8421a545027e4…`), signed `dotnetcloud-official-2026`, indexed and catalogue-signed `store-2026`, verified, published to `https://modules.dotnetcloud.net` (served hashes match) and listed in the core's admin store view.
+- ✓ The publication exposed a store bug: the builder emitted `trustTier: "official"` without `publisher.official`, which the core rejects for the **whole** index. Fixed in `DotNetCloud.ModuleStore` (model, builder, validator, both schemas, 2 tests).
+- ✓ Tests: Core.Server 1624 (2 skipped), Core.Data 193, SDK 37, Bookmarks 24, Email 36, Example 81, store tooling 50; CI solution 0 warnings.
+- ☐ Install the published `1.2.0` package over a bundled deploy on a fresh test server; republish Bookmarks as 1.2.0.
+
+---
+
 ## Recent Work — Track C: the user's files as a core capability (2026-11-08, `feature/third-party-modules`)
 
 A sandboxed module needed the user's real files (attach a document to an email, save an attachment back
