@@ -12,23 +12,23 @@
  * All requests are RELATIVE on purpose (see index.html).
  */
 (function () {
-  'use strict';
+  "use strict";
 
-  var ENDPOINT = 'api/notes';
+  var ENDPOINT = "api/notes";
 
   var elements = {
-    newNote: document.getElementById('new-note'),
-    form: document.getElementById('note-form'),
-    title: document.getElementById('note-title'),
-    content: document.getElementById('note-content'),
-    save: document.getElementById('note-save'),
-    cancel: document.getElementById('note-cancel'),
-    formError: document.getElementById('form-error'),
-    status: document.getElementById('status'),
-    notes: document.getElementById('notes'),
-    empty: document.getElementById('empty'),
-    navLinks: document.querySelectorAll('.nav-link'),
-    panels: document.querySelectorAll('[data-panel]')
+    newNote: document.getElementById("new-note"),
+    form: document.getElementById("note-form"),
+    title: document.getElementById("note-title"),
+    content: document.getElementById("note-content"),
+    save: document.getElementById("note-save"),
+    cancel: document.getElementById("note-cancel"),
+    formError: document.getElementById("form-error"),
+    status: document.getElementById("status"),
+    notes: document.getElementById("notes"),
+    empty: document.getElementById("empty"),
+    navLinks: document.querySelectorAll(".nav-link"),
+    panels: document.querySelectorAll("[data-panel]"),
   };
 
   var bridge = window.dncModuleBridge;
@@ -38,7 +38,7 @@
   function setStatus(message) {
     if (!message) {
       elements.status.hidden = true;
-      elements.status.textContent = '';
+      elements.status.textContent = "";
       return;
     }
 
@@ -49,7 +49,7 @@
   function showFormError(message) {
     if (!message) {
       elements.formError.hidden = true;
-      elements.formError.textContent = '';
+      elements.formError.textContent = "";
       return;
     }
 
@@ -60,36 +60,39 @@
   function formatDate(value) {
     var date = new Date(value);
     if (isNaN(date.getTime())) {
-      return '';
+      return "";
     }
 
     return date.toLocaleString(undefined, {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
     });
   }
 
   function showPanel(name) {
     elements.panels.forEach(function (panel) {
-      panel.hidden = panel.getAttribute('data-panel') !== name;
+      panel.hidden = panel.getAttribute("data-panel") !== name;
     });
 
     elements.navLinks.forEach(function (link) {
-      link.classList.toggle('is-active', link.getAttribute('data-view') === name);
+      link.classList.toggle(
+        "is-active",
+        link.getAttribute("data-view") === name,
+      );
     });
 
-    if (bridge && typeof bridge.setTitle === 'function') {
-      bridge.setTitle(name === 'help' ? 'Example help' : 'Example notes');
+    if (bridge && typeof bridge.setTitle === "function") {
+      bridge.setTitle(name === "help" ? "Example help" : "Example notes");
     }
   }
 
   /* ------------------------------------------------------------------ render */
 
   function renderNotes(notes) {
-    elements.notes.textContent = '';
+    elements.notes.textContent = "";
 
     if (!notes || notes.length === 0) {
       elements.empty.hidden = false;
@@ -99,34 +102,34 @@
     elements.empty.hidden = true;
 
     notes.forEach(function (note) {
-      var card = document.createElement('article');
-      card.className = 'note-card';
+      var card = document.createElement("article");
+      card.className = "note-card";
 
-      var title = document.createElement('h3');
+      var title = document.createElement("h3");
       // textContent, never innerHTML: note text is user data.
-      title.textContent = note.title || '(untitled)';
+      title.textContent = note.title || "(untitled)";
       card.appendChild(title);
 
       if (note.content) {
-        var content = document.createElement('p');
-        content.className = 'note-content';
+        var content = document.createElement("p");
+        content.className = "note-content";
         content.textContent = note.content;
         card.appendChild(content);
       }
 
-      var meta = document.createElement('p');
-      meta.className = 'note-meta';
+      var meta = document.createElement("p");
+      meta.className = "note-meta";
       meta.textContent = formatDate(note.createdAt);
       card.appendChild(meta);
 
-      var actions = document.createElement('div');
-      actions.className = 'note-actions';
+      var actions = document.createElement("div");
+      actions.className = "note-actions";
 
-      var remove = document.createElement('button');
-      remove.type = 'button';
-      remove.className = 'btn btn-danger btn-small';
-      remove.textContent = 'Delete';
-      remove.addEventListener('click', function () {
+      var remove = document.createElement("button");
+      remove.type = "button";
+      remove.className = "btn btn-danger btn-small";
+      remove.textContent = "Delete";
+      remove.addEventListener("click", function () {
         deleteNote(note.id, remove);
       });
 
@@ -142,7 +145,11 @@
   async function readError(response, fallback) {
     try {
       var payload = await response.json();
-      if (payload && typeof payload.error === 'string' && payload.error.length > 0) {
+      if (
+        payload &&
+        typeof payload.error === "string" &&
+        payload.error.length > 0
+      ) {
         return payload.error;
       }
     } catch (error) {
@@ -153,85 +160,89 @@
   }
 
   async function loadNotes() {
-    setStatus('Loading notes...');
+    setStatus("Loading notes...");
 
     try {
       var response = await fetch(ENDPOINT, {
-        method: 'GET',
-        credentials: 'include',
-        headers: { Accept: 'application/json' }
+        method: "GET",
+        credentials: "include",
+        headers: { Accept: "application/json" },
       });
 
       if (response.status === 401) {
         renderNotes([]);
-        setStatus('Sign in to DotNetCloud to use this module.');
+        setStatus("Sign in to DotNetCloud to use this module.");
         return;
       }
 
       if (!response.ok) {
-        setStatus('Could not load notes (' + response.status + ').');
+        setStatus("Could not load notes (" + response.status + ").");
         return;
       }
 
       var payload = await response.json();
       renderNotes(payload.notes || []);
-      setStatus('');
+      setStatus("");
     } catch (error) {
-      setStatus('Could not reach the module. Try again.');
+      setStatus("Could not reach the module. Try again.");
     }
   }
 
   async function createNote(event) {
     event.preventDefault();
-    showFormError('');
+    showFormError("");
 
     var title = elements.title.value.trim();
     if (title.length === 0) {
-      showFormError('A title is required.');
+      showFormError("A title is required.");
       elements.title.focus();
       return;
     }
 
     elements.save.disabled = true;
-    elements.save.textContent = 'Saving...';
+    elements.save.textContent = "Saving...";
 
     try {
       var response = await fetch(ENDPOINT, {
-        method: 'POST',
-        credentials: 'include',
+        method: "POST",
+        credentials: "include",
         headers: {
-          'Content-Type': 'application/json',
-          Accept: 'application/json'
+          "Content-Type": "application/json",
+          Accept: "application/json",
         },
-        body: JSON.stringify({ title: title, content: elements.content.value })
+        body: JSON.stringify({ title: title, content: elements.content.value }),
       });
 
       if (response.status === 401) {
-        showFormError('Your session expired. Reload the page and sign in again.');
+        showFormError(
+          "Your session expired. Reload the page and sign in again.",
+        );
         return;
       }
 
       if (response.status === 400) {
-        showFormError(await readError(response, 'The note could not be saved.'));
+        showFormError(
+          await readError(response, "The note could not be saved."),
+        );
         return;
       }
 
       if (!response.ok) {
-        showFormError('The note could not be saved (' + response.status + ').');
+        showFormError("The note could not be saved (" + response.status + ").");
         return;
       }
 
       closeForm();
       await loadNotes();
 
-      if (bridge && typeof bridge.notify === 'function') {
-        bridge.notify('Note created');
+      if (bridge && typeof bridge.notify === "function") {
+        bridge.notify("Note created");
       }
     } catch (error) {
-      showFormError('Could not reach the module. Try again.');
+      showFormError("Could not reach the module. Try again.");
     } finally {
       elements.save.disabled = false;
-      elements.save.textContent = 'Save';
+      elements.save.textContent = "Save";
     }
   }
 
@@ -239,30 +250,30 @@
     button.disabled = true;
 
     try {
-      var response = await fetch(ENDPOINT + '/' + encodeURIComponent(noteId), {
-        method: 'DELETE',
-        credentials: 'include',
-        headers: { Accept: 'application/json' }
+      var response = await fetch(ENDPOINT + "/" + encodeURIComponent(noteId), {
+        method: "DELETE",
+        credentials: "include",
+        headers: { Accept: "application/json" },
       });
 
       if (response.status === 401) {
-        setStatus('Sign in to DotNetCloud to use this module.');
+        setStatus("Sign in to DotNetCloud to use this module.");
         return;
       }
 
       if (response.status !== 204 && !response.ok) {
-        setStatus('The note could not be deleted (' + response.status + ').');
+        setStatus("The note could not be deleted (" + response.status + ").");
         button.disabled = false;
         return;
       }
 
       await loadNotes();
 
-      if (bridge && typeof bridge.notify === 'function') {
-        bridge.notify('Note deleted');
+      if (bridge && typeof bridge.notify === "function") {
+        bridge.notify("Note deleted");
       }
     } catch (error) {
-      setStatus('Could not reach the module. Try again.');
+      setStatus("Could not reach the module. Try again.");
       button.disabled = false;
     }
   }
@@ -271,38 +282,41 @@
 
   function openForm() {
     elements.form.hidden = false;
-    showFormError('');
+    showFormError("");
     elements.title.focus();
   }
 
   function closeForm() {
     elements.form.hidden = true;
-    elements.title.value = '';
-    elements.content.value = '';
-    showFormError('');
+    elements.title.value = "";
+    elements.content.value = "";
+    showFormError("");
   }
 
   /* -------------------------------------------------------------------- boot */
 
   if (bridge) {
     bridge
-      .on('theme', function (info) {
+      .on("theme", function (info) {
         // The bridge already sets data-theme on <html>; this is where extra theme work would go.
-        document.documentElement.setAttribute('data-theme', info.theme === 'dark' ? 'dark' : 'light');
+        document.documentElement.setAttribute(
+          "data-theme",
+          info.theme === "dark" ? "dark" : "light",
+        );
       })
-      .on('init', function (info) {
-        document.documentElement.setAttribute('lang', info.locale || 'en');
+      .on("init", function (info) {
+        document.documentElement.setAttribute("lang", info.locale || "en");
       })
-      .start({ title: 'Example notes' });
+      .start({ title: "Example notes" });
   }
 
-  elements.newNote.addEventListener('click', openForm);
-  elements.cancel.addEventListener('click', closeForm);
-  elements.form.addEventListener('submit', createNote);
+  elements.newNote.addEventListener("click", openForm);
+  elements.cancel.addEventListener("click", closeForm);
+  elements.form.addEventListener("submit", createNote);
 
   elements.navLinks.forEach(function (link) {
-    link.addEventListener('click', function () {
-      showPanel(link.getAttribute('data-view'));
+    link.addEventListener("click", function () {
+      showPanel(link.getAttribute("data-view"));
     });
   });
 

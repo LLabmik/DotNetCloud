@@ -202,6 +202,12 @@
       frame.addEventListener('error', onError);
       window.addEventListener('message', onMessage);
 
+      // A fast local module host can finish loading the frame before mount() runs. The load event
+      // will then never fire again, and the frame's own dnc:ready was posted before this listener
+      // existed — the shell would sit on "Starting …" forever. Sending dnc:init now makes the
+      // bridge answer with dnc:ready; the load event (if it comes) repeats it harmlessly.
+      onLoad();
+
       return {
         refresh: function () {
           post({ type: 'dnc:theme', theme: currentTheme(), locale: currentLocale() });

@@ -4,6 +4,7 @@ using DotNetCloud.Core.Data.Entities.Modules;
 using DotNetCloud.Core.Data.Naming;
 using DotNetCloud.Core.Modules;
 using DotNetCloud.Core.Modules.Supervisor;
+using DotNetCloud.Core.Server.ModuleLoading;
 using DotNetCloud.Core.Server.Sandbox;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -24,9 +25,55 @@ public class ModuleAdoptionServiceTests
     private const string StoreModule = "com.thirdparty.store";
 
     private string _dbName = null!;
+    private string _modulesDirectory = null!;
 
     [TestInitialize]
-    public void Setup() => _dbName = $"ModuleAdoptionServiceTests_{Guid.NewGuid():N}";
+    public void Setup()
+    {
+        _dbName = $"ModuleAdoptionServiceTests_{Guid.NewGuid():N}";
+        _modulesDirectory = Path.Combine(Path.GetTempPath(), $"dnc-adoption-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(_modulesDirectory);
+    }
+
+    [TestCleanup]
+    public void Cleanup()
+    {
+        try
+        {
+            Directory.Delete(_modulesDirectory, recursive: true);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            // Best-effort cleanup of the per-test modules directory.
+        }
+    }
+
+    /// <summary>
+    /// Writes a deployed module directory exactly as the supervisor would find it: the executable
+    /// plus the manifest that decides the schema mode.
+    /// </summary>
+    private void WriteDeployedModule(string moduleId, ModuleDataStoreMode mode)
+    {
+        var moduleDir = Path.Combine(_modulesDirectory, moduleId);
+        Directory.CreateDirectory(moduleDir);
+        File.WriteAllText(Path.Combine(moduleDir, $"{moduleId}.dll"), string.Empty);
+
+        var dataStore = mode == ModuleDataStoreMode.Isolated ? "isolated" : "none";
+        File.WriteAllText(
+            Path.Combine(moduleDir, "manifest.json"),
+            $$"""
+            {
+              "manifestVersion": 2,
+              "id": "{{moduleId}}",
+              "name": "Adoption test module",
+              "version": "1.0.0",
+              "moduleApiVersion": 1,
+              "minCoreVersion": "0.7.0",
+              "dataStore": "{{dataStore}}",
+              "handlesUserErasure": true
+            }
+            """);
+    }
 
     private sealed class NoopAuditLogger : IAuditLogger
     {
@@ -98,7 +145,15 @@ public class ModuleAdoptionServiceTests
         new(
             provider.GetRequiredService<IServiceScopeFactory>(),
             provisioning.Object,
-            Options.Create(new ProcessSupervisorOptions { AllowLegacyAccess = allowLegacyAccess }),
+            new ModuleDiscoveryService(
+                NullLogger<ModuleDiscoveryService>.Instance,
+                Options.Create(new ProcessSupervisorOptions { ModulesDirectory = _modulesDirectory })),
+            new ModuleManifestLoader(NullLogger<ModuleManifestLoader>.Instance),
+            Options.Create(new ProcessSupervisorOptions
+            {
+                AllowLegacyAccess = allowLegacyAccess,
+                ModulesDirectory = _modulesDirectory,
+            }),
             NullLogger<ModuleAdoptionService>.Instance);
 
     private static Mock<IModuleDataStoreProvisioningService> ProvisioningWithPrerequisites(bool satisfied)
@@ -320,5 +375,68 @@ public class ModuleAdoptionServiceTests
         provisioning.Verify(
             p => p.AdoptExistingStoreAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()),
             Times.Never);
+    }
+
+    [TestMethod]
+    public async Task GetPreflightAsync_WhenPersistedModeIsNoneButManifestIsIsolated_IsAdoptable()
+    {
+        // Track C: a module converted to a sandboxed host still has dataStore "none" persisted from
+        // the previous release until the supervisor's discovery upsert runs. Trusting the column
+        // would skip adoption, so the supervisor would provision an empty schema and the module's
+        // real data would silently stay behind in the legacy schema.
+        const string moduleId = "dotnetcloud.bookmarks";
+        SeedModule(moduleId, mode: ModuleDataStoreMode.None);
+        WriteDeployedModule(moduleId, ModuleDataStoreMode.Isolated);
+
+        using var provider = CreateProvider();
+        var service = CreateService(provider, ProvisioningWithPrerequisites(satisfied: true));
+
+        var report = await service.GetPreflightAsync(CancellationToken.None);
+
+        var entry = report.Entries.Single(e => e.ModuleId == moduleId);
+        Assert.AreEqual(ModuleAdoptionOutcome.Adoptable, entry.Outcome);
+        Assert.AreEqual(nameof(ModuleDataStoreMode.Isolated), entry.DataStoreMode);
+    }
+
+    [TestMethod]
+    public async Task AdoptAsync_WhenPersistedModeIsNoneButManifestIsIsolated_AdoptsAndMovesLegacySchema()
+    {
+        const string moduleId = "dotnetcloud.bookmarks";
+        SeedModule(moduleId, mode: ModuleDataStoreMode.None);
+        WriteDeployedModule(moduleId, ModuleDataStoreMode.Isolated);
+
+        using var provider = CreateProvider();
+        var provisioning = ProvisioningWithPrerequisites(satisfied: true);
+        provisioning
+            .Setup(p => p.AdoptExistingStoreAsync(moduleId, "bookmarks", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ModuleDataStoreProvisioningResult(
+                true, "dnc_bookmarks_1a2b3c4d", "dnc_mod_bookmarks_1a2b3c4d", null));
+
+        var service = CreateService(provider, provisioning);
+
+        var entry = await service.AdoptAsync(moduleId, CancellationToken.None);
+
+        Assert.AreEqual(ModuleAdoptionOutcome.Adopted, entry.Outcome);
+        provisioning.Verify(
+            p => p.AdoptExistingStoreAsync(moduleId, "bookmarks", It.IsAny<CancellationToken>()),
+            Times.Once);
+        Assert.AreEqual(ModuleSandboxStatus.Active, ReadStatus(moduleId));
+    }
+
+    [TestMethod]
+    public async Task GetPreflightAsync_WhenManifestIsNotDeployed_UsesPersistedMode()
+    {
+        // A row that already records Isolated must still be adopted when the binaries have not been
+        // laid down yet (or were installed from a package outside the modules directory).
+        SeedModule(BundledModule, mode: ModuleDataStoreMode.Isolated);
+
+        using var provider = CreateProvider();
+        var service = CreateService(provider, ProvisioningWithPrerequisites(satisfied: true));
+
+        var report = await service.GetPreflightAsync(CancellationToken.None);
+
+        var entry = report.Entries.Single(e => e.ModuleId == BundledModule);
+        Assert.AreEqual(ModuleAdoptionOutcome.Adoptable, entry.Outcome);
+        Assert.AreEqual(nameof(ModuleDataStoreMode.Isolated), entry.DataStoreMode);
     }
 }

@@ -1,6 +1,8 @@
+using DotNetCloud.Core.Modules;
 using DotNetCloud.Core.Modules.Ui;
 using DotNetCloud.UI.Web.Client.Services;
 using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.JSInterop;
 
 namespace DotNetCloud.UI.Web.Components.Modules;
@@ -24,6 +26,7 @@ public partial class ModuleWidgetFrame : ComponentBase, IAsyncDisposable
     private IJSObjectReference? _handle;
     private int _height = DefaultHeight;
     private bool _failed;
+    private string? _frameTicket;
 
     /// <summary>Gets or sets the owning module id.</summary>
     [Parameter, EditorRequired]
@@ -49,7 +52,8 @@ public partial class ModuleWidgetFrame : ComponentBase, IAsyncDisposable
             }
 
             var path = ModuleAppUrls.NormalizeEntryPath(Path);
-            return path == "/" ? basePath + "/" : basePath + path;
+            var url = path == "/" ? basePath + "/" : basePath + path;
+            return ModuleFrameSource.WithTicket(url, _frameTicket);
         }
     }
 
@@ -61,6 +65,19 @@ public partial class ModuleWidgetFrame : ComponentBase, IAsyncDisposable
 
     [Inject]
     private ToastService Toast { get; set; } = default!;
+
+    [Inject]
+    private IModuleFrameTickets FrameTickets { get; set; } = default!;
+
+    [Inject]
+    private AuthenticationStateProvider AuthenticationState { get; set; } = default!;
+
+    /// <inheritdoc />
+    protected override async Task OnParametersSetAsync()
+    {
+        // Same as the app shell: the widget frame's origin is opaque, so it carries a ticket.
+        _frameTicket = await ModuleFrameSource.IssueAsync(AuthenticationState, FrameTickets, ModuleId);
+    }
 
     /// <inheritdoc />
     protected override async Task OnAfterRenderAsync(bool firstRender)

@@ -6,6 +6,18 @@ namespace DotNetCloud.Core.DTOs;
 public sealed record ConsentScopeDto(string Scope, string Description);
 
 /// <summary>
+/// The scopes a user is approving for a module, sent from the in-app consent prompt.
+/// </summary>
+/// <remarks>
+/// Only scopes the module actually declared in its manifest are accepted: the module asked for them
+/// through the UI bridge, and the core re-checks that request against the deployed manifest before
+/// writing a grant. A frame therefore cannot talk the user into approving a scope the module never
+/// declared.
+/// </remarks>
+/// <param name="Scopes">The scope names to grant.</param>
+public sealed record GrantModuleConsentRequest(IReadOnlyList<string> Scopes);
+
+/// <summary>
 /// A module that holds consent from the current user, as listed on "Connected apps".
 /// </summary>
 public sealed class ConnectedAppDto

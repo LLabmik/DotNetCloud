@@ -239,22 +239,22 @@ Capabilities are the permission model for modules. They control what platform fe
 
 ### Capability Tiers
 
-| Tier           | Approval                 | Examples                                                                     |
-| -------------- | ------------------------ | ---------------------------------------------------------------------------- |
-| **Public**     | Automatic                | `IUserDirectory`, `ICurrentUserContext`, `INotificationService`, `IEventBus` |
+| Tier           | Approval                 | Examples                                                                                 |
+| -------------- | ------------------------ | ---------------------------------------------------------------------------------------- |
+| **Public**     | Automatic                | `IUserDirectory`, `ICurrentUserContext`, `INotificationService`, `IEventBus`             |
 | **Restricted** | Admin approval           | `IStorageProvider`, `IModuleSettings`, `ITeamDirectory`, `IFileDirectory`, `IFileWriter` |
-| **Privileged** | Admin approval + warning | `IUserManager`, `IBackupProvider`                                            |
-| **Forbidden**  | Never granted            | Direct database access, process management                                   |
+| **Privileged** | Admin approval + warning | `IUserManager`, `IBackupProvider`                                                        |
+| **Forbidden**  | Never granted            | Direct database access, process management                                               |
 
 ### The user's files
 
 A module that needs the user's real files does **not** call the Files module. It calls the core, which
 brokers the request and enforces the user's consent:
 
-| Capability      | Scope         | RPCs (via `IDncModuleApi`)                                   |
-| --------------- | ------------- | ------------------------------------------------------------ |
-| `IFileDirectory` | `files:read`  | `ListFilesAsync`, `DownloadFileAsync`                        |
-| `IFileWriter`    | `files:write` | `UploadFileAsync`                                            |
+| Capability       | Scope         | RPCs (via `IDncModuleApi`)            |
+| ---------------- | ------------- | ------------------------------------- |
+| `IFileDirectory` | `files:read`  | `ListFilesAsync`, `DownloadFileAsync` |
+| `IFileWriter`    | `files:write` | `UploadFileAsync`                     |
 
 Both are **Restricted** and per-user consent is required on top of the grant. Declare the capability
 and the scope in the manifest:

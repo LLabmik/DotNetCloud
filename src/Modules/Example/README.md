@@ -200,10 +200,10 @@ Two design-time factories exist for the EF CLI (one per project):
 
 ## Capabilities Used
 
-| Capability             | Tier      | Purpose                                                                                                  |
-| ---------------------- | --------- | -------------------------------------------------------------------------------------------------------- |
-| `INotificationService` | Public    | Notifies the acting user when a note is created through the module UI (gated by `notifications:send` consent) |
-| `IAuditLogger`         | Public    | Writes an audit entry for each note created or deleted                                                    |
+| Capability             | Tier   | Purpose                                                                                                       |
+| ---------------------- | ------ | ------------------------------------------------------------------------------------------------------------- |
+| `INotificationService` | Public | Notifies the acting user when a note is created through the module UI (gated by `notifications:send` consent) |
+| `IAuditLogger`         | Public | Writes an audit entry for each note created or deleted                                                        |
 
 Least privilege matters: an earlier revision also requested `IStorageProvider` while never touching file storage. A store submission is rejected for a capability it cannot justify, so the reference module asks only for what it uses. The matching consent scope (`notifications:send`) is declared in `userConsentScopes`; the core's F18 rule would reject a manifest that requested the capability without it.
 
@@ -230,14 +230,14 @@ If the database configuration is missing, the host throws `InvalidOperationExcep
 
 When it is running, the host serves:
 
-| Path                | What it is                                                                 |
-| ------------------- | -------------------------------------------------------------------------- |
-| `/`                 | The module's own UI (`wwwroot/index.html`) — the document the core frames     |
-| `/assets/*`         | The UI's script and stylesheet                                              |
-| `/dncModuleBridge.js` | The SDK's UI bridge (copied at build time)                                |
-| `/api/notes`        | The UI's JSON API — **401** unless the request carries a valid core-signed `dnc-user-assertion` |
-| `/api/info`         | Liveness/version probe (the old `/` JSON probe moved here so it cannot shadow the UI document) |
-| `/health`           | Health check                                                                |
+| Path                  | What it is                                                                                      |
+| --------------------- | ----------------------------------------------------------------------------------------------- |
+| `/`                   | The module's own UI (`wwwroot/index.html`) — the document the core frames                       |
+| `/assets/*`           | The UI's script and stylesheet                                                                  |
+| `/dncModuleBridge.js` | The SDK's UI bridge (copied at build time)                                                      |
+| `/api/notes`          | The UI's JSON API — **401** unless the request carries a valid core-signed `dnc-user-assertion` |
+| `/api/info`           | Liveness/version probe (the old `/` JSON probe moved here so it cannot shadow the UI document)  |
+| `/health`             | Health check                                                                                    |
 
 ### Sandbox rule: keep the model and migrations schema-neutral
 

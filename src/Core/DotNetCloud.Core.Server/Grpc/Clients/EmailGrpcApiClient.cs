@@ -592,7 +592,8 @@ public sealed class EmailGrpcApiClient : IEmailApiClient, IDisposable
     public void Dispose()
     {
         // The channel belongs to GrpcChannelManager and is shared, so there is nothing to release.
-        if (_disposed) return;
+        if (_disposed)
+            return;
         _disposed = true;
     }
 }

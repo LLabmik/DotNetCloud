@@ -1003,6 +1003,30 @@ else
 
     log "Module hosts: $publish_success published, $publish_failures failed."
 
+    # A module's manifest.json decides how the supervisor runs it: a v2 manifest makes it
+    # sandboxed (private data dir, isolated data store, consent scopes). `dotnet publish` only
+    # ships it when the Host project declares the Content item, and without it the supervisor
+    # silently falls back to a v1 default manifest — withholds the module directories and the
+    # host then dies writing its DataProtection ring under the read-only /opt tree. Modules still
+    # on a v1 manifest are skipped: they legitimately run from the default manifest.
+    missing_manifests=()
+    for module in "${PUBLISHED_MODULES[@]}"; do
+        module_lower=$(echo "$module" | tr '[:upper:]' '[:lower:]')
+        repo_manifest="$REPO_ROOT/src/Modules/$module/manifest.json"
+
+        if [ -f "$repo_manifest" ] &&
+           rg -q '"manifestVersion"[[:space:]]*:[[:space:]]*2' "$repo_manifest" &&
+           [ ! -f "$MODULES_DIR/dotnetcloud.$module_lower/manifest.json" ]; then
+            missing_manifests+=("dotnetcloud.$module_lower")
+        fi
+    done
+
+    if [ "${#missing_manifests[@]}" -gt 0 ]; then
+        log "  ✗ manifest.json missing from deployed module(s): ${missing_manifests[*]}"
+        log "    Add a Content item for ..\\manifest.json to that module's Host .csproj."
+        exit 1
+    fi
+
     # Phase 4b: Sync transitive dependency assemblies for each published module
     #
     # dotnet publish --no-build copies the module host assembly and its direct

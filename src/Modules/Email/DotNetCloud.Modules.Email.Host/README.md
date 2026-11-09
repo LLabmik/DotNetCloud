@@ -38,8 +38,8 @@ serves its own web UI.
 
 `wwwroot/` is this module's own web app, framed by the core at `/apps/dotnetcloud.email/`:
 
-| Path                    | Contents                                                       |
-| ----------------------- | -------------------------------------------------------------- |
+| Path                    | Contents                                                        |
+| ----------------------- | --------------------------------------------------------------- |
 | `index.html`            | Shell: sidebar (accounts, folders, tools) + panel               |
 | `assets/email-ui.js`    | The app (accounts, threads, compose, rules, help)               |
 | `assets/email-ui.css`   | Tokens, light/dark themes, layout                               |

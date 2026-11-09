@@ -1,13 +1,8 @@
 @namespace DotNetCloud.UI.Web.Components.Modules
 
 <div class="module-widget-frame" style="--module-widget-height: @(_height)px">
-    <iframe @ref="_frame"
-            src="@Source"
-            class="module-widget-iframe"
-            title="@Title"
-            sandbox="allow-scripts allow-forms allow-modals"
-            referrerpolicy="no-referrer"
-            loading="lazy"></iframe>
+    <iframe @ref="_frame" src="@Source" class="module-widget-iframe" title="@Title"
+            sandbox="allow-scripts allow-forms allow-modals" referrerpolicy="no-referrer" loading="lazy"></iframe>
 
     @if (_failed)
     {

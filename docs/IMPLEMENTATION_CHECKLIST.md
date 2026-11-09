@@ -49,7 +49,6 @@ feature staying deleted.
 
 ---
 
-
 Third Track C module of `docs/THIRD_PARTY_MODULE_SANDBOX_AND_STORE_PLAN.md`, and the first with a
 long-lived credential store, an external consent flow (Gmail OAuth) and a large UI surface.
 

@@ -1,3 +1,4 @@
+using DotNetCloud.Core.Data.Modules;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
@@ -15,13 +16,21 @@ public static class BookmarksDbInitializer
     /// A sandboxed module owns its schema, so it applies its own migrations (Track C). The model and
     /// the migrations are schema-neutral: the provisioned connection string pins <c>search_path</c>
     /// (PostgreSQL) or the user's default schema (SQL Server), which is where the tables and
-    /// <c>__EFMigrationsHistory</c> land. On an adopted install the history table was moved into the
-    /// module's schema with its data, so this applies nothing and changes nothing.
+    /// <c>__EFMigrationsHistory</c> land.
     /// </remarks>
+    /// <param name="db">The module's database context.</param>
+    /// <param name="logger">Optional logger.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>A task that completes when the schema is usable.</returns>
     public static async Task InitializeAsync(BookmarksDbContext db, ILogger? logger = null, CancellationToken ct = default)
     {
         ArgumentNullException.ThrowIfNull(db);
-        await db.Database.MigrateAsync(ct);
+
+        // On an adopted install the tables already exist in the module's schema while its history
+        // table is empty (the core created them from its own model), so a bare MigrateAsync would
+        // replay the initial migration and die with 42P07 "already exists". The shared initializer
+        // baselines that case — the same recovery the core uses for its own module schemas.
+        await ModuleSchemaInitializer.InitializeAsync(db, "dotnetcloud.bookmarks", logger, ct);
         logger?.LogInformation("Bookmarks database schema is up to date");
     }
 }

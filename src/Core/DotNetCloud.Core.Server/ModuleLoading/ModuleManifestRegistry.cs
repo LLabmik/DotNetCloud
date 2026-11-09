@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using DotNetCloud.Core.Modules;
 
 namespace DotNetCloud.Core.Server.ModuleLoading;
 
@@ -66,7 +67,7 @@ internal interface IModuleManifestRegistry
 }
 
 /// <inheritdoc />
-internal sealed class ModuleManifestRegistry : IModuleManifestRegistry
+internal sealed class ModuleManifestRegistry : IModuleManifestRegistry, IConsentScopeRegistry
 {
     private readonly ConcurrentDictionary<string, ModuleManifestData> _manifests =
         new(StringComparer.OrdinalIgnoreCase);

@@ -45,4 +45,3 @@ Since Track C it also serves the module's **own web UI** from `wwwroot`, which t
 ### Dependent Projects
 
 - `DotNetCloud.Core.Server` — launches and manages this process via `ProcessSupervisor` (no compile-time reference to the module)
-

@@ -1350,75 +1350,23 @@ internal sealed class ProcessSupervisor : BackgroundService, IProcessSupervisor
             using var scope = _scopeFactory.CreateScope();
             var dbContext = scope.ServiceProvider.GetRequiredService<CoreDbContext>();
 
-            var existingModules = await dbContext.InstalledModules
-                .ToDictionaryAsync(m => m.ModuleId, StringComparer.OrdinalIgnoreCase, cancellationToken);
-
-            var added = 0;
-            var updated = 0;
-
+            List<ModuleRegistryEntry> entries = [];
             foreach (var module in discovered)
             {
-                var manifest = LoadManifest(module);
-                var isRequired = RequiredModules.IsRequired(module.ModuleId);
-
-                var isNew = !existingModules.TryGetValue(module.ModuleId, out var existingRecord);
-                InstalledModule record;
-                if (isNew)
-                {
-                    record = new InstalledModule
-                    {
-                        ModuleId = module.ModuleId,
-                        Status = "Enabled",
-                        InstalledAt = DateTime.UtcNow,
-                    };
-
-                    dbContext.InstalledModules.Add(record);
-                    existingModules[module.ModuleId] = record;
-                    added++;
-                }
-                else
-                {
-                    record = existingRecord!;
-                    updated++;
-                }
-
-                // Trust tier is provenance-derived and persisted. Required wins; an existing row
-                // keeps its tier (a store package is never silently promoted to bundled); a module
-                // discovered for the first time is part of the product's module directory.
-                if (isRequired)
-                {
-                    record.TrustTier = ModuleTrustTier.Required;
-                }
-                else if (isNew)
-                {
-                    record.TrustTier = ModuleTrustTier.Bundled;
-                }
-
-                record.Version = manifest.Version;
-                record.IsRequired = isRequired;
-                record.UpdatedAt = DateTime.UtcNow;
-
-                // v2 manifests are authoritative for the data-store mode. v1 (legacy in-repo)
-                // modules keep the core-managed schema model until Track C migrates them.
-                record.DataStoreMode = manifest.ManifestVersion >= 2
-                    ? manifest.EffectiveDataStoreMode
-                    : ModuleDataStoreMode.None;
-
-                if (isRequired)
-                {
-                    record.SandboxStatus = ModuleSandboxStatus.Active;
-                }
-                else if (isNew)
-                {
-                    record.SandboxStatus = record.DataStoreMode == ModuleDataStoreMode.Isolated
-                        ? ModuleSandboxStatus.PendingProvisioning
-                        : ModuleSandboxStatus.Active;
-                }
+                entries.Add(new ModuleRegistryEntry(
+                    module.ModuleId,
+                    LoadManifest(module),
+                    RequiredModules.IsRequired(module.ModuleId)));
             }
+
+            // Reconciliation lives in its own type because the rows must be loaded with tracking:
+            // CoreDbContext is NoTracking by default, and a detached read silently dropped every
+            // update (version, trust tier, data-store mode) on SaveChanges.
+            var (added, updated) = await ModuleRegistryReconciler.ReconcileAsync(
+                dbContext, entries, cancellationToken);
 
             if (added > 0 || updated > 0)
             {
-                await dbContext.SaveChangesAsync(cancellationToken);
                 _logger.LogInformation(
                     "Reconciled module registry: {Added} added, {Updated} reconciled", added, updated);
             }

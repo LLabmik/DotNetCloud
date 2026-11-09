@@ -266,7 +266,7 @@ the user's tree by naming `../../…`). Reading and writing the user's own tree 
 can express — rename, move and delete stay with the Files UI.
 
 **Boundary statement.** The capability is only as strong as the Files module's own authorization:
-the core asserts *who* is asking, and the Files module decides *what that user may touch*. A module
+the core asserts _who_ is asking, and the Files module decides _what that user may touch_. A module
 granted the capability therefore sees exactly what the user sees, and nothing more.
 
 ---
@@ -329,11 +329,11 @@ processes owned by the same service. Identity is carried by the per-launch **mod
 
 ### 9.1 Transport matrix
 
-| Transport             | Endpoint string                                            | Where it applies                                                                | Artifact / permission                                              |
-| --------------------- | ---------------------------------------------------------- | ------------------------------------------------------------------------------- | ------------------------------------------------------------------ |
-| Unix domain socket    | `unix://<dataDir>/modules/<moduleId>/run/module.sock`      | Linux, macOS — **default**                                                      | Runtime directory `0700`, socket file `0600`, owned by the service |
-| Windows named pipe    | `net.pipe://dotnetcloud-<moduleId>`                        | Windows — **default**                                                           | `PipeOptions.CurrentUserOnly` (DACL = service account only)         |
-| Loopback TCP          | `http://localhost:<port>`                                  | `Modules:Transport=Tcp`, legacy `PreferTcpTransport=true`, or an over-long socket path | Port from `ProcessSupervisor:TcpPortRange` (50101–50500)            |
+| Transport          | Endpoint string                                       | Where it applies                                                                       | Artifact / permission                                              |
+| ------------------ | ----------------------------------------------------- | -------------------------------------------------------------------------------------- | ------------------------------------------------------------------ |
+| Unix domain socket | `unix://<dataDir>/modules/<moduleId>/run/module.sock` | Linux, macOS — **default**                                                             | Runtime directory `0700`, socket file `0600`, owned by the service |
+| Windows named pipe | `net.pipe://dotnetcloud-<moduleId>`                   | Windows — **default**                                                                  | `PipeOptions.CurrentUserOnly` (DACL = service account only)        |
+| Loopback TCP       | `http://localhost:<port>`                             | `Modules:Transport=Tcp`, legacy `PreferTcpTransport=true`, or an over-long socket path | Port from `ProcessSupervisor:TcpPortRange` (50101–50500)           |
 
 ### 9.2 Configuration
 
@@ -371,7 +371,7 @@ processes owned by the same service. Identity is carried by the per-launch **mod
 
 - Separate modules from each other. `0600`/`CurrentUserOnly` key on the **OS user**, and module
   hosts run as the core's user, so a sibling module can connect to another module's socket. The
-  credential is what stops it from being *accepted*. Eliminating this requires per-module OS
+  credential is what stops it from being _accepted_. Eliminating this requires per-module OS
   accounts (a public-store launch gate) or connection-level core→module authentication.
 - Encrypt traffic. Nothing leaves the host; TLS would add cost without adding a boundary.
 
@@ -383,7 +383,7 @@ processes owned by the same service. Identity is carried by the per-launch **mod
   socket path is visible in both, or set `Modules__Transport=Tcp`. A module started without the
   supervisor's credential fails closed either way.
 - **Anything that cannot share a filesystem** (some PaaS runtimes): `Modules__Transport=Tcp`.
-  TCP widens *reachability*, not *authorization* — the credential check is unchanged.
+  TCP widens _reachability_, not _authorization_ — the credential check is unchanged.
 
 ### 9.5 Operational notes
 
@@ -405,18 +405,18 @@ A non-required module may serve its own web UI from its own process. The core re
 
 ### 10.1 What the proxy guarantees
 
-| Control | Enforced by |
-| ------- | ----------- |
-| Only signed-in users | 401 from the proxy handler (never a login redirect — this endpoint is loaded by an iframe) |
-| Only modules that declared `ui.type = "iframe"` | 404 otherwise, so the core origin never becomes a passthrough to an arbitrary module HTTP surface |
-| Module must be running | 503 |
-| Per-module request budget | `ModuleRateLimitKind.Ui` (separate counter from capability calls) → 429 + `Retry-After` |
-| The browser's core session never reaches the module | `Cookie`, `Authorization`, `dnc-user-assertion`, `dnc-module-token` and `dnc-module-id` are stripped before forwarding |
-| The module cannot set cookies on the core origin | `Set-Cookie` stripped from every proxied response |
-| The module cannot relax framing | The module's `Content-Security-Policy`/`X-Frame-Options` are **replaced** with `frame-ancestors 'self'; base-uri 'none'; object-src 'none'; form-action 'self'` |
-| Response hygiene | `X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer`, `Cache-Control: no-store` for HTML documents |
-| Bounded responses | 32 MiB body cap; a larger response is aborted as a proxy error |
-| Route safety | The `dncmoduleid` constraint only matches reverse-DNS ids, so `/apps/files` and friends stay with the shell |
+| Control                                             | Enforced by                                                                                                                                                     |
+| --------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Only signed-in users                                | 401 from the proxy handler (never a login redirect — this endpoint is loaded by an iframe)                                                                      |
+| Only modules that declared `ui.type = "iframe"`     | 404 otherwise, so the core origin never becomes a passthrough to an arbitrary module HTTP surface                                                               |
+| Module must be running                              | 503                                                                                                                                                             |
+| Per-module request budget                           | `ModuleRateLimitKind.Ui` (separate counter from capability calls) → 429 + `Retry-After`                                                                         |
+| The browser's core session never reaches the module | `Cookie`, `Authorization`, `dnc-user-assertion`, `dnc-module-token` and `dnc-module-id` are stripped before forwarding                                          |
+| The module cannot set cookies on the core origin    | `Set-Cookie` stripped from every proxied response                                                                                                               |
+| The module cannot relax framing                     | The module's `Content-Security-Policy`/`X-Frame-Options` are **replaced** with `frame-ancestors 'self'; base-uri 'none'; object-src 'none'; form-action 'self'` |
+| Response hygiene                                    | `X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer`, `Cache-Control: no-store` for HTML documents                                                 |
+| Bounded responses                                   | 32 MiB body cap; a larger response is aborted as a proxy error                                                                                                  |
+| Route safety                                        | The `dncmoduleid` constraint only matches reverse-DNS ids, so `/apps/files` and friends stay with the shell                                                     |
 
 The user identity reaches the module exactly as it does for the REST API plane: a core-signed
 `dnc-user-assertion` whose audience is that module, valid for 60 seconds, with the operation set to
@@ -440,13 +440,13 @@ The user identity reaches the module exactly as it does for the REST API plane: 
   for that specific frame, and `dncModuleBridge.js` requires `event.source === window.parent`. Message
   types are additionally restricted per direction, the payload is capped at 8 KiB, and unknown types
   are dropped.
-- `dnc:notify` is rate-limited to 5 per minute (bridge *and* core), `dnc:openExternal` accepts
+- `dnc:notify` is rate-limited to 5 per minute (bridge _and_ core), `dnc:openExternal` accepts
   `https:` only and opens with `noopener,noreferrer`, and `dnc:navigate` accepts module-relative paths
   only.
 
 ### 10.3 CSRF position (F2)
 
-The sandbox is not a network boundary: an opaque-origin document can still *send* requests to the core
+The sandbox is not a network boundary: an opaque-origin document can still _send_ requests to the core
 origin, it just cannot read the responses. Two controls apply:
 
 1. The core's session cookie is `SameSite=Lax`, `HttpOnly`, `Secure`. Requests from an opaque-origin

@@ -1,52 +1,52 @@
 {
-    "manifestVersion": 2,
-    "id": "dotnetcloud.bookmarks",
-    "name": "Bookmarks",
-    "version": "1.2.0",
-    "description": "Bookmark management with folders, previews, import/export, and full-text search.",
-    "publisher": {
-        "id": "dotnetcloud",
-        "name": "DotNetCloud",
-        "url": "https://dotnetcloud.net"
-    },
-    "moduleApiVersion": 1,
-    "minCoreVersion": "0.7.0",
-    "dataStore": "isolated",
-    "handlesUserErasure": true,
-    "capabilities": [
-        "INotificationService",
-        "IUserDirectory",
-        "ICurrentUserContext",
-        "IAuditLogger",
-        "ISearchProvider"
+  "manifestVersion": 2,
+  "id": "dotnetcloud.bookmarks",
+  "name": "Bookmarks",
+  "version": "1.2.0",
+  "description": "Bookmark management with folders, previews, import/export, and full-text search.",
+  "publisher": {
+    "id": "dotnetcloud",
+    "name": "DotNetCloud",
+    "url": "https://dotnetcloud.net"
+  },
+  "moduleApiVersion": 1,
+  "minCoreVersion": "0.7.0",
+  "dataStore": "isolated",
+  "handlesUserErasure": true,
+  "capabilities": [
+    "INotificationService",
+    "IUserDirectory",
+    "ICurrentUserContext",
+    "IAuditLogger",
+    "ISearchProvider"
+  ],
+  "userConsentScopes": [
+    "profile",
+    "bookmarks:read",
+    "bookmarks:write",
+    "notifications:send"
+  ],
+  "events": {
+    "publishes": [
+      "BookmarkCreatedEvent",
+      "BookmarkUpdatedEvent",
+      "BookmarkDeletedEvent"
     ],
-    "userConsentScopes": [
-        "profile",
-        "bookmarks:read",
-        "bookmarks:write",
-        "notifications:send"
+    "subscribes": []
+  },
+  "ui": {
+    "type": "iframe",
+    "entryPath": "/",
+    "navItems": [
+      {
+        "id": "bookmarks",
+        "label": "Bookmarks",
+        "icon": "bookmark",
+        "path": "/"
+      }
     ],
-    "events": {
-        "publishes": [
-            "BookmarkCreatedEvent",
-            "BookmarkUpdatedEvent",
-            "BookmarkDeletedEvent"
-        ],
-        "subscribes": []
-    },
-    "ui": {
-        "type": "iframe",
-        "entryPath": "/",
-        "navItems": [
-            {
-                "id": "bookmarks",
-                "label": "Bookmarks",
-                "icon": "bookmark",
-                "path": "/"
-            }
-        ],
-        "widget": {
-            "path": "/widget/index.html"
-        }
+    "widget": {
+      "path": "/widget/index.html"
     }
+  }
 }

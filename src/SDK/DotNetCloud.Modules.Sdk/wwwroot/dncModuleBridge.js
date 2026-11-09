@@ -32,6 +32,8 @@
   var TO_FRAME = ['dnc:init', 'dnc:theme', 'dnc:consentResult'];
   var MAX_MESSAGE_BYTES = 8 * 1024;
   var REPORT_DEBOUNCE_MS = 150;
+  var TICKET_QUERY = 'dncTicket';
+  var TICKET_HEADER = 'dnc-frame-ticket';
 
   var state = {
     started: false,
@@ -43,8 +45,79 @@
     listeners: { init: [], theme: [], consent: [] },
     started_at: 0,
     resizeTimer: null,
-    disposed: false
+    disposed: false,
+    ticket: ''
   };
+
+  //
+  // Frame ticket
+  //
+  // The frame's origin is opaque, so the browser never attaches the core session cookie to its
+  // requests (SameSite=Lax + cross-site = no cookie) and it cannot read cookies either. The core
+  // therefore puts a short-lived, user+module-bound ticket in this document's URL, and we forward it
+  // on every module-local call. An absolute third-party URL never receives it.
+  //
+  function readTicket() {
+    try {
+      var params = new URLSearchParams(window.location.search);
+      return params.get(TICKET_QUERY) || '';
+    } catch (e) {
+      return '';
+    }
+  }
+
+  /** Strips the ticket from the address bar so it does not survive in history or a referrer. */
+  function hideTicket() {
+    if (!state.ticket || typeof window.history.replaceState !== 'function') {
+      return;
+    }
+
+    try {
+      var url = new URL(window.location.href);
+      url.searchParams.delete(TICKET_QUERY);
+      window.history.replaceState(null, '', url.pathname + url.search + url.hash);
+    } catch (e) {
+      /* opaque origin without history support */
+    }
+  }
+
+  /** True for a module-local URL: relative, or the frame's own origin. */
+  function isFrameLocal(url) {
+    if (typeof url !== 'string' || url.length === 0) {
+      return false;
+    }
+
+    if (/^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(url) || url.indexOf('//') === 0) {
+      try {
+        return new URL(url).origin === new URL(window.location.href).origin;
+      } catch (e) {
+        return false;
+      }
+    }
+
+    return true;
+  }
+
+  // Wrap fetch once, so a module keeps writing plain fetch('...') calls.
+  var nativeFetch = typeof window.fetch === 'function' ? window.fetch : null;
+  if (nativeFetch) {
+    window.fetch = function (input, init) {
+      if (state.ticket) {
+        var target = typeof input === 'string' ? input : input && input.url;
+        if (isFrameLocal(target)) {
+          var options = init ? Object.assign({}, init) : {};
+          var headers = new Headers(
+            options.headers || (typeof input !== 'string' && input ? input.headers : undefined),
+          );
+          headers.set(TICKET_HEADER, state.ticket);
+          options.headers = headers;
+          return nativeFetch.call(window, input, options);
+        }
+      }
+
+      return nativeFetch.call(window, input, init);
+    };
+  }
 
   function post(message) {
     if (state.disposed) {
@@ -176,6 +249,8 @@
       state.started_at = Date.now();
       state.role = options.role === 'widget' ? 'widget' : 'app';
       state.title = typeof options.title === 'string' ? options.title : '';
+      state.ticket = readTicket();
+      hideTicket();
 
       window.addEventListener('message', onMessage);
 

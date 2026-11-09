@@ -2,6 +2,7 @@ using DotNetCloud.Core.Modules;
 using DotNetCloud.Core.Modules.Ui;
 using DotNetCloud.UI.Web.Client.Services;
 using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Components.Web;
 using Microsoft.JSInterop;
 
@@ -42,6 +43,8 @@ public partial class ModuleAppHost : ComponentBase, IAsyncDisposable
     private string _title = string.Empty;
     private string _failureMessage = string.Empty;
     private IReadOnlyList<string> _requestedScopes = [];
+    private bool _consentBusy;
+    private string? _frameTicket;
 
     /// <summary>Gets or sets the module id whose UI is framed.</summary>
     [Parameter, EditorRequired]
@@ -69,7 +72,8 @@ public partial class ModuleAppHost : ComponentBase, IAsyncDisposable
             }
 
             var path = ModuleAppUrls.NormalizeEntryPath(Path);
-            return path == "/" ? basePath + "/" : basePath + path;
+            var url = path == "/" ? basePath + "/" : basePath + path;
+            return ModuleFrameSource.WithTicket(url, _frameTicket);
         }
     }
 
@@ -100,6 +104,15 @@ public partial class ModuleAppHost : ComponentBase, IAsyncDisposable
     [Inject]
     private ToastService Toast { get; set; } = default!;
 
+    [Inject]
+    private DotNetCloudApiClient Api { get; set; } = default!;
+
+    [Inject]
+    private IModuleFrameTickets FrameTickets { get; set; } = default!;
+
+    [Inject]
+    private AuthenticationStateProvider AuthenticationState { get; set; } = default!;
+
     /// <inheritdoc />
     protected override void OnParametersSet()
     {
@@ -107,6 +120,14 @@ public partial class ModuleAppHost : ComponentBase, IAsyncDisposable
         {
             _title = Title;
         }
+    }
+
+    /// <inheritdoc />
+    protected override async Task OnParametersSetAsync()
+    {
+        // The frame runs with an opaque origin, so it cannot send the session cookie. The ticket in
+        // the URL is its credential; the SDK bridge forwards it on the module's own API calls.
+        _frameTicket = await ModuleFrameSource.IssueAsync(AuthenticationState, FrameTickets, ModuleId);
     }
 
     /// <inheritdoc />
@@ -274,6 +295,52 @@ public partial class ModuleAppHost : ComponentBase, IAsyncDisposable
     {
         _requestedScopes = [];
         return InvokeAsync(StateHasChanged);
+    }
+
+    /// <summary>
+    /// Approves the scopes the frame asked for, then reloads the frame so the retried call goes
+    /// through the consent gate.
+    /// </summary>
+    /// <remarks>
+    /// The core validates the request against the manifest it loaded, so this only ever writes
+    /// scopes the module declared. Without this action the banner offered the user nothing but a
+    /// link to a read-only list — the prompt could never be approved.
+    /// </remarks>
+    /// <returns>A task that completes when the grant has been recorded.</returns>
+    private async Task ApproveConsentAsync()
+    {
+        if (_requestedScopes.Count == 0 || _consentBusy)
+        {
+            return;
+        }
+
+        _consentBusy = true;
+        await InvokeAsync(StateHasChanged);
+
+        try
+        {
+            var approved = await Api.GrantModuleConsentAsync(ModuleId, _requestedScopes);
+
+            if (!approved)
+            {
+                Toast.ShowError($"Could not record the permission for {DisplayTitle}.");
+                return;
+            }
+
+            _requestedScopes = [];
+            Toast.ShowSuccess($"Permission granted to {DisplayTitle}.");
+
+            if (_handle is not null)
+            {
+                // Reload the frame in place: the module retries its own call on load.
+                await _handle.InvokeVoidAsync("navigate", Source);
+            }
+        }
+        finally
+        {
+            _consentBusy = false;
+            await InvokeAsync(StateHasChanged);
+        }
     }
 
     /// <summary>Describes a scope in plain language.</summary>

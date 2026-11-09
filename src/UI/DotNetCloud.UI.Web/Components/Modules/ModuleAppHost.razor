@@ -3,12 +3,8 @@
 <div class="module-app-host module-app-host--@StateToken" data-module="@ModuleId">
     @if (ShowFrame)
     {
-        <iframe @ref="_frame"
-                src="@Source"
-                class="module-app-frame"
-                title="@Title"
-                sandbox="allow-scripts allow-forms allow-popups allow-modals"
-                referrerpolicy="no-referrer"
+        <iframe @ref="_frame" src="@Source" class="module-app-frame" title="@Title"
+                sandbox="allow-scripts allow-forms allow-popups allow-modals" referrerpolicy="no-referrer"
                 loading="eager"></iframe>
     }
 
@@ -46,6 +42,10 @@
                 </ul>
             </div>
             <a class="module-app-consent-review" href="@ConnectedAppsHref">Review</a>
+            <button type="button" class="module-app-consent-approve" @onclick="ApproveConsentAsync" disabled="@_consentBusy">
+                <MaterialIcon Icon="check" Size="MaterialIconSize.Sm" />
+                <span>@(_consentBusy ? "Approving…" : "Approve")</span>
+            </button>
             <button type="button" class="module-app-consent-dismiss" @onclick="DismissConsent">
                 <MaterialIcon Icon="close" Size="MaterialIconSize.Sm" />
                 <span class="visually-hidden">Dismiss</span>

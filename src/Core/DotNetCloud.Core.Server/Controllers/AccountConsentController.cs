@@ -22,19 +22,23 @@ namespace DotNetCloud.Core.Server.Controllers;
 public class AccountConsentController : ControllerBase
 {
     private readonly IModuleConsentService _consent;
+    private readonly IConsentScopeRegistry _manifests;
     private readonly IAuditLogger _audit;
     private readonly ILogger<AccountConsentController> _logger;
 
     /// <summary>Initializes a new instance of the <see cref="AccountConsentController"/> class.</summary>
     /// <param name="consent">Consent store.</param>
+    /// <param name="manifests">Registry of the manifests the supervisor loaded.</param>
     /// <param name="audit">Audit logger.</param>
     /// <param name="logger">Logger.</param>
     public AccountConsentController(
         IModuleConsentService consent,
+        IConsentScopeRegistry manifests,
         IAuditLogger audit,
         ILogger<AccountConsentController> logger)
     {
         _consent = consent;
+        _manifests = manifests;
         _audit = audit;
         _logger = logger;
     }
@@ -115,6 +119,87 @@ public class AccountConsentController : ControllerBase
         await AuditAsync(moduleId, userId, removed, "the user");
 
         return Ok(new { success = true, data = new { revoked = removed } });
+    }
+
+    /// <summary>
+    /// Approves the scopes a module asked the user for through its in-app consent prompt.
+    /// </summary>
+    /// <remarks>
+    /// The module cannot grant itself anything: the request is validated against the manifest the
+    /// supervisor loaded, so only scopes the module actually declared can be approved, and only
+    /// scopes from the core's consent catalog are written.
+    /// </remarks>
+    /// <param name="moduleId">The module id.</param>
+    /// <param name="request">The scopes to approve.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The approved scopes.</returns>
+    [HttpPost("{moduleId}")]
+    public async Task<IActionResult> GrantModuleAsync(
+        string moduleId,
+        [FromBody] GrantModuleConsentRequest request,
+        CancellationToken cancellationToken)
+    {
+        var userId = GetUserId();
+        if (userId == Guid.Empty)
+        {
+            return Unauthorized();
+        }
+
+        var requested = (request.Scopes ?? [])
+            .Where(scope => !string.IsNullOrWhiteSpace(scope) && ModuleScopes.IsConsentScope(scope))
+            .Select(scope => scope.Trim())
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+
+        if (requested.Length == 0)
+        {
+            return BadRequest(new { success = false, error = "NO_VALID_SCOPES" });
+        }
+
+        var declared = _manifests.GetUserConsentScopes(moduleId);
+        if (declared is null)
+        {
+            // Not installed, not running, or not a sandboxed module: there is nothing to approve.
+            return NotFound(new { success = false, error = "MODULE_NOT_FOUND" });
+        }
+
+        var undeclared = requested
+            .Where(scope => !declared.Contains(scope, StringComparer.Ordinal))
+            .ToArray();
+
+        if (undeclared.Length > 0)
+        {
+            _logger.LogWarning(
+                "Refused consent request from user {UserId} for undeclared scope(s) {Scopes} of module {ModuleId}",
+                userId,
+                LogSanitizer.Sanitize(string.Join(",", undeclared)),
+                LogSanitizer.Sanitize(moduleId));
+
+            return BadRequest(new { success = false, error = "UNDECLARED_SCOPE", scopes = undeclared });
+        }
+
+        await _consent.GrantAsync(moduleId, userId, requested, grantedByUserId: null, cancellationToken: cancellationToken);
+
+        await _audit.LogAsync(new AuditEntry
+        {
+            Caller = new CallerContext(
+                userId,
+                User.FindAll(ClaimTypes.Role).Select(claim => claim.Value).ToArray(),
+                CallerType.User),
+            ModuleId = moduleId,
+            Action = AuditAction.ModuleConsentGranted,
+            EntityType = "ModuleUserConsent",
+            EntityId = userId,
+            Description = $"The user approved {requested.Length} consent scope(s): {string.Join(",", requested)}.",
+        });
+
+        _logger.LogInformation(
+            "User {UserId} approved {Count} consent scope(s) for module {ModuleId}",
+            userId,
+            requested.Length,
+            LogSanitizer.Sanitize(moduleId));
+
+        return Ok(new { success = true, data = new { scopes = requested } });
     }
 
     private async Task AuditAsync(string moduleId, Guid userId, int removed, string actor)

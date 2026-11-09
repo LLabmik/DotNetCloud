@@ -1,3 +1,4 @@
+using DotNetCloud.Core.Data.Modules;
 using DotNetCloud.Core.Data.Naming;
 using DotNetCloud.Core.Grpc;
 using DotNetCloud.Modules.Example;
@@ -174,7 +175,7 @@ public static partial class Program
                 {
                     using var scope = app.Services.CreateScope();
                     var db = scope.ServiceProvider.GetRequiredService<ExampleDbContext>();
-                    await db.Database.MigrateAsync();
+                    await ModuleSchemaInitializer.InitializeAsync(db, "dotnetcloud.example", initLogger);
                     break;
                 }
                 catch (Exception ex) when (attempt < maxAttempts)

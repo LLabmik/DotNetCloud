@@ -981,7 +981,16 @@ public class Program
         });
 
         // CORS
-        app.UseCors(CorsConfiguration.PolicyName);
+        //
+        // Note the exception for /apps: the module UI plane (/apps/{moduleId}/**) is its own CORS
+        // authority. A sandboxed frame has an opaque origin ("null"), which the platform policy
+        // deliberately refuses — the global middleware would answer its preflights with 204 and no
+        // CORS headers, so ModuleAppProxy's own preflight handler would never run and every
+        // state-changing call from a module UI would fail. The proxy answers those preflights
+        // itself, with an origin of exactly "null" plus credentials.
+        app.UseWhen(
+            ctx => !ctx.Request.Path.StartsWithSegments("/apps", StringComparison.OrdinalIgnoreCase),
+            branch => branch.UseCors(CorsConfiguration.PolicyName));
 
         // Branch internal gRPC requests (module introspection, lifecycle, etc.) into a
         // dedicated pipeline that bypasses HTTP-specific middleware. gRPC uses cleartext

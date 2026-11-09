@@ -581,7 +581,7 @@ public sealed class ModuleDataStoreProvisioningService : IModuleDataStoreProvisi
 
     private DbConnection CreateConnection() => _database.Provider == DatabaseProvider.SqlServer
         ? new Microsoft.Data.SqlClient.SqlConnection(_database.ConnectionString)
-        : new Npgsql.NpgsqlConnection(_database.ConnectionString);    private async Task ExecuteAsync(IReadOnlyList<string> statements, CancellationToken cancellationToken)
+        : new Npgsql.NpgsqlConnection(_database.ConnectionString); private async Task ExecuteAsync(IReadOnlyList<string> statements, CancellationToken cancellationToken)
     {
         await using var connection = CreateConnection();
         await connection.OpenAsync(cancellationToken);

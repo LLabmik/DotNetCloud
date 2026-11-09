@@ -6,6 +6,7 @@ using DotNetCloud.Core.Server.Grpc.Interceptors;
 using DotNetCloud.Core.Server.Grpc.ModuleAccess;
 using DotNetCloud.Core.Server.Grpc.Services;
 using DotNetCloud.Core.Server.ModuleLoading;
+using DotNetCloud.Core.Server.Proxy;
 using DotNetCloud.Core.Server.Quotas;
 using DotNetCloud.Core.Server.Sandbox;
 using DotNetCloud.Core.Server.Services;
@@ -57,6 +58,8 @@ internal static class SupervisorServiceExtensions
         // What each manifest declares it publishes — consulted by PublishEvent so a module can
         // only raise the events it declared (identity is the verified module on the transport).
         services.AddSingleton<IModuleManifestRegistry, ModuleManifestRegistry>();
+        services.AddSingleton<IConsentScopeRegistry>(sp =>
+            (IConsentScopeRegistry)sp.GetRequiredService<IModuleManifestRegistry>());
 
         // Register supervisor infrastructure
         services.AddSingleton<GrpcChannelManager>();
@@ -97,6 +100,11 @@ internal static class SupervisorServiceExtensions
 
         // Signing key for end-user assertions. Modules get only the public half.
         services.AddSingleton<ModuleAssertionKeyRing>();
+
+        // Short-lived per-frame ticket: a sandboxed (opaque-origin) module UI can never send the
+        // SameSite session cookie, so the frame carries its own credential instead.
+        services.AddSingleton<ModuleFrameTicketService>();
+        services.AddSingleton<IModuleFrameTickets>(sp => sp.GetRequiredService<ModuleFrameTicketService>());
 
         // Sandboxed module data stores (scoped schema + principal, encrypted connection string).
         services.AddSingleton<IModuleDataStoreProvisioningService, ModuleDataStoreProvisioningService>();

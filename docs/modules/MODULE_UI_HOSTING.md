@@ -26,22 +26,32 @@ Add a `ui` section to your **version 2** manifest:
     "type": "iframe",
     "entryPath": "/",
     "navItems": [
-      { "id": "receipts", "label": "Receipts", "icon": "receipt_long", "path": "/" },
-      { "id": "settings", "label": "Receipt settings", "icon": "settings", "path": "/settings" }
+      {
+        "id": "receipts",
+        "label": "Receipts",
+        "icon": "receipt_long",
+        "path": "/"
+      },
+      {
+        "id": "settings",
+        "label": "Receipt settings",
+        "icon": "settings",
+        "path": "/settings"
+      }
     ]
   }
 }
 ```
 
-| Field | Rules |
-| ----- | ----- |
-| `ui.type` | Must be `iframe`. Nothing else is accepted. |
-| `ui.entryPath` | Site-relative (`/`), no query or fragment, no `..`, no `//host`. |
-| `ui.navItems[].id` | Stable id, unique within the module. |
-| `ui.navItems[].label` | Sidebar label. |
-| `ui.navItems[].icon` | **Google Material Icons ligature name** (`[a-z][a-z0-9_]*`) — never an emoji. If omitted or invalid, the core falls back to the module's canonical icon from `ModuleIconProvider`. |
-| `ui.navItems[].path` | Module-relative path (`/`, `/settings`). |
-| `ui.widget.path` | Optional. Module-relative path of a compact page for the Home-page widget card (for example `/widget/index.html`). Omit it and the module gets no widget. |
+| Field                 | Rules                                                                                                                                                                              |
+| --------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ui.type`             | Must be `iframe`. Nothing else is accepted.                                                                                                                                        |
+| `ui.entryPath`        | Site-relative (`/`), no query or fragment, no `..`, no `//host`.                                                                                                                   |
+| `ui.navItems[].id`    | Stable id, unique within the module.                                                                                                                                               |
+| `ui.navItems[].label` | Sidebar label.                                                                                                                                                                     |
+| `ui.navItems[].icon`  | **Google Material Icons ligature name** (`[a-z][a-z0-9_]*`) — never an emoji. If omitted or invalid, the core falls back to the module's canonical icon from `ModuleIconProvider`. |
+| `ui.navItems[].path`  | Module-relative path (`/`, `/settings`).                                                                                                                                           |
+| `ui.widget.path`      | Optional. Module-relative path of a compact page for the Home-page widget card (for example `/widget/index.html`). Omit it and the module gets no widget.                          |
 
 The core registers each nav item as `<label>` → `/modules/<moduleId><path>`, and that shell page
 frames your app.
@@ -50,10 +60,10 @@ frames your app.
 
 ## 2. Where your UI is served
 
-| URL | Who serves it |
-| --- | ------------- |
-| `/apps/<moduleId>/…` | **You.** The core proxies this to your host process, stripping `/apps/<moduleId>` before forwarding, so your app still sees `/`, `/settings`, `/assets/app.js`, … |
-| `/modules/<moduleId>…` | The core. This is the chrome page (sidebar + header) that iframes the proxied path. |
+| URL                    | Who serves it                                                                                                                                                     |
+| ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `/apps/<moduleId>/…`   | **You.** The core proxies this to your host process, stripping `/apps/<moduleId>` before forwarding, so your app still sees `/`, `/settings`, `/assets/app.js`, … |
+| `/modules/<moduleId>…` | The core. This is the chrome page (sidebar + header) that iframes the proxied path.                                                                               |
 
 Consequences:
 
@@ -78,9 +88,13 @@ Copy `dncModuleBridge.js` from the SDK package (`contentFiles/any/any/wwwroot/`)
 <script src="/dncModuleBridge.js"></script>
 <script>
   window.dncModuleBridge
-    .on('init', function (info) { /* role, moduleId, theme, locale */ })
-    .on('theme', function (t) { document.body.dataset.theme = t.theme; })
-    .start({ title: 'Receipts' });
+    .on("init", function (info) {
+      /* role, moduleId, theme, locale */
+    })
+    .on("theme", function (t) {
+      document.body.dataset.theme = t.theme;
+    })
+    .start({ title: "Receipts" });
 </script>
 ```
 
@@ -113,23 +127,23 @@ No npm, no bundler: it is a plain static asset.
 
 Host → frame:
 
-| Type | Payload | When |
-| ---- | ------- | ---- |
-| `dnc:init` | `{ role, moduleId, theme, locale, title }` | Immediately after each frame load |
-| `dnc:theme` | `{ theme, locale }` | The user changed theme or language |
-| `dnc:consentResult` | `{ scope, granted }` | A consent decision was recorded |
+| Type                | Payload                                    | When                               |
+| ------------------- | ------------------------------------------ | ---------------------------------- |
+| `dnc:init`          | `{ role, moduleId, theme, locale, title }` | Immediately after each frame load  |
+| `dnc:theme`         | `{ theme, locale }`                        | The user changed theme or language |
+| `dnc:consentResult` | `{ scope, granted }`                       | A consent decision was recorded    |
 
 Frame → host (rate-limited where noted):
 
-| Type | Payload | Notes |
-| ---- | ------- | ----- |
-| `dnc:ready` | – | Required. The host shows a "not available" state if it does not arrive within 10 s. |
-| `dnc:navigate` | `{ path }` | Module-relative only. |
-| `dnc:resize` | `{ height }` | Widget role only; clamped to 200–20000 px. |
-| `dnc:title` | `{ title }` | ≤ 200 chars. |
-| `dnc:openExternal` | `{ url }` | `https:` only, opened with `noopener,noreferrer`. |
-| `dnc:requestConsent` | `{ scopes: [...] }` | Renders a core consent banner; this is not an OIDC flow yet (§6). |
-| `dnc:notify` | `{ message }` | ≤ 500 chars, **5 per minute**. |
+| Type                 | Payload             | Notes                                                                               |
+| -------------------- | ------------------- | ----------------------------------------------------------------------------------- |
+| `dnc:ready`          | –                   | Required. The host shows a "not available" state if it does not arrive within 10 s. |
+| `dnc:navigate`       | `{ path }`          | Module-relative only.                                                               |
+| `dnc:resize`         | `{ height }`        | Widget role only; clamped to 200–20000 px.                                          |
+| `dnc:title`          | `{ title }`         | ≤ 200 chars.                                                                        |
+| `dnc:openExternal`   | `{ url }`           | `https:` only, opened with `noopener,noreferrer`.                                   |
+| `dnc:requestConsent` | `{ scopes: [...] }` | Renders a core consent banner; this is not an OIDC flow yet (§6).                   |
+| `dnc:notify`         | `{ message }`       | ≤ 500 chars, **5 per minute**.                                                      |
 
 Messages larger than 8 KiB are dropped, unknown types are dropped, and messages whose source is not
 the expected window are dropped.
@@ -187,6 +201,6 @@ A Home-page widget is a framed document, declared in the same `ui` block:
   links to `/connected-apps`.
 - **No service worker, no `window.top` access, no cookies** from inside the frame.
 - **`apps.<host>` origin separation** is a public-store launch gate, not part of this pass. Until
-  then the frame shares the core origin: it cannot *read* core resources, but its requests are
+  then the frame shares the core origin: it cannot _read_ core resources, but its requests are
   cross-site for cookie purposes (core cookies are `SameSite=Lax`).
 - **Response bodies are capped at 32 MiB** by the proxy.

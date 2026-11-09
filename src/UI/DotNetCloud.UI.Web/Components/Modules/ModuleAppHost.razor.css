@@ -119,6 +119,27 @@
   font-weight: 600;
 }
 
+.module-app-consent-approve {
+  align-self: center;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 12px;
+  border: 1px solid var(--color-primary, #1a73e8);
+  border-radius: 6px;
+  background: var(--color-primary, #1a73e8);
+  color: #fff;
+  font-size: 0.85rem;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.module-app-consent-approve:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
 .module-app-consent-dismiss {
   display: inline-flex;
   padding: 4px;

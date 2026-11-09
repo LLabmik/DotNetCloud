@@ -724,6 +724,25 @@ public sealed class DotNetCloudApiClient
         return response.IsSuccessStatusCode;
     }
 
+    /// <summary>
+    /// Approves the scopes a module asked the user for through its in-app consent prompt.
+    /// </summary>
+    /// <param name="moduleId">The module id.</param>
+    /// <param name="scopes">The scopes shown in the prompt.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns><see langword="true"/> when the grant was recorded.</returns>
+    public async Task<bool> GrantModuleConsentAsync(
+        string moduleId,
+        IReadOnlyList<string> scopes,
+        CancellationToken ct = default)
+    {
+        var response = await _http.PostAsJsonAsync(
+            $"api/v1/core/account/consents/{Uri.EscapeDataString(moduleId)}",
+            new GrantModuleConsentRequest(scopes),
+            ct);
+        return response.IsSuccessStatusCode;
+    }
+
     /// <summary>Gets the consent overview for a module (admin only).</summary>
     public async Task<ModuleConsentOverviewDto?> GetModuleConsentAsync(string moduleId, CancellationToken ct = default)
     {

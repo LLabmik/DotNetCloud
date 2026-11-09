@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Net.Http.Headers;
+using System.Security.Claims;
 using DotNetCloud.Core;
 using DotNetCloud.Core.Grpc;
 using DotNetCloud.Core.Modules;
@@ -40,6 +41,28 @@ internal static class ModuleAppProxy
     /// <summary>The assertion operation minted for UI-plane requests.</summary>
     internal const string UiOperation = "ui";
 
+    /// <summary>Request header carrying the frame ticket on the module's own API calls.</summary>
+    internal const string FrameTicketHeader = "dnc-frame-ticket";
+
+    /// <summary>Query parameter carrying the frame ticket on the frame's entry document.</summary>
+    internal const string FrameTicketQuery = "dncTicket";
+
+    /// <summary>
+    /// File extensions served to a sandboxed frame without authentication.
+    /// </summary>
+    /// <remarks>
+    /// A frame with an opaque origin cannot attach a credential to <c>&lt;script&gt;</c> or
+    /// <c>&lt;link&gt;</c> loads, so its CSS/JS/fonts would otherwise 401 and the UI could never
+    /// render. These are the module's published static assets — they hold no user data, and every
+    /// call that does (the module's own API) still requires the ticket or the session cookie.
+    /// Anything not in this list is authenticated.
+    /// </remarks>
+    internal static readonly HashSet<string> AnonymousAssetExtensions = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ".css", ".js", ".mjs", ".map", ".svg", ".png", ".jpg", ".jpeg", ".gif", ".webp",
+        ".ico", ".avif", ".woff", ".woff2", ".ttf", ".otf", ".eot", ".wasm",
+    };
+
     /// <summary>
     /// Maps the module app proxy routes.
     /// </summary>
@@ -52,6 +75,7 @@ internal static class ModuleAppProxy
         var manifests = app.Services.GetRequiredService<IModuleManifestRegistry>();
         var forwarder = app.Services.GetRequiredService<IHttpForwarder>();
         var assertionKeyRing = app.Services.GetRequiredService<ModuleAssertionKeyRing>();
+        var frameTickets = app.Services.GetRequiredService<ModuleFrameTicketService>();
         var invokerCache = app.Services.GetRequiredService<ModuleHttpInvokerCache>();
         var rateLimiter = app.Services.GetRequiredService<ModuleRateLimiter>();
         var quotaCache = app.Services.GetRequiredService<ModuleQuotaCache>();
@@ -74,8 +98,7 @@ internal static class ModuleAppProxy
             // cross-origin; a
             // non-simple request (JSON POST, PUT, DELETE) is therefore preflighted. A preflight carries
             // no credentials by definition, so it must be answered before the authentication gate —
-            // otherwise the browser sees 401 and never sends the real request. That real request does
-            // carry the user's cookies (same site), and the proxy authenticates it as usual.
+            // otherwise the browser sees 401 and never sends the real request.
             if (HttpMethods.IsOptions(context.Request.Method)
                 && context.Request.Headers.ContainsKey("Access-Control-Request-Method"))
             {
@@ -86,10 +109,25 @@ internal static class ModuleAppProxy
 
             if (context.User?.Identity?.IsAuthenticated != true)
             {
-                // 401 rather than a login redirect: this endpoint is loaded by an iframe, where a
-                // redirect to the sign-in page would be framed instead of navigating the user.
-                context.Response.StatusCode = StatusCodes.Status401Unauthorized;
-                return;
+                // An opaque-origin frame never sends the SameSite session cookie, so the frame
+                // carries its own short-lived ticket: on the entry document as a query parameter,
+                // and on its API calls as a header (the SDK bridge copies it from the URL).
+                if (TryAdoptFrameTicket(context, moduleId, frameTickets))
+                {
+                    // Adopted: the transformer mints the user assertion from this principal.
+                }
+                else if (IsAnonymousStaticAsset(context.Request, moduleId))
+                {
+                    // The module's own CSS/JS/fonts: public bytes, forwarded without an assertion.
+                    // The module's API still answers 401 without one.
+                }
+                else
+                {
+                    // 401 rather than a login redirect: this endpoint is loaded by an iframe, where a
+                    // redirect to the sign-in page would be framed instead of navigating the user.
+                    context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+                    return;
+                }
             }
 
             // Only a module that declared an iframe UI may be served through the core origin.
@@ -129,6 +167,10 @@ internal static class ModuleAppProxy
                 context.Response.StatusCode = StatusCodes.Status404NotFound;
                 return;
             }
+
+            // The ticket is a credential: never forward it to the module, and never let it linger in
+            // the address bar of the frame's document.
+            RemoveFrameTicketFromQuery(context.Request);
 
             var (destinationPrefix, invoker) = invokerCache.Resolve(moduleId, moduleInfo.GrpcEndpoint);
             var transformer = transformers.GetOrAdd(moduleId, id => new ModuleAppProxyTransformer(id, assertionKeyRing));
@@ -178,6 +220,102 @@ internal static class ModuleAppProxy
         logger.LogInformation(
             "Module UI app proxy mapped at /apps/{Constraint}/** (reverse-DNS module ids only)",
             ModuleIdConstraint);
+    }
+
+    /// <summary>
+    /// Adopts the frame ticket (header first, then query) as the request principal.
+    /// </summary>
+    /// <remarks>
+    /// The resulting identity is core-attested: it is only produced from a ticket this process signed,
+    /// bound to this exact module and still inside its few-minute lifetime. Downstream the transformer
+    /// mints the ordinary module assertion from it, so a frame-authenticated call is indistinguishable
+    /// from a cookie-authenticated one on the module side.
+    /// </remarks>
+    /// <param name="context">The request context.</param>
+    /// <param name="moduleId">The module the request is routed to.</param>
+    /// <param name="tickets">The ticket service.</param>
+    /// <returns><see langword="true"/> when a valid ticket was adopted.</returns>
+    internal static bool TryAdoptFrameTicket(
+        HttpContext context, string moduleId, ModuleFrameTicketService tickets)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+        ArgumentNullException.ThrowIfNull(tickets);
+
+        var ticket = context.Request.Headers[FrameTicketHeader].ToString();
+        if (string.IsNullOrEmpty(ticket)
+            && context.Request.Query.TryGetValue(FrameTicketQuery, out var fromQuery))
+        {
+            ticket = fromQuery.ToString();
+        }
+
+        if (!tickets.TryValidate(ticket, moduleId, out var userId))
+        {
+            return false;
+        }
+
+        context.User = new ClaimsPrincipal(new ClaimsIdentity(
+            [
+                new Claim(ClaimTypes.NameIdentifier, userId.ToString()),
+                new Claim("sub", userId.ToString()),
+            ],
+            authenticationType: "DncModuleFrameTicket"));
+
+        return true;
+    }
+
+    /// <summary>
+    /// Determines whether a request is one of the module's own public static assets.
+    /// </summary>
+    /// <param name="request">The inbound request.</param>
+    /// <param name="moduleId">The module id.</param>
+    /// <returns><see langword="true"/> when the request may be forwarded without a user.</returns>
+    internal static bool IsAnonymousStaticAsset(HttpRequest request, string moduleId)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        if (!HttpMethods.IsGet(request.Method) && !HttpMethods.IsHead(request.Method))
+        {
+            return false;
+        }
+
+        var path = request.Path.Value ?? string.Empty;
+        var prefix = $"/apps/{moduleId}";
+        if (!path.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        var remainder = path[prefix.Length..];
+        if (remainder.Length == 0 || remainder[0] != '/')
+        {
+            // The entry document (and anything not under the module root) needs a ticket.
+            return false;
+        }
+
+        return AnonymousAssetExtensions.Contains(Path.GetExtension(remainder));
+    }
+
+    /// <summary>
+    /// Drops the frame ticket from the query string before the request is forwarded.
+    /// </summary>
+    /// <param name="request">The inbound request.</param>
+    internal static void RemoveFrameTicketFromQuery(HttpRequest request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        if (!request.Query.ContainsKey(FrameTicketQuery))
+        {
+            return;
+        }
+
+        var kept = request.Query
+            .Where(pair => !string.Equals(pair.Key, FrameTicketQuery, StringComparison.OrdinalIgnoreCase))
+            .SelectMany(pair => pair.Value.Select(value => $"{Uri.EscapeDataString(pair.Key)}={Uri.EscapeDataString(value ?? string.Empty)}"))
+            .ToArray();
+
+        request.QueryString = kept.Length == 0
+            ? QueryString.Empty
+            : new QueryString("?" + string.Join("&", kept));
     }
 
     /// <summary>
@@ -279,6 +417,8 @@ internal sealed class ModuleAppProxyTransformer : HttpTransformer
         ModuleIdentityMetadata.ModuleIdHeader,
         ModuleIdentityMetadata.ModuleTokenHeader,
         "X-Forwarded-User",
+        // The frame ticket is a credential for the core proxy only; a module never sees it.
+        ModuleAppProxy.FrameTicketHeader,
     ];
 
     private readonly string _moduleId;
@@ -334,8 +474,10 @@ internal sealed class ModuleAppProxyTransformer : HttpTransformer
         HttpResponseMessage? proxyResponse,
         CancellationToken cancellationToken)
     {
-        var result = await base.TransformResponseAsync(httpContext, proxyResponse, cancellationToken);
-
+        // Applied BEFORE the base transform: the base implementation copies the response headers,
+        // so editing proxyResponse.Headers afterwards changes nothing the browser ever sees (that
+        // ordering is why a frame's API responses carried no Access-Control-Allow-Origin and the
+        // module UI reported "Could not reach the module" while the module had already answered 200).
         if (proxyResponse is not null)
         {
             // Applied here rather than in OnStarting: the module's own Set-Cookie / CSP headers must
@@ -345,7 +487,7 @@ internal sealed class ModuleAppProxyTransformer : HttpTransformer
                 proxyResponse.Content?.Headers.ContentType?.MediaType);
         }
 
-        return result;
+        return await base.TransformResponseAsync(httpContext, proxyResponse, cancellationToken);
     }
 }
 
@@ -375,7 +517,7 @@ internal static class ModuleAppResponsePolicy
     internal const string PreflightAllowedMethods = "GET, POST, PUT, PATCH, DELETE, OPTIONS";
 
     /// <summary>Request headers a module UI may send from its frame.</summary>
-    internal const string PreflightAllowedHeaders = "Content-Type, Accept";
+    internal const string PreflightAllowedHeaders = "Content-Type, Accept, " + ModuleAppProxy.FrameTicketHeader;
 
     /// <summary>How long a browser may cache the preflight answer.</summary>
     internal const string PreflightMaxAgeSeconds = "600";

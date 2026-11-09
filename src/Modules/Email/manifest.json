@@ -1,54 +1,49 @@
 {
-    "manifestVersion": 2,
-    "id": "dotnetcloud.email",
-    "name": "Email",
-    "version": "1.2.0",
-    "description": "Email client with IMAP/POP3 sync, sending, rules, and Gmail OAuth support.",
-    "publisher": {
-        "id": "dotnetcloud",
-        "name": "DotNetCloud",
-        "url": "https://dotnetcloud.net"
-    },
-    "moduleApiVersion": 1,
-    "minCoreVersion": "0.7.0",
-    "dataStore": "isolated",
-    "handlesUserErasure": true,
-    "capabilities": [
-        "IAuditLogger",
-        "ISearchProvider",
-        "IFileDirectory",
-        "IFileWriter"
+  "manifestVersion": 2,
+  "id": "dotnetcloud.email",
+  "name": "Email",
+  "version": "1.2.0",
+  "description": "Email client with IMAP/POP3 sync, sending, rules, and Gmail OAuth support.",
+  "publisher": {
+    "id": "dotnetcloud",
+    "name": "DotNetCloud",
+    "url": "https://dotnetcloud.net"
+  },
+  "moduleApiVersion": 1,
+  "minCoreVersion": "0.7.0",
+  "dataStore": "isolated",
+  "handlesUserErasure": true,
+  "capabilities": [
+    "IAuditLogger",
+    "ISearchProvider",
+    "IFileDirectory",
+    "IFileWriter"
+  ],
+  "userConsentScopes": ["mail:read", "mail:write", "files:read", "files:write"],
+  "events": {
+    "publishes": [
+      "EmailAccountAddedEvent",
+      "EmailAccountRemovedEvent",
+      "EmailThreadCreatedEvent",
+      "EmailMessageReceivedEvent",
+      "EmailSentEvent",
+      "EmailRuleTriggeredEvent"
     ],
-    "userConsentScopes": [
-        "mail:read",
-        "mail:write",
-        "files:read",
-        "files:write"
+    "subscribes": []
+  },
+  "ui": {
+    "type": "iframe",
+    "entryPath": "/",
+    "navItems": [
+      {
+        "id": "email",
+        "label": "Email",
+        "icon": "mail",
+        "path": "/"
+      }
     ],
-    "events": {
-        "publishes": [
-            "EmailAccountAddedEvent",
-            "EmailAccountRemovedEvent",
-            "EmailThreadCreatedEvent",
-            "EmailMessageReceivedEvent",
-            "EmailSentEvent",
-            "EmailRuleTriggeredEvent"
-        ],
-        "subscribes": []
-    },
-    "ui": {
-        "type": "iframe",
-        "entryPath": "/",
-        "navItems": [
-            {
-                "id": "email",
-                "label": "Email",
-                "icon": "mail",
-                "path": "/"
-            }
-        ],
-        "widget": {
-            "path": "/widget/index.html"
-        }
+    "widget": {
+      "path": "/widget/index.html"
     }
+  }
 }

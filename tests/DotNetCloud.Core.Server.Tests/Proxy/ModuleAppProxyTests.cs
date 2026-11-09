@@ -212,6 +212,13 @@ public class ModuleAppProxyTests
         Assert.IsTrue(
             response.Headers.GetValues("Access-Control-Allow-Methods").Single().Contains("PATCH", StringComparison.Ordinal),
             "the Email module patches accounts, and the plane must not block it");
+
+        // A state-changing call from the frame carries the ticket header; if the preflight does not
+        // allow it the browser never sends the real request and the module reports "unreachable".
+        Assert.IsTrue(
+            response.Headers.GetValues("Access-Control-Allow-Headers").Single()
+                .Contains(ModuleAppProxy.FrameTicketHeader, StringComparison.OrdinalIgnoreCase),
+            "the frame ticket header must survive the CORS preflight");
     }
 
     [TestMethod]
@@ -345,6 +352,90 @@ public class ModuleAppProxyTests
     public void IsAllowedExternalUrl_OnlyHttpsAbsolute(string url, bool expected)
     {
         Assert.AreEqual(expected, DotNetCloud.Core.Modules.Ui.ModuleAppUrls.IsAllowedExternalUrl(url));
+    }
+
+    // ── Frame ticket / anonymous static assets ────────────────────────────────
+    // A sandboxed frame has an opaque origin, so the browser never attaches the SameSite session
+    // cookie: without these rules every module UI 401s on its own CSS/JS and never handshakes.
+
+    private static ModuleFrameTicketService CreateTicketService() =>
+        new(new Microsoft.AspNetCore.DataProtection.EphemeralDataProtectionProvider(), TimeProvider.System);
+
+    [TestMethod]
+    public void TryAdoptFrameTicket_HeaderForThisModule_AdoptsTheUser()
+    {
+        var service = CreateTicketService();
+        var userId = Guid.CreateVersion7();
+        var context = new DefaultHttpContext();
+        context.Request.Path = $"/apps/{ModuleId}/";
+        context.Request.Headers[ModuleAppProxy.FrameTicketHeader] = service.Issue(userId, ModuleId);
+
+        Assert.IsTrue(ModuleAppProxy.TryAdoptFrameTicket(context, ModuleId, service));
+        Assert.AreEqual(userId.ToString(), context.User.FindFirst(ClaimTypes.NameIdentifier)?.Value);
+        Assert.AreEqual(userId.ToString(), context.User.FindFirst("sub")?.Value);
+    }
+
+    [TestMethod]
+    public void TryAdoptFrameTicket_QueryForAnotherModule_IsRejected()
+    {
+        var service = CreateTicketService();
+        var context = new DefaultHttpContext();
+        context.Request.Path = $"/apps/{ModuleId}/";
+        context.Request.QueryString = new QueryString(
+            $"?{ModuleAppProxy.FrameTicketQuery}={Uri.EscapeDataString(service.Issue(Guid.CreateVersion7(), "dotnetcloud.email"))}");
+
+        Assert.IsFalse(ModuleAppProxy.TryAdoptFrameTicket(context, ModuleId, service));
+        Assert.IsFalse(context.User.Identity?.IsAuthenticated ?? false);
+    }
+
+    [TestMethod]
+    [DataRow("/apps/vendor.receipts/assets/app.css", true)]
+    [DataRow("/apps/vendor.receipts/assets/app.js", true)]
+    [DataRow("/apps/vendor.receipts/fonts/inter.woff2", true)]
+    [DataRow("/apps/vendor.receipts/", false)]
+    [DataRow("/apps/vendor.receipts", false)]
+    [DataRow("/apps/vendor.receipts/api/items", false)]
+    [DataRow("/apps/vendor.receipts/api/items.json", false)]
+    [DataRow("/apps/vendor.receiptsx/assets/app.css", false)]
+    public void IsAnonymousStaticAsset_OnlyModuleAssets(string path, bool expected)
+    {
+        var context = new DefaultHttpContext();
+        context.Request.Method = HttpMethods.Get;
+        context.Request.Path = path;
+
+        Assert.AreEqual(expected, ModuleAppProxy.IsAnonymousStaticAsset(context.Request, ModuleId));
+    }
+
+    [TestMethod]
+    public void IsAnonymousStaticAsset_PostToAnAssetPath_IsNotAnonymous()
+    {
+        var context = new DefaultHttpContext();
+        context.Request.Method = HttpMethods.Post;
+        context.Request.Path = "/apps/vendor.receipts/assets/app.js";
+
+        Assert.IsFalse(ModuleAppProxy.IsAnonymousStaticAsset(context.Request, ModuleId));
+    }
+
+    [TestMethod]
+    public void RemoveFrameTicketFromQuery_KeepsOtherParameters()
+    {
+        var context = new DefaultHttpContext();
+        context.Request.QueryString = new QueryString("?dncTicket=abc&threadId=t-1&x=2");
+
+        ModuleAppProxy.RemoveFrameTicketFromQuery(context.Request);
+
+        Assert.AreEqual("?threadId=t-1&x=2", context.Request.QueryString.Value);
+    }
+
+    [TestMethod]
+    public void RemoveFrameTicketFromQuery_OnlyTicket_BecomesEmpty()
+    {
+        var context = new DefaultHttpContext();
+        context.Request.QueryString = new QueryString("?dncTicket=abc");
+
+        ModuleAppProxy.RemoveFrameTicketFromQuery(context.Request);
+
+        Assert.AreEqual(string.Empty, context.Request.QueryString.Value);
     }
 
     private static DefaultHttpContext CreateContext(Guid userId)

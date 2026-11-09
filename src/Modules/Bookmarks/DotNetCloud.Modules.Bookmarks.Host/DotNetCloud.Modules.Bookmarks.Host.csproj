@@ -36,6 +36,20 @@
              CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
 
+  <!--
+    The supervisor reads <modules>/<id>/manifest.json to decide how a module runs: a v2 manifest
+    makes it sandboxed (private data dir + isolated data store) and gives it consent scopes. A
+    bundled deploy publishes this host straight into that directory, so the file must travel with
+    the binaries — without it the supervisor falls back to a v1 default manifest, withholds the
+    module directories and the host dies on the read-only /opt tree.
+  -->
+  <ItemGroup>
+    <Content Include="..\manifest.json"
+             Link="manifest.json"
+             CopyToOutputDirectory="PreserveNewest"
+             CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
+
   <ItemGroup>
     <ProjectReference Include="..\DotNetCloud.Modules.Bookmarks\DotNetCloud.Modules.Bookmarks.csproj" />
     <ProjectReference Include="..\DotNetCloud.Modules.Bookmarks.Data\DotNetCloud.Modules.Bookmarks.Data.csproj" />

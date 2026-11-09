@@ -20,10 +20,12 @@ The UI is **not** here: a sandboxed module serves its own UI from its own host p
 ## Projects This Interacts With
 
 ### Direct Dependencies
+
 - `DotNetCloud.Core` — Core interfaces and module contracts
 - `Microsoft.Extensions.DependencyInjection.Abstractions`, `Microsoft.Extensions.Logging.Abstractions`
 
 ### Dependent Projects
+
 - `DotNetCloud.Modules.Example.Host` — Hosts this module as a gRPC process and serves its web UI
 
 > The core does **not** reference this project: `DotNetCloud.Core.Server` and `DotNetCloud.UI.Web` contain no Example code or pages (Track C decoupling).
