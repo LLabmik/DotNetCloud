@@ -26,7 +26,11 @@ serves its own web UI.
 - **DataProtection.** Keys live under `DOTNETCLOUD_MODULE_DATA_DIR/data-protection-keys`, private to
   the module. They protect stored provider credentials and sign the Gmail OAuth `state` value.
 - **Files.** Attachment blobs are written under `DOTNETCLOUD_MODULE_DATA_DIR/email-attachments`
-  (content-addressed by SHA-256).
+  (content-addressed by SHA-256). Browsing the user's cloud files and saving an attachment back
+  into them goes through the **core**, never to the Files module: `IFileDirectory` (list/read) and
+  `IFileWriter` (save) are declared in `manifest.json`, reached with `IDncModuleApi`, and gated by
+  the user's `files:read` / `files:write` consent. The module holds no Files credential, no Files
+  socket and no Files schema.
 - **Erasure.** `EmailUserErasureHandler` deletes the deleted user's accounts, mailboxes, threads,
   messages, attachments (and their blobs) and rules.
 
@@ -51,6 +55,10 @@ nested `sandbox=""` frame, which is the sanitizer.
 
 - **IMAP/POP3 sync** — poll external servers and store threads/messages in the module's schema
 - **SMTP/Gmail sending** — send from a configured account, with attachments
+- **Attach from your files** — `GET /api/v1/email/files` browses the user's Files tree (brokered by
+  the core), `POST /api/v1/email/attachments/from-file` copies the chosen node into the attachment
+  store, and `POST /api/v1/email/attachments/{id}/save-to-files` writes a received attachment back
+  into a folder of the user's choice
 - **Gmail OAuth** — web-server flow with a DataProtection-signed `state` (no cookie, because the proxy
   strips `Set-Cookie`); redirects return to `/apps/dotnetcloud.email/?gmail=…`
 - **Rules engine** — conditions and actions, run in priority order on sync or on demand
@@ -64,6 +72,8 @@ nested `sandbox=""` frame, which is the sanitizer.
 - `DotNetCloud.Modules.Email` — models and service contracts
 - `DotNetCloud.Modules.Email.Data` — data access and business services
 - `DotNetCloud.Modules.Email.Data.SqlServer` — SQL Server migration assembly (runtime)
+- `DotNetCloud.Modules.Sdk` — `IDncModuleApi`, the only sanctioned channel to the core (used for the
+  file capabilities)
 
 ### Dependent Projects
 

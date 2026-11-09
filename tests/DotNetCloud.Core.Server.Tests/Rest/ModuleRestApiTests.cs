@@ -29,6 +29,59 @@ public class ModuleRestApiTests
     private const string ModuleId = "dotnetcloud.files";
 
     [TestMethod]
+    public async Task ListFiles_Granted_ReturnsTheFolderAsJson()
+    {
+        var harness = CreateHarness();
+        var userId = Guid.CreateVersion7();
+        harness.Identity.UserId = userId;
+
+        harness.Files
+            .Setup(client => client.ListChildrenAsync(userId, null, 1, 200, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new DotNetCloud.Core.Services.ModuleApis.FileListResult
+            {
+                Status = DotNetCloud.Core.Services.ModuleApis.FilesAccessStatus.Success,
+                TotalCount = 1,
+                Nodes =
+                [
+                    new FileNodeInfo
+                    {
+                        Id = Guid.CreateVersion7(),
+                        Name = "Report.pdf",
+                        NodeType = "File",
+                        MimeType = "application/pdf",
+                        Size = 10,
+                    },
+                ],
+            });
+
+        var http = CreateAuthenticatedHttp(harness, harness.KeyRing.Mint(userId, ModuleId));
+
+        var (status, body) = await ExecuteAsync(await harness.Api.ListFilesAsync(http, null, null, null), http);
+
+        Assert.AreEqual(StatusCodes.Status200OK, status);
+        using var json = JsonDocument.Parse(body);
+        Assert.AreEqual(1, json.RootElement.GetProperty("totalCount").GetInt32());
+        Assert.AreEqual(
+            "Report.pdf",
+            json.RootElement.GetProperty("nodes")[0].GetProperty("name").GetString());
+    }
+
+    [TestMethod]
+    public async Task ListFiles_CapabilityNotGranted_Returns403AndNeverCallsFiles()
+    {
+        var harness = CreateHarness(allowed: false);
+        var userId = Guid.CreateVersion7();
+        harness.Identity.UserId = userId;
+        var http = CreateAuthenticatedHttp(harness, harness.KeyRing.Mint(userId, ModuleId));
+
+        var (status, body) = await ExecuteAsync(await harness.Api.ListFilesAsync(http, null, null, null), http);
+
+        Assert.AreEqual(StatusCodes.Status403Forbidden, status);
+        StringAssert.Contains(body, "CAP_NOT_GRANTED");
+        harness.Files.VerifyNoOtherCalls();
+    }
+
+    [TestMethod]
     public async Task GetUser_MissingCredential_Returns401()
     {
         var harness = CreateHarness();
@@ -203,6 +256,7 @@ public class ModuleRestApiTests
         public StubIdentityResolver Identity { get; init; } = null!;
         public Mock<IUserDirectory> Users { get; init; } = null!;
         public Mock<ITeamDirectory> Teams { get; init; } = null!;
+        public Mock<DotNetCloud.Core.Services.ModuleApis.IFilesApiClient> Files { get; init; } = null!;
     }
 
     private static Harness CreateHarness(bool allowed = true)
@@ -213,11 +267,13 @@ public class ModuleRestApiTests
         var identity = new StubIdentityResolver();
         var users = new Mock<IUserDirectory>();
         var teams = new Mock<ITeamDirectory>();
+        var files = new Mock<DotNetCloud.Core.Services.ModuleApis.IFilesApiClient>();
 
         var services = new ServiceCollection();
         services.AddSingleton<IUserDirectory>(users.Object);
         services.AddSingleton<ITeamDirectory>(teams.Object);
         services.AddSingleton<IAuditLogger>(audit);
+        services.AddScoped(_ => files.Object);
         var provider = services.BuildServiceProvider();
 
         var legacy = new CoreCapabilitiesServiceImpl(
@@ -236,6 +292,10 @@ public class ModuleRestApiTests
             legacy,
             new ModuleHealthRegistry(TimeProvider.System),
             ConsentTestDoubles.NoConsent(),
+            new DotNetCloud.Core.Server.Services.ModuleFileAccessService(
+                provider.GetRequiredService<IServiceScopeFactory>(),
+                ConsentTestDoubles.NoConsent(),
+                NullLogger<DotNetCloud.Core.Server.Services.ModuleFileAccessService>.Instance),
             NullLogger<ModuleApiV1Service>.Instance);
 
         var evaluator = new Mock<IModuleAccessEvaluator>();
@@ -264,6 +324,7 @@ public class ModuleRestApiTests
             Identity = identity,
             Users = users,
             Teams = teams,
+            Files = files,
             Api = new ModuleRestApiService(
                 api,
                 new AuthenticationInterceptor(
@@ -282,7 +343,11 @@ public class ModuleRestApiTests
                 new ModuleAccessInterceptor(
                     evaluator.Object,
                     scopeFactory,
-                    NullLogger<ModuleAccessInterceptor>.Instance)),
+                    NullLogger<ModuleAccessInterceptor>.Instance),
+                new DotNetCloud.Core.Server.Services.ModuleFileAccessService(
+                    scopeFactory,
+                    ConsentTestDoubles.NoConsent(),
+                    NullLogger<DotNetCloud.Core.Server.Services.ModuleFileAccessService>.Instance)),
         };
     }
 

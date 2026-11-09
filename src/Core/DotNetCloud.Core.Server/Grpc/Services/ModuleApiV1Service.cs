@@ -1,7 +1,9 @@
 using Api = DotNetCloud.Core.Grpc.ModuleApi.V1;
 using Legacy = DotNetCloud.Core.Grpc.Capabilities;
+using DotNetCloud.Core.Capabilities;
 using DotNetCloud.Core.Modules;
 using DotNetCloud.Core.Server.Grpc.ModuleAccess;
+using DotNetCloud.Core.Server.Services;
 using Grpc.Core;
 using Microsoft.Extensions.Logging;
 
@@ -34,22 +36,26 @@ internal sealed class ModuleApiV1Service : Api.ModuleApi.ModuleApiBase
     private readonly CoreCapabilitiesServiceImpl _legacy;
     private readonly ModuleHealthRegistry _health;
     private readonly ModuleConsentPolicy _consentPolicy;
+    private readonly ModuleFileAccessService _files;
     private readonly ILogger<ModuleApiV1Service> _logger;
 
     /// <summary>Initializes a new instance of the <see cref="ModuleApiV1Service"/> class.</summary>
     /// <param name="legacy">The legacy capability handlers every RPC delegates to.</param>
     /// <param name="health">Self-reported module health.</param>
     /// <param name="consentPolicy">Consent policy used to read and narrow stored consent.</param>
+    /// <param name="files">Broker for the file capabilities (delegates to the Files module).</param>
     /// <param name="logger">Logger.</param>
     public ModuleApiV1Service(
         CoreCapabilitiesServiceImpl legacy,
         ModuleHealthRegistry health,
         ModuleConsentPolicy consentPolicy,
+        ModuleFileAccessService files,
         ILogger<ModuleApiV1Service> logger)
     {
         _legacy = legacy;
         _health = health;
         _consentPolicy = consentPolicy;
+        _files = files;
         _logger = logger;
     }
 
@@ -414,6 +420,208 @@ internal sealed class ModuleApiV1Service : Api.ModuleApi.ModuleApiBase
 
         return response;
     }
+
+    // --- Files (IFileDirectory / IFileWriter) ----------------------------------------------------
+
+    /// <inheritdoc />
+    public override async Task<Api.ListFilesResponse> ListFiles(
+        Api.ListFilesRequest request,
+        ServerCallContext context)
+    {
+        var userId = RequireActingUser(context);
+
+        var result = await _files.ListAsync(
+            GetModuleId(context),
+            userId,
+            ParseOptionalGuid(request.ParentId),
+            request.Page,
+            request.PageSize,
+            context.CancellationToken);
+
+        var response = new Api.ListFilesResponse { TotalCount = result.TotalCount };
+        response.Nodes.AddRange(result.Nodes.Select(ToModuleFileNode));
+
+        return response;
+    }
+
+    /// <inheritdoc />
+    public override async Task DownloadFile(
+        Api.DownloadFileRequest request,
+        IServerStreamWriter<Api.FileContentChunk> responseStream,
+        ServerCallContext context)
+    {
+        var userId = RequireActingUser(context);
+
+        if (!Guid.TryParse(request.NodeId, out var nodeId))
+        {
+            throw new RpcException(new Status(StatusCode.InvalidArgument, "node_id must be a GUID."));
+        }
+
+        await using var content = (await _files.OpenReadAsync(
+            GetModuleId(context),
+            userId,
+            nodeId,
+            context.CancellationToken)).Content;
+
+        if (content is null)
+        {
+            throw new RpcException(new Status(StatusCode.NotFound, "The file has no readable content."));
+        }
+
+        var buffer = new byte[64 * 1024];
+        int read;
+        while ((read = await content.ReadAsync(buffer, context.CancellationToken)) > 0)
+        {
+            await responseStream.WriteAsync(
+                new Api.FileContentChunk { Data = Google.Protobuf.ByteString.CopyFrom(buffer, 0, read) },
+                context.CancellationToken);
+        }
+    }
+
+    /// <inheritdoc />
+    public override async Task<Api.UploadFileResponse> UploadFile(
+        IAsyncStreamReader<Api.UploadFileRequest> requestStream,
+        ServerCallContext context)
+    {
+        var userId = RequireActingUser(context);
+        var moduleId = GetModuleId(context);
+
+        Api.ModuleFileUploadMetadata? metadata = null;
+        long received = 0;
+
+        // The stream is spooled to a temp file: chunks arrive incrementally and the Files client
+        // reads the content twice (hash pass, then upload), which a network stream cannot support.
+        var path = Path.Combine(Path.GetTempPath(), $"dnc-module-upload-{Guid.CreateVersion7():N}.tmp");
+        await using var spool = new FileStream(
+            path,
+            FileMode.CreateNew,
+            FileAccess.ReadWrite,
+            FileShare.None,
+            bufferSize: 64 * 1024,
+            FileOptions.Asynchronous | FileOptions.SequentialScan | FileOptions.DeleteOnClose);
+
+        await foreach (var message in requestStream.ReadAllAsync(context.CancellationToken))
+        {
+            switch (message.PayloadCase)
+            {
+                case Api.UploadFileRequest.PayloadOneofCase.Metadata:
+                    if (metadata is not null)
+                    {
+                        throw new RpcException(new Status(
+                            StatusCode.InvalidArgument,
+                            "Upload metadata may only be sent once, as the first message."));
+                    }
+
+                    metadata = message.Metadata;
+
+                    if (metadata.TotalSize > ModuleFileAccessService.MaxUploadBytes)
+                    {
+                        throw new RpcException(new Status(
+                            StatusCode.ResourceExhausted,
+                            $"A module may store at most {ModuleFileAccessService.MaxUploadBytes} bytes in one call."));
+                    }
+
+                    break;
+
+                case Api.UploadFileRequest.PayloadOneofCase.Chunk:
+                    if (metadata is null)
+                    {
+                        throw new RpcException(new Status(
+                            StatusCode.InvalidArgument,
+                            "The first upload message must carry metadata."));
+                    }
+
+                    received += message.Chunk.Data.Length;
+
+                    if (received > ModuleFileAccessService.MaxUploadBytes)
+                    {
+                        throw new RpcException(new Status(
+                            StatusCode.ResourceExhausted,
+                            $"A module may store at most {ModuleFileAccessService.MaxUploadBytes} bytes in one call."));
+                    }
+
+                    await spool.WriteAsync(message.Chunk.Data.Memory, context.CancellationToken);
+                    break;
+
+                default:
+                    throw new RpcException(new Status(
+                        StatusCode.InvalidArgument,
+                        "An upload message must carry metadata or chunk data."));
+            }
+        }
+
+        if (metadata is null)
+        {
+            throw new RpcException(new Status(
+                StatusCode.InvalidArgument,
+                "The upload stream carried no metadata message."));
+        }
+
+        spool.Position = 0;
+
+        var saved = await _files.SaveAsync(
+            moduleId,
+            userId,
+            ParseOptionalGuid(metadata.ParentId),
+            metadata.FileName,
+            metadata.MimeType,
+            spool,
+            context.CancellationToken);
+
+        if (saved.Node is null)
+        {
+            throw new RpcException(new Status(
+                StatusCode.Internal,
+                "The Files module did not return the stored node."));
+        }
+
+        return new Api.UploadFileResponse { Node = ToModuleFileNode(saved.Node) };
+    }
+
+    /// <summary>
+    /// Requires the call to act for a verified end user.
+    /// </summary>
+    /// <param name="context">The gRPC call context.</param>
+    /// <returns>The acting user id.</returns>
+    /// <remarks>
+    /// File operations have no module-scope form: a module uploading "for nobody" would either have
+    /// to name a user itself (which the core never accepts) or write into a shared namespace. Both
+    /// are refused instead of guessed at.
+    /// </remarks>
+    private static Guid RequireActingUser(ServerCallContext context)
+    {
+        var binding = CallerSubjectGuard.Bind(context, requestedUserId: null);
+
+        if (!binding.IsAllowed || binding.IsModuleScope || binding.UserId == Guid.Empty)
+        {
+            throw new RpcException(new Status(
+                StatusCode.Unauthenticated,
+                "File access requires a verified end-user assertion."));
+        }
+
+        return binding.UserId;
+    }
+
+    /// <summary>Maps a capability-level file node onto the wire shape.</summary>
+    /// <param name="node">The node.</param>
+    /// <returns>The proto node.</returns>
+    private static Api.ModuleFileNode ToModuleFileNode(FileNodeInfo node) =>
+        new()
+        {
+            Id = node.Id.ToString(),
+            Name = node.Name,
+            NodeType = node.NodeType,
+            MimeType = node.MimeType ?? string.Empty,
+            Size = node.Size,
+            ParentId = node.ParentId?.ToString() ?? string.Empty,
+            UpdatedAt = node.UpdatedAt?.ToString("O") ?? string.Empty,
+        };
+
+    /// <summary>Parses an optional GUID field, where empty means "not set".</summary>
+    /// <param name="value">The wire value.</param>
+    /// <returns>The GUID, or <see langword="null"/>.</returns>
+    private static Guid? ParseOptionalGuid(string? value) =>
+        Guid.TryParse(value, out var parsed) && parsed != Guid.Empty ? parsed : null;
 
     /// <summary>
     /// Resolves the user a consent query is about, binding it to the verified caller identity.

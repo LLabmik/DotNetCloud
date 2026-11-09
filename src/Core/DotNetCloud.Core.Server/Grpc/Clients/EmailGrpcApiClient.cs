@@ -479,49 +479,6 @@ public sealed class EmailGrpcApiClient : IEmailApiClient, IDisposable
         }
     }
 
-    /// <inheritdoc />
-    public async Task<UploadAttachmentResult> AttachFromFilesModuleAsync(Guid fileNodeId, CancellationToken ct = default)
-    {
-        var request = new AttachFromFilesRequest
-        {
-            FileNodeId = fileNodeId.ToString(),
-            UserId = GetUserId()
-        };
-        try
-        {
-            var response = await _client.Value.AttachFromFilesModuleAsync(request, DeadlineHeaders(ct));
-            return response.Success
-                ? new UploadAttachmentResult
-                {
-                    StorageKey = response.StorageKey,
-                    FileName = response.FileName,
-                    ContentType = response.ContentType,
-                    Size = response.Size,
-                    ContentHash = response.ContentHash
-                }
-                : new UploadAttachmentResult
-                {
-                    StorageKey = string.Empty,
-                    FileName = string.Empty,
-                    ContentType = string.Empty,
-                    Size = 0,
-                    ContentHash = string.Empty
-                };
-        }
-        catch (RpcException ex)
-        {
-            _logger.LogError(ex, "EmailGrpcApiClient.AttachFromFilesModuleAsync failed for {FileNodeId}", fileNodeId);
-            return new UploadAttachmentResult
-            {
-                StorageKey = string.Empty,
-                FileName = string.Empty,
-                ContentType = string.Empty,
-                Size = 0,
-                ContentHash = string.Empty
-            };
-        }
-    }
-
     // ─── Helpers ────────────────────────────────────────────────────────────
 
     private Metadata DeadlineHeaders(CancellationToken ct)

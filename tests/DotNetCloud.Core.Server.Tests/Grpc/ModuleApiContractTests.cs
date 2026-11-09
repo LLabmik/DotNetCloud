@@ -33,6 +33,9 @@ public class ModuleApiContractTests
         "BroadcastRealtimeEvent",
         "CheckUserConsent",
         "GetGrantedScopes",
+        "ListFiles",
+        "DownloadFile",
+        "UploadFile",
     ];
 
     [TestMethod]

@@ -152,6 +152,76 @@ public class DncModuleRestClientTests
         Assert.AreEqual(1, await api.SendNotificationAsync(new DncNotification("Hi", null, null, null, ["u1"])));
     }
 
+    [TestMethod]
+    public async Task ListFiles_SendsPagingAndFolderAndMapsTheNodes()
+    {
+        var folderId = Guid.CreateVersion7();
+        var handler = new RecordingHandler(_ => Json(
+            """{"nodes":[{"id":"n1","name":"Report.pdf","nodeType":"File","mimeType":"application/pdf","size":12,"parentId":"p1","updatedAt":""}],"totalCount":1}"""));
+
+        using var client = CreateClient(handler);
+
+        var nodes = await client.ListFilesAsync(folderId.ToString(), page: 2, pageSize: 50);
+
+        Assert.HasCount(1, nodes);
+        Assert.AreEqual("Report.pdf", nodes[0].Name);
+        Assert.AreEqual("application/pdf", nodes[0].MimeType);
+        StringAssert.Contains(handler.LastRequest!.RequestUri!.Query, "page=2");
+        StringAssert.Contains(handler.LastRequest.RequestUri.Query, "pageSize=50");
+        StringAssert.Contains(handler.LastRequest.RequestUri.Query, "parentId=" + folderId);
+    }
+
+    [TestMethod]
+    public async Task DownloadFile_SpoolsTheResponseBodyToAStream()
+    {
+        var payload = new byte[] { 4, 5, 6 };
+        var handler = new RecordingHandler(_ => new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new ByteArrayContent(payload),
+        });
+
+        using var client = CreateClient(handler);
+        await using var content = await client.DownloadFileAsync("node-1");
+
+        using var buffer = new MemoryStream();
+        await content.CopyToAsync(buffer);
+
+        CollectionAssert.AreEqual(payload, buffer.ToArray());
+        StringAssert.EndsWith(handler.LastRequest!.RequestUri!.AbsolutePath, "/files/node-1/content");
+    }
+
+    [TestMethod]
+    public async Task UploadFile_PostsTheRequestBodyAndReturnsTheStoredNode()
+    {
+        var handler = new RecordingHandler(_ => Json(
+            """{"node":{"id":"n2","name":"notes.txt","nodeType":"File","mimeType":"text/plain","size":3,"parentId":"","updatedAt":""}}"""));
+
+        using var client = CreateClient(handler);
+        await using var content = new MemoryStream([1, 2, 3]);
+
+        var node = await client.UploadFileAsync(null, "notes.txt", "text/plain", content, totalSize: 3);
+
+        Assert.AreEqual("notes.txt", node.Name);
+        StringAssert.Contains(handler.LastRequest!.RequestUri!.Query, "fileName=notes.txt");
+        Assert.AreEqual(HttpMethod.Post, handler.LastRequest.Method);
+    }
+
+    [TestMethod]
+    public async Task InMemoryHarness_RoundTripsFiles()
+    {
+        IDncModuleApi api = new InMemoryDncModuleApi();
+
+        var node = await api.UploadFileAsync(null, "a.txt", "text/plain", new MemoryStream([1, 2]));
+
+        Assert.HasCount(1, await api.ListFilesAsync());
+        Assert.HasCount(1, ((InMemoryDncModuleApi)api).UploadedFiles);
+
+        await using var content = await api.DownloadFileAsync(node.Id);
+        using var buffer = new MemoryStream();
+        await content.CopyToAsync(buffer);
+        CollectionAssert.AreEqual(new byte[] { 1, 2 }, buffer.ToArray());
+    }
+
     private static DncModuleRestClient CreateClient(RecordingHandler handler, string? assertion = null) =>
         new(
             new Uri("https://core.example/internal/moduleapi/v1"),

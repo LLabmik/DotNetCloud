@@ -8,7 +8,47 @@
 
 ---
 
-## Recent Work — Track C dogfood: Email module UI plane (2026-11-08, `feature/third-party-modules`)
+## Recent Work — Track C: the user's files as a core capability (2026-11-08, `feature/third-party-modules`)
+
+A sandboxed module needed the user's real files (attach a document to an email, save an attachment back
+into the drive). The old code used the in-process `IFileDirectory` and dialled the Files module's
+socket, neither of which a sandboxed host may do — so the capability was made real instead of the
+feature staying deleted.
+
+**Core (module API)**
+
+- ✓ `module_api.proto` gains `ListFiles` (unary), `DownloadFile` (server-streaming) and `UploadFile` (client-streaming), each mapping to a capability in `CapabilityCatalog` (`ListFiles`/`DownloadFile` → `IFileDirectory`, `UploadFile` → `IFileWriter`).
+- ✓ Both capabilities are **Restricted** (explicit grant) and mapped in `ModuleCapabilityScopes` to `files:read` / `files:write`, so a module that only exports can be granted read-only access.
+- ✓ `ModuleFileAccessService` brokers to the Files module through `IFilesApiClient`, enforces the per-user consent scope (`MODULE_CONSENT_REQUIRED` + `consent-scopes` trailer), refuses module-scope calls (`UNAUTHENTICATED`), sanitizes the target file name to one path segment, caps a save at 100 MiB and a listing at 500 entries per page.
+- ✓ REST facade parity: `GET /internal/moduleapi/v1/files`, `GET …/files/{nodeId}/content` (streams the body) and `POST …/files` (body is the content), evaluated by the same interceptors as the gRPC surface.
+- ✓ The supervisor now exports `DOTNETCLOUD_CORE_REST_ENDPOINT` (single constant in `ModuleIdentityMetadata`, consumed by the SDK) so a language-agnostic backend can use the facade.
+- ✓ `ModuleUserAssertionMiddleware` adopts a verified assertion as `HttpContext.User` — the missing link that lets the **Files** host's existing permission checks authorize a core-originated call without trusting a payload identity.
+- ✓ Adversarial cases covered: another user's attachment (`Forbidden`), a consent-less module (`403` + scopes), a module-scope file call (`401`), and an upload stream whose first message is a chunk (`400`).
+
+**Files module**
+
+- ✓ `DownloadFile` implemented for real via `IDownloadService` (it previously streamed empty placeholders): whole-file and chunked storage both work, historic version numbers are rejected rather than silently answered with the latest content.
+- ✓ `IFilesApiClient` gained `ListChildrenAsync`, `OpenReadAsync` (spooled stream) and `UploadFileAsync` (4 MiB chunk manifest → initiate → missing chunks → complete); every call carries a core-minted assertion for the acting user.
+
+**SDK**
+
+- ✓ `IDncModuleApi` gained `ListFilesAsync`, `DownloadFileAsync` and `UploadFileAsync`, implemented over gRPC (streaming), over the REST facade, and in the in-memory test double.
+
+**Email module**
+
+- ✓ `GET /api/v1/email/files`, `POST /api/v1/email/attachments/from-file` and `POST /api/v1/email/attachments/{id}/save-to-files`; the attachment whitelist and 25 MB limit apply to files copied out of the drive as well (`IFileValidationService` gained a name+size overload).
+- ✓ Manifest `1.2.0` declares `IFileDirectory` + `IFileWriter` and the `files:read`/`files:write` scopes.
+- ✓ The UI gained a file browser (`<dialog>`) in compose (Attach → Browse files) and a “save to your files” action on every message attachment, with a consent prompt when the scope is missing.
+- ✓ The direct module→module `FilesService` client (`FilesGrpc:Address`, `AttachFromFilesModule`) is deleted together with its RPC and client method — the forbidden pattern is gone, not deprecated.
+- ✓ `ModuleBoundaryTests` guards it: a migrated module host may not import another module's host protos, and no host may reference another host's project.
+
+**Verification**
+
+- ✓ CI solution build 0 warnings; `Core.Server.Tests` 1590 (2 skipped), `Email` 62, `Files` 1012, `SDK` 37, plus the rest of the CI suite green. The two `Integration.Tests` backup failures are environmental (`sqlcmd` is not installed on this host).
+- ☐ Live end-to-end (core + Files + Email over a deployed instance) with a real consent grant, and publishing `1.2.0` to the store.
+
+---
+
 
 Third Track C module of `docs/THIRD_PARTY_MODULE_SANDBOX_AND_STORE_PLAN.md`, and the first with a
 long-lived credential store, an external consent flow (Gmail OAuth) and a large UI surface.
@@ -42,7 +82,7 @@ long-lived credential store, an external consent flow (Gmail OAuth) and a large 
 
 - ✓ `Core.Server` drops the library/Data/Data.SqlServer/Widget references (the gRPC clients keep using the proto), `UI.Web` drops the library, the CLI drops the migration assembly, and the `EmailDbContext` registration, HTTP client, descriptor entries (`ModuleUiRegistrationHostedService`, `WidgetUiRegistrationHostedService`), `AddAdditionalAssemblies` entry and `DbContextSchemaProvider` mapping are gone.
 - ✓ The module `UI/` and `Widget/` projects and the `/apps/email` shell + help pages are deleted; the library is a plain class library; `EmailGrpcApiClient` no longer depends on module models.
-- ✓ Two Files-module integration endpoints (`attach-from-files`, `detach`) removed with the `IFileDirectory` capability they depended on — they could never work from a sandboxed host.
+- ✓ Two Files-module integration endpoints (`attach-from-files`, `detach`) removed with the `IFileDirectory` capability they depended on — they could never work from a sandboxed host. **Superseded 2026-11-08:** both directions are back through the core-brokered `IFileDirectory`/`IFileWriter` RPCs (see the section above); the direct Files client stays deleted.
 
 **Defect found and fixed**
 
@@ -52,7 +92,7 @@ long-lived credential store, an external consent flow (Gmail OAuth) and a large 
 
 - ✓ `DotNetCloud.Modules.Email.Tests` 53 passed (9 asset, 4 filter, 3 model/snapshot, plus the existing service tests); `DotNetCloud.Core.Server.Tests` 1570 passed / 2 skipped; Bookmarks 37, Example 81, SDK 33; CI solution build 0 warnings.
 - ✓ Published-host smoke test: `/`, `/widget/index.html`, `/assets/email-ui.{js,css}`, `/widget/widget.js`, `/dncModuleBridge.js` → 200 with correct content types; `/api/v1/email/accounts` → 401 with the standard envelope and `Cache-Control: no-store,no-cache`; `/api/v1/email/gmail/oauth/status` → 200 `{configured:false}`.
-- ☐ Iframe rendering through the live core proxy + bridge handshake (needs a deployed server), and publishing `1.1.0` to the store.
+- ☐ Iframe rendering through the live core proxy + bridge handshake (needs a deployed server), and publishing `1.2.0` to the store.
 
 ---
 

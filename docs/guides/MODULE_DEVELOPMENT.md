@@ -242,9 +242,33 @@ Capabilities are the permission model for modules. They control what platform fe
 | Tier           | Approval                 | Examples                                                                     |
 | -------------- | ------------------------ | ---------------------------------------------------------------------------- |
 | **Public**     | Automatic                | `IUserDirectory`, `ICurrentUserContext`, `INotificationService`, `IEventBus` |
-| **Restricted** | Admin approval           | `IStorageProvider`, `IModuleSettings`, `ITeamDirectory`                      |
+| **Restricted** | Admin approval           | `IStorageProvider`, `IModuleSettings`, `ITeamDirectory`, `IFileDirectory`, `IFileWriter` |
 | **Privileged** | Admin approval + warning | `IUserManager`, `IBackupProvider`                                            |
 | **Forbidden**  | Never granted            | Direct database access, process management                                   |
+
+### The user's files
+
+A module that needs the user's real files does **not** call the Files module. It calls the core, which
+brokers the request and enforces the user's consent:
+
+| Capability      | Scope         | RPCs (via `IDncModuleApi`)                                   |
+| --------------- | ------------- | ------------------------------------------------------------ |
+| `IFileDirectory` | `files:read`  | `ListFilesAsync`, `DownloadFileAsync`                        |
+| `IFileWriter`    | `files:write` | `UploadFileAsync`                                            |
+
+Both are **Restricted** and per-user consent is required on top of the grant. Declare the capability
+and the scope in the manifest:
+
+```json
+"capabilities": ["IFileDirectory", "IFileWriter"],
+"userConsentScopes": ["files:read", "files:write"]
+```
+
+A call without the user's consent fails with `MODULE_CONSENT_REQUIRED` (REST: `403` plus
+`details.consentScopes`); ask for consent (`bridge.requestConsent([...])`) and retry. The acting user
+comes from the verified assertion — a module never passes a user id, and there is no module-scope
+form. Saves are capped at 100 MiB, listings at 500 entries per page, and the file name is reduced to
+a single sanitized path segment by the core.
 
 ### Requesting Capabilities
 

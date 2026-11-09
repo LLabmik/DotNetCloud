@@ -150,6 +150,44 @@ public class EmailUiAssetsTests
         StringAssert.Contains(bridge, "dnc:ready");
     }
 
+    [TestMethod]
+    public void ModuleScripts_ReachCloudFilesThroughTheModulesOwnApi()
+    {
+        var script = ReadUiFile("assets/email-ui.js");
+
+        // Browse and save are core capabilities brokered by the module's backend. The frame must never
+        // learn about the Files module (a direct sibling call is forbidden and does not authenticate).
+        StringAssert.Contains(script, "API + '/files'");
+        StringAssert.Contains(script, "'/attachments/from-file'");
+        StringAssert.Contains(script, "'/save-to-files'");
+
+        Assert.IsFalse(
+            script.Contains("dotnetcloud.files", StringComparison.Ordinal),
+            "the Email UI must not address the Files module directly");
+    }
+
+    [TestMethod]
+    public void ModuleScripts_AskForConsentWhenFileAccessIsDenied()
+    {
+        var script = ReadUiFile("assets/email-ui.js");
+
+        // A capability grant is not consent: the first file call of a user who never approved
+        // files:read/files:write answers FILES_CONSENT_REQUIRED, and the UI has to start the prompt.
+        StringAssert.Contains(script, "FILES_CONSENT_REQUIRED");
+        StringAssert.Contains(script, "requestConsent");
+        StringAssert.Contains(script, "FILES_UNAVAILABLE");
+    }
+
+    [TestMethod]
+    public void Stylesheet_ShipsTheFileBrowserRules()
+    {
+        var css = ReadUiFile("assets/email-ui.css");
+
+        StringAssert.Contains(css, ".file-browser");
+        StringAssert.Contains(css, ".file-row");
+        StringAssert.Contains(css, ".attachment-row");
+    }
+
     private static string ReadUiFile(string relativePath)
     {
         var path = Path.Combine(AppContext.BaseDirectory, UiDirectory, relativePath);

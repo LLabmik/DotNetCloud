@@ -46,7 +46,10 @@ service EmailService {
   rpc DownloadAttachment (DownloadAttachmentRequest) returns (stream DownloadAttachmentChunk);
   rpc UploadAttachment (stream UploadAttachmentChunk) returns (UploadAttachmentResponse);
   rpc DetachAttachment (DetachAttachmentRequest) returns (DetachAttachmentResponse);
-  rpc AttachFromFilesModule (AttachFromFilesRequest) returns (UploadAttachmentResponse);
+
+  // Attaching one of the user's Files to a message is not a core-to-module RPC: it is an
+  // IFileDirectory call the module makes to the core (see module_api.proto), surfaced to the user by
+  // this host's own HTTP API. A module never dials another module's socket.
 
   // Search index support
   rpc GetSearchableDocuments (GetSearchableDocumentsRequest) returns (stream SearchableDocument);
@@ -393,11 +396,6 @@ message DetachAttachmentRequest {
 message DetachAttachmentResponse {
   bool success = 1;
   string error_message = 2;
-}
-
-message AttachFromFilesRequest {
-  string file_node_id = 1;
-  string user_id = 2;
 }
 
 // --- Search Index ---

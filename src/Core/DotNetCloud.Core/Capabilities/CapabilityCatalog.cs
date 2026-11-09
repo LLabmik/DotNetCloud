@@ -50,6 +50,11 @@ public static class CapabilityCatalog
         nameof(ITeamDirectory),
         nameof(IOrganizationDirectory),
 
+        // The acting user's real files. A grant permits the call; per-user consent to
+        // files:read / files:write decides whose files, and whether at all.
+        nameof(IFileDirectory),
+        nameof(IFileWriter),
+
         // Module-facing capability RPCs whose grants were previously absent from the catalog,
         // which left the calls unmapped (and therefore unenforced).
         nameof(IAuditLogger),
@@ -120,6 +125,13 @@ public static class CapabilityCatalog
         [Rpc(ModuleApiService, "BroadcastRealtimeEvent")] = nameof(IRealtimeBroadcaster),
         [Rpc(ModuleApiService, "LogAudit")] = nameof(IAuditLogger),
         [Rpc(ModuleApiService, "SubmitSearchIndex")] = nameof(ISearchProvider),
+
+        // Files: reading and writing the acting user's files are separate capabilities so a module
+        // that only exports can be granted read-only access. Both are brokered to the Files module
+        // by the core; the module never reaches it directly.
+        [Rpc(ModuleApiService, "ListFiles")] = nameof(IFileDirectory),
+        [Rpc(ModuleApiService, "DownloadFile")] = nameof(IFileDirectory),
+        [Rpc(ModuleApiService, "UploadFile")] = nameof(IFileWriter),
     };
 
     /// <summary>

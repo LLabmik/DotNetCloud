@@ -23,4 +23,9 @@ public sealed record FileNodeInfo
 
     /// <summary>Parent folder ID. Null for root-level nodes.</summary>
     public Guid? ParentId { get; init; }
+
+    /// <summary>
+    /// When the node's content last changed. Null when the source does not report a timestamp.
+    /// </summary>
+    public DateTimeOffset? UpdatedAt { get; init; }
 }

@@ -39,7 +39,6 @@ public class EmailGrpcServiceSyncTests
             Mock.Of<IAttachmentStorage>(),
             accessor.Object,
             new EmailDbContext(options),
-            new ConfigurationBuilder().Build(),
             NullLogger<EmailGrpcService>.Instance);
     }
 

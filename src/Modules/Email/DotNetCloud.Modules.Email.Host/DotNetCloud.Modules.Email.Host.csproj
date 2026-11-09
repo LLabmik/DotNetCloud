@@ -40,8 +40,10 @@
     <ProjectReference Include="..\DotNetCloud.Modules.Email\DotNetCloud.Modules.Email.csproj" />
     <ProjectReference Include="..\DotNetCloud.Modules.Email.Data\DotNetCloud.Modules.Email.Data.csproj" />
     <ProjectReference Include="..\DotNetCloud.Modules.Email.Data.SqlServer\DotNetCloud.Modules.Email.Data.SqlServer.csproj" />
-    <ProjectReference Include="..\..\Files\DotNetCloud.Modules.Files.Client\DotNetCloud.Modules.Files.Client.csproj" />
     <ProjectReference Include="..\..\..\Core\DotNetCloud.Core.Grpc\DotNetCloud.Core.Grpc.csproj" />
+    <!-- The SDK is the only sanctioned way a module reaches the core. Email uses it for the
+         IFileDirectory/IFileWriter capabilities (browse and save the user's files). -->
+    <ProjectReference Include="..\..\..\SDK\DotNetCloud.Modules.Sdk\DotNetCloud.Modules.Sdk.csproj" />
   </ItemGroup>
 
 </Project>

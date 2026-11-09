@@ -227,6 +227,93 @@ public sealed class DncModuleRestClient : IDncModuleApi, IDisposable
     /// <inheritdoc />
     public void Dispose() => _http.Dispose();
 
+    /// <inheritdoc />
+    public async Task<IReadOnlyList<DncFileNode>> ListFilesAsync(
+        string? parentId = null,
+        int page = 1,
+        int pageSize = 200,
+        CancellationToken cancellationToken = default)
+    {
+        var path = $"files?page={page}&pageSize={pageSize}";
+
+        if (!string.IsNullOrEmpty(parentId))
+        {
+            path += $"&parentId={Uri.EscapeDataString(parentId)}";
+        }
+
+        using var response = await SendAsync(HttpMethod.Get, path, content: null, cancellationToken);
+
+        var result = await ReadAsync<FileListDto>(response, cancellationToken);
+        return (result.Nodes ?? []).Select(ToFileNode).ToArray();
+    }
+
+    /// <inheritdoc />
+    public async Task<Stream> DownloadFileAsync(string nodeId, CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(nodeId);
+
+        var path = Path.Combine(Path.GetTempPath(), $"dnc-sdk-file-{Guid.CreateVersion7():N}.tmp");
+        var spool = new FileStream(
+            path,
+            FileMode.CreateNew,
+            FileAccess.ReadWrite,
+            FileShare.None,
+            bufferSize: 64 * 1024,
+            FileOptions.Asynchronous | FileOptions.SequentialScan | FileOptions.DeleteOnClose);
+
+        try
+        {
+            using var response = await SendAsync(
+                HttpMethod.Get,
+                $"files/{Uri.EscapeDataString(nodeId)}/content",
+                content: null,
+                cancellationToken);
+
+            await response.Content.CopyToAsync(spool, cancellationToken);
+
+            spool.Position = 0;
+            return spool;
+        }
+        catch
+        {
+            await spool.DisposeAsync();
+            throw;
+        }
+    }
+
+    /// <inheritdoc />
+    public async Task<DncFileNode> UploadFileAsync(
+        string? parentId,
+        string fileName,
+        string contentType,
+        Stream content,
+        long totalSize = 0,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(content);
+        ArgumentException.ThrowIfNullOrWhiteSpace(fileName);
+
+        var path = $"files?fileName={Uri.EscapeDataString(fileName)}" +
+                   $"&contentType={Uri.EscapeDataString(contentType ?? string.Empty)}";
+
+        if (!string.IsNullOrEmpty(parentId))
+        {
+            path += $"&parentId={Uri.EscapeDataString(parentId)}";
+        }
+
+        using var body = new StreamContent(content);
+        using var response = await SendAsync(HttpMethod.Post, path, body, cancellationToken);
+
+        var result = await ReadAsync<UploadFileDto>(response, cancellationToken);
+
+        return result.Node is null
+            ? throw new DncModuleApiException(
+                "MODULE_API_EMPTY_RESPONSE",
+                "The core accepted the upload but returned no file node.",
+                (int)response.StatusCode)
+            : ToFileNode(result.Node);
+    }
+
     private async Task<HttpResponseMessage> SendAsync(
         HttpMethod method,
         string path,
@@ -293,6 +380,28 @@ public sealed class DncModuleRestClient : IDncModuleApi, IDisposable
         user.AvatarUrl ?? string.Empty,
         user.IsActive,
         user.Email ?? string.Empty);
+
+    private static DncFileNode ToFileNode(FileNodeDto node) => new(
+        node.Id ?? string.Empty,
+        node.Name ?? string.Empty,
+        node.NodeType ?? string.Empty,
+        node.MimeType ?? string.Empty,
+        node.Size,
+        node.ParentId ?? string.Empty,
+        node.UpdatedAt ?? string.Empty);
+
+    private sealed record FileNodeDto(
+        string? Id,
+        string? Name,
+        string? NodeType,
+        string? MimeType,
+        long Size,
+        string? ParentId,
+        string? UpdatedAt);
+
+    private sealed record FileListDto(IReadOnlyList<FileNodeDto>? Nodes, int TotalCount);
+
+    private sealed record UploadFileDto(FileNodeDto? Node);
 
     private sealed record UserDto(string? Id, string? DisplayName, string? AvatarUrl, bool IsActive, string? Email);
 

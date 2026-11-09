@@ -222,7 +222,52 @@ answers are stored consent **intersected with the scopes the module declared**, 
 never be told it holds a scope its own manifest does not claim.
 
 They are also exposed on the REST facade as `GET /internal/moduleapi/v1/consent/scopes` and
-`GET /internal/moduleapi/v1/consent/{userId}`.
+`GET /internal/moduleapi/v1/consent/{userId}` .
+
+---
+
+## 7.1 The user's files (IFileDirectory / IFileWriter)
+
+A module that needs the user's real files — attach a file to an email, save an attachment back into
+the drive — reaches them through the core, never through another module:
+
+```proto
+rpc ListFiles (ListFilesRequest) returns (ListFilesResponse);        // IFileDirectory, files:read
+rpc DownloadFile (DownloadFileRequest) returns (stream FileContentChunk); // IFileDirectory, files:read
+rpc UploadFile (stream UploadFileRequest) returns (UploadFileResponse);   // IFileWriter, files:write
+```
+
+REST facade: `GET /internal/moduleapi/v1/files?parentId=`,
+`GET /internal/moduleapi/v1/files/{nodeId}/content` and
+`POST /internal/moduleapi/v1/files?parentId=&fileName=&contentType=` (the request body is the content).
+
+**Why it is brokered rather than direct.** A module may not dial another module's socket, read its
+schema or hold its credential (§4.1 of the sandbox plan). The core calls the Files module over the
+same peer-authenticated gRPC channel it already uses, attaching a **core-signed assertion for the
+acting user** — so the Files host sees a normal authenticated user and its own permission checks
+still apply (including shared-folder and quota rules). The module never names a user in the payload.
+
+**Three gates, in order.**
+
+1. **Transport** — the module credential proves which process is calling.
+2. **Capability** — `ListFiles`/`DownloadFile` map to `IFileDirectory`, `UploadFile` to
+   `IFileWriter`; both are **Restricted**, so the install needs an explicit grant, and a module that
+   only exports can be granted read-only access.
+3. **Consent** — `(module, user, files:read)` for reads and `(module, user, files:write)` for writes.
+   A missing consent fails with `MODULE_CONSENT_REQUIRED` (REST: `403` + `details.consentScopes`),
+   which is what the module UI turns into a consent prompt.
+
+There is **no module-scope form**: a call without a verified end-user assertion is answered
+`UNAUTHENTICATED` rather than guessed at, because "whose files" has no safe default.
+
+**Bounds.** One save may carry at most 100 MiB; a listing is capped at 500 entries per page; the
+file name is reduced to a single sanitized path segment by the core (a module cannot write outside
+the user's tree by naming `../../…`). Reading and writing the user's own tree is all the capability
+can express — rename, move and delete stay with the Files UI.
+
+**Boundary statement.** The capability is only as strong as the Files module's own authorization:
+the core asserts *who* is asking, and the Files module decides *what that user may touch*. A module
+granted the capability therefore sees exactly what the user sees, and nothing more.
 
 ---
 

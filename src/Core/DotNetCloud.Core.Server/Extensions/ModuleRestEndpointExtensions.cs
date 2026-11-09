@@ -15,7 +15,8 @@ namespace DotNetCloud.Core.Server.Extensions;
 /// </remarks>
 internal static class ModuleRestEndpointExtensions
 {
-    private const string Prefix = "/internal/moduleapi/v1";
+    /// <summary>The path prefix the facade is mounted under.</summary>
+    internal const string Prefix = "/internal/moduleapi/v1";
 
     /// <summary>Maps the module REST endpoints.</summary>
     /// <param name="app">The web application.</param>
@@ -70,6 +71,15 @@ internal static class ModuleRestEndpointExtensions
             api.GetGrantedScopesAsync(http));
         group.MapGet("/consent/{userId}", (HttpContext http, ModuleRestApiService api, string userId) =>
             api.CheckUserConsentAsync(http, userId));
+
+        // Files (IFileDirectory / IFileWriter). The request body is the file content on POST, and the
+        // response body is the file content on GET, so neither side needs a base64 envelope.
+        group.MapGet("/files", (HttpContext http, ModuleRestApiService api, string? parentId, int? page, int? pageSize) =>
+            api.ListFilesAsync(http, parentId, page, pageSize));
+        group.MapGet("/files/{nodeId}/content", (HttpContext http, ModuleRestApiService api, string nodeId) =>
+            api.DownloadFileAsync(http, nodeId));
+        group.MapPost("/files", (HttpContext http, ModuleRestApiService api, string? parentId, string fileName, string? contentType) =>
+            api.UploadFileAsync(http, parentId, fileName, contentType));
 
         return app;
     }

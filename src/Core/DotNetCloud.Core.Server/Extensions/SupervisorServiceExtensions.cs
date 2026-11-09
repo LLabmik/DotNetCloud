@@ -137,6 +137,11 @@ internal static class SupervisorServiceExtensions
         services.AddSingleton<ModuleApiV1Service>();
         services.AddSingleton<TokenIntrospectionServiceImpl>();
 
+        // IFileDirectory / IFileWriter: the core brokers a module's file request to the Files module
+        // on the acting user's behalf. Registered beside the API because both the gRPC service and
+        // the REST facade call it.
+        services.AddSingleton<Services.ModuleFileAccessService>();
+
         // Internal JSON facade for module backends without a gRPC client. It reuses the same
         // interceptors (credential, caller context, rate limit, capability) as the gRPC listener.
         services.AddSingleton<Rest.ModuleRestApiService>();

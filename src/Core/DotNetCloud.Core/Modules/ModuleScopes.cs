@@ -220,6 +220,8 @@ public static class ModuleCapabilityScopes
             ["IUserDirectory"] = [ModuleScopes.Profile],
             ["ICurrentUserContext"] = [ModuleScopes.Profile],
             ["IStorageProvider"] = [ModuleScopes.FilesRead],
+            ["IFileDirectory"] = [ModuleScopes.FilesRead],
+            ["IFileWriter"] = [ModuleScopes.FilesWrite],
             ["INotificationService"] = [ModuleScopes.NotificationsSend],
         };
 

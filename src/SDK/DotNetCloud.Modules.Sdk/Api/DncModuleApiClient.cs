@@ -193,7 +193,135 @@ public sealed class DncModuleApiClient : IDncModuleApi, IDisposable
         _disposed = true;
     }
 
+    /// <inheritdoc />
+    public async Task<IReadOnlyList<DncFileNode>> ListFilesAsync(
+        string? parentId = null,
+        int page = 1,
+        int pageSize = 200,
+        CancellationToken cancellationToken = default)
+    {
+        var response = await _client.ListFilesAsync(
+            new ModuleApiV1.ListFilesRequest
+            {
+                ParentId = parentId ?? string.Empty,
+                Page = page,
+                PageSize = pageSize,
+            },
+            Metadata(),
+            cancellationToken: cancellationToken);
+
+        return response.Nodes.Select(ToFileNode).ToArray();
+    }
+
+    /// <inheritdoc />
+    public async Task<Stream> DownloadFileAsync(string nodeId, CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(nodeId);
+
+        // Spooled so the caller owns a seekable stream that is independent of the call's lifetime,
+        // and so a large attachment is not pinned in the heap.
+        var path = Path.Combine(Path.GetTempPath(), $"dnc-sdk-file-{Guid.CreateVersion7():N}.tmp");
+        var spool = new FileStream(
+            path,
+            FileMode.CreateNew,
+            FileAccess.ReadWrite,
+            FileShare.None,
+            bufferSize: 64 * 1024,
+            FileOptions.Asynchronous | FileOptions.SequentialScan | FileOptions.DeleteOnClose);
+
+        try
+        {
+            using var call = _client.DownloadFile(
+                new ModuleApiV1.DownloadFileRequest { NodeId = nodeId },
+                Metadata(),
+                cancellationToken: cancellationToken);
+
+            await foreach (var chunk in call.ResponseStream.ReadAllAsync(cancellationToken))
+            {
+                if (chunk.Data.Length > 0)
+                {
+                    await spool.WriteAsync(chunk.Data.Memory, cancellationToken);
+                }
+            }
+
+            spool.Position = 0;
+            return spool;
+        }
+        catch
+        {
+            await spool.DisposeAsync();
+            throw;
+        }
+    }
+
+    /// <inheritdoc />
+    public async Task<DncFileNode> UploadFileAsync(
+        string? parentId,
+        string fileName,
+        string contentType,
+        Stream content,
+        long totalSize = 0,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(content);
+        ArgumentException.ThrowIfNullOrWhiteSpace(fileName);
+
+        using var call = _client.UploadFile(Metadata(), cancellationToken: cancellationToken);
+
+        await call.RequestStream.WriteAsync(
+            new ModuleApiV1.UploadFileRequest
+            {
+                Metadata = new ModuleApiV1.ModuleFileUploadMetadata
+                {
+                    ParentId = parentId ?? string.Empty,
+                    FileName = fileName,
+                    MimeType = contentType ?? string.Empty,
+                    TotalSize = totalSize,
+                },
+            },
+            cancellationToken);
+
+        var buffer = new byte[64 * 1024];
+        int read;
+
+        while ((read = await content.ReadAsync(buffer, cancellationToken)) > 0)
+        {
+            await call.RequestStream.WriteAsync(
+                new ModuleApiV1.UploadFileRequest
+                {
+                    Chunk = new ModuleApiV1.FileContentChunk
+                    {
+                        Data = Google.Protobuf.ByteString.CopyFrom(buffer, 0, read),
+                    },
+                },
+                cancellationToken);
+        }
+
+        await call.RequestStream.CompleteAsync();
+
+        var response = await call.ResponseAsync;
+
+        if (response.Node is null)
+        {
+            throw new DncModuleApiException(
+                "MODULE_API_EMPTY_RESPONSE",
+                "The core accepted the upload but returned no file node.",
+                statusCode: 200);
+        }
+
+        return ToFileNode(response.Node);
+    }
+
     private Metadata Metadata() => _environment.CreateMetadata();
+
+    private static DncFileNode ToFileNode(ModuleApiV1.ModuleFileNode node) => new(
+        node.Id,
+        node.Name,
+        node.NodeType,
+        node.MimeType,
+        node.Size,
+        node.ParentId,
+        node.UpdatedAt);
 
     private static DncModuleUser ToUser(ModuleApiV1.ModuleUserProfile user) => new(
         user.Id,

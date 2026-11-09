@@ -34,6 +34,7 @@ public sealed class FilesGrpcService : FilesService.FilesServiceBase
     private readonly IWholeFileStorageService? _wholeFileStorage;
     private readonly DefaultUserContentProvisioner? _defaultUserContentProvisioner;
     private readonly DefaultUserContentQueue? _defaultUserContentQueue;
+    private readonly IDownloadService? _downloadService;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="FilesGrpcService"/> class.
@@ -47,7 +48,8 @@ public sealed class FilesGrpcService : FilesService.FilesServiceBase
         IFileVersioningSettingsProvider versioningSettings,
         IWholeFileStorageService? wholeFileStorageService = null,
         DefaultUserContentProvisioner? defaultUserContentProvisioner = null,
-        DefaultUserContentQueue? defaultUserContentQueue = null)
+        DefaultUserContentQueue? defaultUserContentQueue = null,
+        IDownloadService? downloadService = null)
     {
         _db = db;
         _eventBus = eventBus;
@@ -58,6 +60,7 @@ public sealed class FilesGrpcService : FilesService.FilesServiceBase
         _wholeFileStorage = wholeFileStorageService;
         _defaultUserContentProvisioner = defaultUserContentProvisioner;
         _defaultUserContentQueue = defaultUserContentQueue;
+        _downloadService = downloadService;
     }
 
     /// <inheritdoc />
@@ -963,6 +966,11 @@ public sealed class FilesGrpcService : FilesService.FilesServiceBase
     }
 
     /// <inheritdoc />
+    /// <remarks>
+    /// Content comes from <see cref="IDownloadService"/>, which knows whether the file is stored as
+    /// chunks or as one whole blob and enforces the caller's read permission. Streaming the resolved
+    /// version keeps versioning, whole-file storage and mounted media consistent with the REST download.
+    /// </remarks>
     public override async Task DownloadFile(
         DownloadFileRequest request,
         IServerStreamWriter<DownloadFileResponse> responseStream,
@@ -971,66 +979,58 @@ public sealed class FilesGrpcService : FilesService.FilesServiceBase
         if (!Guid.TryParse(request.NodeId, out var nodeId) ||
             !Guid.TryParse(request.UserId, out var userId))
         {
-            return;
+            throw new RpcException(new Status(StatusCode.InvalidArgument, "Invalid node or user id."));
         }
 
-        if (!ValidateAuthenticatedCaller(userId, context, out _))
+        if (!ValidateAuthenticatedCaller(userId, context, out var callerError))
         {
-            return;
+            throw new RpcException(new Status(StatusCode.PermissionDenied, callerError));
         }
 
-        var node = await _db.FileNodes
-            .AsNoTracking()
-            .FirstOrDefaultAsync(n => n.Id == nodeId && n.OwnerId == userId && !n.IsDeleted, context.CancellationToken);
-
-        if (node is null)
-            return;
-
-        var versionNumber = request.VersionNumber > 0 ? request.VersionNumber : 0;
-
-        // Find the file version
-        FileVersion? version;
-        if (versionNumber > 0)
+        if (request.VersionNumber > 0)
         {
-            version = await _db.FileVersions
-                .AsNoTracking()
-                .FirstOrDefaultAsync(v => v.FileNodeId == nodeId && v.VersionNumber == versionNumber,
-                    context.CancellationToken);
-        }
-        else
-        {
-            version = await _db.FileVersions
-                .AsNoTracking()
-                .Where(v => v.FileNodeId == nodeId)
-                .OrderByDescending(v => v.VersionNumber)
-                .FirstOrDefaultAsync(context.CancellationToken);
+            // Only current content is exposed here; answering with the latest version for a historic
+            // version number would mislabel which bytes the caller received.
+            throw new RpcException(new Status(
+                StatusCode.InvalidArgument,
+                "Only the current version can be streamed; send version_number = 0."));
         }
 
-        if (version is null)
+        if (_downloadService is null)
         {
-            return;
+            throw new RpcException(new Status(
+                StatusCode.Internal,
+                "The download service is not available in this host."));
         }
 
-        // Get chunks in sequence order
-        var chunks = await _db.FileVersionChunks
-            .AsNoTracking()
-            .Where(vc => vc.FileVersionId == version.Id)
-            .OrderBy(vc => vc.SequenceIndex)
-            .Include(vc => vc.FileChunk)
-            .ToListAsync(context.CancellationToken);
+        var caller = new CallerContext(userId, Array.Empty<string>(), CallerType.User);
 
-        // Stream chunk data
-        foreach (var vc in chunks)
+        Stream content;
+        try
         {
-            if (vc.FileChunk is null)
-                continue;
+            content = await _downloadService.DownloadCurrentAsync(nodeId, caller, context.CancellationToken);
+        }
+        catch (DotNetCloud.Core.Errors.NotFoundException ex)
+        {
+            throw new RpcException(new Status(StatusCode.NotFound, ex.Message));
+        }
+        catch (Core.Errors.InvalidOperationException ex)
+        {
+            throw new RpcException(new Status(StatusCode.FailedPrecondition, ex.Message));
+        }
 
-            // In a real implementation, read chunk bytes from disk using vc.FileChunk.StoragePath.
-            // For now, send empty chunk as placeholder.
-            await responseStream.WriteAsync(new DownloadFileResponse
+        const int bufferSize = 64 * 1024;
+        var buffer = new byte[bufferSize];
+
+        await using (content)
+        {
+            int read;
+            while ((read = await content.ReadAsync(buffer, context.CancellationToken)) > 0)
             {
-                ChunkData = Google.Protobuf.ByteString.Empty
-            }, context.CancellationToken);
+                await responseStream.WriteAsync(
+                    new DownloadFileResponse { ChunkData = Google.Protobuf.ByteString.CopyFrom(buffer, 0, read) },
+                    context.CancellationToken);
+            }
         }
     }
 

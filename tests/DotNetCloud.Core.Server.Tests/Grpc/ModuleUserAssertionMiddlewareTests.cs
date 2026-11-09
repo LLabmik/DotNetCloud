@@ -115,6 +115,50 @@ public class ModuleUserAssertionMiddlewareTests
     }
 
     [TestMethod]
+    public async Task InvokeAsync_ValidAssertion_BecomesTheRequestPrincipal()
+    {
+        // A core-originated call (the core acting for a user, e.g. brokering a Files read) arrives with
+        // no cookie. The verified assertion is the only identity on it, so it must become the request's
+        // principal — otherwise every module-side authorization check would see an anonymous caller.
+        var userId = Guid.CreateVersion7();
+        var token = _keyRing.Mint(userId, ModuleId);
+
+        System.Security.Claims.ClaimsPrincipal? observed = null;
+
+        var middleware = new ModuleUserAssertionMiddleware(context =>
+        {
+            observed = context.User;
+            return Task.CompletedTask;
+        });
+
+        var context = CreateContext(token);
+        await middleware.InvokeAsync(context);
+
+        Assert.IsNotNull(observed);
+        Assert.IsTrue(observed.Identity?.IsAuthenticated, "the asserted user must be an authenticated principal");
+        Assert.AreEqual(
+            userId.ToString(),
+            observed.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value);
+    }
+
+    [TestMethod]
+    public async Task InvokeAsync_NoAssertion_LeavesThePrincipalUntouched()
+    {
+        System.Security.Claims.ClaimsPrincipal? observed = new();
+
+        var middleware = new ModuleUserAssertionMiddleware(context =>
+        {
+            observed = context.User;
+            return Task.CompletedTask;
+        });
+
+        await middleware.InvokeAsync(CreateContext(assertion: null));
+
+        Assert.IsNotNull(observed);
+        Assert.IsFalse(observed.Identity?.IsAuthenticated == true, "an anonymous request must stay anonymous");
+    }
+
+    [TestMethod]
     public async Task InvokeAsync_TamperedAssertion_ReturnsUnauthorized()
     {
         var genuine = _keyRing.Mint(Guid.CreateVersion7(), ModuleId);
@@ -179,10 +223,15 @@ public class ModuleUserAssertionMiddlewareTests
         Assert.IsFalse(reachedNext);
     }
 
-    private static DefaultHttpContext CreateContext(string assertion)
+    private static DefaultHttpContext CreateContext(string? assertion)
     {
         var context = new DefaultHttpContext();
-        context.Request.Headers[ModuleIdentityMetadata.UserAssertionHeader] = assertion;
+
+        if (assertion is not null)
+        {
+            context.Request.Headers[ModuleIdentityMetadata.UserAssertionHeader] = assertion;
+        }
+
         return context;
     }
 }

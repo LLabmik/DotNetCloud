@@ -44,8 +44,15 @@ public class ModuleApiV1ServiceTests
             legacy.Object,
             _health,
             ConsentTestDoubles.Policy(manifests, consentService),
+            CreateFileAccess(),
             NullLogger<ModuleApiV1Service>.Instance);
     }
+
+    private static DotNetCloud.Core.Server.Services.ModuleFileAccessService CreateFileAccess() =>
+        new(
+            new ServiceCollection().BuildServiceProvider().GetRequiredService<IServiceScopeFactory>(),
+            ConsentTestDoubles.NoConsent(),
+            NullLogger<DotNetCloud.Core.Server.Services.ModuleFileAccessService>.Instance);
 
     [TestMethod]
     public async Task ReportHealth_KnownStatus_IsRecordedAndAcknowledged()

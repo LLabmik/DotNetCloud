@@ -1,4 +1,5 @@
 using DotNetCloud.Core.Capabilities;
+using DotNetCloud.Modules.Sdk.Api;
 
 namespace DotNetCloud.Modules.Sdk.Testing;
 
@@ -36,6 +37,15 @@ public sealed class InMemoryDncModuleApi : Api.IDncModuleApi
 
     /// <summary>Gets or sets a value indicating whether published events are accepted.</summary>
     public bool AcceptEvents { get; set; } = true;
+
+    /// <summary>Gets the simulated file tree, keyed by node id.</summary>
+    public Dictionary<string, Api.DncFileNode> Files { get; } = new(StringComparer.Ordinal);
+
+    /// <summary>Gets the content of the simulated files, keyed by node id.</summary>
+    public Dictionary<string, byte[]> FileContents { get; } = new(StringComparer.Ordinal);
+
+    /// <summary>Gets the uploads the module performed, as (parent, name, content) tuples.</summary>
+    public List<(string? ParentId, string FileName, byte[] Content)> UploadedFiles { get; } = [];
 
     /// <inheritdoc />
     public Task<Api.DncCurrentUser> GetCurrentUserAsync(CancellationToken cancellationToken = default) =>
@@ -126,6 +136,69 @@ public sealed class InMemoryDncModuleApi : Api.IDncModuleApi
     {
         AuditEntries.Add((action, entityType, entityId, description));
         return Task.FromResult(true);
+    }
+
+    /// <inheritdoc />
+    public Task<IReadOnlyList<Api.DncFileNode>> ListFilesAsync(
+        string? parentId = null,
+        int page = 1,
+        int pageSize = 200,
+        CancellationToken cancellationToken = default)
+    {
+        var matches = Files.Values
+            .Where(node => string.Equals(node.ParentId, parentId ?? string.Empty, StringComparison.Ordinal))
+            .OrderBy(node => node.NodeType == "Folder" ? 0 : 1)
+            .ThenBy(node => node.Name, StringComparer.OrdinalIgnoreCase)
+            .Skip((Math.Max(page, 1) - 1) * Math.Max(pageSize, 1))
+            .Take(Math.Max(pageSize, 1))
+            .ToArray();
+
+        return Task.FromResult<IReadOnlyList<Api.DncFileNode>>(matches);
+    }
+
+    /// <inheritdoc />
+    public Task<Stream> DownloadFileAsync(string nodeId, CancellationToken cancellationToken = default)
+    {
+        if (!FileContents.TryGetValue(nodeId, out var content))
+        {
+            return Task.FromException<Stream>(new DncModuleApiException(
+                "FILE_NOT_FOUND",
+                "The simulated file has no content.",
+                404));
+        }
+
+        return Task.FromResult<Stream>(new MemoryStream(content, writable: false));
+    }
+
+    /// <inheritdoc />
+    public async Task<Api.DncFileNode> UploadFileAsync(
+        string? parentId,
+        string fileName,
+        string contentType,
+        Stream content,
+        long totalSize = 0,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(content);
+
+        using var buffer = new MemoryStream();
+        await content.CopyToAsync(buffer, cancellationToken);
+
+        var bytes = buffer.ToArray();
+        var node = new Api.DncFileNode(
+            Guid.CreateVersion7().ToString(),
+            fileName,
+            "File",
+            contentType ?? string.Empty,
+            bytes.Length,
+            parentId ?? string.Empty,
+            DateTimeOffset.UtcNow.ToString("O"));
+
+        Files[node.Id] = node;
+        FileContents[node.Id] = bytes;
+        UploadedFiles.Add((parentId, fileName, bytes));
+
+        return node;
     }
 }
 

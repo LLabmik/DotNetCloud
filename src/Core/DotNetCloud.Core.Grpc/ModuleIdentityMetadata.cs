@@ -44,6 +44,17 @@ public static class ModuleIdentityMetadata
     public const string AssertionPublicKeyEnvironmentVariable = "DOTNETCLOUD_ASSERTION_PUBLIC_KEY";
 
     /// <summary>
+    /// The environment variable carrying the base address of the core's internal JSON module facade
+    /// (for example <c>http://localhost:5000/internal/moduleapi/v1/</c>), so a module backend written
+    /// without a gRPC client can still reach the same API and the same enforcement.
+    /// </summary>
+    /// <remarks>
+    /// Declared here rather than in the SDK because the supervisor (core) writes the value and the
+    /// SDK (module) reads it; a second literal is how a rename silently stops working.
+    /// </remarks>
+    public const string CoreRestEndpointEnvironmentVariable = "DOTNETCLOUD_CORE_REST_ENDPOINT";
+
+    /// <summary>
     /// Creates the metadata for a core call originating from <paramref name="moduleId"/>,
     /// including the supervisor-issued token when one is present in the environment.
     /// </summary>

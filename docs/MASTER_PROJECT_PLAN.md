@@ -1878,6 +1878,30 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 
 ---
 
+### Step: third-party-module-track-c-files-capability-2026-11-08 - Track C — `IFileDirectory`/`IFileWriter` (the user's files as a core capability)
+
+**Status:** completed ✅
+**Description:** Restores "Browse Files" and "Save to Files" for the sandboxed Email module by making the capability real instead of letting the sandbox delete a basic email-client feature. The core brokers the user's Files tree; the module holds no Files credential, socket or schema.
+
+**Deliverables:**
+
+- ✓ `module_api.proto`: `ListFiles` (unary), `DownloadFile` (server-streaming) and `UploadFile` (client-streaming); `CapabilityCatalog` maps them to `IFileDirectory` (read) and the new `IFileWriter` (write), both **Restricted**.
+- ✓ `ModuleCapabilityScopes`: `IFileDirectory` → `files:read`, `IFileWriter` → `files:write` — a read-only exporter can be granted without write consent.
+- ✓ `ModuleFileAccessService`: consent gate (`MODULE_CONSENT_REQUIRED` + `consent-scopes` trailer), module-scope rejection (`UNAUTHENTICATED`), single-segment file-name sanitization, 100 MiB per save, 500 entries per page, and Files failures mapped to `NotFound`/`Unavailable`/`FailedPrecondition`.
+- ✓ REST facade parity (`GET /files`, `GET /files/{nodeId}/content`, `POST /files`) on the same interceptor chain; supervisor exports `DOTNETCLOUD_CORE_REST_ENDPOINT` from one shared constant.
+- ✓ `ModuleUserAssertionMiddleware` adopts a verified assertion as `HttpContext.User`, so the Files host's existing permission checks authorize core-originated calls (this was also silently breaking the media-scan path).
+- ✓ Files module: real `DownloadFile` via `IDownloadService` (was streaming empty placeholders); `IFilesApiClient` gained list/read (spooled stream)/upload (4 MiB chunk manifest → initiate → chunks → complete), every call asserted for the acting user.
+- ✓ SDK: `ListFilesAsync`/`DownloadFileAsync`/`UploadFileAsync` on `IDncModuleApi`, implemented over gRPC, REST and the in-memory double.
+- ✓ Email: `GET /api/v1/email/files`, `POST /api/v1/email/attachments/from-file`, `POST /api/v1/email/attachments/{id}/save-to-files`; manifest `1.2.0` with the two capabilities and four consent scopes; file browser in compose and "save to your files" on message attachments, with a consent prompt on `FILES_CONSENT_REQUIRED`.
+- ✓ Deleted the direct module→module Files client (`FilesGrpc:Address`, `AttachFromFilesModule` RPC + client method) — the forbidden pattern is gone, and `ModuleBoundaryTests` now fails the build if a migrated host imports another module's contract or a host references another host.
+- ✓ Tests: `ModuleFileAccessServiceTests` (8), `ModuleApiFilesRpcTests` (6), `ModuleUserAssertionMiddlewareTests` (+2), `ModuleRestApiTests` (+2), `ModuleBoundaryTests` (2), `EmailFilesControllerTests` (6), Email UI asset tests (+4), Files `DownloadFile` tests (3), SDK file tests (4), `FileValidationService` name+size overload (5).
+
+**Dependencies:** `third-party-module-track-c-email-ui-2026-11-08`
+**Blocking Issues:** None
+**Notes:** The lesson generalises to the remaining Track C modules: when a feature "needs another module", add the brokered capability first — never a direct call. Two follow-ups: a live end-to-end run over a deployed core (real consent grant, real Files round-trip) and publishing Email `1.2.0` to the store. `Calendar` still dials `Contacts` for attendee autocomplete; that is the same defect shape and belongs to its own migration (a brokered contacts capability).
+
+---
+
 ## Phase 2: Chat & Notifications & Android
 
 **STATUS:** ✅ COMPLETED (13/13 sub-phases)

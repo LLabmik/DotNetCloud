@@ -64,6 +64,15 @@ internal static class ModuleRestMethods
     /// <summary><c>GET /consent/scopes</c>.</summary>
     public const string GetGrantedScopes = Service + "GetGrantedScopes";
 
+    /// <summary><c>GET /files</c>.</summary>
+    public const string ListFiles = Service + "ListFiles";
+
+    /// <summary><c>GET /files/{nodeId}/content</c>.</summary>
+    public const string DownloadFile = Service + "DownloadFile";
+
+    /// <summary><c>POST /files</c>.</summary>
+    public const string UploadFile = Service + "UploadFile";
+
     /// <summary><c>POST /health</c>.</summary>
     public const string ReportHealth = Service + "ReportHealth";
 }
@@ -94,6 +103,7 @@ internal sealed class ModuleRestApiService
     private readonly CallerContextInterceptor _callerContext;
     private readonly ModuleRateLimitInterceptor _rateLimit;
     private readonly ModuleAccessInterceptor _access;
+    private readonly Services.ModuleFileAccessService _files;
 
     /// <summary>Initializes a new instance of the <see cref="ModuleRestApiService"/> class.</summary>
     /// <param name="api">The canonical module API implementation.</param>
@@ -101,18 +111,21 @@ internal sealed class ModuleRestApiService
     /// <param name="callerContext">The caller-context (user assertion) check.</param>
     /// <param name="rateLimit">The per-module rate limiter.</param>
     /// <param name="access">The capability evaluator adapter.</param>
+    /// <param name="files">Broker for the file capabilities.</param>
     public ModuleRestApiService(
         ModuleApiV1Service api,
         AuthenticationInterceptor authentication,
         CallerContextInterceptor callerContext,
         ModuleRateLimitInterceptor rateLimit,
-        ModuleAccessInterceptor access)
+        ModuleAccessInterceptor access,
+        Services.ModuleFileAccessService files)
     {
         _api = api;
         _authentication = authentication;
         _callerContext = callerContext;
         _rateLimit = rateLimit;
         _access = access;
+        _files = files;
     }
 
     /// <summary>Gets the authenticated module id for a request that already passed the pipeline.</summary>
@@ -379,6 +392,84 @@ internal sealed class ModuleRestApiService
             return Json(new { scopes = response.Scopes });
         });
 
+    // --- Files (IFileDirectory / IFileWriter) ----------------------------------------------------
+
+    /// <summary>Handles <c>GET /files?parentId=</c>: lists one folder of the acting user's files.</summary>
+    /// <param name="http">The HTTP request.</param>
+    /// <param name="parentId">Folder to list; empty or absent lists the user's root.</param>
+    /// <param name="page">One-based page number.</param>
+    /// <param name="pageSize">Requested page size (the core caps it).</param>
+    /// <returns>The folder listing.</returns>
+    public Task<IResult> ListFilesAsync(HttpContext http, string? parentId, int? page, int? pageSize) =>
+        ExecuteAsync(http, ModuleRestMethods.ListFiles, async context =>
+        {
+            var response = await _api.ListFiles(
+                new Api.ListFilesRequest
+                {
+                    ParentId = parentId ?? string.Empty,
+                    Page = page ?? 1,
+                    PageSize = pageSize ?? 200,
+                },
+                context);
+
+            return Json(new
+            {
+                nodes = response.Nodes.Select(ToFileNode).ToArray(),
+                totalCount = response.TotalCount,
+            });
+        });
+
+    /// <summary>Handles <c>GET /files/{nodeId}/content</c>: streams one file's current content.</summary>
+    /// <param name="http">The HTTP request.</param>
+    /// <param name="nodeId">The file node.</param>
+    /// <returns>The content stream.</returns>
+    /// <remarks>
+    /// The facade streams straight from the Files module's spooled content. The MIME type is not
+    /// echoed: the caller already listed the folder and knows which node it asked for, and a wrong
+    /// content type is worse than a generic one for a byte-exact copy.
+    /// </remarks>
+    public Task<IResult> DownloadFileAsync(HttpContext http, string nodeId) =>
+        ExecuteAsync(http, ModuleRestMethods.DownloadFile, async context =>
+        {
+            var (moduleId, userId) = RequireActingUser(context);
+
+            if (!Guid.TryParse(nodeId, out var id))
+            {
+                throw new RpcException(new Status(StatusCode.InvalidArgument, "nodeId must be a GUID."));
+            }
+
+            var read = await _files.OpenReadAsync(moduleId, userId, id, context.CancellationToken);
+
+            return Results.Stream(read.Content!, "application/octet-stream");
+        });
+
+    /// <summary>Handles <c>POST /files?parentId=&amp;fileName=</c>: stores a file in the user's files.</summary>
+    /// <param name="http">The HTTP request; its body is the file content.</param>
+    /// <param name="parentId">Target folder; empty stores in the user's root.</param>
+    /// <param name="fileName">File name.</param>
+    /// <param name="contentType">MIME type.</param>
+    /// <returns>The stored node.</returns>
+    public Task<IResult> UploadFileAsync(
+        HttpContext http,
+        string? parentId,
+        string fileName,
+        string? contentType) =>
+        ExecuteAsync(http, ModuleRestMethods.UploadFile, async context =>
+        {
+            var (moduleId, userId) = RequireActingUser(context);
+
+            var saved = await _files.SaveAsync(
+                moduleId,
+                userId,
+                Guid.TryParse(parentId, out var folderId) && folderId != Guid.Empty ? folderId : null,
+                fileName,
+                contentType ?? "application/octet-stream",
+                http.Request.Body,
+                context.CancellationToken);
+
+            return Json(new { node = ToFileNode(saved.Node!) });
+        });
+
     /// <summary>Handles <c>GET /health</c>: proves the credential and returns the module identity.</summary>
     /// <param name="http">The HTTP request.</param>
     /// <returns>The response.</returns>
@@ -507,4 +598,45 @@ internal sealed class ModuleRestApiService
         memberCount = team.MemberCount,
         createdAt = team.CreatedAt,
     };
+
+    private static object ToFileNode(Api.ModuleFileNode node) => new
+    {
+        id = node.Id,
+        name = node.Name,
+        nodeType = node.NodeType,
+        mimeType = node.MimeType,
+        size = node.Size,
+        parentId = node.ParentId,
+        updatedAt = node.UpdatedAt,
+    };
+
+    private static object ToFileNode(DotNetCloud.Core.Capabilities.FileNodeInfo node) => new
+    {
+        id = node.Id.ToString(),
+        name = node.Name,
+        nodeType = node.NodeType,
+        mimeType = node.MimeType ?? string.Empty,
+        size = node.Size,
+        parentId = node.ParentId?.ToString() ?? string.Empty,
+        updatedAt = node.UpdatedAt?.ToString("O") ?? string.Empty,
+    };
+
+    /// <summary>
+    /// Gets the module and acting user a file call is made for.
+    /// </summary>
+    /// <param name="context">A call context that has completed the pipeline.</param>
+    /// <returns>The verified module id and user id.</returns>
+    private static (string ModuleId, Guid UserId) RequireActingUser(ServerCallContext context)
+    {
+        var binding = CallerSubjectGuard.Bind(context, requestedUserId: null);
+
+        if (!binding.IsAllowed || binding.IsModuleScope || binding.UserId == Guid.Empty)
+        {
+            throw new RpcException(new Status(
+                StatusCode.Unauthenticated,
+                "File access requires a verified end-user assertion."));
+        }
+
+        return (GetModuleId(context), binding.UserId);
+    }
 }

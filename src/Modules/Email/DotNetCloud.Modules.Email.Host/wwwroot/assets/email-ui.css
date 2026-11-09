@@ -788,3 +788,130 @@ h4 {
   justify-content: flex-end;
   gap: 8px;
 }
+
+/* File browser ------------------------------------------------------------- */
+
+/*
+ * The picker lists the signed-in user's cloud files. It is a <dialog> like the confirmation modal,
+ * but wider: names truncate rather than wrap so one long file name cannot push the action buttons
+ * off screen.
+ */
+.file-browser {
+  width: min(560px, 92vw);
+  max-width: 560px;
+  display: flex;
+  flex-direction: column;
+  max-height: 78vh;
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.modal-header .modal-title {
+  margin-bottom: 0;
+}
+
+.file-browser-crumbs {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: 10px 0;
+  font-size: 12px;
+}
+
+.crumb {
+  padding: 2px 6px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--primary);
+  font: inherit;
+  cursor: pointer;
+}
+
+.crumb:hover {
+  background: var(--surface-alt);
+}
+
+.crumb-separator {
+  color: var(--text-muted);
+}
+
+.file-browser-list {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  min-height: 180px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-alt);
+  padding: 4px;
+  margin-bottom: 12px;
+}
+
+.file-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 7px 8px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.file-row:hover {
+  background: var(--surface);
+}
+
+.file-row.is-selected {
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1px var(--primary);
+}
+
+.file-row.is-folder {
+  font-weight: 600;
+}
+
+.file-row-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.file-row-size {
+  flex: 0 0 auto;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.file-browser-error {
+  padding: 8px;
+  color: var(--danger-text, #b91c1c);
+  font-size: 13px;
+}
+
+.attachment-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.attachment-row .attachment-save {
+  color: var(--text-muted);
+}
+
+.attachment-row .attachment-save:hover {
+  color: var(--primary);
+}

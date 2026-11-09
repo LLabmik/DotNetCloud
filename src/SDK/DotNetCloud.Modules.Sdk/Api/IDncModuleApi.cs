@@ -43,6 +43,23 @@ public sealed record DncNotification(
     string? Link,
     IReadOnlyList<string> RecipientUserIds);
 
+/// <summary>One entry in the acting user's file list.</summary>
+/// <param name="Id">The node id.</param>
+/// <param name="Name">Display name.</param>
+/// <param name="NodeType"><c>File</c>, <c>Folder</c> or <c>SymbolicLink</c>.</param>
+/// <param name="MimeType">MIME type; empty for folders.</param>
+/// <param name="Size">Size in bytes; 0 for folders.</param>
+/// <param name="ParentId">Parent folder id; empty at the root of the user's files.</param>
+/// <param name="UpdatedAt">RFC 3339 timestamp of the last content change; empty when unknown.</param>
+public sealed record DncFileNode(
+    string Id,
+    string Name,
+    string NodeType,
+    string MimeType,
+    long Size,
+    string ParentId,
+    string UpdatedAt);
+
 /// <summary>
 /// The core API surface a module uses, independent of transport.
 /// </summary>
@@ -128,5 +145,47 @@ public interface IDncModuleApi
         string entityType,
         Guid entityId,
         string? description = null,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Lists one folder of the acting user's files. Requires the <c>IFileDirectory</c> capability and
+    /// the user's consent to <c>files:read</c>.
+    /// </summary>
+    /// <param name="parentId">Folder to list; <see langword="null"/> lists the user's root.</param>
+    /// <param name="page">One-based page number.</param>
+    /// <param name="pageSize">Requested page size (the core caps it).</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The folder's children.</returns>
+    Task<IReadOnlyList<DncFileNode>> ListFilesAsync(
+        string? parentId = null,
+        int page = 1,
+        int pageSize = 200,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Opens the current content of one of the acting user's files. Requires <c>files:read</c> consent.
+    /// </summary>
+    /// <param name="nodeId">The file node id.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>A readable stream the caller owns and must dispose.</returns>
+    Task<Stream> DownloadFileAsync(string nodeId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Stores a file in the acting user's files. Requires the <c>IFileWriter</c> capability and the
+    /// user's consent to <c>files:write</c>.
+    /// </summary>
+    /// <param name="parentId">Target folder; <see langword="null"/> stores in the user's root.</param>
+    /// <param name="fileName">File name (sanitized by the core).</param>
+    /// <param name="contentType">MIME type.</param>
+    /// <param name="content">The content, read to the end.</param>
+    /// <param name="totalSize">Declared size in bytes; 0 when unknown.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The stored node.</returns>
+    Task<DncFileNode> UploadFileAsync(
+        string? parentId,
+        string fileName,
+        string contentType,
+        Stream content,
+        long totalSize = 0,
         CancellationToken cancellationToken = default);
 }

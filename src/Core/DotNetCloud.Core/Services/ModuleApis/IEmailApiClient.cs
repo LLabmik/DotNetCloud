@@ -35,7 +35,6 @@ public interface IEmailApiClient
     Task<(Stream Stream, string FileName, string ContentType)> DownloadAttachmentAsync(Guid attachmentId, CancellationToken ct = default);
     Task<UploadAttachmentResult> UploadAttachmentAsync(Stream content, string fileName, string contentType, CancellationToken ct = default);
     Task DetachAttachmentAsync(Guid attachmentId, Guid? targetFolderId = null, CancellationToken ct = default);
-    Task<UploadAttachmentResult> AttachFromFilesModuleAsync(Guid fileNodeId, CancellationToken ct = default);
 
     // Sync
     Task TriggerSyncAsync(Guid accountId, CancellationToken ct = default);

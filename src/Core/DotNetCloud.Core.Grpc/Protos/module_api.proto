@@ -99,6 +99,23 @@ service ModuleApi {
 
   // Lists the scopes the acting user has granted this module (empty target = acting user).
   rpc GetGrantedScopes (GetGrantedScopesRequest) returns (GetGrantedScopesResponse);
+
+  // --- Files (IFileDirectory read / IFileWriter write) -----------------------------------------
+  //
+  // The core brokers these to the Files module; a module never talks to Files directly, never sees
+  // another module's schema and never names a user. The acting user comes from the assertion, and
+  // each call additionally needs the user's consent to `files:read` or `files:write` — the admin's
+  // capability grant alone must not expose anybody's files.
+
+  // Lists one folder of the acting user's files (folders first). Requires `files:read` consent.
+  rpc ListFiles (ListFilesRequest) returns (ListFilesResponse);
+
+  // Streams the current content of one of the acting user's files. Requires `files:read` consent.
+  rpc DownloadFile (DownloadFileRequest) returns (stream FileContentChunk);
+
+  // Stores content in the acting user's files (new file, or a new version of the same name).
+  // Requires `files:write` consent. The first message must be the metadata message.
+  rpc UploadFile (stream UploadFileRequest) returns (UploadFileResponse);
 }
 
 // --- Lifecycle --------------------------------------------------------------------------------
@@ -388,4 +405,74 @@ message GetGrantedScopesRequest {
 
 message GetGrantedScopesResponse {
   repeated string scopes = 1;
+}
+
+// --- Files ------------------------------------------------------------------------------------
+
+message ListFilesRequest {
+  reserved 1;
+  reserved "caller";
+
+  // Folder to list; empty = the root of the acting user's files.
+  string parent_id = 2;
+  // One-based page number (0 is treated as 1).
+  int32 page = 3;
+  // Requested page size; the core caps it.
+  int32 page_size = 4;
+}
+
+message ModuleFileNode {
+  string id = 1;
+  string name = 2;
+  // "File", "Folder" or "SymbolicLink".
+  string node_type = 3;
+  string mime_type = 4;
+  int64 size = 5;
+  // Empty when the node is at the root of the user's files.
+  string parent_id = 6;
+  // RFC 3339 timestamp of the last content change.
+  string updated_at = 7;
+}
+
+message ListFilesResponse {
+  repeated ModuleFileNode nodes = 1;
+  // Total children in the folder before paging.
+  int32 total_count = 2;
+}
+
+message DownloadFileRequest {
+  reserved 1;
+  reserved "caller";
+
+  string node_id = 2;
+}
+
+// One slice of a streamed file. 64 KiB frames keep a large attachment inside the default message
+// limits of both ends without buffering the whole file on either side.
+message FileContentChunk {
+  bytes data = 1;
+}
+
+message UploadFileRequest {
+  reserved 1;
+  reserved "caller";
+
+  oneof payload {
+    // Must be the first message on the stream; later messages carry chunks.
+    ModuleFileUploadMetadata metadata = 2;
+    FileContentChunk chunk = 3;
+  }
+}
+
+message ModuleFileUploadMetadata {
+  // Target folder; empty = the root of the acting user's files.
+  string parent_id = 1;
+  string file_name = 2;
+  string mime_type = 3;
+  // Declared size; the core rejects a stream that exceeds its own limit.
+  int64 total_size = 4;
+}
+
+message UploadFileResponse {
+  ModuleFileNode node = 1;
 }

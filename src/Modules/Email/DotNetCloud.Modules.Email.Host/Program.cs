@@ -7,6 +7,8 @@ using DotNetCloud.Modules.Email;
 using DotNetCloud.Modules.Email.Data;
 using DotNetCloud.Modules.Email.Host.Controllers;
 using DotNetCloud.Modules.Email.Host.Services;
+using DotNetCloud.Modules.Sdk;
+using DotNetCloud.Modules.Sdk.Api;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.HttpOverrides;
@@ -112,6 +114,14 @@ builder.Services.AddModuleUserAssertionAccessor();
 // gRPC
 builder.Services.AddGrpc(options =>
     options.Interceptors.Add<DotNetCloud.Core.Grpc.ModulePeerAuthenticationInterceptor>());
+
+// Module API client: the only channel a module may use to reach the platform. The supervisor hands
+// the module its id, its credential and the core endpoint; without them (a local `dotnet run`) the
+// client is absent and the file endpoints answer 503 instead of pretending the feature works.
+if (ModuleEnvironment.TryFromEnvironment(out var moduleEnvironment) && moduleEnvironment is not null)
+{
+    builder.Services.AddSingleton<IDncModuleApi>(_ => new DncModuleApiClient(moduleEnvironment));
+}
 builder.Services.AddControllers(options =>
     // A request without a verified assertion must be a 401, never a 500 (see the filter's remarks).
     options.Filters.Add<EmailExceptionFilter>());

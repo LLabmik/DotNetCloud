@@ -23,7 +23,7 @@ public sealed class ModuleEnvironment
     public const string DatabaseConnectionStringVariable = "DOTNETCLOUD_MODULE_DB_CONNECTION_STRING";
 
     /// <summary>Environment variable carrying the core REST facade base URL.</summary>
-    public const string CoreRestEndpointVariable = "DOTNETCLOUD_CORE_REST_ENDPOINT";
+    public const string CoreRestEndpointVariable = ModuleIdentityMetadata.CoreRestEndpointEnvironmentVariable;
 
     /// <summary>Initializes a new instance of the <see cref="ModuleEnvironment"/> class.</summary>
     /// <param name="moduleId">The module id.</param>

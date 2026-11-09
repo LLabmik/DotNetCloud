@@ -2,7 +2,7 @@
     "manifestVersion": 2,
     "id": "dotnetcloud.email",
     "name": "Email",
-    "version": "1.1.0",
+    "version": "1.2.0",
     "description": "Email client with IMAP/POP3 sync, sending, rules, and Gmail OAuth support.",
     "publisher": {
         "id": "dotnetcloud",
@@ -15,11 +15,15 @@
     "handlesUserErasure": true,
     "capabilities": [
         "IAuditLogger",
-        "ISearchProvider"
+        "ISearchProvider",
+        "IFileDirectory",
+        "IFileWriter"
     ],
     "userConsentScopes": [
         "mail:read",
-        "mail:write"
+        "mail:write",
+        "files:read",
+        "files:write"
     ],
     "events": {
         "publishes": [

@@ -8,11 +8,13 @@ namespace DotNetCloud.Core.Capabilities;
 /// </summary>
 /// <remarks>
 /// <para>
-/// <b>Capability tier:</b> Public — automatically granted to all modules.
+/// <b>Capability tier:</b> Restricted — the install requires an explicit grant, and every call also
+/// requires the user's consent to the <c>files:read</c> scope.
 /// </para>
 /// <para>
-/// This capability exposes a minimal read-only view of the user's files.
-/// Modules that need to create or modify files must use the Files module API directly.
+/// This capability exposes a minimal read-only view of the user's files. Modules that need to store
+/// content use <see cref="IFileWriter"/>; they never reach the Files module's database or its
+/// process, and they never pass a user id — the acting user comes from the verified assertion.
 /// </para>
 /// <para>
 /// <b>Optional module:</b> The Files module may not be installed. Callers should

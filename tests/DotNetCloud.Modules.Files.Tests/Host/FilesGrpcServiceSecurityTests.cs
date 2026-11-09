@@ -24,9 +24,9 @@ public class FilesGrpcServiceSecurityTests
         return new FilesDbContext(options);
     }
 
-    private static FilesGrpcService CreateService(FilesDbContext db)
+    private static FilesGrpcService CreateService(FilesDbContext db, IDownloadService? downloadService = null)
     {
-        return new FilesGrpcService(db, new Mock<IEventBus>().Object, new Mock<IFileStorageEngine>().Object, Mock.Of<DotNetCloud.Core.Capabilities.IAuditLogger>(), NullLogger<FilesGrpcService>.Instance, TestFileVersioningSettings.Default);
+        return new FilesGrpcService(db, new Mock<IEventBus>().Object, new Mock<IFileStorageEngine>().Object, Mock.Of<DotNetCloud.Core.Capabilities.IAuditLogger>(), NullLogger<FilesGrpcService>.Instance, TestFileVersioningSettings.Default, downloadService: downloadService);
     }
 
     [TestMethod]
@@ -229,6 +229,73 @@ public class FilesGrpcServiceSecurityTests
 
         Assert.IsFalse(response.Success);
         StringAssert.Contains(response.ErrorMessage, "hash", StringComparison.OrdinalIgnoreCase);
+    }
+
+    [TestMethod]
+    public async Task DownloadFile_HistoricVersionNumber_ThrowsInvalidArgument()
+    {
+        using var db = CreateContext();
+        var userId = Guid.CreateVersion7();
+        var service = CreateService(db, Mock.Of<IDownloadService>());
+
+        var ex = await Assert.ThrowsExactlyAsync<RpcException>(() => service.DownloadFile(
+            new DownloadFileRequest { NodeId = Guid.CreateVersion7().ToString(), UserId = userId.ToString(), VersionNumber = 3 },
+            new CollectingWriter(),
+            CreateContextWithAuthenticatedUser(userId)));
+
+        Assert.AreEqual(StatusCode.InvalidArgument, ex.StatusCode);
+    }
+
+    [TestMethod]
+    public async Task DownloadFile_WithoutDownloadService_ThrowsInternal()
+    {
+        using var db = CreateContext();
+        var userId = Guid.CreateVersion7();
+        var service = CreateService(db);
+
+        var ex = await Assert.ThrowsExactlyAsync<RpcException>(() => service.DownloadFile(
+            new DownloadFileRequest { NodeId = Guid.CreateVersion7().ToString(), UserId = userId.ToString() },
+            new CollectingWriter(),
+            CreateContextWithAuthenticatedUser(userId)));
+
+        Assert.AreEqual(StatusCode.Internal, ex.StatusCode);
+    }
+
+    [TestMethod]
+    public async Task DownloadFile_CurrentVersion_StreamsTheResolvedContent()
+    {
+        using var db = CreateContext();
+        var userId = Guid.CreateVersion7();
+        var nodeId = Guid.CreateVersion7();
+        var payload = new byte[] { 9, 8, 7 };
+
+        var download = new Mock<IDownloadService>();
+        download
+            .Setup(service => service.DownloadCurrentAsync(nodeId, It.IsAny<DotNetCloud.Core.Authorization.CallerContext>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new MemoryStream(payload));
+
+        var service = CreateService(db, download.Object);
+        var writer = new CollectingWriter();
+
+        await service.DownloadFile(
+            new DownloadFileRequest { NodeId = nodeId.ToString(), UserId = userId.ToString() },
+            writer,
+            CreateContextWithAuthenticatedUser(userId));
+
+        CollectionAssert.AreEqual(payload, writer.Items.SelectMany(item => item.ChunkData.ToByteArray()).ToArray());
+    }
+
+    private sealed class CollectingWriter : IServerStreamWriter<DownloadFileResponse>
+    {
+        public List<DownloadFileResponse> Items { get; } = [];
+
+        public WriteOptions? WriteOptions { get; set; }
+
+        public Task WriteAsync(DownloadFileResponse message)
+        {
+            Items.Add(message);
+            return Task.CompletedTask;
+        }
     }
 
     private static ServerCallContext CreateContextWithAuthenticatedUser(Guid userId)

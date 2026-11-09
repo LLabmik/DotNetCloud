@@ -45,6 +45,7 @@
     outbox: 'M19 3H4.99c-1.11 0-1.98.9-1.98 2L3 19c0 1.1.88 2 1.99 2H19c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 12h-4c0 1.66-1.35 3-3 3s-3-1.34-3-3H4.99V5H19v10zM8 11h2V8h4v3h2l-4 4-4-4z',
     draft: 'M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a.996.996 0 0 0 0-1.41l-2.34-2.34a.996.996 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z',
     folder: 'M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z',
+    save_alt: 'M19 12v7H5v-7H3v7c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2v-7h-2zm-6 .67 2.59-2.58L17 11.5l-5 5-5-5 1.41-1.41L11 12.67V3h2z',
     block: 'M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zM4 12c0-4.42 3.58-8 8-8 1.85 0 3.55.63 4.9 1.69L5.69 16.9A7.902 7.902 0 0 1 4 12zm8 8c-1.85 0-3.55-.63-4.9-1.69L18.31 7.1A7.902 7.902 0 0 1 20 12c0 4.42-3.58 8-8 8z',
     inventory_2: 'M20 2H4c-1 0-2 .9-2 2v3.01c0 .72.43 1.34 1 1.69V20c0 1.1 1.1 2 2 2h14c.9 0 2-.9 2-2V8.7c.57-.35 1-.97 1-1.69V4c0-1.1-1-2-2-2zm-5 12H9v-2h6v2zm5-7H4V4h16v3z',
     image: 'M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z',
@@ -111,10 +112,11 @@
   /* ------------------------------------------------------------------- api */
 
   /** Error carrying the HTTP status so a 404 can be told apart from a failure. */
-  function ApiError(status, message) {
+  function ApiError(status, message, code) {
     this.name = 'ApiError';
     this.status = status;
     this.message = message;
+    this.code = code || null;
   }
 
   ApiError.prototype = Object.create(Error.prototype);
@@ -161,11 +163,19 @@
 
     if (!response.ok) {
       var message = 'Request failed (' + response.status + ').';
-      if (payload && payload.error && typeof payload.error.message === 'string' && payload.error.message) {
-        message = payload.error.message;
+      var code = null;
+
+      if (payload && payload.error) {
+        if (typeof payload.error.message === 'string' && payload.error.message) {
+          message = payload.error.message;
+        }
+
+        if (typeof payload.error.code === 'string' && payload.error.code) {
+          code = payload.error.code;
+        }
       }
 
-      throw new ApiError(response.status, message);
+      throw new ApiError(response.status, message, code);
     }
 
     if (payload && Object.prototype.hasOwnProperty.call(payload, 'data')) {
@@ -616,7 +626,11 @@
     try {
       await action();
     } catch (error) {
-      state.error = error && error.message ? error.message : 'Something went wrong.';
+      // File failures carry a code the user can act on (consent, unavailable, gone); surface the
+      // same explanation the file picker uses instead of the raw message.
+      state.error = error instanceof ApiError && error.code
+        ? describeFileError(error)
+        : (error && error.message ? error.message : 'Something went wrong.');
     } finally {
       state.busy = false;
       render();
@@ -807,6 +821,272 @@
     }
 
     window.open(url, '_blank', 'noopener,noreferrer');
+  }
+
+  /* -------------------------------------------------------------- cloud files */
+
+  /** Turns a failed file call into something the user can act on. */
+  function describeFileError(error) {
+    if (error && error.code === 'FILES_CONSENT_REQUIRED') {
+      if (bridge && typeof bridge.requestConsent === 'function') {
+        bridge.requestConsent(['files:read', 'files:write']);
+      }
+
+      return 'DotNetCloud needs your approval to use your files. Approve the request it just showed, then try again.';
+    }
+
+    if (error && error.code === 'FILES_UNAVAILABLE') {
+      return 'Your files are not reachable right now — the Files module may not be running.';
+    }
+
+    if (error && error.code === 'FILE_NOT_FOUND') {
+      return 'That file is no longer there. Refresh the list and pick another one.';
+    }
+
+    if (error && error.code === 'FILE_TOO_LARGE') {
+      return error.message;
+    }
+
+    return error && error.message ? error.message : 'The file operation failed.';
+  }
+
+  /** Lists one folder of the signed-in user's files. */
+  function listCloudFolder(parentId) {
+    var path = API + '/files';
+
+    if (parentId) {
+      path += '?parentId=' + encodeURIComponent(parentId);
+    }
+
+    return apiJson(path);
+  }
+
+  /**
+   * Opens the file browser and resolves with the user's choice.
+   *
+   * @param {{ mode?: 'file'|'folder', title?: string }} [options]
+   * @returns {Promise<{ node?: object, folderId?: string|null, folderName?: string }|null>}
+   */
+  function pickFromFiles(options) {
+    var settings = options || {};
+    var mode = settings.mode === 'folder' ? 'folder' : 'file';
+
+    return new Promise(function (resolve) {
+      var settled = false;
+      var trail = [];
+      var selected = null;
+
+      var dialog = node('dialog', 'modal file-browser');
+      var header = node('div', 'modal-header');
+      header.appendChild(node('h3', 'modal-title', settings.title || (mode === 'folder' ? 'Save to your files' : 'Attach from your files')));
+      header.appendChild(iconButton('close', 'Close', function () { finish(null); }));
+      dialog.appendChild(header);
+
+      var crumbs = node('div', 'file-browser-crumbs');
+      var list = node('div', 'file-browser-list');
+      var footer = node('div', 'modal-actions');
+
+      var confirm = node('button', 'btn btn-primary', mode === 'folder' ? 'Save here' : 'Attach selected');
+      confirm.type = 'button';
+      confirm.disabled = mode === 'file';
+      confirm.addEventListener('click', function () {
+        if (mode === 'folder') {
+          var current = trail.length > 0 ? trail[trail.length - 1] : null;
+          finish({
+            folderId: current ? current.id : null,
+            folderName: current ? current.name : 'Files'
+          });
+          return;
+        }
+
+        if (selected) {
+          finish({ node: selected });
+        }
+      });
+
+      var cancel = node('button', 'btn btn-secondary', 'Cancel');
+      cancel.type = 'button';
+      cancel.addEventListener('click', function () { finish(null); });
+
+      footer.appendChild(cancel);
+      footer.appendChild(confirm);
+
+      dialog.appendChild(crumbs);
+      dialog.appendChild(list);
+      dialog.appendChild(footer);
+
+      dialog.addEventListener('cancel', function (event) {
+        event.preventDefault();
+        finish(null);
+      });
+
+      document.body.appendChild(dialog);
+
+      if (typeof dialog.showModal === 'function') {
+        dialog.showModal();
+      } else {
+        dialog.setAttribute('open', 'open');
+      }
+
+      function finish(result) {
+        if (settled) {
+          return;
+        }
+
+        settled = true;
+        resolve(result);
+
+        if (dialog.open && typeof dialog.close === 'function') {
+          dialog.close();
+        }
+
+        dialog.remove();
+      }
+
+      function renderCrumbs() {
+        crumbs.textContent = '';
+        var root = node('button', 'crumb', 'Files');
+        root.type = 'button';
+        root.addEventListener('click', function () { navigateTo(null, 'Files', 0); });
+        crumbs.appendChild(root);
+
+        trail.forEach(function (folder, index) {
+          crumbs.appendChild(node('span', 'crumb-separator', '/'));
+          var crumb = node('button', 'crumb', folder.name);
+          crumb.type = 'button';
+          crumb.addEventListener('click', function () { navigateTo(folder.id, folder.name, index + 1); });
+          crumbs.appendChild(crumb);
+        });
+      }
+
+      function navigateTo(folderId, folderName, depth) {
+        trail = trail.slice(0, depth);
+
+        if (folderId) {
+          trail.push({ id: folderId, name: folderName });
+        }
+
+        selected = null;
+        confirm.disabled = mode === 'file';
+        renderCrumbs();
+        loadFolder(folderId);
+      }
+
+      async function loadFolder(folderId) {
+        list.textContent = '';
+        list.appendChild(node('p', 'hint', 'Loading your files…'));
+
+        try {
+          var data = await listCloudFolder(folderId);
+          var nodes = (data && data.nodes) || [];
+
+          list.textContent = '';
+
+          if (nodes.length === 0) {
+            list.appendChild(node('p', 'hint', 'This folder is empty.'));
+            return;
+          }
+
+          nodes.forEach(function (item) {
+            var isFolder = item.nodeType === 'Folder' || item.nodeType === 'SymbolicLink';
+            var row = node('button', 'file-row' + (isFolder ? ' is-folder' : ''));
+            row.type = 'button';
+            row.title = item.name;
+
+            row.appendChild(buildIcon(isFolder ? 'folder' : fileTypeIcon(item.mimeType)));
+            row.appendChild(node('span', 'file-row-name', item.name));
+            row.appendChild(node('span', 'file-row-size', isFolder ? '' : formatSize(item.size)));
+
+            row.addEventListener('click', function () {
+              if (isFolder) {
+                navigateTo(item.id, item.name, trail.length + 1);
+                return;
+              }
+
+              selected = item;
+
+              Array.prototype.forEach.call(list.querySelectorAll('.file-row'), function (other) {
+                other.classList.remove('is-selected');
+              });
+
+              row.classList.add('is-selected');
+              confirm.disabled = false;
+            });
+
+            list.appendChild(row);
+          });
+        } catch (error) {
+          list.textContent = '';
+          list.appendChild(node('p', 'file-browser-error', describeFileError(error)));
+        }
+      }
+
+      renderCrumbs();
+      loadFolder(null);
+    });
+  }
+
+  /** Copies one of the user's files into the attachment store of the open compose form. */
+  async function attachFromFiles(file) {
+    var compose = state.compose;
+
+    if (!compose || !file) {
+      return;
+    }
+
+    compose.uploading += 1;
+    state.error = null;
+    render();
+
+    try {
+      var attachment = await apiJson(API + '/attachments/from-file', 'POST', {
+        nodeId: file.id,
+        fileName: file.name,
+        contentType: file.mimeType || 'application/octet-stream',
+        size: file.size || 0
+      });
+
+      compose.attachments.push({
+        storageKey: attachment.storageKey,
+        fileName: attachment.fileName,
+        contentType: attachment.contentType,
+        size: attachment.size
+      });
+    } catch (error) {
+      state.error = describeFileError(error);
+    } finally {
+      compose.uploading -= 1;
+      render();
+    }
+  }
+
+  /** Saves a received attachment into the user's files, asking which folder first. */
+  async function saveAttachmentToFiles(attachment) {
+    state.error = null;
+
+    var choice;
+
+    try {
+      choice = await pickFromFiles({ mode: 'folder' });
+    } catch (error) {
+      state.error = describeFileError(error);
+      render();
+      return;
+    }
+
+    if (!choice) {
+      return;
+    }
+
+    await runAction(async function () {
+      var result = await apiJson(
+        API + '/attachments/' + attachment.id + '/save-to-files',
+        'POST',
+        { parentId: choice.folderId || null });
+
+      var name = result && result.node ? result.node.name : attachment.fileName;
+      state.notice = 'Saved "' + name + '" to ' + (choice.folderName || 'your files') + '.';
+    });
   }
 
   async function syncAccount() {
@@ -1607,6 +1887,20 @@
     attachLabel.appendChild(fileInput);
     attachRow.appendChild(attachLabel);
 
+    // Attaching one of the user's cloud files: the module asks the core (IFileDirectory) for what
+    // the user owns, and copies the chosen file into the same attachment store a local upload uses.
+    var browseFiles = node('button', 'btn btn-secondary', 'Browse files');
+    browseFiles.type = 'button';
+    browseFiles.disabled = state.busy || compose.uploading > 0;
+    browseFiles.addEventListener('click', async function () {
+      var picked = await pickFromFiles({ mode: 'file' });
+
+      if (picked && picked.node) {
+        await attachFromFiles(picked.node);
+      }
+    });
+    attachRow.appendChild(browseFiles);
+
     if (compose.uploading > 0) {
       attachRow.appendChild(node('span', 'hint', 'Uploading…'));
     }
@@ -1781,6 +2075,11 @@
       if (message.attachments && message.attachments.length > 0) {
         var attachments = node('div', 'attachments');
         message.attachments.forEach(function (attachment) {
+          // The chip opens the file; the save action beside it copies the attachment into the
+          // user's files through the core (IFileWriter). They are separate buttons because a button
+          // nested inside a button is not valid markup.
+          var row = node('div', 'attachment-row');
+
           var chip = node('button', 'attachment');
           chip.type = 'button';
           chip.title = attachment.fileName + ' (' + formatSize(attachment.size) + ')';
@@ -1790,7 +2089,13 @@
           chip.addEventListener('click', function () {
             openAttachment(attachment.id);
           });
-          attachments.appendChild(chip);
+          row.appendChild(chip);
+
+          row.appendChild(iconButton('save_alt', 'Save to your files', function () {
+            saveAttachmentToFiles(attachment);
+          }, 'attachment-save'));
+
+          attachments.appendChild(row);
         });
         card.appendChild(attachments);
       }

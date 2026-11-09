@@ -403,6 +403,52 @@ public sealed class FileValidationServiceTests
 
     // ── Helpers ────────────────────────────────────────────────────────
 
+    // ── Validate (name + size) — files that were not uploaded ──────────
+
+    [TestMethod]
+    public void ValidateByName_AllowedExtension_IsValid()
+    {
+        var result = _service.Validate("report.pdf", 1024, AllowedFileTypes.EmailAttachmentTypes);
+
+        Assert.IsTrue(result.IsValid);
+    }
+
+    [TestMethod]
+    public void ValidateByName_DisallowedExtension_ReturnsFailure()
+    {
+        var result = _service.Validate("payload.exe", 1024, AllowedFileTypes.EmailAttachmentTypes);
+
+        Assert.IsFalse(result.IsValid);
+        Assert.AreEqual("FILE_EXTENSION_NOT_ALLOWED", result.ErrorCode);
+    }
+
+    [TestMethod]
+    public void ValidateByName_OverTheSizeLimit_ReturnsFailure()
+    {
+        var result = _service.Validate("report.pdf", 26 * 1024 * 1024, AllowedFileTypes.EmailAttachmentTypes);
+
+        Assert.IsFalse(result.IsValid);
+        Assert.AreEqual("FILE_TOO_LARGE", result.ErrorCode);
+    }
+
+    [TestMethod]
+    public void ValidateByName_EmptyContent_ReturnsFailure()
+    {
+        var result = _service.Validate("report.pdf", 0, AllowedFileTypes.EmailAttachmentTypes);
+
+        Assert.IsFalse(result.IsValid);
+        Assert.AreEqual("FILE_EMPTY", result.ErrorCode);
+    }
+
+    [TestMethod]
+    public void ValidateByName_NoExtension_ReturnsFailure()
+    {
+        var result = _service.Validate("README", 10, AllowedFileTypes.EmailAttachmentTypes);
+
+        Assert.IsFalse(result.IsValid);
+        Assert.AreEqual("FILE_NO_EXTENSION", result.ErrorCode);
+    }
+
     private static IFormFile CreateMockFormFile(string fileName, string contentType, byte[]? content = null, int? contentSize = null)
     {
         byte[] bytes;

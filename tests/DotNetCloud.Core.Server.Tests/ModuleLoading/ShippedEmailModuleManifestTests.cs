@@ -44,6 +44,8 @@ public class ShippedEmailModuleManifestTests
         CollectionAssert.IsSubsetOf(required.ToList(), manifest.UserConsentScopes.ToList());
         CollectionAssert.Contains(manifest.UserConsentScopes.ToList(), "mail:read");
         CollectionAssert.Contains(manifest.UserConsentScopes.ToList(), "mail:write");
+        CollectionAssert.Contains(manifest.UserConsentScopes.ToList(), "files:read");
+        CollectionAssert.Contains(manifest.UserConsentScopes.ToList(), "files:write");
     }
 
     [TestMethod]
@@ -55,9 +57,10 @@ public class ShippedEmailModuleManifestTests
         CollectionAssert.Contains(manifest.EffectiveCapabilities.ToList(), "IAuditLogger");
         CollectionAssert.Contains(manifest.EffectiveCapabilities.ToList(), "ISearchProvider");
 
-        // Least privilege: the module renders its own UI and stores attachments itself, so the
-        // files/contacts/storage capabilities it used to request are gone.
-        CollectionAssert.DoesNotContain(manifest.EffectiveCapabilities.ToList(), "IFileDirectory");
+        // Browsing and saving the user's files goes through the core (IFileDirectory read,
+        // IFileWriter write); the module still has no in-process storage or contact capability.
+        CollectionAssert.Contains(manifest.EffectiveCapabilities.ToList(), "IFileDirectory");
+        CollectionAssert.Contains(manifest.EffectiveCapabilities.ToList(), "IFileWriter");
         CollectionAssert.DoesNotContain(manifest.EffectiveCapabilities.ToList(), "IStorageProvider");
         CollectionAssert.DoesNotContain(manifest.EffectiveCapabilities.ToList(), "IContactDirectory");
         CollectionAssert.DoesNotContain(manifest.EffectiveCapabilities.ToList(), "INotificationService");

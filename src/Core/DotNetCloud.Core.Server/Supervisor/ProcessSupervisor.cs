@@ -577,6 +577,11 @@ internal sealed class ProcessSupervisor : BackgroundService, IProcessSupervisor
             startInfo.Environment["DOTNETCLOUD_GRPC_ENDPOINT"] = ForceHttpForInternalGrpc(grpcEndpoint);
             startInfo.Environment["DOTNETCLOUD_CORE_ENDPOINT"] = ForceHttpForInternalGrpc(BuildCoreEndpoint());
 
+            // The JSON facade lives on the core's own listener, so a module backend without a gRPC
+            // client reaches it at the same address under /internal/moduleapi/v1.
+            startInfo.Environment[ModuleIdentityMetadata.CoreRestEndpointEnvironmentVariable] =
+                ForceHttpForInternalGrpc(BuildCoreEndpoint()) + Extensions.ModuleRestEndpointExtensions.Prefix + "/";
+
             var launchEnvironment = ModuleLaunchEnvironment.Resolve(
                 manifest,
                 _options,
