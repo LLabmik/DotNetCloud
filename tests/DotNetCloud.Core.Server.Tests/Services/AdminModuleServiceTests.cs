@@ -90,6 +90,7 @@ public class AdminModuleServiceTests
             credentials ?? new ModuleCredentialStore(),
             Mock.Of<IModulePackageInstaller>(),
             store ?? Mock.Of<IModuleStoreService>(),
+            Mock.Of<IModuleSettingsStore>(),
             NullLogger<AdminModuleService>.Instance);
     }
 

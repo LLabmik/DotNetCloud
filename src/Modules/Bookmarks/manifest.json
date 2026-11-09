@@ -13,19 +13,8 @@
   "minCoreVersion": "0.7.0",
   "dataStore": "isolated",
   "handlesUserErasure": true,
-  "capabilities": [
-    "INotificationService",
-    "IUserDirectory",
-    "ICurrentUserContext",
-    "IAuditLogger",
-    "ISearchProvider"
-  ],
-  "userConsentScopes": [
-    "profile",
-    "bookmarks:read",
-    "bookmarks:write",
-    "notifications:send"
-  ],
+  "capabilities": ["IAuditLogger"],
+  "userConsentScopes": [],
   "events": {
     "publishes": [
       "BookmarkCreatedEvent",

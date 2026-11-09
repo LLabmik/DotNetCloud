@@ -19,13 +19,15 @@ public sealed class BookmarksModuleManifest : IModuleManifest
     public string Version => "1.2.0";
 
     /// <inheritdoc />
+    /// <remarks>
+    /// Audit is the only core capability the module reaches for: search indexing goes through
+    /// <c>SearchIndexRequestEvent</c> on the event bus, and bookmarks never touch user identity or
+    /// notifications. Declaring capabilities the code does not use forces scopes a user cannot be
+    /// asked to consent to meaningfully, and the store review rejects it.
+    /// </remarks>
     public IReadOnlyCollection<string> RequiredCapabilities => new[]
     {
-        nameof(Core.Capabilities.INotificationService),
-        nameof(Core.Capabilities.IUserDirectory),
-        nameof(Core.Capabilities.ICurrentUserContext),
-        nameof(Core.Capabilities.IAuditLogger),
-        nameof(Core.Capabilities.ISearchProvider)
+        nameof(Core.Capabilities.IAuditLogger)
     };
 
     /// <inheritdoc />

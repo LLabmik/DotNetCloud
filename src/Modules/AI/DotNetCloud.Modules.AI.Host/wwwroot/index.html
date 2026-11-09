@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>AI Assistant</title>
+
+    <!--
+    Everything is referenced RELATIVELY. The core frames this document at
+    /apps/dotnetcloud.ai/ and strips that prefix before forwarding, so the browser resolves
+    "assets/ai-ui.css" to /apps/dotnetcloud.ai/assets/ai-ui.css and this process sees
+    /assets/ai-ui.css. A leading-slash path would leave the module and hit a core route.
+  -->
+    <link rel="stylesheet" href="assets/ai-ui.css" />
+  </head>
+  <body>
+    <div class="ai-layout">
+      <aside class="ai-sidebar" id="sidebar" aria-label="Conversations">
+        <div class="ai-sidebar-header">
+          <span class="ai-sidebar-title">AI Assistant</span>
+          <button type="button" class="ai-icon-btn" id="new-chat" title="New chat" aria-label="New chat">
+            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" /></svg>
+          </button>
+        </div>
+
+        <p class="ai-model-label" id="model-label">Model: —</p>
+
+        <div class="ai-conversation-list" id="conversation-list" role="list"></div>
+        <p class="ai-empty-hint" id="conversation-empty">No conversations yet.</p>
+
+        <div class="ai-sidebar-footer">
+          <button type="button" class="ai-link-btn" id="help-toggle">
+            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M11 18h2v-2h-2v2zm1-16C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm0-14c-2.21 0-4 1.79-4 4h2c0-1.1.9-2 2-2s2 .9 2 2c0 2-3 1.75-3 5h2c0-2.25 3-2.5 3-5 0-2.21-1.79-4-4-4z" /></svg>
+            <span>Help</span>
+          </button>
+        </div>
+      </aside>
+
+      <main class="ai-main">
+        <section class="ai-welcome" id="welcome">
+          <div class="ai-welcome-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" focusable="false"><path d="M20 9V7c0-1.1-.9-2-2-2h-3c0-1.66-1.34-3-3-3S9 3.34 9 5H6c-1.1 0-2 .9-2 2v2c-1.66 0-3 1.34-3 3s1.34 3 3 3v4c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2v-2c1.66 0 3-1.34 3-3s-1.34-3-3-3zM7.5 11.5c0-.83.67-1.5 1.5-1.5s1.5.67 1.5 1.5S9.83 13 9 13s-1.5-.67-1.5-1.5zM16 17H8v-2h8v2zm-.5-4c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5z" /></svg>
+          </div>
+          <h1>DotNetCloud AI Assistant</h1>
+          <p>Start a conversation or select one from the sidebar.</p>
+          <p class="ai-warning hidden" id="ollama-warning">
+            The configured language model is not reachable. AI features may be unavailable.
+          </p>
+        </section>
+
+        <section class="ai-chat hidden" id="chat" aria-live="polite">
+          <div class="ai-messages" id="messages"></div>
+
+          <div class="ai-error hidden" id="error" role="alert"></div>
+
+          <form class="ai-composer" id="composer">
+            <label class="ai-visually-hidden" for="input">Message</label>
+            <textarea
+              class="ai-input"
+              id="input"
+              rows="1"
+              placeholder="Type a message…  (Enter to send, Shift+Enter for a new line)"
+            ></textarea>
+            <button type="submit" class="ai-send" id="send" title="Send" aria-label="Send">
+              <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M2.01 21 23 12 2.01 3 2 10l15 2-15 2z" /></svg>
+            </button>
+          </form>
+        </section>
+
+        <section class="ai-help hidden" id="help">
+          <div class="ai-help-header">
+            <h2>AI Assistant help</h2>
+            <button type="button" class="ai-icon-btn" id="help-close" title="Close help" aria-label="Close help">
+              <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" /></svg>
+            </button>
+          </div>
+          <h3>Chatting</h3>
+          <p>
+            Pick a conversation on the left, or press <strong>New chat</strong>. Messages stream from the
+            model as they are generated; <strong>Abort</strong> cancels the request, and a request still
+            waiting in the queue gives up its place.
+          </p>
+          <h3>Conversations</h3>
+          <p>
+            Double-click a title to rename it, or use the delete button to remove it. Conversations and
+            their messages are stored in this module's own data store and are deleted when your account
+            is deleted.
+          </p>
+          <h3>Models and providers</h3>
+          <p>
+            The provider, model and endpoint are configured by your administrator. The model shown above
+            the list is the one new conversations use; it cannot be changed from here.
+          </p>
+          <h3>Privacy</h3>
+          <p>
+            Your prompts and the model's answers are sent to the configured language-model provider.
+            This assistant does not read your files, mail, calendar or contacts.
+          </p>
+        </section>
+      </main>
+    </div>
+
+    <script src="dncModuleBridge.js"></script>
+    <script src="assets/ai-ui.js"></script>
+  </body>
+</html>

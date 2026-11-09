@@ -109,6 +109,11 @@ internal static class SupervisorServiceExtensions
         // Sandboxed module data stores (scoped schema + principal, encrypted connection string).
         services.AddSingleton<IModuleDataStoreProvisioningService, ModuleDataStoreProvisioningService>();
 
+        // Secret module settings (an API key, a provider token) are encrypted before they are stored
+        // and never returned by a listing. Registered here because the core DataProtection key ring
+        // is configured by the server host, not by the data project.
+        services.AddSingleton<IModuleSettingCipher, ModuleSettingCipher>();
+
         // Module store client + package installer (B3). A local feed directory or an explicit
         // .dncpkg file by default; setting Modules:Store:IndexUrl switches the client to the remote
         // signed index (module store) without changing the installer or the admin API.

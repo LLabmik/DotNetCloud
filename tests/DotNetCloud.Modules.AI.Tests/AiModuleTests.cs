@@ -59,16 +59,20 @@ public class AiModuleTests
     }
 
     [TestMethod]
-    public void Manifest_RequiresLlmProviderCapability()
+    public void Manifest_DeclaresOnlyTheCapabilitiesTheModuleUses()
     {
-        Assert.IsTrue(_module.Manifest.RequiredCapabilities.Contains("ILlmProvider"));
+        // Conversations live in the module's own schema and provider settings come from the module
+        // settings plane, so audit logging is the only core capability the code reaches for.
+        CollectionAssert.AreEqual(
+            new[] { "IAuditLogger" },
+            _module.Manifest.RequiredCapabilities.ToArray());
     }
 
     [TestMethod]
-    public void Manifest_PublishesConversationEvents()
+    public void Manifest_PublishesAndSubscribesNoCrossModuleEvents()
     {
-        Assert.IsTrue(_module.Manifest.PublishedEvents.Contains(nameof(ConversationCreatedEvent)));
-        Assert.IsTrue(_module.Manifest.PublishedEvents.Contains(nameof(ConversationMessageEvent)));
+        Assert.AreEqual(0, _module.Manifest.PublishedEvents.Count);
+        Assert.AreEqual(0, _module.Manifest.SubscribedEvents.Count);
     }
 
     [TestMethod]

@@ -32,8 +32,33 @@
     <ProjectReference Include="..\DotNetCloud.Modules.AI\DotNetCloud.Modules.AI.csproj" />
     <ProjectReference Include="..\DotNetCloud.Modules.AI.Data\DotNetCloud.Modules.AI.Data.csproj" />
     <ProjectReference Include="..\DotNetCloud.Modules.AI.Data.SqlServer\DotNetCloud.Modules.AI.Data.SqlServer.csproj" />
-    <ProjectReference Include="..\..\..\Core\DotNetCloud.Core.Auth\DotNetCloud.Core.Auth.csproj" />
     <ProjectReference Include="..\..\..\Core\DotNetCloud.Core.Grpc\DotNetCloud.Core.Grpc.csproj" />
+    <!-- Canonical module API client (audit, settings plane) and the in-memory test harness. -->
+    <ProjectReference Include="..\..\..\SDK\DotNetCloud.Modules.Sdk\DotNetCloud.Modules.Sdk.csproj" />
+  </ItemGroup>
+
+  <!--
+    The module-side half of the core's iframe UI plane, taken from the SDK so there is exactly one
+    copy of the protocol in the repository. It is served as a static asset of this host's wwwroot.
+  -->
+  <ItemGroup>
+    <Content Include="..\..\..\SDK\DotNetCloud.Modules.Sdk\wwwroot\dncModuleBridge.js"
+             Link="wwwroot\dncModuleBridge.js"
+             CopyToOutputDirectory="PreserveNewest"
+             CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <!--
+    The supervisor reads <modules>/<id>/manifest.json to decide how a module runs. The packer
+    copies its own manifest into a package, but a plain `dotnet publish` of this host must still
+    produce one — that is what makes a directly-published build run sandboxed rather than falling
+    back to the v1 default manifest.
+  -->
+  <ItemGroup>
+    <Content Include="..\manifest.json"
+             Link="manifest.json"
+             CopyToOutputDirectory="PreserveNewest"
+             CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

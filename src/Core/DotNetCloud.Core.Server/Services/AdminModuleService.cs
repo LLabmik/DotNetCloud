@@ -32,6 +32,7 @@ internal sealed class AdminModuleService : IAdminModuleService
     private readonly ModuleCredentialStore _credentials;
     private readonly IModulePackageInstaller _installer;
     private readonly IModuleStoreService _store;
+    private readonly IModuleSettingsStore _settings;
     private readonly ILogger<AdminModuleService> _logger;
 
     /// <summary>
@@ -48,6 +49,7 @@ internal sealed class AdminModuleService : IAdminModuleService
         ModuleCredentialStore credentials,
         IModulePackageInstaller installer,
         IModuleStoreService store,
+        IModuleSettingsStore settings,
         ILogger<AdminModuleService> logger)
     {
         _dbContext = dbContext;
@@ -60,6 +62,7 @@ internal sealed class AdminModuleService : IAdminModuleService
         _credentials = credentials;
         _installer = installer;
         _store = store;
+        _settings = settings;
         _logger = logger;
     }
 
@@ -550,6 +553,93 @@ internal sealed class AdminModuleService : IAdminModuleService
             Quota = MapQuotaToDto(moduleId, row, effective),
         };
     }
+
+    /// <inheritdoc/>
+    public async Task<IReadOnlyList<ModuleSettingDto>?> ListSettingsAsync(
+        string moduleId, CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(moduleId);
+
+        if (!await ModuleExistsAsync(moduleId, cancellationToken))
+        {
+            return null;
+        }
+
+        var entries = await _settings.ListAsync(moduleId, cancellationToken);
+        return entries.Select(entry => new ModuleSettingDto
+        {
+            ModuleId = entry.ModuleId,
+            Key = entry.Key,
+            IsSecret = entry.IsSecret,
+            HasValue = entry.HasValue,
+            Value = entry.Value,
+            UpdatedAtUtc = entry.UpdatedAtUtc,
+            UpdatedByUserId = entry.UpdatedByUserId,
+        }).ToList();
+    }
+
+    /// <inheritdoc/>
+    public async Task<ModuleSettingDto?> SetSettingAsync(
+        string moduleId,
+        string key,
+        UpsertModuleSettingDto dto,
+        Guid updatedByUserId,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(moduleId);
+        ArgumentNullException.ThrowIfNull(dto);
+
+        if (!await ModuleExistsAsync(moduleId, cancellationToken))
+        {
+            return null;
+        }
+
+        await _settings.SetAsync(moduleId, key, dto.Value, dto.IsSecret, updatedByUserId, cancellationToken);
+
+        _logger.LogInformation(
+            "Module setting {ModuleId}:{Key} updated by admin (secret: {IsSecret})",
+            LogSanitizer.Sanitize(moduleId), LogSanitizer.Sanitize(key), dto.IsSecret);
+
+        // The value is deliberately not echoed back: a secret must not round-trip through a response.
+        return new ModuleSettingDto
+        {
+            ModuleId = moduleId,
+            Key = key,
+            IsSecret = dto.IsSecret,
+            HasValue = true,
+            Value = dto.IsSecret ? null : dto.Value,
+            UpdatedAtUtc = DateTime.UtcNow,
+            UpdatedByUserId = updatedByUserId,
+        };
+    }
+
+    /// <inheritdoc/>
+    public async Task<bool?> DeleteSettingAsync(
+        string moduleId, string key, CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(moduleId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(key);
+
+        if (!await ModuleExistsAsync(moduleId, cancellationToken))
+        {
+            return null;
+        }
+
+        var deleted = await _settings.DeleteAsync(moduleId, key, cancellationToken);
+        if (deleted)
+        {
+            _logger.LogInformation(
+                "Module setting {ModuleId}:{Key} deleted by admin",
+                LogSanitizer.Sanitize(moduleId), LogSanitizer.Sanitize(key));
+        }
+
+        return deleted;
+    }
+
+    private async Task<bool> ModuleExistsAsync(string moduleId, CancellationToken cancellationToken) =>
+        await _dbContext.InstalledModules
+            .AsNoTracking()
+            .AnyAsync(m => m.ModuleId == moduleId, cancellationToken);
 
     /// <inheritdoc/>
     public async Task<ModuleUninstallResultDto?> UninstallModuleAsync(

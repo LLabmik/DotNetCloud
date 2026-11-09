@@ -120,6 +120,48 @@ public interface IAdminModuleService
         CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Lists a module's key/value settings (the module settings plane). Secret values are masked.
+    /// </summary>
+    /// <param name="moduleId">The module identifier.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The settings, or <see langword="null"/> when the module is not installed.</returns>
+    Task<IReadOnlyList<ModuleSettingDto>?> ListSettingsAsync(
+        string moduleId,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Creates or updates one module setting. A module can read its values through the
+    /// <c>GetSetting</c> RPC; only an administrator can write one.
+    /// </summary>
+    /// <param name="moduleId">The module identifier.</param>
+    /// <param name="key">The setting key.</param>
+    /// <param name="dto">The value and its sensitivity.</param>
+    /// <param name="updatedByUserId">The administrator making the change.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The stored setting, or <see langword="null"/> when the module is not installed.</returns>
+    Task<ModuleSettingDto?> SetSettingAsync(
+        string moduleId,
+        string key,
+        UpsertModuleSettingDto dto,
+        Guid updatedByUserId,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Deletes one module setting.
+    /// </summary>
+    /// <param name="moduleId">The module identifier.</param>
+    /// <param name="key">The setting key.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>
+    /// <see langword="true"/> when the setting was deleted, <see langword="false"/> when it did not
+    /// exist, and <see langword="null"/> when the module is not installed.
+    /// </returns>
+    Task<bool?> DeleteSettingAsync(
+        string moduleId,
+        string key,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Uninstalls a module: stops it, revokes its launch credential, optionally drops or orphans its
     /// isolated data store, optionally removes its binaries, and deletes the installation record.
     /// </summary>

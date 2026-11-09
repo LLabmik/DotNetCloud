@@ -1,9 +1,9 @@
 # DotNetCloud AI Assistant Module
 
 > **Module ID:** `dotnetcloud.ai`  
-> **Version:** 1.0.0  
-> **Status:** Implemented (Phase 4)  
-> **License:** AGPL-3.0
+> **Version:** 2.0.0  
+> **Status:** Sandboxed module (Track C) — process-isolated, own data store, module-hosted UI  
+> **License:** AGPL-3.0-or-later
 
 ---
 
@@ -20,15 +20,15 @@ The AI Assistant module provides LLM-powered conversational AI within DotNetClou
 | **Multiple Providers** | Ollama (local), OpenAI (cloud), Anthropic (cloud) |
 | **Model Selection** | Per-conversation model choice from available models |
 | **Conversation Management** | Create, rename (double-click), delete, list conversations |
-| **Per-User Isolation** | All conversations are private — users only see their own chats |
-| **Markdown Rendering** | Assistant responses rendered with full Markdown formatting |
+| **Per-User Isolation** | All conversations are private — users only see their own chats, and the acting user always comes from the core-signed assertion |
+| **Markdown Rendering** | Assistant responses rendered by the module's escaping markdown renderer |
 | **Copy Support** | Copy responses as raw Markdown or rich formatted text |
 | **System Prompts** | Optional per-conversation behavior customization via API |
 | **Soft Delete** | Conversations are soft-deleted for recovery by administrators |
 | **Token Counting** | Optional storage of token counts per message for usage tracking |
-| **Admin Settings UI** | Web-based admin page for provider, model, and limit configuration |
+| **Admin Settings** | Provider, model and limit configuration in the core's module settings plane (module admin page); the API key is encrypted at rest |
 | **Health Monitoring** | Built-in Ollama health check endpoint |
-| **Cross-Module AI** | Other modules can use AI capabilities via `ILlmProvider` |
+| **Own UI** | The module serves its own app (framed at `/apps/dotnetcloud.ai/`) and a Home-page widget |
 
 ## Architecture
 
@@ -36,23 +36,26 @@ The AI module follows the standard DotNetCloud module architecture with three pr
 
 ```
 src/Modules/AI/
-├── DotNetCloud.Modules.AI/            # Core SDK: models, interfaces, UI components, events
+├── DotNetCloud.Modules.AI/            # Domain contracts: models, service interfaces, events, lifecycle
 │   ├── Models/                        # Conversation, ConversationMessage entities
 │   ├── Services/                      # IAiChatService, IOllamaClient, IAiSettingsProvider
-│   ├── Events/                        # ConversationCreatedEvent, ConversationMessageEvent
-│   └── UI/                            # Blazor: AiChatPage, AiAdminSettings
+│   └── Events/                        # ConversationCreatedEvent, ConversationMessageEvent
 ├── DotNetCloud.Modules.AI.Data/       # Implementation: EF Core, service implementations
 │   ├── Configuration/                 # Entity type configurations
-│   └── Services/                      # AiChatService, OllamaClient, AiSettingsProvider
-├── DotNetCloud.Modules.AI.Host/       # REST host: controllers, health checks, Program.cs
+│   └── Services/                      # AiChatService, OllamaClient
+├── DotNetCloud.Modules.AI.Host/       # Sandboxed host: gRPC + REST + its own wwwroot UI
 │   ├── Controllers/                   # AiChatController (REST API)
-│   └── Services/                      # AiHealthCheck, InProcessEventBus
-└── manifest.json                      # Module declaration
+│   ├── Services/                      # AiHealthCheck, AiSettingsProvider, AiUserErasureHandler
+│   └── wwwroot/                       # index.html + assets/ (app) and widget/ (Home card)
+└── manifest.json                      # Manifest v2 (isolated store, erasure, UI + widget)
 ```
 
 ### Process Isolation
 
-The AI module runs as a separate process (`dotnetcloud-module ai`) and communicates with the DotNetCloud core via gRPC over Unix sockets or Named Pipes.
+The AI module runs as a separate process launched by the core supervisor, reachable only over a
+per-module Unix socket / named pipe with a per-launch module credential. User identity arrives as a
+short-lived core-signed assertion (`dnc-user-assertion`); the module has no cookie scheme and never
+opens the core database.
 
 ## Core Abstractions
 
@@ -70,9 +73,7 @@ The AI module runs as a separate process (`dotnetcloud-module ai`) and communica
 
 | Interface | Tier | Purpose |
 |---|---|---|
-| `ILlmProvider` | Restricted | Core LLM abstraction: `CompleteAsync()`, `CompleteStreamingAsync()`, `ListModelsAsync()` |
-
-Other modules request the `ILlmProvider` capability to use AI features without depending on the AI module directly.
+| `ILlmProvider` | Restricted | Core LLM abstraction declared by `DotNetCloud.Core`; **no module implements it yet**, so cross-module AI is not available |
 
 ## API Reference
 
@@ -112,19 +113,17 @@ data: [DONE]
 
 ## Required Capabilities
 
+## Capabilities
+
 | Capability | Usage |
 |---|---|
-| `ICurrentUserContext` | Identify the authenticated user |
 | `IAuditLogger` | Audit AI operations |
-| `IUserDirectory` | Resolve user information |
-| `INotificationService` | Notify users of completions (future) |
-| `ILlmProvider` | Core LLM abstraction |
 
-## Cross-Module Integration
+## Cross-Module Integration (not implemented)
 
-Modules can use the AI module's capabilities via the `ILlmProvider` interface:
+`ILlmProvider` exists in the core as a contract, but no module implements or consumes it yet:
 
-| Module | Use Case |
+| Module | Planned use case |
 |---|---|
 | **Notes** | Summarize, expand, translate, grammar check |
 | **Chat** | Message summarization, smart replies |

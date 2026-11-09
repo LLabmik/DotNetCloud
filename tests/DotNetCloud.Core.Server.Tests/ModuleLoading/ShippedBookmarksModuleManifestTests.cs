@@ -40,22 +40,22 @@ public class ShippedBookmarksModuleManifestTests
         Assert.IsNotNull(manifest);
         var required = ModuleCapabilityScopes.RequiredFor(manifest.EffectiveCapabilities);
 
-        CollectionAssert.IsSubsetOf(required.ToList(), manifest.UserConsentScopes.ToList());
-        CollectionAssert.Contains(manifest.UserConsentScopes.ToList(), "profile");
-        CollectionAssert.Contains(manifest.UserConsentScopes.ToList(), "notifications:send");
-        CollectionAssert.Contains(manifest.UserConsentScopes.ToList(), "bookmarks:read");
-        CollectionAssert.Contains(manifest.UserConsentScopes.ToList(), "bookmarks:write");
+        // Audit exposes no personal data, so the module asks the user for nothing: bookmarks live in
+        // the module's own schema and are never read from core capabilities.
+        Assert.AreEqual(0, required.Count, "the declared capabilities must not expose personal data");
+        Assert.AreEqual(0, manifest.UserConsentScopes.Count, "the module must not over-request consent scopes");
     }
 
     [TestMethod]
-    public void ShippedManifest_DeclaresTheCapabilitiesTheHostUses()
+    public void ShippedManifest_DeclaresOnlyTheCapabilitiesTheHostUses()
     {
         var manifest = LoadManifest().Manifest;
 
         Assert.IsNotNull(manifest);
-        CollectionAssert.Contains(manifest.EffectiveCapabilities.ToList(), "INotificationService");
-        CollectionAssert.Contains(manifest.EffectiveCapabilities.ToList(), "IAuditLogger");
-        CollectionAssert.Contains(manifest.EffectiveCapabilities.ToList(), "ISearchProvider");
+        CollectionAssert.AreEqual(
+            new[] { "IAuditLogger" },
+            manifest.EffectiveCapabilities.ToArray(),
+            "search indexing uses the event bus, and the module never touches identity or notifications");
     }
 
     [TestMethod]

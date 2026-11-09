@@ -453,6 +453,47 @@ public sealed class DotNetCloudApiClient
         return envelope?.Data;
     }
 
+    /// <summary>Lists a module's key/value settings (admin only). Secret values are masked.</summary>
+    public async Task<IReadOnlyList<ModuleSettingDto>> ListModuleSettingsAsync(
+        string moduleId, CancellationToken ct = default)
+    {
+        try
+        {
+            var envelope = await _http.GetFromJsonAsync<ApiEnvelope<List<ModuleSettingDto>>>(
+                $"api/v1/core/admin/modules/{Uri.EscapeDataString(moduleId)}/settings", ct);
+            return envelope?.Data ?? [];
+        }
+        catch
+        {
+            return [];
+        }
+    }
+
+    /// <summary>Creates or updates one module setting (admin only).</summary>
+    public async Task<ModuleSettingDto?> SetModuleSettingAsync(
+        string moduleId, string key, UpsertModuleSettingDto dto, CancellationToken ct = default)
+    {
+        var response = await _http.PutAsJsonAsync(
+            $"api/v1/core/admin/modules/{Uri.EscapeDataString(moduleId)}/settings/{Uri.EscapeDataString(key)}",
+            dto, ct);
+        if (!response.IsSuccessStatusCode)
+        {
+            return null;
+        }
+
+        var envelope = await response.Content.ReadFromJsonAsync<ApiEnvelope<ModuleSettingDto>>(JsonOptions, ct);
+        return envelope?.Data;
+    }
+
+    /// <summary>Deletes one module setting (admin only).</summary>
+    public async Task<bool> DeleteModuleSettingAsync(
+        string moduleId, string key, CancellationToken ct = default)
+    {
+        var response = await _http.DeleteAsync(
+            $"api/v1/core/admin/modules/{Uri.EscapeDataString(moduleId)}/settings/{Uri.EscapeDataString(key)}", ct);
+        return response.IsSuccessStatusCode;
+    }
+
     /// <summary>Gets a module's launch-credential lifecycle record (admin only).</summary>
     public async Task<ModuleCredentialDto?> GetModuleCredentialAsync(string moduleId, CancellationToken ct = default)
     {

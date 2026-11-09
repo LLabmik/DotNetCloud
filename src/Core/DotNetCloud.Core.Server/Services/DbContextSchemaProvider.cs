@@ -1,6 +1,5 @@
 using DotNetCloud.Core.Data.Modules;
 using DotNetCloud.Core.Modules;
-using DotNetCloud.Modules.AI.Data;
 using DotNetCloud.Modules.Calendar.Data;
 using DotNetCloud.Modules.Chat.Data;
 using DotNetCloud.Modules.Contacts.Data;
@@ -41,7 +40,6 @@ public class DbContextSchemaProvider : IModuleSchemaProvider
         ["dotnetcloud.photos"] = typeof(PhotosDbContext),
         ["dotnetcloud.music"] = typeof(MusicDbContext),
         ["dotnetcloud.video"] = typeof(VideoDbContext),
-        ["dotnetcloud.ai"] = typeof(AiDbContext),
     };
 
     public DbContextSchemaProvider(IServiceScopeFactory scopeFactory, ILogger<DbContextSchemaProvider> logger)

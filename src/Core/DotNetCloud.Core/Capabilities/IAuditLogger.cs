@@ -200,5 +200,11 @@ public enum AuditAction
     /// <summary>
     /// An administrator force-completed a user-erasure request that had outstanding modules.
     /// </summary>
-    ModuleUserErasureOverridden
+    ModuleUserErasureOverridden,
+
+    /// <summary>
+    /// An administrator created, changed or deleted a module setting in the module settings plane.
+    /// Secret values are never recorded in the audit description.
+    /// </summary>
+    ModuleSettingChanged
 }

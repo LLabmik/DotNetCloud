@@ -5891,6 +5891,9 @@ content-addressed chunks, so reads stream the blob directly with no temp-file re
 
 ### Step 9.5 — Blazor UI Chat Panel
 
+> **Superseded 2026-11-09 by Step 9.9:** the chat UI is now served by the module host inside a
+> sandboxed iframe (`/apps/dotnetcloud.ai/`); the in-core Blazor page was deleted.
+
 - ✓ Chat-style AI assistant panel component (`AiChatPage.razor`, mounted at `/apps/ai`)
 - ✓ Streaming response rendering (gRPC streaming via `SendMessageStreamingAsync`, "Generating…" indicator, live reasoning block)
 - ✓ Conversation history sidebar (list, new chat, rename, delete)
@@ -5899,6 +5902,10 @@ content-addressed chunks, so reads stream the blob directly with no temp-file re
 - ✓ Model selection moved to admin-configured `DefaultModel` — user-facing model selector intentionally removed (per `docs/AI_REQUEST_QUEUEING_PLAN.md`)
 
 ### Step 9.6 — Admin Settings & Multi-Provider Support
+
+> **Superseded 2026-11-09 by Step 9.9:** the settings now live in the core's module settings plane
+> (`dotnetcloud.ai`), encrypted at rest, and are edited from the module's admin page; the Blazor
+> admin component and the `SystemSettings` seeds were removed.
 
 - ✓ `AiAdminSettingsViewModel` — Settings model (Provider, ApiBaseUrl, ApiKey, OrgId, DefaultModel, MaxTokens, Timeout)
 - ✓ `AiAdminSettings.razor` / `.razor.cs` — Blazor admin settings page with provider-aware UI
@@ -5932,6 +5939,19 @@ content-addressed chunks, so reads stream the blob directly with no temp-file re
 - ✓ `MarkdownHtmlFormatterTests` — headings, lists, tables, fenced code, raw-HTML escaping, `NeedsHtmlRendering`
 - ✓ Stream-silence watchdog only arms after the first content/thinking chunk — a slow cold Ollama model load (gemma4:12b can take >60s to the first token) no longer cancels the request (mirrors Blazor `AiChatPage`; Android `AiViewModel`, 2026-09-01)
 - ✓ "Generating…" indicator now keyed on the **answer** text, not on thinking: with a reasoning model the thought-process block fills in within seconds, and the old `string.IsNullOrEmpty(StreamingThinking)` guard suppressed the indicator for the whole reasoning phase — the answer area sat blank for minutes with no sign of progress (2026-09-17)
+
+### Step 9.9 — Sandboxed module (Track C, 2026-11-09)
+
+- ✓ **Data plane:** `AiDbContext` is schema-neutral and both provider migration sets carry no schema qualification or `CREATE SCHEMA`; `AiDbInitializer` baselines an adopted schema with an empty history and then self-migrates into the provisioned schema.
+- ✓ **Sandboxed host:** `module.json` topology, module-private DataProtection ring under `DOTNETCLOUD_MODULE_DATA_DIR`, scoped connection string, no cookie scheme (identity is the core-signed `dnc-user-assertion`), `AiExceptionFilter` answers 401 (not 500) without an assertion, and the core database is no longer opened.
+- ✓ **Manifest v2:** publisher `dotnetcloud`, `dataStore: "isolated"`, `handlesUserErasure: true`, capabilities narrowed to `IAuditLogger`, no consent scopes (audit exposes no personal data), no cross-module events, iframe app + Home-page widget, Material icon `smart_toy`.
+- ✓ **Settings plane:** the seven provider settings now live in `ModuleSettings` (`dotnetcloud.ai`) and are read through the module API; secret `ApiKey` is encrypted by the core (`IModuleSettingCipher`) and never returned by a listing. Admin API `GET/PUT/DELETE api/v1/core/admin/modules/{id}/settings` + a module-detail settings panel edit them. The obsolete `SystemSettings` seeds were removed.
+- ✓ **Module-hosted UI:** `wwwroot/index.html` + `assets/ai-ui.js`/`.css` (streaming chat, queue position, thought-process block, abort, rename/delete, copy as Markdown/formatted, in-frame help) and `wwwroot/widget/` (conversation count + last activity via the new `GET api/v1/ai/conversations/stats`). The markdown renderer escapes everything and only emits text nodes and a fixed element set.
+- ✓ **Erasure:** `AiUserErasureHandler` deletes conversations (including soft-deleted ones) and their messages, idempotently per request id.
+- ✓ **Decoupled:** no `Core.Server`/`UI.Web`/CLI reference remains; the Blazor chat/admin/help components and the `DotNetCloud.Modules.AI.Widget` project are deleted and the library is a plain class library.
+- ✓ **Tests:** model-drift/schema-neutrality guards, erasure matrix, UI asset guards, shipped-manifest v2 assertions, settings-store secret/list/delete tests, admin module service tests — 53 AI tests and the full CI suite green.
+- ✓ **Packaged:** `dotnetcloud.ai` 2.0.0 packs deterministically and self-verifies (`pack` → `inspect`: manifest v2, LICENSE/README/CHANGELOG, both RIDs, wwwroot app + widget + bridge).
+- ☐ Live install of 2.0.0 over a bundled deploy (needs a test server).
 
 ---
 

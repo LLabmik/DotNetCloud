@@ -278,6 +278,69 @@ else
                     <button class="btn btn-primary" @onclick="SaveQuotaAsync" disabled="@_actionInProgress">Save quota</button>
                 </div>
             </div>
+
+            <div class="detail-section">
+                <h2>Module settings</h2>
+                <p class="text-muted">
+                    Key/value settings this module reads at runtime. Secret values are encrypted at rest
+                    and are never shown again after they are saved.
+                </p>
+                @if (_settings.Count == 0)
+                {
+                    <p class="text-muted">No settings have been stored for this module.</p>
+                }
+                else
+                {
+                    <table class="consent-user-table">
+                        <thead>
+                            <tr>
+                                <th>Key</th>
+                                <th>Value</th>
+                                <th>Updated</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var setting in _settings)
+                            {
+                                <tr>
+                                    <td>@setting.Key</td>
+                                    <td>
+                                        @if (setting.IsSecret)
+                                        {
+                                            <span class="badge badge-muted">Secret (set)</span>
+                                        }
+                                        else
+                                        {
+                                            <span>@setting.Value</span>
+                                        }
+                                    </td>
+                                    <td>@FormatTimestamp(setting.UpdatedAtUtc)</td>
+                                    <td>
+                                        <button class="btn btn-outline" @onclick="() => EditSetting(setting)">Edit</button>
+                                        <button class="btn btn-danger" @onclick="() => DeleteSettingAsync(setting)" disabled="@_actionInProgress">Delete</button>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                }
+                <div class="quota-grid">
+                    <label>Key<input @bind="SettingKey" placeholder="DefaultModel" /></label>
+                    <label>Value<input @bind="SettingValue" /></label>
+                    <label>
+                        <input type="checkbox" @bind="SettingIsSecret" />
+                        Secret (encrypt at rest)
+                    </label>
+                </div>
+                <div class="action-buttons">
+                    <button class="btn btn-primary" @onclick="SaveSettingAsync" disabled="@_actionInProgress">Save setting</button>
+                    @if (_editingSettingKey is not null)
+                    {
+                        <button class="btn btn-outline" @onclick="ClearSettingEditor">Clear</button>
+                    }
+                </div>
+            </div>
         }
 
         @if (_outstandingErasures.Count > 0)

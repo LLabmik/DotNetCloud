@@ -11,12 +11,8 @@ namespace DotNetCloud.Modules.AI.Data.SqlServer.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.EnsureSchema(
-                name: "ai");
-
             migrationBuilder.CreateTable(
                 name: "Conversations",
-                schema: "ai",
                 columns: table => new
                 {
                     Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
@@ -35,7 +31,6 @@ namespace DotNetCloud.Modules.AI.Data.SqlServer.Migrations
 
             migrationBuilder.CreateTable(
                 name: "ConversationMessages",
-                schema: "ai",
                 columns: table => new
                 {
                     Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
@@ -51,7 +46,6 @@ namespace DotNetCloud.Modules.AI.Data.SqlServer.Migrations
                     table.ForeignKey(
                         name: "FK_ConversationMessages_Conversations_ConversationId",
                         column: x => x.ConversationId,
-                        principalSchema: "ai",
                         principalTable: "Conversations",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Cascade);
@@ -59,31 +53,26 @@ namespace DotNetCloud.Modules.AI.Data.SqlServer.Migrations
 
             migrationBuilder.CreateIndex(
                 name: "ix_ai_messages_conversation_created",
-                schema: "ai",
                 table: "ConversationMessages",
                 columns: new[] { "ConversationId", "CreatedAt" });
 
             migrationBuilder.CreateIndex(
                 name: "ix_ai_messages_conversation_id",
-                schema: "ai",
                 table: "ConversationMessages",
                 column: "ConversationId");
 
             migrationBuilder.CreateIndex(
                 name: "ix_ai_conversations_is_deleted",
-                schema: "ai",
                 table: "Conversations",
                 column: "IsDeleted");
 
             migrationBuilder.CreateIndex(
                 name: "ix_ai_conversations_owner_id",
-                schema: "ai",
                 table: "Conversations",
                 column: "OwnerId");
 
             migrationBuilder.CreateIndex(
                 name: "ix_ai_conversations_owner_updated",
-                schema: "ai",
                 table: "Conversations",
                 columns: new[] { "OwnerId", "UpdatedAt" });
         }
@@ -92,12 +81,10 @@ namespace DotNetCloud.Modules.AI.Data.SqlServer.Migrations
         protected override void Down(MigrationBuilder migrationBuilder)
         {
             migrationBuilder.DropTable(
-                name: "ConversationMessages",
-                schema: "ai");
+                name: "ConversationMessages");
 
             migrationBuilder.DropTable(
-                name: "Conversations",
-                schema: "ai");
+                name: "Conversations");
         }
     }
 }

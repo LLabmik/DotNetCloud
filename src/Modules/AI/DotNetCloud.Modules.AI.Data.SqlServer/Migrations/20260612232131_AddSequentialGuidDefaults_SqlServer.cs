@@ -13,7 +13,6 @@ namespace DotNetCloud.Modules.AI.Data.SqlServer.Migrations
         {
             migrationBuilder.AlterColumn<Guid>(
                 name: "Id",
-                schema: "ai",
                 table: "Conversations",
                 type: "uniqueidentifier",
                 nullable: false,
@@ -23,7 +22,6 @@ namespace DotNetCloud.Modules.AI.Data.SqlServer.Migrations
 
             migrationBuilder.AlterColumn<Guid>(
                 name: "Id",
-                schema: "ai",
                 table: "ConversationMessages",
                 type: "uniqueidentifier",
                 nullable: false,
@@ -37,7 +35,6 @@ namespace DotNetCloud.Modules.AI.Data.SqlServer.Migrations
         {
             migrationBuilder.AlterColumn<Guid>(
                 name: "Id",
-                schema: "ai",
                 table: "Conversations",
                 type: "uniqueidentifier",
                 nullable: false,
@@ -47,7 +44,6 @@ namespace DotNetCloud.Modules.AI.Data.SqlServer.Migrations
 
             migrationBuilder.AlterColumn<Guid>(
                 name: "Id",
-                schema: "ai",
                 table: "ConversationMessages",
                 type: "uniqueidentifier",
                 nullable: false,

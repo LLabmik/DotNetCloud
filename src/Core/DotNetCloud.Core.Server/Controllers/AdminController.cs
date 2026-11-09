@@ -464,6 +464,107 @@ public class AdminController : ControllerBase
         return Ok(new { success = true, data = result.Quota });
     }
 
+    /// <summary>
+    /// Lists the key/value settings a module owns (the module settings plane, not system settings).
+    /// </summary>
+    /// <param name="moduleId">The module identifier.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The settings; secret values are masked.</returns>
+    [HttpGet("modules/{moduleId}/settings")]
+    public async Task<IActionResult> ListModuleSettingsAsync(string moduleId, CancellationToken cancellationToken)
+    {
+        var settings = await _moduleService.ListSettingsAsync(moduleId, cancellationToken);
+        if (settings is null)
+        {
+            return NotFound(new { success = false, error = new { code = "MODULE_NOT_FOUND", message = $"Module '{moduleId}' not found." } });
+        }
+
+        return Ok(new { success = true, data = settings });
+    }
+
+    /// <summary>
+    /// Creates or updates one module setting. This is how an administrator configures a sandboxed
+    /// module (for example the AI provider and model) when the module cannot read the core's system
+    /// settings.
+    /// </summary>
+    /// <param name="moduleId">The module identifier.</param>
+    /// <param name="key">The setting key.</param>
+    /// <param name="dto">The value and whether it is sensitive.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The stored setting. A secret value is never echoed back.</returns>
+    [HttpPut("modules/{moduleId}/settings/{key}")]
+    public async Task<IActionResult> UpsertModuleSettingAsync(
+        string moduleId, string key, [FromBody] UpsertModuleSettingDto dto, CancellationToken cancellationToken)
+    {
+        if (!TryGetUserId(out var adminUserId))
+        {
+            return Unauthorized(new { success = false, error = new { code = "INVALID_TOKEN", message = "Invalid token claims" } });
+        }
+
+        ModuleSettingDto? setting;
+        try
+        {
+            setting = await _moduleService.SetSettingAsync(moduleId, key, dto, adminUserId, cancellationToken);
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(new { success = false, error = new { code = "MODULE_SETTING_INVALID", message = ex.Message } });
+        }
+
+        if (setting is null)
+        {
+            return NotFound(new { success = false, error = new { code = "MODULE_NOT_FOUND", message = $"Module '{moduleId}' not found." } });
+        }
+
+        await _auditLogger.LogAsync(new AuditEntry
+        {
+            Caller = BuildCaller(),
+            ModuleId = "dotnetcloud.core",
+            Action = AuditAction.ModuleSettingChanged,
+            EntityType = "ModuleSetting",
+            EntityId = Guid.CreateVersion7(),
+            // Never the value: a secret must not reach the audit log.
+            Description = $"module-setting-changed:{SanitizeForLog(moduleId)}:{SanitizeForLog(key)}:{(dto.IsSecret ? "secret" : "plain")}",
+        });
+
+        return Ok(new { success = true, data = setting });
+    }
+
+    /// <summary>
+    /// Deletes one module setting.
+    /// </summary>
+    /// <param name="moduleId">The module identifier.</param>
+    /// <param name="key">The setting key.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>Confirmation that the setting was deleted.</returns>
+    [HttpDelete("modules/{moduleId}/settings/{key}")]
+    public async Task<IActionResult> DeleteModuleSettingAsync(
+        string moduleId, string key, CancellationToken cancellationToken)
+    {
+        var deleted = await _moduleService.DeleteSettingAsync(moduleId, key, cancellationToken);
+        if (deleted is null)
+        {
+            return NotFound(new { success = false, error = new { code = "MODULE_NOT_FOUND", message = $"Module '{moduleId}' not found." } });
+        }
+
+        if (deleted == false)
+        {
+            return NotFound(new { success = false, error = new { code = "MODULE_SETTING_NOT_FOUND", message = $"Setting '{key}' is not set for module '{moduleId}'." } });
+        }
+
+        await _auditLogger.LogAsync(new AuditEntry
+        {
+            Caller = BuildCaller(),
+            ModuleId = "dotnetcloud.core",
+            Action = AuditAction.ModuleSettingChanged,
+            EntityType = "ModuleSetting",
+            EntityId = Guid.CreateVersion7(),
+            Description = $"module-setting-deleted:{SanitizeForLog(moduleId)}:{SanitizeForLog(key)}",
+        });
+
+        return Ok(new { success = true, message = "Setting deleted successfully." });
+    }
+
     private static string SanitizeForLog(string? value)
     {
         if (string.IsNullOrEmpty(value))

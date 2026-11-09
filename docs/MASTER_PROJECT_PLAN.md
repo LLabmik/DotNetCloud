@@ -278,7 +278,7 @@ Content Security Policy directive` (logged as `ERR Error downloading album … J
 | Phase 6 (Email & Bookmarks)          | 9       | 9         | 0           | 0       |
 | Phase 7 (Video Calling)              | 11      | 11        | 0           | 0       |
 | Phase 8 (Full-Text Search)           | 19      | 19        | 0           | 0       |
-| Phase 9                              | 8       | 6         | 1           | 1       |
+| Phase 9                              | 9       | 7         | 1           | 1       |
 | Phase 11 (Auto-Updates)              | 16      | 13        | 0           | 3       |
 | DM & Host Calls — Phase A            | 3       | 3         | 0           | 0       |
 | DM & Host Calls — Phase B            | 2       | 0         | 0           | 2       |
@@ -4372,6 +4372,8 @@ The sync engine follows junction contents transparently. Caveat: deleting the ju
 
 ### Section: Phase 9.5 — Blazor UI Chat Panel
 
+> **Superseded 2026-11-09 by Phase 9.9:** the chat UI is served by the module host inside a sandboxed iframe.
+
 **Status:** completed ✅
 **Deliverables:**
 
@@ -4385,6 +4387,8 @@ The sync engine follows junction contents transparently. Caveat: deleting the ju
 **Notes:** Blazor AI chat panel complete and deployed to cloud.kimball.home (2026-09-01). 14/14 modules healthy; AI tests 35/35. Browser UX verification of Abort/auto-scroll pending user.
 
 ### Section: Phase 9.6 — Admin Settings & Multi-Provider Support
+
+> **Superseded 2026-11-09 by Phase 9.9:** settings now live in the core module settings plane and are edited from the module's admin page.
 
 **Status:** in-progress 🔄
 **Deliverables:**
@@ -4411,6 +4415,24 @@ The sync engine follows junction contents transparently. Caveat: deleting the ju
 - ☐ Notes module integration (summarize, expand, translate)
 - ☐ Chat module integration (message summarization, smart replies)
 - ☐ Files module integration (content summarization, document Q&A)
+
+### Section: Phase 9.9 — Sandboxed module (Track C)
+
+**Status:** completed ✅ (2026-11-09)
+**Deliverables:**
+
+- ✓ Schema-neutral `AiDbContext` + both provider migration sets, with a model-drift and schema-neutrality guard (`AiDbContextModelTests`) and `AiDbInitializer` baselining an adopted schema.
+- ✓ Sandboxed host: `module.json` topology, module-private DataProtection ring, scoped connection string, assertion identity (no cookie scheme), `AiExceptionFilter` 401 path, no core database access, static files for the module UI.
+- ✓ Manifest v2: isolated store, `handlesUserErasure`, capabilities narrowed to `IAuditLogger`, no consent scopes, no cross-module events, iframe app + widget, Material icon.
+- ✓ Settings moved to the module settings plane (`ModuleSettings`), encrypted secrets; the core gained `GET/PUT/DELETE api/v1/core/admin/modules/{id}/settings` and a module-detail settings panel; obsolete `SystemSettings` AI seeds removed.
+- ✓ Module-hosted UI (`index.html`, `assets/ai-ui.js|css`, `widget/*`) with a safe markdown renderer, streaming/queue/thinking/abort UI, copy actions and in-frame help.
+- ✓ `GET api/v1/ai/conversations/stats` for the widget, using the asserted user.
+- ✓ `AiUserErasureHandler` + erasure test matrix.
+- ✓ Decoupled: no `Core.Server`/`UI.Web`/CLI project reference; Blazor UI, help page and widget project deleted; library is a plain class library.
+- ✓ `dotnetcloud.ai` 2.0.0 packs, signs and self-verifies (206 entries, both RIDs, wwwroot app + widget).
+- ☐ Live install of 2.0.0 over a bundled deploy on a test server.
+
+**Notes:** AI is the first converted module whose settings had to move off the core `SystemSettings` table. The module settings plane is now the durable answer for every sandboxed module: an administrator writes values from the module page, the module reads them through `GetSetting`, and secret values are DataProtection-encrypted at rest. The settings panel on the module detail page is reusable for Music, Photos, Video and Tracks.
 
 ---
 

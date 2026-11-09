@@ -430,3 +430,45 @@ public class GrantModuleCapabilityDto
     /// </summary>
     public string CapabilityName { get; set; } = null!;
 }
+
+/// <summary>
+/// Data transfer object for one module setting in the module settings plane.
+/// </summary>
+public class ModuleSettingDto
+{
+    /// <summary>Gets or sets the module that owns the setting.</summary>
+    public string ModuleId { get; set; } = null!;
+
+    /// <summary>Gets or sets the setting key.</summary>
+    public string Key { get; set; } = null!;
+
+    /// <summary>Gets or sets whether the value is sensitive (encrypted at rest, masked in listings).</summary>
+    public bool IsSecret { get; set; }
+
+    /// <summary>Gets or sets whether a value is stored.</summary>
+    public bool HasValue { get; set; }
+
+    /// <summary>Gets or sets the value. Always null for a secret setting.</summary>
+    public string? Value { get; set; }
+
+    /// <summary>Gets or sets when the value last changed.</summary>
+    public DateTime UpdatedAtUtc { get; set; }
+
+    /// <summary>Gets or sets the administrator who last changed the value, when known.</summary>
+    public Guid? UpdatedByUserId { get; set; }
+}
+
+/// <summary>
+/// Data transfer object for writing a module setting.
+/// </summary>
+public class UpsertModuleSettingDto
+{
+    /// <summary>Gets or sets the value to store (required; may be empty for a non-secret key).</summary>
+    public string Value { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Gets or sets whether the value is sensitive. Secret values are encrypted with the core key ring
+    /// and are never returned by the settings listing.
+    /// </summary>
+    public bool IsSecret { get; set; }
+}

@@ -32,7 +32,6 @@ using DotNetCloud.Modules.Tracks.Services;
 using DotNetCloud.Modules.Music.Data;
 using DotNetCloud.Modules.Photos.Data;
 using DotNetCloud.Modules.Video.Data;
-using DotNetCloud.Modules.AI.Data;
 using DotNetCloud.Modules.Chat.Data;
 using DotNetCloud.Modules.Chat.Data.Services;
 using DotNetCloud.Modules.Chat.Services;
@@ -395,12 +394,9 @@ public class Program
             ModuleDbContextConfiguration.Configure(options, provider, connectionString, "DotNetCloud.Modules.Calendar.Data.SqlServer"),
             ServiceLifetime.Transient);
 
-        // AI DbContext for schema creation by DbContextSchemaProvider only.
-        // AI chat goes through the process-isolated module host via IAiApiClient (gRPC).
-        builder.Services.AddDbContext<AiDbContext>(options =>
-            ModuleDbContextConfiguration.Configure(options, provider, connectionString, "DotNetCloud.Modules.AI.Data.SqlServer"),
-            ServiceLifetime.Transient);
-
+        // AI is deliberately absent: it owns its data store (dataStore: "isolated"), so its own host
+        // applies its migrations into the schema the core provisions. Registering its DbContext here
+        // would make the core try to create tables in a schema the module principal owns.
         // Contacts DbContext for schema creation by DbContextSchemaProvider.
         // The module is process-isolated — its host queries the shared DB directly, but the
         // schema must exist before the module host starts. Without this registration the schema

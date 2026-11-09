@@ -91,14 +91,6 @@ internal sealed class ModuleUiRegistrationHostedService : BackgroundService
             RouteKey: "video.page",
             ComponentType: typeof(DotNetCloud.Modules.Video.UI.VideoPage)),
         new(
-            ModuleId: "dotnetcloud.ai",
-            Label: "AI Assistant",
-            Href: "/apps/ai",
-            Icon: ModuleIconProvider.GetIcon("dotnetcloud.ai"),
-            SortOrder: 100,
-            RouteKey: "ai.page",
-            ComponentType: typeof(DotNetCloud.Modules.AI.UI.AiChatPage)),
-        new(
             ModuleId: "dotnetcloud.about",
             Label: "About",
             Href: "/apps/about",

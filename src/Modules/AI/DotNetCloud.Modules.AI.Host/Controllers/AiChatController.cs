@@ -1,17 +1,24 @@
 using System.Text.Json.Serialization;
 using DotNetCloud.Core.AI;
 using DotNetCloud.Core.Authorization;
+using DotNetCloud.Core.Grpc;
 using DotNetCloud.Modules.AI.Services;
-using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace DotNetCloud.Modules.AI.Host.Controllers;
 
 /// <summary>
 /// REST API controller for AI chat operations.
 /// </summary>
+/// <remarks>
+/// The module is sandboxed: the core proxy strips the browser's session cookie and sends a
+/// short-lived assertion bound to this module. There is no cookie scheme, so <c>[Authorize]</c>
+/// cannot be the gate — <see cref="GetCallerContext"/> is, and a request without a verifiable
+/// assertion is answered with 401 by <see cref="AiExceptionFilter"/>.
+/// </remarks>
 [ApiController]
-[Authorize]
+[ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
 [Route("api/v1/ai")]
 public sealed class AiChatController : ControllerBase
 {
@@ -94,6 +101,26 @@ public sealed class AiChatController : ControllerBase
             CreatedAt = c.CreatedAt,
             UpdatedAt = c.UpdatedAt
         }));
+    }
+
+    /// <summary>
+    /// Gets the conversation count and last activity for the acting user (Home-page widget).
+    /// </summary>
+    /// <remarks>
+    /// The user comes from the core-signed assertion, never from the query string: the old gRPC shape
+    /// took a user id from the payload, which a module UI must not be able to choose.
+    /// </remarks>
+    [HttpGet("conversations/stats")]
+    public async Task<IActionResult> GetConversationStats(CancellationToken cancellationToken)
+    {
+        var caller = GetCallerContext();
+        var stats = await _chatService.GetConversationStatsAsync(caller.UserId, cancellationToken);
+
+        return Ok(new
+        {
+            totalConversations = stats.TotalConversations,
+            lastActivityUtc = stats.LastActivityAt
+        });
     }
 
     /// <summary>Deletes a conversation (soft-delete).</summary>
@@ -228,21 +255,15 @@ public sealed class AiChatController : ControllerBase
 
     private CallerContext GetCallerContext()
     {
-        if (User?.Identity?.IsAuthenticated != true)
+        var accessor = HttpContext.RequestServices.GetService<IModuleUserAssertionAccessor>();
+        if (accessor?.GetCurrentUserId() is not { } userId || userId == Guid.Empty)
+        {
             throw new UnauthorizedAccessException("Authentication is required.");
+        }
 
-        var userIdClaim = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value
-            ?? User.FindFirst("sub")?.Value;
-
-        if (!Guid.TryParse(userIdClaim, out var userId))
-            throw new UnauthorizedAccessException("Authenticated user identifier is invalid.");
-
-        var roles = User.FindAll(System.Security.Claims.ClaimTypes.Role)
-            .Select(c => c.Value)
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToArray();
-
-        return new CallerContext(userId, roles, CallerType.User);
+        // The acting user comes from the core-signed assertion, never from the payload. Roles are
+        // not part of the assertion, so the module never grants anything role-based.
+        return new CallerContext(userId, [], CallerType.User);
     }
 }
 

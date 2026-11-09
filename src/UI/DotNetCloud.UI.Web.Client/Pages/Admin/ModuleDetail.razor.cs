@@ -45,6 +45,7 @@ public partial class ModuleDetail : ComponentBase
     private ModuleDataStoreDto? _dataStore;
     private ModuleCredentialDto? _credential;
     private ModuleQuotaDto? _quota;
+    private IReadOnlyList<ModuleSettingDto> _settings = [];
     private IReadOnlyList<OutstandingErasure> _outstandingErasures = [];
 
     private bool DestroyDataOnUninstall { get; set; }
@@ -60,6 +61,12 @@ public partial class ModuleDetail : ComponentBase
     private int? QuotaEventsPerMinute { get; set; }
     private int? QuotaNotificationsPerMinute { get; set; }
     private int? QuotaAuditEntriesPerMinute { get; set; }
+
+    // Module settings editor (the module settings plane; distinct from core system settings).
+    private string SettingKey { get; set; } = string.Empty;
+    private string SettingValue { get; set; } = string.Empty;
+    private bool SettingIsSecret { get; set; }
+    private string? _editingSettingKey;
 
     protected override async Task OnInitializedAsync()
     {
@@ -81,6 +88,7 @@ public partial class ModuleDetail : ComponentBase
                 _credential = await Api.GetModuleCredentialAsync(ModuleId);
                 _quota = await Api.GetModuleQuotaAsync(ModuleId);
                 LoadQuotaInputs(_quota);
+                _settings = await Api.ListModuleSettingsAsync(ModuleId);
                 _outstandingErasures = await LoadOutstandingErasuresAsync();
             }
         }
@@ -330,6 +338,84 @@ public partial class ModuleDetail : ComponentBase
             {
                 Toast.ShowError("Failed to save the quota.");
             }
+        }
+        finally { _actionInProgress = false; }
+    }
+
+    private void EditSetting(ModuleSettingDto setting)
+    {
+        _editingSettingKey = setting.Key;
+        SettingKey = setting.Key;
+        // A secret value is never returned to the browser, so the field starts empty and must be
+        // retyped to change it.
+        SettingValue = setting.Value ?? string.Empty;
+        SettingIsSecret = setting.IsSecret;
+    }
+
+    private void ClearSettingEditor()
+    {
+        _editingSettingKey = null;
+        SettingKey = string.Empty;
+        SettingValue = string.Empty;
+        SettingIsSecret = false;
+    }
+
+    private async Task SaveSettingAsync()
+    {
+        var key = SettingKey.Trim();
+        if (string.IsNullOrWhiteSpace(key))
+        {
+            Toast.ShowError("Enter a setting key.");
+            return;
+        }
+
+        if (SettingIsSecret && string.IsNullOrEmpty(SettingValue))
+        {
+            // Saving an empty secret would replace the stored credential with an empty string.
+            Toast.ShowError("Enter a new value for the secret, or delete the setting instead.");
+            return;
+        }
+
+        _actionInProgress = true;
+        try
+        {
+            var saved = await Api.SetModuleSettingAsync(ModuleId, key, new UpsertModuleSettingDto
+            {
+                Value = SettingValue,
+                IsSecret = SettingIsSecret,
+            });
+
+            if (saved is null)
+            {
+                Toast.ShowError("Failed to save the setting.");
+                return;
+            }
+
+            _settings = await Api.ListModuleSettingsAsync(ModuleId);
+            ClearSettingEditor();
+            Toast.ShowSuccess("Setting saved. The module reads it on its next request.");
+        }
+        finally { _actionInProgress = false; }
+    }
+
+    private async Task DeleteSettingAsync(ModuleSettingDto setting)
+    {
+        _actionInProgress = true;
+        try
+        {
+            if (!await Api.DeleteModuleSettingAsync(ModuleId, setting.Key))
+            {
+                Toast.ShowError("Failed to delete the setting.");
+                return;
+            }
+
+            _settings = await Api.ListModuleSettingsAsync(ModuleId);
+            if (string.Equals(_editingSettingKey, setting.Key, StringComparison.Ordinal))
+            {
+                ClearSettingEditor();
+            }
+
+            Toast.ShowSuccess("Setting deleted.");
         }
         finally { _actionInProgress = false; }
     }

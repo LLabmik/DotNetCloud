@@ -87,9 +87,6 @@
     <ProjectReference Include="..\..\Modules\Video\DotNetCloud.Modules.Video\DotNetCloud.Modules.Video.csproj" />
     <ProjectReference Include="..\..\Modules\Video\DotNetCloud.Modules.Video.Data\DotNetCloud.Modules.Video.Data.csproj" />
     <ProjectReference Include="..\..\Modules\Video\DotNetCloud.Modules.Video.Data.SqlServer\DotNetCloud.Modules.Video.Data.SqlServer.csproj" />
-    <ProjectReference Include="..\..\Modules\AI\DotNetCloud.Modules.AI\DotNetCloud.Modules.AI.csproj" />
-    <ProjectReference Include="..\..\Modules\AI\DotNetCloud.Modules.AI.Data\DotNetCloud.Modules.AI.Data.csproj" />
-    <ProjectReference Include="..\..\Modules\AI\DotNetCloud.Modules.AI.Data.SqlServer\DotNetCloud.Modules.AI.Data.SqlServer.csproj" />
     <ProjectReference Include="..\..\Modules\Files\DotNetCloud.Modules.Files.Data\DotNetCloud.Modules.Files.Data.csproj" />
     <ProjectReference Include="..\..\Modules\Files\DotNetCloud.Modules.Files.Data.SqlServer\DotNetCloud.Modules.Files.Data.SqlServer.csproj" />
     <ProjectReference Include="..\..\Modules\About\DotNetCloud.Modules.About\DotNetCloud.Modules.About.csproj" />
@@ -105,7 +102,6 @@
     <ProjectReference Include="..\..\Modules\Photos\DotNetCloud.Modules.Photos.Widget\DotNetCloud.Modules.Photos.Widget.csproj" />
     <ProjectReference Include="..\..\Modules\Music\DotNetCloud.Modules.Music.Widget\DotNetCloud.Modules.Music.Widget.csproj" />
     <ProjectReference Include="..\..\Modules\Video\DotNetCloud.Modules.Video.Widget\DotNetCloud.Modules.Video.Widget.csproj" />
-    <ProjectReference Include="..\..\Modules\AI\DotNetCloud.Modules.AI.Widget\DotNetCloud.Modules.AI.Widget.csproj" />
     <ProjectReference Include="..\..\UI\DotNetCloud.UI.Web\DotNetCloud.UI.Web.csproj" />
     <ProjectReference Include="..\..\UI\DotNetCloud.UI.Web.Client\DotNetCloud.UI.Web.Client.csproj" />
   </ItemGroup>
