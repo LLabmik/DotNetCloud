@@ -10,6 +10,7 @@ using DotNetCloud.Core.Modules;
 using DotNetCloud.Core.Modules.Store;
 using DotNetCloud.Core.Modules.Supervisor;
 using DotNetCloud.Core.Server.ModuleLoading;
+using DotNetCloud.Core.Server.Sandbox;
 using DotNetCloud.Core.Server.Supervisor;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -462,6 +463,26 @@ public sealed class ModulePackageInstaller : IModulePackageInstaller
             "Installed module {ModuleId} {Version} (key={KeyId}, unverified={Unverified})",
             LogSanitizer.Sanitize(moduleId), LogSanitizer.Sanitize(version),
             LogSanitizer.Sanitize(review.KeyId ?? "none"), unverified);
+
+        // 4b. Seed the manifest's default settings before the module starts. A sandboxed module reads
+        //     its configuration from the settings plane, so the defaults have to exist for the first
+        //     request rather than appear after the next core restart. Additive only: an upgrade never
+        //     overwrites a value the administrator has set.
+        try
+        {
+            await ModuleSettingDefaultsSeeder.SeedFromModuleDirectoryAsync(
+                _dbContext,
+                moduleId,
+                layout.GetModuleDirectory(moduleId),
+                _logger,
+                cancellationToken);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            // A manifest default that cannot be stored must not fail an otherwise valid install.
+            _logger.LogWarning(
+                ex, "Failed to seed default settings for module {ModuleId}", LogSanitizer.Sanitize(moduleId));
+        }
 
         // 5. Start and health-check. A module that never comes up is rolled back.
         var started = false;

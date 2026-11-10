@@ -84,6 +84,17 @@ public sealed record ModuleManifestV2
     [JsonPropertyName("ui")]
     public ModuleUi? Ui { get; init; }
 
+    /// <summary>
+    /// Default values for the module settings plane, written once when the module is first installed.
+    /// </summary>
+    /// <remarks>
+    /// The core seeds a key only when it has no value yet, so an administrator's change always wins
+    /// and a reinstall never resets a configured module. A packaged default is not a secret —
+    /// declaring <c>secret</c> is rejected — because anything shipped in a package is public.
+    /// </remarks>
+    [JsonPropertyName("settings")]
+    public IReadOnlyList<ModuleSettingDefault> Settings { get; init; } = [];
+
     /// <summary>Requested resource limits. Requests are capped by admin/store policy.</summary>
     [JsonPropertyName("resources")]
     public ModuleResources? Resources { get; init; }
@@ -122,6 +133,14 @@ public sealed record ModuleUi(
 /// <summary>A home-page widget contributed by a module.</summary>
 /// <param name="Path">Module-relative path the widget frame loads (for example <c>/widget/index.html</c>).</param>
 public sealed record ModuleWidget(string Path);
+
+/// <summary>
+/// One default value for the module settings plane.
+/// </summary>
+/// <param name="Key">Setting key.</param>
+/// <param name="Value">Default value, stored as text.</param>
+/// <param name="Description">Optional operator-facing description of what the key controls.</param>
+public sealed record ModuleSettingDefault(string Key, string Value, string? Description = null);
 
 /// <summary>A navigation entry contributed by a module.</summary>
 /// <param name="Id">Stable id, unique within the module.</param>

@@ -8,6 +8,29 @@
 
 ---
 
+## Recent Work — Track C: Music conversion withdrawn; two core capabilities kept (2026-11-09, `feature/third-party-modules`)
+
+The Music conversion was completed, deployed and exercised live, then **reverted**: Music stays a
+first-party module. The reason is architectural, not a defect — the module's value is the persistent
+global playbar, the 10-band equalizer and the Butterchurn visualizer, and all three are **core-chrome
+JavaScript** driven by an in-process module through JS interop. A sandboxed frame cannot reach them
+(the bridge offers only title/notify/navigate/resize/consent, and the frame has no storage or cookie).
+**Video is excluded for the same reason.** Details: `THIRD_PARTY_MODULE_SANDBOX_AND_STORE_PLAN.md` §7.
+
+**Reverted**
+
+- ✓ Module, host, widgets, UI, tests, `DbContextSchemaProvider` entry, both UI registration services, `AddAdditionalAssemblies`, CLI registration and the `Core.Server`/`UI.Web` project references restored to the committed first-party layout.
+- ✓ Music tables moved back from the provisioned `dnc_dotnetcloud_music_*` schema to the core-managed `music` schema (`scripts/move-music-schema-back.sh`), and the converted module's registry rows removed.
+- ✓ `dotnetcloud.music` 2.0.0 / 2.0.1 withdrawn from the store: recorded in `yanked.json` (deprecation) and the bytes deleted from `packages/` and the live site; the catalogue no longer lists the package.
+
+**Kept — both are module-agnostic and now available to every module**
+
+- ✓ **Manifest-declared default settings.** Manifest v2 gained an optional `settings` block (bounded, unique keys, description cap, and **secret defaults rejected** — anything shipped in a package is public). `ModuleSettingDefaultsSeeder` writes a key only when it has no value, at install (`ModulePackageInstaller`) and at start-up reconciliation (`ProcessSupervisor`), so an administrator's edit always wins and a reinstall never resets a module.
+- ✓ **Capability decisions with Grant/Reject.** `ModuleCapabilityGrant` carries `Status` (`Pending`/`Granted`/`Rejected`) plus `RejectedAtUtc`/`RejectedByUserId` (migration on both providers; existing rows default to `Granted`). Enforcement allows only `Granted`; reconciliation records bundled capabilities as granted and **store-tier ones as pending** and never resurrects a rejection; revoking records a rejection instead of deleting the row. The module page lists every gated capability the manifest requests, with its decision and **Grant**/**Reject** buttons; `POST …/capabilities/{capability}/reject` is audited.
+- ✓ **Plane fixes found while converting it:** `ModuleUiRegistry` is thread-safe (two hosted services wrote it concurrently, which silently dropped every iframe module's nav item), the consent permission bar is an inline top band named after the module, `MaterialSvgIcons` gained `shield`, and `ModuleAppProxy` exempts media/archive responses from the 32 MiB UI cap.
+
+---
+
 ## Recent Work — Track C: the sandboxed module UI plane, verified live (2026-11-08, `feature/third-party-modules`)
 
 Opening the converted modules for the first time found that **no sandboxed module UI could load at

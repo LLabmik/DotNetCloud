@@ -1,4 +1,5 @@
 using DotNetCloud.Core.Data.Entities.Identity;
+using DotNetCloud.Core.Modules;
 
 namespace DotNetCloud.Core.Data.Entities.Modules;
 
@@ -122,6 +123,25 @@ public class ModuleCapabilityGrant
     /// </remarks>
     public Guid? GrantedByUserId { get; set; }
 
+    /// <summary>
+    /// The administrator's decision: <c>Pending</c>, <c>Granted</c> or <c>Rejected</c>.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// A row exists for every gated capability a manifest declares, so "rejected" survives a
+    /// restart. Only <c>Granted</c> passes capability enforcement; see
+    /// <see cref="ModuleCapabilityGrantStatus"/>.
+    /// </para>
+    /// <para>Rows written before this column existed are read as <c>Granted</c> (the migration default).</para>
+    /// </remarks>
+    public string Status { get; set; } = ModuleCapabilityGrantStatus.Pending;
+
+    /// <summary>When an administrator rejected the request; null unless <see cref="Status"/> is rejected.</summary>
+    public DateTime? RejectedAtUtc { get; set; }
+
+    /// <summary>The administrator who rejected the request, when known.</summary>
+    public Guid? RejectedByUserId { get; set; }
+
     // ==================== Navigation Properties ====================
 
     /// <summary>
@@ -142,4 +162,10 @@ public class ModuleCapabilityGrant
     /// No cascade delete (preserve audit trail if admin is deleted).
     /// </remarks>
     public virtual ApplicationUser? GrantedByUser { get; set; }
+
+    /// <summary>
+    /// Navigation property to the admin user who rejected this capability request.
+    /// Null when the request was never rejected.
+    /// </summary>
+    public virtual ApplicationUser? RejectedByUser { get; set; }
 }

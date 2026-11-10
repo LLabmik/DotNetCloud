@@ -515,6 +515,21 @@ public sealed class DotNetCloudApiClient
         return response.IsSuccessStatusCode;
     }
 
+    /// <summary>Rejects a capability the module's manifest requests (admin only).</summary>
+    /// <remarks>
+    /// Rejection is a stored decision: it stops the capability from being enforced, and prevents the
+    /// next start-up reconciliation from raising the same request as pending again.
+    /// </remarks>
+    public async Task<bool> RejectModuleCapabilityAsync(
+        string moduleId, string capabilityName, CancellationToken ct = default)
+    {
+        var response = await _http.PostAsync(
+            $"api/v1/core/admin/modules/{Uri.EscapeDataString(moduleId)}/capabilities/{Uri.EscapeDataString(capabilityName)}/reject",
+            content: null,
+            ct);
+        return response.IsSuccessStatusCode;
+    }
+
     /// <summary>Gets a module's launch-credential lifecycle record (admin only).</summary>
     public async Task<ModuleCredentialDto?> GetModuleCredentialAsync(string moduleId, CancellationToken ct = default)
     {

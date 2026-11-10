@@ -327,6 +327,66 @@ public class ModuleAppProxyTests
         await Assert.ThrowsExactlyAsync<IOException>(async () => await capped.WriteAsync(new byte[5]));
     }
 
+    /// <summary>
+    /// The cap is resolved on the first write, from a value the caller reads out of the response.
+    /// </summary>
+    [TestMethod]
+    public async Task CappedResponseStream_ResolvedLimit_IsAppliedOnFirstWrite()
+    {
+        var inner = new MemoryStream();
+        await using var capped = new CappedResponseStream(inner, () => 8);
+
+        await capped.WriteAsync(new byte[8]);
+
+        Assert.AreEqual(8, inner.Length);
+        await Assert.ThrowsExactlyAsync<IOException>(async () => await capped.WriteAsync(new byte[1]));
+    }
+
+    /// <summary>
+    /// A media or archive response is allowed to be large; everything else keeps the 32 MiB guard.
+    /// </summary>
+    /// <remarks>
+    /// The proxy used one 32 MiB ceiling for every module response, so a 39 MiB FLAC track aborted
+    /// mid-stream and the player reported "Failed to fetch" while the module had already answered 200.
+    /// </remarks>
+    [TestMethod]
+    [DataRow("audio/flac", true)]
+    [DataRow("audio/mpeg", true)]
+    [DataRow("audio/ogg; codecs=opus", true)]
+    [DataRow("video/mp4", true)]
+    [DataRow("image/jpeg", true)]
+    [DataRow("application/zip", true)]
+    [DataRow("application/octet-stream", true)]
+    [DataRow("application/json", false)]
+    [DataRow("text/html; charset=utf-8", false)]
+    [DataRow("application/xml", false)]
+    [DataRow(null, false)]
+    [DataRow("", false)]
+    public void ResolveResponseCap_ContentType_SelectsTheCeiling(string? contentType, bool isMedia)
+    {
+        var expected = isMedia ? ModuleAppProxy.MaxMediaResponseBytes : ModuleAppProxy.MaxResponseBytes;
+
+        Assert.AreEqual(expected, ModuleAppProxy.ResolveResponseCap(contentType));
+        Assert.AreEqual(isMedia, ModuleAppProxy.IsMediaContentType(contentType));
+    }
+
+    /// <summary>A media body far above the UI cap must stream through untouched.</summary>
+    [TestMethod]
+    public async Task CappedResponseStream_MediaSizedBody_WithResolvedMediaCap_WritesThrough()
+    {
+        var inner = new MemoryStream();
+        var payload = new byte[ModuleAppProxy.MaxResponseBytes + 1024];
+
+        await using (var capped = new CappedResponseStream(
+            inner,
+            () => ModuleAppProxy.ResolveResponseCap("audio/flac")))
+        {
+            await capped.WriteAsync(payload);
+        }
+
+        Assert.AreEqual(payload.Length, inner.Length);
+    }
+
     [TestMethod]
     public void ClampHeight_OutOfRange_IsClamped()
     {

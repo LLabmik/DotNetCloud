@@ -651,6 +651,46 @@ public class AdminController : ControllerBase
         return Ok(new { success = true, message = $"Capability '{capability}' revoked from module '{moduleId}'." });
     }
 
+    /// <summary>
+    /// Reject a capability the module's manifest requests.
+    /// </summary>
+    /// <remarks>
+    /// The decision is stored so the request is not raised again on the next start, and any grant
+    /// that already existed stops being enforced immediately.
+    /// </remarks>
+    /// <param name="moduleId">The module identifier.</param>
+    /// <param name="capability">The capability name to reject.</param>
+    /// <returns>The stored decision.</returns>
+    [HttpPost("modules/{moduleId}/capabilities/{capability}/reject")]
+    public async Task<IActionResult> RejectCapabilityAsync(string moduleId, string capability)
+    {
+        if (!TryGetUserId(out var adminUserId))
+        {
+            return Unauthorized(new { success = false, error = new { code = "INVALID_TOKEN", message = "Invalid token claims" } });
+        }
+
+        var decision = await _moduleService.RejectCapabilityAsync(moduleId, capability, adminUserId);
+        if (decision is null)
+        {
+            return NotFound(new { success = false, error = new { code = "MODULE_NOT_FOUND", message = $"Module '{moduleId}' not found." } });
+        }
+
+        await _auditLogger.LogAsync(new AuditEntry
+        {
+            Caller = BuildCaller(),
+            ModuleId = "dotnetcloud.core",
+            Action = AuditAction.Update,
+            EntityType = "ModuleCapability",
+            EntityId = Guid.CreateVersion7(),
+            Description = $"capability-rejected:{SanitizeForLog(moduleId)}:{SanitizeForLog(capability)}",
+        });
+
+        _logger.LogInformation("Capability {Capability} rejected for module {ModuleId} by admin {AdminUserId}",
+            SanitizeForLog(capability), SanitizeForLog(moduleId), adminUserId);
+
+        return Ok(new { success = true, data = decision });
+    }
+
     // ---------------------------------------------------------------------------
     // Module lifecycle: uninstall, launch credentials, orphaned data stores
     // ---------------------------------------------------------------------------

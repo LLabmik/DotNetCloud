@@ -1,6 +1,36 @@
 @namespace DotNetCloud.UI.Web.Components.Modules
 
 <div class="module-app-host module-app-host--@StateToken" data-module="@ModuleId">
+    @if (_requestedScopes.Count > 0)
+    {
+        @* An inline bar above the frame, not an overlay: a module UI usually owns the bottom of its
+           own page (the Music player does), and a floating card covered it. *@
+        <div class="module-app-consent" role="region" aria-label="Permission request">
+            <span class="module-app-consent-icon">
+                <MaterialIcon Icon="shield" />
+            </span>
+            <div class="module-app-consent-body">
+                <p class="module-app-consent-title">@ConsentModuleName is asking for permission</p>
+                <ul class="module-app-consent-scopes">
+                    @foreach (var scope in _requestedScopes)
+                    {
+                        <li>@DescribeScope(scope)</li>
+                    }
+                </ul>
+            </div>
+            <div class="module-app-consent-actions">
+                <a class="module-app-consent-review" href="@ConnectedAppsHref">Review</a>
+                <button type="button" class="module-app-consent-approve" @onclick="ApproveConsentAsync" disabled="@_consentBusy">
+                    <MaterialIcon Icon="check" Size="MaterialIconSize.Sm" />
+                    <span>@(_consentBusy ? "Approving…" : "Approve")</span>
+                </button>
+                <button type="button" class="module-app-consent-dismiss" @onclick="DismissConsent" title="Dismiss" aria-label="Dismiss the permission request">
+                    <MaterialIcon Icon="close" Size="MaterialIconSize.Sm" />
+                </button>
+            </div>
+        </div>
+    }
+
     @if (ShowFrame)
     {
         <iframe @ref="_frame" src="@Source" class="module-app-frame" title="@Title"
@@ -24,31 +54,6 @@
             <button type="button" class="module-app-retry" @onclick="RetryAsync">
                 <MaterialIcon Icon="refresh" Size="MaterialIconSize.Sm" />
                 <span>Try again</span>
-            </button>
-        </div>
-    }
-
-    @if (_requestedScopes.Count > 0)
-    {
-        <div class="module-app-consent" role="region" aria-label="Permission request">
-            <MaterialIcon Icon="shield" Size="MaterialIconSize.Sm" />
-            <div class="module-app-consent-body">
-                <p class="module-app-consent-title">@Title is asking for permission</p>
-                <ul class="module-app-consent-scopes">
-                    @foreach (var scope in _requestedScopes)
-                    {
-                        <li>@DescribeScope(scope)</li>
-                    }
-                </ul>
-            </div>
-            <a class="module-app-consent-review" href="@ConnectedAppsHref">Review</a>
-            <button type="button" class="module-app-consent-approve" @onclick="ApproveConsentAsync" disabled="@_consentBusy">
-                <MaterialIcon Icon="check" Size="MaterialIconSize.Sm" />
-                <span>@(_consentBusy ? "Approving…" : "Approve")</span>
-            </button>
-            <button type="button" class="module-app-consent-dismiss" @onclick="DismissConsent">
-                <MaterialIcon Icon="close" Size="MaterialIconSize.Sm" />
-                <span class="visually-hidden">Dismiss</span>
             </button>
         </div>
     }

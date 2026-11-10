@@ -139,8 +139,7 @@ else
                                 <td class="consent-user-id">@user.UserId</td>
                                 <td>@string.Join(", ", user.Scopes)</td>
                                 <td>
-                                    <button class="btn btn-sm btn-danger"
-                                            disabled="@_consentActionInProgress"
+                                    <button class="btn btn-sm btn-danger" disabled="@_consentActionInProgress"
                                             @onclick="() => RevokeConsentAsync(user.UserId)">
                                         Revoke
                                     </button>
@@ -207,9 +206,12 @@ else
                     </dl>
 
                     <div class="action-buttons">
-                        <button class="btn btn-primary" @onclick="ProvisionDataStoreAsync" disabled="@_actionInProgress">Provision</button>
-                        <button class="btn btn-outline" @onclick="RotateDataStoreCredentialsAsync" disabled="@_actionInProgress">Rotate credentials</button>
-                        <button class="btn btn-danger" @onclick="DestroyDataStoreAsync" disabled="@_actionInProgress">Destroy</button>
+                        <button class="btn btn-primary" @onclick="ProvisionDataStoreAsync"
+                                disabled="@_actionInProgress">Provision</button>
+                        <button class="btn btn-outline" @onclick="RotateDataStoreCredentialsAsync"
+                                disabled="@_actionInProgress">Rotate credentials</button>
+                        <button class="btn btn-danger" @onclick="DestroyDataStoreAsync"
+                                disabled="@_actionInProgress">Destroy</button>
                     </div>
                     <p class="text-muted">Destroying is irreversible: the schema and its principal are dropped.</p>
                 }
@@ -250,8 +252,10 @@ else
                         <dd>@FormatTimestamp(_credential.RevokedAtUtc)</dd>
                     </dl>
                     <div class="action-buttons">
-                        <button class="btn btn-outline" @onclick="RotateCredentialAsync" disabled="@_actionInProgress">Rotate</button>
-                        <button class="btn btn-danger" @onclick="RevokeCredentialAsync" disabled="@_actionInProgress">Revoke</button>
+                        <button class="btn btn-outline" @onclick="RotateCredentialAsync"
+                                disabled="@_actionInProgress">Rotate</button>
+                        <button class="btn btn-danger" @onclick="RevokeCredentialAsync"
+                                disabled="@_actionInProgress">Revoke</button>
                     </div>
                     <p class="text-muted">
                         The credential is minted per launch and never stored. Rotating restarts the
@@ -262,180 +266,215 @@ else
 
             <div class="detail-section">
                 <h2>Resource quota</h2>
-                <p class="text-muted">Leave a field empty to inherit the policy default. Effective values are shown beside each field.</p>
-                <div class="quota-grid">
-                    <label>Memory (MB)<input type="number" min="0" @bind="QuotaMemoryLimitMb" /><small>@Effective(_quota?.EffectiveMemoryLimitMb)</small></label>
-                    <label>CPU (%)<input type="number" min="0" @bind="QuotaCpuPercent" /><small>@Effective(_quota?.EffectiveCpuPercent)</small></label>
-                    <label>Data directory (MB)<input type="number" min="0" @bind="QuotaDataDirMb" /><small>@Effective(_quota?.EffectiveDataDirMb)</small></label>
-                    <label>Database (MB)<input type="number" min="0" @bind="QuotaDatabaseMb" /><small>@Effective(_quota?.EffectiveDatabaseMb)</small></label>
-                    <label>Connections<input type="number" min="0" @bind="QuotaConnectionLimit" /><small>@Effective(_quota?.EffectiveConnectionLimit)</small></label>
-                    <label>Requests / min<input type="number" min="0" @bind="QuotaRequestsPerMinute" /><small>@Effective(_quota?.EffectiveRequestsPerMinute)</small></label>
-                    <label>Events / min<input type="number" min="0" @bind="QuotaEventsPerMinute" /><small>@Effective(_quota?.EffectiveEventsPerMinute)</small></label>
-                    <label>Notifications / min<input type="number" min="0" @bind="QuotaNotificationsPerMinute" /><small>@Effective(_quota?.EffectiveNotificationsPerMinute)</small></label>
-                    <label>Audit entries / min<input type="number" min="0" @bind="QuotaAuditEntriesPerMinute" /><small>@Effective(_quota?.EffectiveAuditEntriesPerMinute)</small></label>
-                </div>
-                <div class="action-buttons">
-                    <button class="btn btn-primary" @onclick="SaveQuotaAsync" disabled="@_actionInProgress">Save quota</button>
-                </div>
-            </div>
+                <p class="text-muted">Leave a field empty to inherit the policy default. Effective values are shown beside each
+                    field.</p>
+                    <div class="quota-grid">
+                        <label>Memory (MB)<input type="number" min="0"
+                                                     @bind="QuotaMemoryLimitMb" /><small>@Effective(_quota?.EffectiveMemoryLimitMb)</small></label>
+                            <label>CPU (%)<input type="number" min="0"
+                                                     @bind="QuotaCpuPercent" /><small>@Effective(_quota?.EffectiveCpuPercent)</small></label>
+                                <label>Data directory (MB)<input type="number" min="0"
+                                                                     @bind="QuotaDataDirMb" /><small>@Effective(_quota?.EffectiveDataDirMb)</small></label>
+                                    <label>Database (MB)<input type="number" min="0"
+                                                                   @bind="QuotaDatabaseMb" /><small>@Effective(_quota?.EffectiveDatabaseMb)</small></label>
+                                        <label>Connections<input type="number" min="0"
+                                                                     @bind="QuotaConnectionLimit" /><small>@Effective(_quota?.EffectiveConnectionLimit)</small></label>
+                                            <label>Requests / min<input type="number" min="0"
+                                                                            @bind="QuotaRequestsPerMinute" /><small>@Effective(_quota?.EffectiveRequestsPerMinute)</small></label>
+                                                <label>Events / min<input type="number" min="0"
+                                                                              @bind="QuotaEventsPerMinute" /><small>@Effective(_quota?.EffectiveEventsPerMinute)</small></label>
+                                                    <label>Notifications / min<input type="number" min="0"
+                                                                                         @bind="QuotaNotificationsPerMinute" /><small>@Effective(_quota?.EffectiveNotificationsPerMinute)</small></label>
+                                                        <label>Audit entries / min<input type="number" min="0"
+                                                                                             @bind="QuotaAuditEntriesPerMinute" /><small>@Effective(_quota?.EffectiveAuditEntriesPerMinute)</small></label>
+                                                        </div>
+                                                        <div class="action-buttons">
+                                                            <button class="btn btn-primary" @onclick="SaveQuotaAsync" disabled="@_actionInProgress">Save quota</button>
+                                                        </div>
+                                                    </div>
 
-            <div class="detail-section">
-                <h2>Module settings</h2>
-                <p class="text-muted">
-                    Key/value settings this module reads at runtime. Secret values are encrypted at rest
-                    and are never shown again after they are saved.
-                </p>
-                @if (_settings.Count == 0)
-                {
-                    <p class="text-muted">No settings have been stored for this module.</p>
-                }
-                else
-                {
-                    <table class="consent-user-table">
-                        <thead>
-                            <tr>
-                                <th>Key</th>
-                                <th>Value</th>
-                                <th>Updated</th>
-                                <th></th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @foreach (var setting in _settings)
-                            {
-                                <tr>
-                                    <td>@setting.Key</td>
-                                    <td>
-                                        @if (setting.IsSecret)
-                                        {
-                                            <span class="badge badge-muted">Secret (set)</span>
-                                        }
-                                        else
-                                        {
-                                            <span>@setting.Value</span>
-                                        }
-                                    </td>
-                                    <td>@FormatTimestamp(setting.UpdatedAtUtc)</td>
-                                    <td>
-                                        <button class="btn btn-outline" @onclick="() => EditSetting(setting)">Edit</button>
-                                        <button class="btn btn-danger" @onclick="() => DeleteSettingAsync(setting)" disabled="@_actionInProgress">Delete</button>
-                                    </td>
-                                </tr>
-                            }
-                        </tbody>
-                    </table>
-                }
-                <div class="quota-grid">
-                    <label>Key<input @bind="SettingKey" placeholder="DefaultModel" /></label>
-                    <label>Value<input @bind="SettingValue" /></label>
-                    <label>
-                        <input type="checkbox" @bind="SettingIsSecret" />
-                        Secret (encrypt at rest)
-                    </label>
-                </div>
-                <div class="action-buttons">
-                    <button class="btn btn-primary" @onclick="SaveSettingAsync" disabled="@_actionInProgress">Save setting</button>
-                    @if (_editingSettingKey is not null)
-                    {
-                        <button class="btn btn-outline" @onclick="ClearSettingEditor">Clear</button>
-                    }
-                </div>
-            </div>
+                                                    <div class="detail-section">
+                                                        <h2>Module settings</h2>
+                                                        <p class="text-muted">
+                                                            Key/value settings this module reads at runtime. Secret values are encrypted at rest
+                                                            and are never shown again after they are saved.
+                                                        </p>
+                                                        @if (_settings.Count == 0)
+                                                        {
+                                                            <p class="text-muted">No settings have been stored for this module.</p>
+                                                        }
+                                                        else
+                                                        {
+                                                            <table class="consent-user-table">
+                                                                <thead>
+                                                                    <tr>
+                                                                        <th>Key</th>
+                                                                        <th>Value</th>
+                                                                        <th>Updated</th>
+                                                                        <th></th>
+                                                                    </tr>
+                                                                </thead>
+                                                                <tbody>
+                                                                    @foreach (var setting in _settings)
+                                                                    {
+                                                                        <tr>
+                                                                            <td>@setting.Key</td>
+                                                                            <td>
+                                                                                @if (setting.IsSecret)
+                                                                                {
+                                                                                    <span class="badge badge-muted">Secret (set)</span>
+                                                                                }
+                                                                                else
+                                                                                {
+                                                                                    <span>@setting.Value</span>
+                                                                                }
+                                                                            </td>
+                                                                            <td>@FormatTimestamp(setting.UpdatedAtUtc)</td>
+                                                                            <td>
+                                                                                <button class="btn btn-outline" @onclick="() => EditSetting(setting)">Edit</button>
+                                                                                <button class="btn btn-danger" @onclick="() => DeleteSettingAsync(setting)"
+                                                                                        disabled="@_actionInProgress">Delete</button>
+                                                                            </td>
+                                                                        </tr>
+                                                                    }
+                                                                </tbody>
+                                                            </table>
+                                                        }
+                                                        <div class="quota-grid">
+                                                            <label>Key<input @bind="SettingKey" placeholder="DefaultModel" /></label>
+                                                            <label>Value<input @bind="SettingValue" /></label>
+                                                            <label>
+                                                                <input type="checkbox" @bind="SettingIsSecret" />
+                                                                Secret (encrypt at rest)
+                                                            </label>
+                                                        </div>
+                                                        <div class="action-buttons">
+                                                            <button class="btn btn-primary" @onclick="SaveSettingAsync" disabled="@_actionInProgress">Save
+                                                                setting</button>
+                                                                @if (_editingSettingKey is not null)
+                                                                {
+                                                                    <button class="btn btn-outline" @onclick="ClearSettingEditor">Clear</button>
+                                                                }
+                                                            </div>
+                                                        </div>
 
-            <div class="detail-section">
-                <h2>Capabilities</h2>
-                <p class="text-muted">
-                    Store-tier modules are never granted capabilities automatically: review why the module
-                    needs one before granting it. Bundled modules are granted what their manifest declares.
-                </p>
-                @if (_module.GrantedCapabilities.Count == 0)
-                {
-                    <p class="text-muted">No capabilities are granted.</p>
-                }
-                else
-                {
-                    <table class="consent-user-table">
-                        <thead>
-                            <tr>
-                                <th>Capability</th>
-                                <th>Granted by</th>
-                                <th></th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @foreach (var grant in _module.GrantedCapabilities)
-                            {
-                                <tr>
-                                    <td>@grant.CapabilityName</td>
-                                    <td>@(grant.GrantedByUserId is null ? "Module manifest" : "Administrator")</td>
-                                    <td>
-                                        <button class="btn btn-danger" @onclick="() => RevokeCapabilityAsync(grant.CapabilityName)" disabled="@_actionInProgress">Revoke</button>
-                                    </td>
-                                </tr>
-                            }
-                        </tbody>
-                    </table>
-                }
-                <div class="quota-grid">
-                    <label>Capability<input @bind="CapabilityToGrant" placeholder="IModuleSettings" /></label>
-                </div>
-                <div class="action-buttons">
-                    <button class="btn btn-primary" @onclick="GrantCapabilityAsync" disabled="@_actionInProgress">Grant capability</button>
-                </div>
-            </div>
-        }
+                                                        <div class="detail-section">
+                                                            <h2>Capabilities</h2>
+                                                            <p class="text-muted">
+                                                                Every capability the manifest requests that needs approval is listed here with the
+                                                                administrator's decision. Store-tier modules start <strong>pending</strong> — a
+                                                                publisher must never authorize itself — and product-shipped modules start granted.
+                                                                A rejected capability is not enforced and is not requested again on restart.
+                                                            </p>
+                                                            @if (_module.CapabilityRequests.Count == 0)
+                                                            {
+                                                                <p class="text-muted">This module requests no capability that needs approval.</p>
+                                                            }
+                                                            else
+                                                            {
+                                                                <table class="consent-user-table">
+                                                                    <thead>
+                                                                        <tr>
+                                                                            <th>Capability</th>
+                                                                            <th>Tier</th>
+                                                                            <th>Decision</th>
+                                                                            <th>Decided by</th>
+                                                                            <th></th>
+                                                                        </tr>
+                                                                    </thead>
+                                                                    <tbody>
+                                                                        @foreach (var request in _module.CapabilityRequests)
+                                                                        {
+                                                                            <tr>
+                                                                                <td>@request.CapabilityName</td>
+                                                                                <td>@request.Tier</td>
+                                                                                <td>
+                                                                                    <span class="badge badge-@GetCapabilityStatusClass(request.Status)">@request.Status</span>
+                                                                                </td>
+                                                                                <td>@(request.DecidedByUserId is null ? "—" : "Administrator")</td>
+                                                                                <td class="capability-actions">
+                                                                                    @if (request.Status != "Granted")
+                                                                                    {
+                                                                                        <button class="btn btn-success" @onclick="() => ApproveCapabilityAsync(request.CapabilityName)"
+                                                                                                disabled="@_actionInProgress">
+                                                                                            Grant
+                                                                                        </button>
+                                                                                    }
+                                                                                    @if (request.Status != "Rejected")
+                                                                                    {
+                                                                                        <button class="btn btn-danger" @onclick="() => RejectCapabilityAsync(request.CapabilityName)"
+                                                                                                disabled="@_actionInProgress">
+                                                                                            Reject
+                                                                                        </button>
+                                                                                    }
+                                                                                </td>
+                                                                            </tr>
+                                                                        }
+                                                                    </tbody>
+                                                                </table>
+                                                            }
+                                                            <div class="quota-grid">
+                                                                <label>Capability<input @bind="CapabilityToGrant" placeholder="IModuleSettings" /></label>
+                                                            </div>
+                                                            <div class="action-buttons">
+                                                                <button class="btn btn-primary" @onclick="GrantCapabilityAsync" disabled="@_actionInProgress">Grant
+                                                                    capability</button>
+                                                                </div>
+                                                            </div>
+                                                        }
 
-        @if (_outstandingErasures.Count > 0)
-        {
-            <div class="detail-section">
-                <h2>Outstanding data erasure</h2>
-                <p class="text-muted">These deleted users still have data in this module.</p>
-                <table class="consent-user-table">
-                    <thead>
-                        <tr>
-                            <th>User</th>
-                            <th>Requested</th>
-                            <th>Attempts</th>
-                            <th>Last error</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @foreach (var row in _outstandingErasures)
-                        {
-                            <tr>
-                                <td class="consent-user-id">@row.UserId</td>
-                                <td>@TimeProvider.FormatDateTime(row.RequestedAtUtc, "yyyy-MM-dd HH:mm")</td>
-                                <td>@row.Attempts</td>
-                                <td class="text-muted">@(string.IsNullOrWhiteSpace(row.LastError) ? "—" : row.LastError)</td>
-                            </tr>
-                        }
-                    </tbody>
-                </table>
-                <a href="/admin/erasure" class="btn btn-outline">Open erasure queue</a>
-            </div>
-        }
+                                                        @if (_outstandingErasures.Count > 0)
+                                                        {
+                                                            <div class="detail-section">
+                                                                <h2>Outstanding data erasure</h2>
+                                                                <p class="text-muted">These deleted users still have data in this module.</p>
+                                                                <table class="consent-user-table">
+                                                                    <thead>
+                                                                        <tr>
+                                                                            <th>User</th>
+                                                                            <th>Requested</th>
+                                                                            <th>Attempts</th>
+                                                                            <th>Last error</th>
+                                                                        </tr>
+                                                                    </thead>
+                                                                    <tbody>
+                                                                        @foreach (var row in _outstandingErasures)
+                                                                        {
+                                                                            <tr>
+                                                                                <td class="consent-user-id">@row.UserId</td>
+                                                                                <td>@TimeProvider.FormatDateTime(row.RequestedAtUtc, "yyyy-MM-dd HH:mm")</td>
+                                                                                <td>@row.Attempts</td>
+                                                                                <td class="text-muted">@(string.IsNullOrWhiteSpace(row.LastError) ? "—" : row.LastError)</td>
+                                                                            </tr>
+                                                                        }
+                                                                    </tbody>
+                                                                </table>
+                                                                <a href="/admin/erasure" class="btn btn-outline">Open erasure queue</a>
+                                                            </div>
+                                                        }
 
-        @if (!_module.IsRequired)
-        {
-            <div class="detail-section detail-danger">
-                <h2>Uninstall</h2>
-                <label class="checkbox-row">
-                    <input type="checkbox" @bind="DestroyDataOnUninstall" />
-                    Destroy the isolated data store (irreversible)
-                </label>
-                <label class="checkbox-row">
-                    <input type="checkbox" @bind="RemoveFilesOnUninstall" />
-                    Remove the module binaries from disk
-                </label>
-                <p class="text-muted">
-                    Keeping the data leaves the schema in the orphaned list for later cleanup.
-                </p>
-                <div class="action-buttons">
-                    <button class="btn btn-danger" @onclick="UninstallAsync" disabled="@_actionInProgress">Uninstall module</button>
-                </div>
-            </div>
-        }
-    </div>
+                                                        @if (!_module.IsRequired)
+                                                        {
+                                                            <div class="detail-section detail-danger">
+                                                                <h2>Uninstall</h2>
+                                                                <label class="checkbox-row">
+                                                                    <input type="checkbox" @bind="DestroyDataOnUninstall" />
+                                                                    Destroy the isolated data store (irreversible)
+                                                                </label>
+                                                                <label class="checkbox-row">
+                                                                    <input type="checkbox" @bind="RemoveFilesOnUninstall" />
+                                                                    Remove the module binaries from disk
+                                                                </label>
+                                                                <p class="text-muted">
+                                                                    Keeping the data leaves the schema in the orphaned list for later cleanup.
+                                                                </p>
+                                                                <div class="action-buttons">
+                                                                    <button class="btn btn-danger" @onclick="UninstallAsync" disabled="@_actionInProgress">Uninstall
+                                                                        module</button>
+                                                                    </div>
+                                                                </div>
+                                                            }
+                                                        </div>
 
-    <ConfirmDialog @ref="_confirmDialog" />
-}
+                                                        <ConfirmDialog @ref="_confirmDialog" />
+                                                    }

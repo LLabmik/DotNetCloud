@@ -12,6 +12,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <InternalsVisibleTo Include="DotNetCloud.Core.Server.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
   </ItemGroup>
 

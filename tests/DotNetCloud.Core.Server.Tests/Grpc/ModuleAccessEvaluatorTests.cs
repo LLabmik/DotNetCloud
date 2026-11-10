@@ -2,6 +2,7 @@ using DotNetCloud.Core.Capabilities;
 using DotNetCloud.Core.Data.Context;
 using DotNetCloud.Core.Data.Entities.Modules;
 using DotNetCloud.Core.Data.Naming;
+using DotNetCloud.Core.Modules;
 using DotNetCloud.Core.Server.Grpc.ModuleAccess;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -61,6 +62,7 @@ public class ModuleAccessEvaluatorTests
                 ModuleId = ModuleId,
                 CapabilityName = capability,
                 GrantedAt = DateTime.UtcNow,
+                Status = ModuleCapabilityGrantStatus.Granted,
             });
         }
 
@@ -236,6 +238,48 @@ public class ModuleAccessEvaluatorTests
         Assert.IsTrue((await evaluator.EvaluateAsync(ModuleId, Api("GetGroup"))).IsAllowed);
         Assert.IsTrue((await evaluator.EvaluateAsync(ModuleId, Api("GetTeamsForUser"))).IsAllowed);
         Assert.IsTrue((await evaluator.EvaluateAsync(ModuleId, Legacy("GetGroupsForUser"))).IsAllowed);
+    }
+
+    [TestMethod]
+    public async Task EvaluateAsync_PendingDecision_IsDenied()
+    {
+        // A store-tier module's request is recorded as Pending; recording it must not grant it.
+        GrantWithStatus(nameof(DotNetCloud.Core.Capabilities.IAuditLogger), ModuleCapabilityGrantStatus.Pending);
+
+        using var provider = CreateProvider();
+        var decision = await CreateEvaluator(provider).EvaluateAsync(ModuleId, Api("LogAudit"));
+
+        Assert.IsFalse(decision.IsAllowed);
+        Assert.AreEqual(ModuleAccessDenialReason.CapabilityNotGranted, decision.DenialReason);
+    }
+
+    [TestMethod]
+    public async Task EvaluateAsync_RejectedDecision_IsDenied()
+    {
+        GrantWithStatus(nameof(DotNetCloud.Core.Capabilities.IAuditLogger), ModuleCapabilityGrantStatus.Rejected);
+
+        using var provider = CreateProvider();
+        var decision = await CreateEvaluator(provider).EvaluateAsync(ModuleId, Api("LogAudit"));
+
+        Assert.IsFalse(decision.IsAllowed);
+        Assert.AreEqual(ModuleAccessDenialReason.CapabilityNotGranted, decision.DenialReason);
+    }
+
+    private void GrantWithStatus(string capability, string status)
+    {
+        using var provider = CreateProvider();
+        using var scope = provider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<CoreDbContext>();
+
+        db.ModuleCapabilityGrants.Add(new ModuleCapabilityGrant
+        {
+            ModuleId = ModuleId,
+            CapabilityName = capability,
+            GrantedAt = DateTime.UtcNow,
+            Status = status,
+        });
+
+        db.SaveChanges();
     }
 
     /// <summary>Controllable clock for cache-expiry tests.</summary>

@@ -80,6 +80,16 @@ public class ModuleDto
     /// Gets or sets the granted capabilities for this module.
     /// </summary>
     public ICollection<ModuleCapabilityGrantDto> GrantedCapabilities { get; set; } = new List<ModuleCapabilityGrantDto>();
+
+    /// <summary>
+    /// Gets or sets every gated capability the module's manifest declares, with the administrator's
+    /// decision for each one.
+    /// </summary>
+    /// <remarks>
+    /// This is what the admin module page renders: a pending request is visible before anybody
+    /// approves it, and a rejected one stays visible so the decision is not silently retried.
+    /// </remarks>
+    public ICollection<ModuleCapabilityRequestDto> CapabilityRequests { get; set; } = new List<ModuleCapabilityRequestDto>();
 }
 
 /// <summary>
@@ -405,7 +415,12 @@ public class ModuleCapabilityGrantDto
     public string CapabilityName { get; set; } = null!;
 
     /// <summary>
-    /// Gets or sets the date and time the capability was granted.
+    /// Gets or sets the decision state: <c>Pending</c>, <c>Granted</c> or <c>Rejected</c>.
+    /// </summary>
+    public string Status { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Gets or sets when the request was recorded.
     /// </summary>
     public DateTime GrantedAt { get; set; }
 
@@ -418,6 +433,37 @@ public class ModuleCapabilityGrantDto
     /// Gets or sets the display name of the admin who granted this capability (if applicable).
     /// </summary>
     public string? GrantedByUserDisplayName { get; set; }
+
+    /// <summary>
+    /// Gets or sets when an administrator rejected the request, if they did.
+    /// </summary>
+    public DateTime? RejectedAtUtc { get; set; }
+}
+
+/// <summary>
+/// One capability request of a module, as the admin module page shows it.
+/// </summary>
+/// <remarks>
+/// The row is derived from the manifest (what the module asks for) joined with the stored decision
+/// (what the administrator answered). A declared capability with no decision row is reported as
+/// pending, so a module that has never been reviewed cannot look approved.
+/// </remarks>
+public class ModuleCapabilityRequestDto
+{
+    /// <summary>Gets or sets the capability name.</summary>
+    public string CapabilityName { get; set; } = null!;
+
+    /// <summary>Gets or sets the capability tier (<c>Restricted</c> or <c>Privileged</c>).</summary>
+    public string Tier { get; set; } = null!;
+
+    /// <summary>Gets or sets the decision state: <c>Pending</c>, <c>Granted</c> or <c>Rejected</c>.</summary>
+    public string Status { get; set; } = string.Empty;
+
+    /// <summary>Gets or sets when the decision was made, when it has been made.</summary>
+    public DateTime? DecidedAtUtc { get; set; }
+
+    /// <summary>Gets or sets the administrator who made the decision, when a person made it.</summary>
+    public Guid? DecidedByUserId { get; set; }
 }
 
 /// <summary>

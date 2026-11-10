@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using DotNetCloud.Core.Data.Entities.Modules;
+using DotNetCloud.Core.Modules;
 
 namespace DotNetCloud.Core.Data.Configuration.Modules;
 
@@ -41,6 +42,19 @@ public class ModuleCapabilityGrantConfiguration : IEntityTypeConfiguration<Modul
         builder.Property(g => g.GrantedByUserId)
             .IsRequired(false); // Nullable (null = system-granted)
 
+        // Decision state: Pending / Granted / Rejected. Existing rows default to Granted so an
+        // upgrade neither re-prompts nor revokes anything that was already in effect.
+        builder.Property(g => g.Status)
+            .IsRequired()
+            .HasMaxLength(20)
+            .HasDefaultValue(ModuleCapabilityGrantStatus.Granted);
+
+        builder.Property(g => g.RejectedAtUtc)
+            .IsRequired(false);
+
+        builder.Property(g => g.RejectedByUserId)
+            .IsRequired(false);
+
         // Unique Constraint: One grant per capability per module
         builder.HasIndex(g => new { g.ModuleId, g.CapabilityName })
             .IsUnique()
@@ -56,6 +70,12 @@ public class ModuleCapabilityGrantConfiguration : IEntityTypeConfiguration<Modul
         builder.HasIndex(g => g.GrantedByUserId)
             .HasDatabaseName("ix_module_capability_grants_granted_by_user_id");
 
+        builder.HasIndex(g => g.RejectedByUserId)
+            .HasDatabaseName("ix_module_capability_grants_rejected_by_user_id");
+
+        builder.HasIndex(g => new { g.ModuleId, g.Status })
+            .HasDatabaseName("ix_module_capability_grants_module_id_status");
+
         // Relationships
         builder.HasOne(g => g.Module)
             .WithMany(m => m.CapabilityGrants)
@@ -68,5 +88,11 @@ public class ModuleCapabilityGrantConfiguration : IEntityTypeConfiguration<Modul
             .HasForeignKey(g => g.GrantedByUserId)
             .OnDelete(DeleteBehavior.Restrict) // Preserve audit trail if admin is deleted
             .HasConstraintName("fk_module_capability_grants_granted_by_user_id");
+
+        builder.HasOne(g => g.RejectedByUser)
+            .WithMany()
+            .HasForeignKey(g => g.RejectedByUserId)
+            .OnDelete(DeleteBehavior.Restrict) // Preserve audit trail if admin is deleted
+            .HasConstraintName("fk_module_capability_grants_rejected_by_user_id");
     }
 }

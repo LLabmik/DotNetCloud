@@ -319,4 +319,69 @@ public class ModuleManifestV2Tests
 
         Assert.IsTrue(result.IsValid, string.Join("; ", result.Errors));
     }
+
+    [TestMethod]
+    public void LoadAndValidate_SettingDefaults_AreParsed()
+    {
+        var json = ValidV2.Replace(
+            "\"restartPolicy\": \"backoff\"",
+            "\"restartPolicy\": \"backoff\",\n  \"settings\": [\n" +
+            "    { \"key\": \"ScanEnabled\", \"value\": \"true\", \"description\": \"Scan the library on a schedule\" },\n" +
+            "    { \"key\": \"ScanIntervalMinutes\", \"value\": \"30\" }\n  ]");
+
+        var result = _loader.LoadAndValidate(WriteManifest(json), "org.example.customapp");
+
+        Assert.IsTrue(result.IsValid, string.Join("; ", result.Errors));
+        Assert.AreEqual(2, result.Manifest!.Settings.Count);
+        Assert.AreEqual("ScanEnabled", result.Manifest.Settings[0].Key);
+        Assert.AreEqual("true", result.Manifest.Settings[0].Value);
+        Assert.AreEqual("Scan the library on a schedule", result.Manifest.Settings[0].Description);
+    }
+
+    [TestMethod]
+    public void LoadAndValidate_SecretSettingDefault_IsRejected()
+    {
+        // A packaged default ships to everyone who downloads the package; calling it a secret would
+        // be a credential leak with extra steps.
+        var json = ValidV2.Replace(
+            "\"restartPolicy\": \"backoff\"",
+            "\"restartPolicy\": \"backoff\",\n  \"settings\": [ { \"key\": \"ApiKey\", \"value\": \"x\", \"secret\": true } ]");
+
+        var result = _loader.LoadAndValidate(WriteManifest(json), "org.example.customapp");
+
+        Assert.IsFalse(result.IsValid);
+        Assert.IsTrue(
+            result.Errors.Any(error => error.Contains("must not be secret", StringComparison.Ordinal)),
+            string.Join("; ", result.Errors));
+    }
+
+    [TestMethod]
+    public void LoadAndValidate_DuplicateSettingDefaultKey_IsRejected()
+    {
+        var json = ValidV2.Replace(
+            "\"restartPolicy\": \"backoff\"",
+            "\"restartPolicy\": \"backoff\",\n  \"settings\": [ { \"key\": \"A\", \"value\": \"1\" }, { \"key\": \"a\", \"value\": \"2\" } ]");
+
+        var result = _loader.LoadAndValidate(WriteManifest(json), "org.example.customapp");
+
+        Assert.IsFalse(result.IsValid);
+        Assert.IsTrue(
+            result.Errors.Any(error => error.Contains("Duplicate setting default key", StringComparison.Ordinal)),
+            string.Join("; ", result.Errors));
+    }
+
+    [TestMethod]
+    public void LoadAndValidate_InvalidSettingDefaultKey_IsRejected()
+    {
+        var json = ValidV2.Replace(
+            "\"restartPolicy\": \"backoff\"",
+            "\"restartPolicy\": \"backoff\",\n  \"settings\": [ { \"key\": \"../escape\", \"value\": \"1\" } ]");
+
+        var result = _loader.LoadAndValidate(WriteManifest(json), "org.example.customapp");
+
+        Assert.IsFalse(result.IsValid);
+        Assert.IsTrue(
+            result.Errors.Any(error => error.Contains("Invalid setting default key", StringComparison.Ordinal)),
+            string.Join("; ", result.Errors));
+    }
 }

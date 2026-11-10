@@ -6,8 +6,18 @@ namespace DotNetCloud.UI.Web.Services;
 /// Manages dynamic module UI registration for the Blazor shell.
 /// Modules register their navigation items and page components here.
 /// </summary>
+/// <remarks>
+/// The registry is a singleton written by two background services
+/// (<c>ModuleUiRegistrationHostedService</c> and <c>ModuleAppRegistrationHostedService</c>) and
+/// read by Blazor render threads. Every mutation therefore takes a gate and every read returns a
+/// snapshot: an unsynchronised <see cref="UnregisterModule"/> once threw
+/// "Collection was modified" while the other service was registering a page, which killed the
+/// app-registration loop and silently removed the navigation entries of every iframe module
+/// (AI, Bookmarks, Email, Music) until the next restart.
+/// </remarks>
 public sealed class ModuleUiRegistry
 {
+    private readonly object _gate = new();
     private readonly List<ModuleNavItem> _navItems = [];
     private readonly Dictionary<string, Type> _modulePages = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, ModuleAppDescriptor> _apps = new(StringComparer.OrdinalIgnoreCase);
@@ -18,14 +28,32 @@ public sealed class ModuleUiRegistry
     public event Action? OnChange;
 
     /// <summary>
-    /// Gets the registered navigation items from all modules.
+    /// Gets a snapshot of the registered navigation items from all modules.
     /// </summary>
-    public IReadOnlyList<ModuleNavItem> NavItems => _navItems;
+    public IReadOnlyList<ModuleNavItem> NavItems
+    {
+        get
+        {
+            lock (_gate)
+            {
+                return _navItems.ToArray();
+            }
+        }
+    }
 
     /// <summary>
-    /// Gets the iframe-hosted module apps registered from their manifests.
+    /// Gets a snapshot of the iframe-hosted module apps registered from their manifests.
     /// </summary>
-    public IReadOnlyCollection<ModuleAppDescriptor> Apps => _apps.Values;
+    public IReadOnlyCollection<ModuleAppDescriptor> Apps
+    {
+        get
+        {
+            lock (_gate)
+            {
+                return _apps.Values.ToArray();
+            }
+        }
+    }
 
     /// <summary>
     /// Registers (or re-registers, idempotently) a navigation item for a module.
@@ -40,9 +68,13 @@ public sealed class ModuleUiRegistry
     /// <param name="sortOrder">Sort order (lower values appear first).</param>
     public void RegisterNavItem(string moduleId, string label, string href, string icon, int sortOrder = 100)
     {
-        _navItems.RemoveAll(n => n.ModuleId == moduleId && string.Equals(n.Href, href, StringComparison.OrdinalIgnoreCase));
-        _navItems.Add(new ModuleNavItem(moduleId, label, href, icon, sortOrder));
-        _navItems.Sort((a, b) => a.SortOrder.CompareTo(b.SortOrder));
+        lock (_gate)
+        {
+            _navItems.RemoveAll(n => n.ModuleId == moduleId && string.Equals(n.Href, href, StringComparison.OrdinalIgnoreCase));
+            _navItems.Add(new ModuleNavItem(moduleId, label, href, icon, sortOrder));
+            _navItems.Sort((a, b) => a.SortOrder.CompareTo(b.SortOrder));
+        }
+
         OnChange?.Invoke();
     }
 
@@ -54,7 +86,12 @@ public sealed class ModuleUiRegistry
     public void RegisterPage(string routeKey, Type componentType)
     {
         ArgumentNullException.ThrowIfNull(componentType);
-        _modulePages[routeKey] = componentType;
+
+        lock (_gate)
+        {
+            _modulePages[routeKey] = componentType;
+        }
+
         OnChange?.Invoke();
     }
 
@@ -65,7 +102,12 @@ public sealed class ModuleUiRegistry
     public void RegisterApp(ModuleAppDescriptor app)
     {
         ArgumentNullException.ThrowIfNull(app);
-        _apps[app.ModuleId] = app;
+
+        lock (_gate)
+        {
+            _apps[app.ModuleId] = app;
+        }
+
         OnChange?.Invoke();
     }
 
@@ -82,31 +124,49 @@ public sealed class ModuleUiRegistry
             return null;
         }
 
-        return _apps.TryGetValue(moduleId, out var app) ? app : null;
+        lock (_gate)
+        {
+            return _apps.TryGetValue(moduleId, out var app) ? app : null;
+        }
     }
 
     /// <summary>
     /// Gets a registered module page component type, or null if not found.
     /// </summary>
+    /// <param name="routeKey">The route key.</param>
+    /// <returns>The component type, or <see langword="null"/>.</returns>
     public Type? GetPage(string routeKey)
     {
-        _modulePages.TryGetValue(routeKey, out var type);
-        return type;
+        lock (_gate)
+        {
+            _modulePages.TryGetValue(routeKey, out var type);
+            return type;
+        }
     }
 
     /// <summary>
     /// Removes all registrations for a specific module.
     /// </summary>
+    /// <param name="moduleId">The module identifier.</param>
     public void UnregisterModule(string moduleId)
     {
-        _navItems.RemoveAll(n => n.ModuleId == moduleId);
-        _apps.Remove(moduleId);
-        var keysToRemove = _modulePages
-            .Where(kv => kv.Key.StartsWith(moduleId + ".", StringComparison.OrdinalIgnoreCase))
-            .Select(kv => kv.Key)
-            .ToList();
-        foreach (var key in keysToRemove)
-            _modulePages.Remove(key);
+        lock (_gate)
+        {
+            _navItems.RemoveAll(n => n.ModuleId == moduleId);
+            _apps.Remove(moduleId);
+
+            // Snapshot the keys first: removing while enumerating the dictionary throws.
+            var keysToRemove = _modulePages
+                .Where(kv => kv.Key.StartsWith(moduleId + ".", StringComparison.OrdinalIgnoreCase))
+                .Select(kv => kv.Key)
+                .ToArray();
+
+            foreach (var key in keysToRemove)
+            {
+                _modulePages.Remove(key);
+            }
+        }
+
         OnChange?.Invoke();
     }
 }

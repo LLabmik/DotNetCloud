@@ -29,6 +29,7 @@ public class MaterialSvgIconsTests
     [DataRow("chat")]
     [DataRow("description")]
     [DataRow("lock")]
+    [DataRow("shield")]
     public void GetPath_IconUsedBySidebarOrClientPages_ReturnsPathData(string icon)
     {
         Assert.IsTrue(MaterialSvgIcons.HasPath(icon), $"Icon '{icon}' has no SVG path and would render as text.");

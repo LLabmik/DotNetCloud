@@ -68,6 +68,12 @@ internal sealed record ModuleManifestData
     /// <summary>Module UI descriptor (v2).</summary>
     public ManifestUi? Ui { get; init; }
 
+    /// <summary>
+    /// Default values for the module settings plane (v2). Seeded once, on first install, and only
+    /// for keys the administrator has not set.
+    /// </summary>
+    public IReadOnlyList<ManifestSettingDefault> Settings { get; init; } = [];
+
     /// <summary>Resource requests (v2). Requests are capped by admin/store policy, never entitlements.</summary>
     public ManifestResources? Resources { get; init; }
 
@@ -172,6 +178,31 @@ internal sealed record ManifestWidget
     public string? Path { get; init; }
 }
 
+/// <summary>A default value for the module settings plane, declared by a v2 manifest.</summary>
+/// <remarks>
+/// Defaults are part of the install contract: an operator installing a module gets a working
+/// configuration instead of a module that silently falls back to built-in defaults. They are never
+/// secrets — a value shipped inside a package is public — and they never overwrite a value the
+/// administrator has already stored.
+/// </remarks>
+internal sealed record ManifestSettingDefault
+{
+    /// <summary>Setting key (validated against <c>ModuleSettingLimits.IsValidKey</c>).</summary>
+    public required string Key { get; init; }
+
+    /// <summary>Default value, stored as text.</summary>
+    public string Value { get; init; } = string.Empty;
+
+    /// <summary>Optional operator-facing description of what the key controls.</summary>
+    public string? Description { get; init; }
+
+    /// <summary>
+    /// Rejected by validation. Declared so a package that ships a secret default fails with a
+    /// targeted message instead of an "unknown member" parse error.
+    /// </summary>
+    public bool Secret { get; init; }
+}
+
 /// <summary>Navigation entry from a v2 manifest.</summary>
 internal sealed record ManifestNavItem
 {
@@ -248,6 +279,12 @@ internal sealed class ModuleManifestLoader
     private const int MaxModuleIdLength = 200;
     private const int MaxModuleIdLabelLength = 63;
     private const int SupportedModuleApiVersion = 1;
+
+    /// <summary>Upper bound on manifest-declared setting defaults.</summary>
+    private const int MaxSettingDefaults = 64;
+
+    /// <summary>Upper bound on an operator-facing setting description.</summary>
+    private const int MaxSettingDescriptionLength = 300;
 
     private static readonly Regex ModuleIdPattern = new(
         "^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)+$",
@@ -460,6 +497,64 @@ internal sealed class ModuleManifestLoader
         }
     }
 
+    private static void ValidateSettingDefaults(ModuleManifestData manifest, List<string> errors)
+    {
+        if (manifest.Settings.Count == 0)
+        {
+            return;
+        }
+
+        if (manifest.ManifestVersion < 2)
+        {
+            errors.Add("settings requires manifestVersion 2.");
+            return;
+        }
+
+        if (manifest.Settings.Count > MaxSettingDefaults)
+        {
+            errors.Add($"A manifest may declare at most {MaxSettingDefaults} setting defaults. Got {manifest.Settings.Count}.");
+        }
+
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var setting in manifest.Settings)
+        {
+            if (!ModuleSettingLimits.IsValidKey(setting.Key))
+            {
+                errors.Add(
+                    $"Invalid setting default key '{setting.Key}': 1-{ModuleSettingLimits.MaxKeyLength} characters " +
+                    "starting with a letter or digit, using only letters, digits, '.', '_', '-' and ':'.");
+                continue;
+            }
+
+            if (!seen.Add(setting.Key))
+            {
+                errors.Add($"Duplicate setting default key '{setting.Key}'.");
+            }
+
+            if (!ModuleSettingLimits.IsValidValue(setting.Value))
+            {
+                errors.Add(
+                    $"Setting default '{setting.Key}' exceeds {ModuleSettingLimits.MaxValueLength} characters.");
+            }
+
+            if (setting.Secret)
+            {
+                // Anything inside a package is readable by anyone who downloads it, so a packaged
+                // "secret" is a credential leak with extra steps. Operators set secrets instead.
+                errors.Add(
+                    $"Setting default '{setting.Key}' must not be secret: a packaged default is public. " +
+                    "Leave secrets unset and let the administrator configure them.");
+            }
+
+            if (setting.Description is { Length: > MaxSettingDescriptionLength })
+            {
+                errors.Add(
+                    $"Setting default '{setting.Key}' description exceeds {MaxSettingDescriptionLength} characters.");
+            }
+        }
+    }
+
     private static void ValidateSandboxFields(ModuleManifestData manifest, List<string> errors)
     {
         if (manifest.ModuleApiVersion is { } apiVersion && apiVersion != SupportedModuleApiVersion)
@@ -474,6 +569,8 @@ internal sealed class ModuleManifestLoader
         {
             errors.Add($"dataStore must be 'isolated' or 'none'. Got: '{dataStore}'");
         }
+
+        ValidateSettingDefaults(manifest, errors);
 
         // Required modules are core parts: they keep the shared schema and in-core UI.
         if (RequiredModules.IsRequired(manifest.Id))

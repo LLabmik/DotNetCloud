@@ -46,7 +46,7 @@ public interface IAdminModuleService
     Task<bool> RestartModuleAsync(string moduleId, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Grants a capability to a module.
+    /// Grants a capability to a module, or approves a request that was pending or previously rejected.
     /// </summary>
     /// <param name="moduleId">The module identifier.</param>
     /// <param name="capabilityName">The capability name (e.g., "IStorageProvider").</param>
@@ -55,11 +55,27 @@ public interface IAdminModuleService
     Task<ModuleCapabilityGrantDto?> GrantCapabilityAsync(string moduleId, string capabilityName, Guid grantedByUserId);
 
     /// <summary>
-    /// Revokes a capability from a module.
+    /// Records an administrator's rejection of a capability request.
     /// </summary>
+    /// <remarks>
+    /// The rejection is stored, not merely applied: a rejected capability is reported as rejected on
+    /// the module page and is never raised again as a pending request by the next start-up
+    /// reconciliation. A module that needs the capability must run without it.
+    /// </remarks>
+    /// <param name="moduleId">The module identifier.</param>
+    /// <param name="capabilityName">The capability name being declined.</param>
+    /// <param name="rejectedByUserId">The administrator making the decision.</param>
+    /// <returns>The decision DTO, or <see langword="null"/> if the module was not found.</returns>
+    Task<ModuleCapabilityGrantDto?> RejectCapabilityAsync(
+        string moduleId, string capabilityName, Guid rejectedByUserId);
+
+    /// <summary>
+    /// Revokes a granted capability from a module.
+    /// </summary>
+    /// <remarks>Revoking records a rejection so the capability is not re-requested on restart.</remarks>
     /// <param name="moduleId">The module identifier.</param>
     /// <param name="capabilityName">The capability name to revoke.</param>
-    /// <returns><see langword="true"/> if the grant was found and removed; otherwise <see langword="false"/>.</returns>
+    /// <returns><see langword="true"/> if a granted capability was revoked; otherwise <see langword="false"/>.</returns>
     Task<bool> RevokeCapabilityAsync(string moduleId, string capabilityName);
 
     /// <summary>

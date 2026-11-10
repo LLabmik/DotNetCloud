@@ -1372,6 +1372,7 @@ internal sealed class ProcessSupervisor : BackgroundService, IProcessSupervisor
             }
 
             await EnsureManifestGrantsAsync(dbContext, discovered, cancellationToken);
+            await SeedModuleSettingDefaultsAsync(dbContext, discovered, cancellationToken);
         }
         catch (Exception ex)
         {
@@ -1380,19 +1381,25 @@ internal sealed class ProcessSupervisor : BackgroundService, IProcessSupervisor
     }
 
     /// <summary>
-    /// Persists <c>ModuleCapabilityGrants</c> rows for the restricted and privileged capabilities
-    /// a module's manifest declares.
+    /// Persists a <c>ModuleCapabilityGrants</c> decision row for every restricted or privileged
+    /// capability a module's manifest declares.
     /// </summary>
     /// <remarks>
+    /// <para>
+    /// The row is the operator's answer to the module's request, not merely a record of a past
+    /// grant: <c>Granted</c> allows the capability, <c>Pending</c> and <c>Rejected</c> deny it. A row
+    /// that already exists is never changed here, so an administrator's rejection survives every
+    /// restart instead of being quietly re-approved by the next reconciliation.
+    /// </para>
     /// <para>
     /// For product-shipped modules (required and bundled) the manifest is the module's install-time
     /// request, so accepting it here is the equivalent of an operator installing the module.
     /// </para>
     /// <para>
     /// <strong>Store-tier modules are never auto-granted.</strong> Their capabilities must be
-    /// approved explicitly by an administrator at install time, otherwise a publisher would
-    /// self-authorize through its own manifest. Grants whose tier is public or unknown are skipped
-    /// because they are not governed by the grant table.
+    /// approved explicitly by an administrator, otherwise a publisher would self-authorize through
+    /// its own manifest. Grants whose tier is public or unknown are skipped because they are not
+    /// governed by the grant table.
     /// </para>
     /// </remarks>
     private async Task EnsureManifestGrantsAsync(
@@ -1413,19 +1420,14 @@ internal sealed class ProcessSupervisor : BackgroundService, IProcessSupervisor
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
         var addedGrants = 0;
+        var addedRequests = 0;
 
         foreach (var module in discovered)
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            if (trustTiers.TryGetValue(module.ModuleId, out var trustTier)
-                && trustTier == ModuleTrustTier.Store)
-            {
-                _logger.LogDebug(
-                    "Module {ModuleId} is store-tier; manifest capabilities require explicit admin approval",
-                    SanitizeForLog(module.ModuleId));
-                continue;
-            }
+            var isStoreTier = trustTiers.TryGetValue(module.ModuleId, out var trustTier)
+                && trustTier == ModuleTrustTier.Store;
 
             var manifest = LoadManifest(module);
 
@@ -1436,32 +1438,80 @@ internal sealed class ProcessSupervisor : BackgroundService, IProcessSupervisor
                     continue;
                 }
 
-                var tier = CapabilityCatalog.GetCapabilityTier(capability);
-
                 var key = $"{module.ModuleId}\u0000{capability}";
                 if (!existingGrantKeys.Add(key))
                 {
                     continue;
                 }
 
+                var isStore = isStoreTier;
+                var tier = CapabilityCatalog.GetCapabilityTier(capability);
+
                 dbContext.ModuleCapabilityGrants.Add(new ModuleCapabilityGrant
                 {
                     ModuleId = module.ModuleId,
                     CapabilityName = capability,
                     GrantedAt = DateTime.UtcNow,
+                    Status = isStore
+                        ? ModuleCapabilityGrantStatus.Pending
+                        : ModuleCapabilityGrantStatus.Granted,
                 });
 
-                addedGrants++;
-                _logger.LogInformation(
-                    "Provisioned manifest-declared {Tier} capability {Capability} for module {ModuleId}",
-                    tier, capability, module.ModuleId);
+                if (isStore)
+                {
+                    addedRequests++;
+                    _logger.LogInformation(
+                        "Module {ModuleId} requests {Tier} capability {Capability}; awaiting an administrator's decision",
+                        module.ModuleId, tier, capability);
+                }
+                else
+                {
+                    addedGrants++;
+                    _logger.LogInformation(
+                        "Granted manifest-declared {Tier} capability {Capability} to product-shipped module {ModuleId}",
+                        tier, capability, module.ModuleId);
+                }
             }
         }
 
-        if (addedGrants > 0)
+        if (addedGrants > 0 || addedRequests > 0)
         {
             await dbContext.SaveChangesAsync(cancellationToken);
-            _logger.LogInformation("Provisioned {Count} manifest-declared capability grants", addedGrants);
+
+            _logger.LogInformation(
+                "Provisioned {Granted} manifest capability grant(s) and {Pending} pending request(s)",
+                addedGrants, addedRequests);
+        }
+    }
+
+    /// <summary>
+    /// Writes the default settings a module declares in its manifest into the module settings plane.
+    /// </summary>
+    /// <remarks>
+    /// Additive only: a key that already has a value is never rewritten, so an administrator's edit
+    /// and an upgrade both win over the packaged default. A module that is not registered yet is
+    /// skipped — its defaults are seeded on the next start, after reconciliation has created the row.
+    /// </remarks>
+    private async Task SeedModuleSettingDefaultsAsync(
+        CoreDbContext dbContext,
+        IReadOnlyList<DiscoveredModule> discovered,
+        CancellationToken cancellationToken)
+    {
+        foreach (var module in discovered)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            try
+            {
+                await Core.Server.Sandbox.ModuleSettingDefaultsSeeder.SeedFromModuleDirectoryAsync(
+                    dbContext, module.ModuleId, module.ModuleDirectory, _logger, cancellationToken);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                // A manifest that fails to seed must not stop the module from being reconciled.
+                _logger.LogWarning(
+                    ex, "Failed to seed manifest setting defaults for module {ModuleId}", module.ModuleId);
+            }
         }
     }
 

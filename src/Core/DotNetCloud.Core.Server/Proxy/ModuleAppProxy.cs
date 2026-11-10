@@ -36,7 +36,45 @@ internal static class ModuleAppProxy
     internal const string ModuleIdConstraint = "dncmoduleid";
 
     /// <summary>Maximum response body size accepted from a module UI, in bytes.</summary>
+    /// <remarks>
+    /// This is a guard for ordinary UI/API traffic (JSON, HTML, a runaway generator). Media and
+    /// archive downloads are exempt: a single FLAC track is routinely larger than 32 MiB, and the
+    /// cap made the player fail with "Failed to fetch" mid-stream.
+    /// </remarks>
     internal const long MaxResponseBytes = 32L * 1024 * 1024;
+
+    /// <summary>Ceiling for media and archive responses streamed through a module UI.</summary>
+    internal const long MaxMediaResponseBytes = 4L * 1024 * 1024 * 1024;
+
+    /// <summary>
+    /// Resolves the response cap for a body of the given content type.
+    /// </summary>
+    /// <param name="contentType">The response content type the module returned.</param>
+    /// <returns>The byte ceiling for this response.</returns>
+    internal static long ResolveResponseCap(string? contentType) =>
+        IsMediaContentType(contentType) ? MaxMediaResponseBytes : MaxResponseBytes;
+
+    /// <summary>
+    /// Determines whether a content type is a media or archive stream that may legitimately be large.
+    /// </summary>
+    /// <param name="contentType">The response content type.</param>
+    /// <returns><see langword="true"/> for audio, video, images and downloadable archives.</returns>
+    internal static bool IsMediaContentType(string? contentType)
+    {
+        if (string.IsNullOrWhiteSpace(contentType))
+        {
+            return false;
+        }
+
+        var mediaType = contentType.Split(';')[0].Trim();
+
+        return mediaType.StartsWith("audio/", StringComparison.OrdinalIgnoreCase)
+            || mediaType.StartsWith("video/", StringComparison.OrdinalIgnoreCase)
+            || mediaType.StartsWith("image/", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(mediaType, "application/zip", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(mediaType, "application/octet-stream", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(mediaType, "application/x-zip-compressed", StringComparison.OrdinalIgnoreCase);
+    }
 
     /// <summary>The assertion operation minted for UI-plane requests.</summary>
     internal const string UiOperation = "ui";
@@ -176,7 +214,12 @@ internal static class ModuleAppProxy
             var transformer = transformers.GetOrAdd(moduleId, id => new ModuleAppProxyTransformer(id, assertionKeyRing));
 
             var originalBody = context.Response.Body;
-            await using var capped = new CappedResponseStream(originalBody, MaxResponseBytes);
+
+            // The module's content type is only known once YARP has copied its headers, so the cap is
+            // resolved on the first body write rather than here.
+            await using var capped = new CappedResponseStream(
+                originalBody,
+                () => ResolveResponseCap(context.Response.ContentType));
             context.Response.Body = capped;
 
             try
@@ -634,12 +677,15 @@ internal static class ModuleAppResponsePolicy
 /// </summary>
 /// <remarks>
 /// Module UIs are plain HTTP apps, so a single unbounded response (a runaway generator, a huge
-/// export) would otherwise be streamed straight through the core's memory budget.
+/// export) would otherwise be streamed straight through the core's memory budget. The cap itself is
+/// resolved lazily, because it depends on the content type the module returned — a media or archive
+/// response is allowed to be large.
 /// </remarks>
 internal sealed class CappedResponseStream : Stream
 {
     private readonly Stream _inner;
-    private readonly long _maxBytes;
+    private readonly Func<long> _resolveMaxBytes;
+    private long _maxBytes;
     private long _written;
 
     /// <summary>
@@ -648,12 +694,24 @@ internal sealed class CappedResponseStream : Stream
     /// <param name="inner">The destination stream.</param>
     /// <param name="maxBytes">The maximum number of bytes written before the stream faults.</param>
     public CappedResponseStream(Stream inner, long maxBytes)
+        : this(inner, () => maxBytes)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxBytes);
+    }
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="CappedResponseStream"/> class with a cap that is
+    /// resolved on the first write.
+    /// </summary>
+    /// <param name="inner">The destination stream.</param>
+    /// <param name="resolveMaxBytes">Resolves the cap once the response content type is known.</param>
+    public CappedResponseStream(Stream inner, Func<long> resolveMaxBytes)
     {
         ArgumentNullException.ThrowIfNull(inner);
-        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxBytes);
+        ArgumentNullException.ThrowIfNull(resolveMaxBytes);
 
         _inner = inner;
-        _maxBytes = maxBytes;
+        _resolveMaxBytes = resolveMaxBytes;
     }
 
     /// <summary>Gets the number of bytes written so far.</summary>
@@ -719,6 +777,16 @@ internal sealed class CappedResponseStream : Stream
 
     private void EnsureCapacity(int count)
     {
+        if (_maxBytes == 0)
+        {
+            _maxBytes = _resolveMaxBytes();
+
+            if (_maxBytes <= 0)
+            {
+                _maxBytes = MaxResponseCapFallback;
+            }
+        }
+
         if (_written + count > _maxBytes)
         {
             throw new IOException(
@@ -727,4 +795,7 @@ internal sealed class CappedResponseStream : Stream
 
         _written += count;
     }
+
+    /// <summary>Cap used when the resolver returns a non-positive value.</summary>
+    private const long MaxResponseCapFallback = ModuleAppProxy.MaxResponseBytes;
 }

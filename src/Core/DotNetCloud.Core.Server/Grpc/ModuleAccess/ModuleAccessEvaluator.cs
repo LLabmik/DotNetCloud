@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using DotNetCloud.Core.Capabilities;
 using DotNetCloud.Core.Data.Context;
+using DotNetCloud.Core.Modules;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -204,7 +205,10 @@ internal sealed class ModuleAccessEvaluator : IModuleAccessEvaluator
 
         var granted = await dbContext.ModuleCapabilityGrants
             .AsNoTracking()
-            .Where(grant => grant.ModuleId == moduleId)
+            // Only an administrator's "granted" decision allows a call: a pending request and an
+            // explicit rejection both deny, and neither can be mistaken for the other.
+            .Where(grant => grant.ModuleId == moduleId
+                && grant.Status == ModuleCapabilityGrantStatus.Granted)
             .Select(grant => grant.CapabilityName)
             .ToListAsync(cancellationToken);
 

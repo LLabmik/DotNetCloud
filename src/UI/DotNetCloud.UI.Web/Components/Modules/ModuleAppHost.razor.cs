@@ -92,6 +92,38 @@ public partial class ModuleAppHost : ComponentBase, IAsyncDisposable
     /// <summary>Gets the link to the user's own consent manager.</summary>
     private static string ConnectedAppsHref => "/connected-apps";
 
+    /// <summary>
+    /// Gets the module name shown in the permission bar.
+    /// </summary>
+    /// <remarks>
+    /// The bar is the first thing a user reads about a module, so it must never show the reverse-DNS
+    /// id ("dotnetcloud.music is asking for permission"). A manifest-less module falls back to the id,
+    /// which is why the id is humanised here instead of being trusted as a display name.
+    /// </remarks>
+    private string ConsentModuleName => ToDisplayName(Title, ModuleId);
+
+    /// <summary>Humanises a module id or passes through a real display name.</summary>
+    /// <param name="title">The descriptor title, if any.</param>
+    /// <param name="moduleId">The module id used as the fallback.</param>
+    /// <returns>A name suitable for the permission bar.</returns>
+    internal static string ToDisplayName(string? title, string moduleId)
+    {
+        var candidate = string.IsNullOrWhiteSpace(title) ? moduleId : title;
+
+        if (string.IsNullOrWhiteSpace(candidate) || !candidate.Contains('.', StringComparison.Ordinal))
+        {
+            return candidate;
+        }
+
+        // "dotnetcloud.music" -> "Music", "org.example.my-app" -> "My App".
+        var lastSegment = candidate.Split('.')[^1];
+        var words = lastSegment
+            .Split(['-', '_'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(word => char.ToUpperInvariant(word[0]) + word[1..]);
+
+        return string.Join(' ', words);
+    }
+
     /// <summary>Gets the display title, preferring a title pushed by the frame.</summary>
     private string DisplayTitle => string.IsNullOrWhiteSpace(_title) ? Title : _title;
 

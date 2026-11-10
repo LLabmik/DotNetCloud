@@ -72,19 +72,33 @@ internal sealed class ModuleAppRegistrationHostedService : BackgroundService
     /// <inheritdoc />
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        await RefreshAsync(stoppingToken);
+        // The first refresh runs while the supervisor is still discovering modules, so it is the
+        // most likely to hit a transient failure. Without this guard an exception here ends the
+        // whole service (HostOptions ignores the fault), and every iframe module silently loses its
+        // navigation entry until the next restart.
+        await TryRefreshAsync(stoppingToken);
 
         using var timer = new PeriodicTimer(RefreshInterval);
         while (await timer.WaitForNextTickAsync(stoppingToken))
         {
-            try
-            {
-                await RefreshAsync(stoppingToken);
-            }
-            catch (Exception ex) when (ex is not OperationCanceledException)
-            {
-                _logger.LogWarning(ex, "Refreshing manifest-declared module UIs failed.");
-            }
+            await TryRefreshAsync(stoppingToken);
+        }
+    }
+
+    private async Task TryRefreshAsync(CancellationToken stoppingToken)
+    {
+        try
+        {
+            await RefreshAsync(stoppingToken);
+        }
+        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+        {
+            // Shutting down — let the loop exit.
+            throw;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Refreshing manifest-declared module UIs failed.");
         }
     }
 
@@ -130,8 +144,20 @@ internal sealed class ModuleAppRegistrationHostedService : BackgroundService
                 continue;
             }
 
-            Apply(moduleId, manifest, ui);
-            _registered[moduleId] = fingerprint;
+            try
+            {
+                Apply(moduleId, manifest, ui);
+                _registered[moduleId] = fingerprint;
+            }
+            catch (Exception ex)
+            {
+                // One module's registration must not cost every other module its navigation entry.
+                // The fingerprint is deliberately not recorded, so the next tick retries it.
+                _logger.LogWarning(
+                    ex,
+                    "Could not register the iframe UI for {ModuleId}; will retry.",
+                    LogSanitizer.Sanitize(moduleId));
+            }
         }
 
         // Forget modules that were disabled, uninstalled or stopped declaring a UI.

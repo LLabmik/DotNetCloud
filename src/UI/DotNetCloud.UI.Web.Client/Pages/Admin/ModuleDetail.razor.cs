@@ -465,6 +465,58 @@ public partial class ModuleDetail : ComponentBase
         finally { _actionInProgress = false; }
     }
 
+    /// <summary>
+    /// Approves one capability the module's manifest requests.
+    /// </summary>
+    private async Task ApproveCapabilityAsync(string capability)
+    {
+        _actionInProgress = true;
+        try
+        {
+            if (!await Api.GrantModuleCapabilityAsync(ModuleId, capability))
+            {
+                Toast.ShowError("Failed to grant the capability.");
+                return;
+            }
+
+            await ReloadModuleAsync();
+            Toast.ShowSuccess("Capability granted and audited.");
+        }
+        finally { _actionInProgress = false; }
+    }
+
+    /// <summary>
+    /// Declines one capability the module's manifest requests.
+    /// </summary>
+    /// <remarks>
+    /// Rejection is recorded, not merely applied, so the request is not raised again on the next
+    /// start and the module page keeps showing the decision that was actually made.
+    /// </remarks>
+    private async Task RejectCapabilityAsync(string capability)
+    {
+        _actionInProgress = true;
+        try
+        {
+            if (!await Api.RejectModuleCapabilityAsync(ModuleId, capability))
+            {
+                Toast.ShowError("Failed to reject the capability.");
+                return;
+            }
+
+            await ReloadModuleAsync();
+            Toast.ShowSuccess("Capability rejected. The module runs without it.");
+        }
+        finally { _actionInProgress = false; }
+    }
+
+    /// <summary>Gets the badge class for a capability decision state.</summary>
+    private static string GetCapabilityStatusClass(string status) => status switch
+    {
+        "Granted" => "badge-success",
+        "Rejected" => "badge-danger",
+        _ => "badge-warning",
+    };
+
     private async Task ReloadModuleAsync()
     {
         var module = await Api.GetModuleAsync(ModuleId);

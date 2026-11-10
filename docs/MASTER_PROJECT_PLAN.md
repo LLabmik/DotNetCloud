@@ -1902,15 +1902,21 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 
 ---
 
-## Phase 2: Chat & Notifications & Android
+### Step: third-party-module-track-c-music-2026-11-09 - Track C — Music module (converted, then withdrawn)
 
-**STATUS:** ✅ COMPLETED (13/13 sub-phases)
+**Status:** skipped ⛔ — reverted to first-party on 2026-11-09
+**Description:** Music was fully converted (data plane, sandboxed host, brokered file access, core-driven indexing, module-hosted UI and widget, store package 2.0.0/2.0.1) and exercised live on the dev server. It was then **reverted**: the module's defining features are core-chrome JavaScript — the persistent global playbar, the 10-band equalizer and the Butterchurn visualizer — which an in-process module drives by JS interop and a sandboxed frame cannot reach. Video is excluded for the same reason.
 
-**Goal:** Real-time chat, push notifications, announcements, and Android MAUI app.
-**Expected Duration:** 6-10 weeks (actual)
-**Milestone:** Full chat functionality with web UI, real-time messaging, push notifications, and mobile Android app.
+**Deliverables:**
 
----
+- ✓ **Kept (module-agnostic):** manifest v2 `settings[]` + `ModuleSettingDefaultsSeeder`; `ModuleCapabilityGrant.Status` with admin **Grant**/**Reject** (migration on both providers, rejection never resurrected); thread-safe `ModuleUiRegistry`; the module-named consent bar in `ModuleAppHost`; `shield` icon; media-aware response cap in `ModuleAppProxy`.
+- ✓ **Reverted:** module, host, widgets, UI, tests, `DbContextSchemaProvider` entry, both registration services, `AddAdditionalAssemblies`, CLI registration, `Core.Server`/`UI.Web` references.
+- ✓ **Data:** tables moved back from `dnc_dotnetcloud_music_*` to the `music` schema (`scripts/move-music-schema-back.sh`); converted registry rows removed.
+- ✓ **Store:** 2.0.0 and 2.0.1 yanked (deprecation) and their bytes deleted from `packages/` and the live site — the catalogue no longer lists the package.
+
+**Dependencies:** `third-party-module-track-c-files-capability-2026-11-08`
+**Blocking Issues:** None
+**Notes:** Lesson for the remaining modules: before converting a module, check whether its UI depends on **core chrome** (JS interop into the shell, storage, cookies). If it does, the conversion needs a new bridge capability first. Next: Photos, then Tracks.
 
 ### Step: phase-2.1 - Chat Core Abstractions & Data Models
 

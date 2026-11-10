@@ -1,4 +1,5 @@
 using DotNetCloud.Core;
+using DotNetCloud.Core.Capabilities;
 using DotNetCloud.Core.Data.Context;
 using DotNetCloud.Core.Data.Entities.Modules;
 using DotNetCloud.Core.DTOs;
@@ -13,6 +14,7 @@ using DotNetCloud.Core.Server.Supervisor;
 using DotNetCloud.Core.Services;
 using DotNetCloud.ModulePackaging;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace DotNetCloud.Core.Server.Services;
 
@@ -88,7 +90,15 @@ internal sealed class AdminModuleService : IAdminModuleService
             .Include(m => m.CapabilityGrants)
             .FirstOrDefaultAsync(m => m.ModuleId == moduleId);
 
-        return module is null ? null : MapToDto(module);
+        if (module is null)
+        {
+            return null;
+        }
+
+        var dto = MapToDto(module);
+        var manifest = TryLoadManifest(moduleId);
+        EnrichFromManifest(dto, manifest, module.CapabilityGrants?.ToList() ?? []);
+        return dto;
     }
 
     /// <inheritdoc/>
@@ -179,14 +189,33 @@ internal sealed class AdminModuleService : IAdminModuleService
             return null;
         }
 
-        // Check if already granted
         var existing = await _dbContext.ModuleCapabilityGrants
+            .AsTracking()
             .FirstOrDefaultAsync(g => g.ModuleId == moduleId && g.CapabilityName == capabilityName);
 
-        if (existing is not null)
+        if (existing is not null && ModuleCapabilityGrantStatus.IsGranted(existing.Status))
         {
             _logger.LogInformation("Capability {Capability} already granted to module {ModuleId}",
                 LogSanitizer.Sanitize(capabilityName), LogSanitizer.Sanitize(moduleId));
+            return MapGrantToDto(existing);
+        }
+
+        if (existing is not null)
+        {
+            // Approving a pending or previously rejected request flips the decision rather than
+            // adding a second row: the unique (module, capability) constraint is the decision.
+            existing.Status = ModuleCapabilityGrantStatus.Granted;
+            existing.GrantedAt = DateTime.UtcNow;
+            existing.GrantedByUserId = grantedByUserId;
+            existing.RejectedAtUtc = null;
+            existing.RejectedByUserId = null;
+
+            await _dbContext.SaveChangesAsync();
+            _accessEvaluator.Invalidate(moduleId);
+
+            _logger.LogInformation("Granted capability {Capability} to module {ModuleId} by user {UserId}",
+                LogSanitizer.Sanitize(capabilityName), LogSanitizer.Sanitize(moduleId), grantedByUserId);
+
             return MapGrantToDto(existing);
         }
 
@@ -197,6 +226,7 @@ internal sealed class AdminModuleService : IAdminModuleService
             CapabilityName = capabilityName,
             GrantedAt = DateTime.UtcNow,
             GrantedByUserId = grantedByUserId,
+            Status = ModuleCapabilityGrantStatus.Granted,
         };
 
         _dbContext.ModuleCapabilityGrants.Add(grant);
@@ -212,27 +242,86 @@ internal sealed class AdminModuleService : IAdminModuleService
     }
 
     /// <inheritdoc/>
+    public async Task<ModuleCapabilityGrantDto?> RejectCapabilityAsync(
+        string moduleId,
+        string capabilityName,
+        Guid rejectedByUserId)
+    {
+        ArgumentNullException.ThrowIfNull(moduleId);
+        ArgumentNullException.ThrowIfNull(capabilityName);
+
+        var module = await _dbContext.InstalledModules
+            .FirstOrDefaultAsync(m => m.ModuleId == moduleId);
+
+        if (module is null)
+        {
+            return null;
+        }
+
+        var existing = await _dbContext.ModuleCapabilityGrants
+            .AsTracking()
+            .FirstOrDefaultAsync(g => g.ModuleId == moduleId && g.CapabilityName == capabilityName);
+
+        if (existing is null)
+        {
+            // Rejecting a request the module never made is still worth recording: it is the
+            // administrator's answer for this capability and stops a later reconcile from raising it
+            // again as pending.
+            existing = new ModuleCapabilityGrant
+            {
+                Id = Guid.CreateVersion7(),
+                ModuleId = moduleId,
+                CapabilityName = capabilityName,
+                GrantedAt = DateTime.UtcNow,
+            };
+
+            _dbContext.ModuleCapabilityGrants.Add(existing);
+        }
+
+        existing.Status = ModuleCapabilityGrantStatus.Rejected;
+        existing.GrantedByUserId = null;
+        existing.RejectedAtUtc = DateTime.UtcNow;
+        existing.RejectedByUserId = rejectedByUserId;
+
+        await _dbContext.SaveChangesAsync();
+
+        // Rejection must take effect immediately, not after the cache TTL expires.
+        _accessEvaluator.Invalidate(moduleId);
+
+        _logger.LogInformation("Rejected capability {Capability} for module {ModuleId} by user {UserId}",
+            LogSanitizer.Sanitize(capabilityName), LogSanitizer.Sanitize(moduleId), rejectedByUserId);
+
+        return MapGrantToDto(existing);
+    }
+
+    /// <inheritdoc/>
     public async Task<bool> RevokeCapabilityAsync(string moduleId, string capabilityName)
     {
         ArgumentNullException.ThrowIfNull(moduleId);
         ArgumentNullException.ThrowIfNull(capabilityName);
 
         var grant = await _dbContext.ModuleCapabilityGrants
+            .AsTracking()
             .FirstOrDefaultAsync(g => g.ModuleId == moduleId && g.CapabilityName == capabilityName);
 
-        if (grant is null)
+        if (grant is null || !ModuleCapabilityGrantStatus.IsGranted(grant.Status))
         {
             return false;
         }
 
-        _dbContext.ModuleCapabilityGrants.Remove(grant);
+        // Revoking records a decision instead of deleting the row: deleting would let the next
+        // start-up reconciliation raise the capability again as pending, which reads as "the core
+        // keeps asking" rather than as the operator's answer.
+        grant.Status = ModuleCapabilityGrantStatus.Rejected;
+        grant.GrantedByUserId = null;
+        grant.RejectedAtUtc = DateTime.UtcNow;
         await _dbContext.SaveChangesAsync();
 
         // Revocation must take effect immediately, not after the cache TTL expires.
         _accessEvaluator.Invalidate(moduleId);
 
         _logger.LogInformation("Revoked capability {Capability} from module {ModuleId}",
-            capabilityName, moduleId);
+            LogSanitizer.Sanitize(capabilityName), LogSanitizer.Sanitize(moduleId));
         return true;
     }
 
@@ -1141,9 +1230,106 @@ internal sealed class AdminModuleService : IAdminModuleService
             DataStoreMode = entity.DataStoreMode.ToString(),
             SandboxStatus = entity.SandboxStatus.ToString(),
             GrantedCapabilities = entity.CapabilityGrants?
+                .Where(grant => ModuleCapabilityGrantStatus.IsGranted(grant.Status))
                 .Select(MapGrantToDto)
                 .ToList() ?? [],
         };
+    }
+
+    /// <summary>
+    /// Reads the module's manifest from disk, when it can be found and is valid.
+    /// </summary>
+    /// <remarks>
+    /// The manifest is what the module *asks for*; the database holds what the administrator
+    /// *decided*. The detail page needs both to show a pending request at all. A manifest that has
+    /// disappeared must not break the page, so failures degrade to "no declaration" rather than throw.
+    /// </remarks>
+    private ModuleManifestData? TryLoadManifest(string moduleId)
+    {
+        try
+        {
+            var discovered = _discovery.DiscoverModule(moduleId);
+            if (discovered?.ManifestPath is null)
+            {
+                return null;
+            }
+
+            var loader = new ModuleManifestLoader(NullLogger<ModuleManifestLoader>.Instance);
+            var result = loader.LoadAndValidate(discovered.ManifestPath, moduleId);
+            return result.IsValid ? result.Manifest : null;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            _logger.LogWarning(ex, "Could not read the manifest of module {ModuleId}",
+                LogSanitizer.Sanitize(moduleId));
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Fills the manifest-derived fields of a module DTO, including the per-capability decisions.
+    /// </summary>
+    /// <param name="dto">The DTO to enrich.</param>
+    /// <param name="manifest">The module's manifest, when it could be read.</param>
+    /// <param name="decisions">Every stored capability decision for the module, including rejected ones.</param>
+    private static void EnrichFromManifest(
+        ModuleDto dto,
+        ModuleManifestData? manifest,
+        IReadOnlyCollection<ModuleCapabilityGrant> decisions)
+    {
+        if (manifest is null)
+        {
+            return;
+        }
+
+        dto.Name = manifest.Name;
+        dto.Description = manifest.Description;
+        dto.RequiredCapabilities = manifest.EffectiveCapabilities.ToList();
+        dto.PublishedEvents = manifest.EffectivePublishedEvents.ToList();
+        dto.SubscribedEvents = manifest.EffectiveSubscribedEvents.ToList();
+        dto.CapabilityRequests = BuildCapabilityRequests(manifest, decisions);
+    }
+
+    private static List<ModuleCapabilityRequestDto> BuildCapabilityRequests(
+        ModuleManifestData manifest,
+        IReadOnlyCollection<ModuleCapabilityGrant> decisions)
+    {
+        var byCapability = decisions.ToDictionary(
+            grant => grant.CapabilityName, StringComparer.OrdinalIgnoreCase);
+
+        var requests = new List<ModuleCapabilityRequestDto>();
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var capability in manifest.EffectiveCapabilities)
+        {
+            if (!seen.Add(capability))
+            {
+                continue;
+            }
+
+            var tier = CapabilityCatalog.GetCapabilityTier(capability);
+
+            // Public capabilities need no decision; the admin page only shows what is gated.
+            if (tier is null or CapabilityTier.Public or CapabilityTier.Forbidden)
+            {
+                continue;
+            }
+
+            byCapability.TryGetValue(capability, out var decision);
+            var status = decision?.Status ?? ModuleCapabilityGrantStatus.Pending;
+            var rejected = string.Equals(status, ModuleCapabilityGrantStatus.Rejected, StringComparison.OrdinalIgnoreCase);
+
+            requests.Add(new ModuleCapabilityRequestDto
+            {
+                CapabilityName = capability,
+                Tier = tier.ToString()!,
+                Status = status,
+                DecidedAtUtc = rejected ? decision?.RejectedAtUtc : decision?.GrantedAt,
+                DecidedByUserId = rejected ? decision?.RejectedByUserId : decision?.GrantedByUserId,
+            });
+        }
+
+        return requests;
     }
 
     private static ModuleCapabilityGrantDto MapGrantToDto(ModuleCapabilityGrant grant)
@@ -1152,8 +1338,10 @@ internal sealed class AdminModuleService : IAdminModuleService
         {
             ModuleId = grant.ModuleId,
             CapabilityName = grant.CapabilityName,
+            Status = grant.Status,
             GrantedAt = grant.GrantedAt,
             GrantedByUserId = grant.GrantedByUserId,
+            RejectedAtUtc = grant.RejectedAtUtc,
         };
     }
 }
