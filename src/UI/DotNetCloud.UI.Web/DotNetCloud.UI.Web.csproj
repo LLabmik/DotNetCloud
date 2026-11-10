@@ -29,7 +29,7 @@
     <ProjectReference Include="..\..\Modules\Files\DotNetCloud.Modules.Files\DotNetCloud.Modules.Files.csproj" />
     <ProjectReference Include="..\..\Modules\Music\DotNetCloud.Modules.Music\DotNetCloud.Modules.Music.csproj" />
     <ProjectReference Include="..\..\Modules\Notes\DotNetCloud.Modules.Notes\DotNetCloud.Modules.Notes.csproj" />
-    <ProjectReference Include="..\..\Modules\Photos\DotNetCloud.Modules.Photos\DotNetCloud.Modules.Photos.csproj" />
+
     <ProjectReference Include="..\..\Modules\Video\DotNetCloud.Modules.Video\DotNetCloud.Modules.Video.csproj" />
     <ProjectReference Include="..\..\Modules\About\DotNetCloud.Modules.About\DotNetCloud.Modules.About.csproj" />
     <ProjectReference Include="..\..\Modules\Tracks\DotNetCloud.Modules.Tracks\DotNetCloud.Modules.Tracks.csproj" />

@@ -18,6 +18,7 @@ public partial class ModuleAppPage : ComponentBase
 {
     private ModuleAppDescriptor? _app;
     private string _path = "/";
+    private string _query = string.Empty;
     private string _pageTitle = "App";
 
     /// <summary>Gets or sets the module id from the route.</summary>
@@ -31,11 +32,19 @@ public partial class ModuleAppPage : ComponentBase
     [Inject]
     private ModuleUiRegistry ModuleRegistry { get; set; } = default!;
 
+    [Inject]
+    private NavigationManager Navigation { get; set; } = default!;
+
     /// <inheritdoc />
     protected override void OnParametersSet()
     {
         _path = ModuleAppUrls.NormalizeEntryPath(string.IsNullOrEmpty(CatchAll) ? "/" : "/" + CatchAll);
         _app = string.IsNullOrEmpty(ModuleId) ? null : ModuleRegistry.GetApp(ModuleId);
         _pageTitle = _app?.Title ?? "App";
+
+        // The browser URL keeps the shell route; a deep link's query has to travel into the frame,
+        // which loads /apps/{moduleId}/** and would otherwise start at the module's entry page.
+        var uri = Navigation.ToAbsoluteUri(Navigation.Uri);
+        _query = ModuleAppUrls.NormalizeFrameQuery(uri.Query);
     }
 }

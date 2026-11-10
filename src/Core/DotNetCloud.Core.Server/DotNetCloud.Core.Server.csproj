@@ -78,9 +78,6 @@
     <ProjectReference Include="..\..\Modules\Tracks\DotNetCloud.Modules.Tracks\DotNetCloud.Modules.Tracks.csproj" />
     <ProjectReference Include="..\..\Modules\Tracks\DotNetCloud.Modules.Tracks.Data\DotNetCloud.Modules.Tracks.Data.csproj" />
     <ProjectReference Include="..\..\Modules\Tracks\DotNetCloud.Modules.Tracks.Data.SqlServer\DotNetCloud.Modules.Tracks.Data.SqlServer.csproj" />
-    <ProjectReference Include="..\..\Modules\Photos\DotNetCloud.Modules.Photos\DotNetCloud.Modules.Photos.csproj" />
-    <ProjectReference Include="..\..\Modules\Photos\DotNetCloud.Modules.Photos.Data\DotNetCloud.Modules.Photos.Data.csproj" />
-    <ProjectReference Include="..\..\Modules\Photos\DotNetCloud.Modules.Photos.Data.SqlServer\DotNetCloud.Modules.Photos.Data.SqlServer.csproj" />
     <ProjectReference Include="..\..\Modules\Music\DotNetCloud.Modules.Music\DotNetCloud.Modules.Music.csproj" />
     <ProjectReference Include="..\..\Modules\Music\DotNetCloud.Modules.Music.Data\DotNetCloud.Modules.Music.Data.csproj" />
     <ProjectReference Include="..\..\Modules\Music\DotNetCloud.Modules.Music.Data.SqlServer\DotNetCloud.Modules.Music.Data.SqlServer.csproj" />
@@ -99,7 +96,6 @@
     <ProjectReference Include="..\..\Modules\Calendar\DotNetCloud.Modules.Calendar.Widget\DotNetCloud.Modules.Calendar.Widget.csproj" />
     <ProjectReference Include="..\..\Modules\Notes\DotNetCloud.Modules.Notes.Widget\DotNetCloud.Modules.Notes.Widget.csproj" />
     <ProjectReference Include="..\..\Modules\Tracks\DotNetCloud.Modules.Tracks.Widget\DotNetCloud.Modules.Tracks.Widget.csproj" />
-    <ProjectReference Include="..\..\Modules\Photos\DotNetCloud.Modules.Photos.Widget\DotNetCloud.Modules.Photos.Widget.csproj" />
     <ProjectReference Include="..\..\Modules\Music\DotNetCloud.Modules.Music.Widget\DotNetCloud.Modules.Music.Widget.csproj" />
     <ProjectReference Include="..\..\Modules\Video\DotNetCloud.Modules.Video.Widget\DotNetCloud.Modules.Video.Widget.csproj" />
     <ProjectReference Include="..\..\UI\DotNetCloud.UI.Web\DotNetCloud.UI.Web.csproj" />

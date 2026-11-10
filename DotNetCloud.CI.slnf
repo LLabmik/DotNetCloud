@@ -74,7 +74,6 @@
       "src\\Modules\\AI\\DotNetCloud.Modules.AI.Data\\DotNetCloud.Modules.AI.Data.csproj",
       "src\\Modules\\AI\\DotNetCloud.Modules.AI.Data.SqlServer\\DotNetCloud.Modules.AI.Data.SqlServer.csproj",
       "src\\Modules\\AI\\DotNetCloud.Modules.AI.Host\\DotNetCloud.Modules.AI.Host.csproj",
-
       "src\\UI\\DotNetCloud.UI.Shared\\DotNetCloud.UI.Shared.csproj",
       "src\\UI\\DotNetCloud.UI.Web\\DotNetCloud.UI.Web.csproj",
       "src\\UI\\DotNetCloud.UI.Web.Client\\DotNetCloud.UI.Web.Client.csproj",
@@ -84,7 +83,6 @@
       "src\\Modules\\Files\\DotNetCloud.Modules.Files.Widget\\DotNetCloud.Modules.Files.Widget.csproj",
       "src\\Modules\\Music\\DotNetCloud.Modules.Music.Widget\\DotNetCloud.Modules.Music.Widget.csproj",
       "src\\Modules\\Notes\\DotNetCloud.Modules.Notes.Widget\\DotNetCloud.Modules.Notes.Widget.csproj",
-      "src\\Modules\\Photos\\DotNetCloud.Modules.Photos.Widget\\DotNetCloud.Modules.Photos.Widget.csproj",
       "src\\Modules\\Tracks\\DotNetCloud.Modules.Tracks.Widget\\DotNetCloud.Modules.Tracks.Widget.csproj",
       "src\\Modules\\Video\\DotNetCloud.Modules.Video.Widget\\DotNetCloud.Modules.Video.Widget.csproj",
       "tests\\DotNetCloud.CLI.Tests\\DotNetCloud.CLI.Tests.csproj",

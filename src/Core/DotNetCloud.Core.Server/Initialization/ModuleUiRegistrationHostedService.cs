@@ -67,14 +67,6 @@ internal sealed class ModuleUiRegistrationHostedService : BackgroundService
             ComponentType: typeof(DotNetCloud.Modules.Tracks.UI.TracksPage),
             AdditionalPages: [("tracks.item", typeof(DotNetCloud.Modules.Tracks.UI.WorkItemFullscreenPage))]),
         new(
-            ModuleId: "dotnetcloud.photos",
-            Label: "Photos",
-            Href: "/apps/photos",
-            Icon: ModuleIconProvider.GetIcon("dotnetcloud.photos"),
-            SortOrder: 70,
-            RouteKey: "photos.page",
-            ComponentType: typeof(DotNetCloud.Modules.Photos.UI.PhotosPage)),
-        new(
             ModuleId: "dotnetcloud.music",
             Label: "Music",
             Href: "/apps/music",

@@ -1,711 +1,255 @@
-﻿using DotNetCloud.Core.Authorization;
-using DotNetCloud.Core.DTOs;
-using DotNetCloud.Modules.Files.Services;
+﻿using DotNetCloud.Core.Errors;
 using DotNetCloud.Modules.Photos.Data;
 using DotNetCloud.Modules.Photos.Data.Services;
 using DotNetCloud.Modules.Photos.Models;
-using DotNetCloud.Modules.Photos.Services;
+using Grpc.Core;
 using Microsoft.Extensions.Logging.Abstractions;
-using Moq;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
 
 namespace DotNetCloud.Modules.Photos.Tests;
 
+/// <summary>
+/// The non-destructive edit stack: applying it bakes the operations into the cached previews while
+/// the original (read through the core) is never modified.
+/// </summary>
 [TestClass]
-public class PhotoThumbnailServiceSaveEditsTests
+public sealed class PhotoThumbnailServiceSaveEditsTests
 {
     private PhotosDbContext _db = null!;
-    private Mock<IFileStorageEngine> _storageEngineMock = null!;
-    private Mock<IDownloadService> _downloadServiceMock = null!;
-    private Mock<IServiceProvider> _serviceProviderMock = null!;
-    private PhotoThumbnailService _service = null!;
 
     [TestInitialize]
-    public void Setup()
-    {
-        _db = TestHelpers.CreateDb();
-        _storageEngineMock = new Mock<IFileStorageEngine>();
-        _downloadServiceMock = new Mock<IDownloadService>();
-        _serviceProviderMock = new Mock<IServiceProvider>();
-
-        _serviceProviderMock
-            .Setup(sp => sp.GetService(typeof(IFileStorageEngine)))
-            .Returns(_storageEngineMock.Object);
-        _serviceProviderMock
-            .Setup(sp => sp.GetService(typeof(IDownloadService)))
-            .Returns(_downloadServiceMock.Object);
-
-        _service = new PhotoThumbnailService(
-            _db,
-            _serviceProviderMock.Object,
-            NullLogger<PhotoThumbnailService>.Instance);
-    }
+    public void Setup() => _db = TestHelpers.CreateDb();
 
     [TestCleanup]
     public void Cleanup() => _db.Dispose();
 
-    // ─── Helpers ─────────────────────────────────────────────────────
-
-    private static Stream CreateTestImageStream(int width = 100, int height = 100)
+    private static byte[] CreateTestImage(int width = 400, int height = 300)
     {
-        var ms = new MemoryStream();
-        using (var image = new Image<Rgba32>(Configuration.Default, width, height))
-        {
-            image.SaveAsJpeg(ms);
-        }
-        ms.Position = 0;
-        return ms;
+        using var image = new Image<Rgba32>(Configuration.Default, width, height);
+        using var ms = new MemoryStream();
+        image.SaveAsJpeg(ms);
+        return ms.ToArray();
     }
+
+    private PhotoThumbnailService CreateService(FakeFileModuleApi? coreApi) =>
+        new(_db, NullLogger<PhotoThumbnailService>.Instance, configuration: null, coreApi: coreApi);
 
     private async Task<Photo> SeedPhotoWithEditsAsync(
         Guid ownerId,
         string mimeType = "image/jpeg",
-        params (string editType, string paramJson)[] edits)
+        params (string EditType, string ParametersJson)[] edits)
     {
         var photo = await TestHelpers.SeedPhotoAsync(_db, ownerId, mimeType: mimeType);
 
-        for (int i = 0; i < edits.Length; i++)
+        for (var index = 0; index < edits.Length; index++)
         {
             _db.PhotoEditRecords.Add(new PhotoEditRecord
             {
                 PhotoId = photo.Id,
-                OperationType = edits[i].editType,
-                ParametersJson = edits[i].paramJson,
-                StackOrder = i,
-                EditedByUserId = ownerId
+                OperationType = edits[index].EditType,
+                ParametersJson = edits[index].ParametersJson,
+                StackOrder = index,
+                EditedByUserId = ownerId,
             });
         }
+
         await _db.SaveChangesAsync();
         return photo;
     }
 
-    private void SetupDownloadWithImage(Guid fileNodeId, int width = 100, int height = 100)
-    {
-        _downloadServiceMock
-            .Setup(d => d.DownloadCurrentAsync(fileNodeId, It.IsAny<CallerContext>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(CreateTestImageStream(width, height));
-    }
-
-    // ─── Photo Not Found ─────────────────────────────────────────────
-
     [TestMethod]
     public async Task SaveEditsAsync_PhotoNotFound_ReturnsFalse()
     {
-        var result = await _service.SaveEditsAsync(Guid.CreateVersion7());
+        var service = CreateService(new FakeFileModuleApi(CreateTestImage()));
+
+        var result = await service.SaveEditsAsync(Guid.CreateVersion7(), Guid.CreateVersion7());
 
         Assert.IsFalse(result);
     }
 
-    // ─── Unsupported MIME Type ───────────────────────────────────────
+    [TestMethod]
+    public async Task SaveEditsAsync_CallerIsNotTheOwner_ReturnsFalse()
+    {
+        var ownerId = Guid.CreateVersion7();
+        var photo = await SeedPhotoWithEditsAsync(ownerId, "image/jpeg", ("Rotate", """{"value":"90"}"""));
+
+        var coreApi = new FakeFileModuleApi(CreateTestImage());
+        var service = CreateService(coreApi);
+
+        var result = await service.SaveEditsAsync(photo.Id, Guid.CreateVersion7());
+
+        Assert.IsFalse(result);
+        Assert.AreEqual(0, coreApi.DownloadedNodeIds.Count);
+    }
 
     [TestMethod]
     public async Task SaveEditsAsync_UnsupportedMimeType_ReturnsFalse()
     {
-        var caller = TestHelpers.CreateCaller();
-        var photo = await TestHelpers.SeedPhotoAsync(_db, caller.UserId, mimeType: "application/pdf");
+        var ownerId = Guid.CreateVersion7();
+        var photo = await SeedPhotoWithEditsAsync(ownerId, "application/pdf", ("Rotate", """{"value":"90"}"""));
 
-        _db.PhotoEditRecords.Add(new PhotoEditRecord
-        {
-            PhotoId = photo.Id,
-            OperationType = "Rotate",
-            ParametersJson = """{"value":"90"}""",
-            StackOrder = 0,
-            EditedByUserId = caller.UserId
-        });
-        await _db.SaveChangesAsync();
+        var service = CreateService(new FakeFileModuleApi(CreateTestImage()));
 
-        var result = await _service.SaveEditsAsync(photo.Id);
-
-        Assert.IsFalse(result);
+        Assert.IsFalse(await service.SaveEditsAsync(photo.Id, ownerId));
     }
 
-    // ─── No Edits ────────────────────────────────────────────────────
-
     [TestMethod]
-    public async Task SaveEditsAsync_NoEditRecords_ReturnsTrue()
+    public async Task SaveEditsAsync_NoEditRecords_ReturnsTrueWithoutReadingTheOriginal()
     {
-        var caller = TestHelpers.CreateCaller();
-        var photo = await TestHelpers.SeedPhotoAsync(_db, caller.UserId);
+        var ownerId = Guid.CreateVersion7();
+        var photo = await TestHelpers.SeedPhotoAsync(_db, ownerId);
 
-        var result = await _service.SaveEditsAsync(photo.Id);
+        var coreApi = new FakeFileModuleApi(CreateTestImage());
+        var service = CreateService(coreApi);
 
-        Assert.IsTrue(result);
-        // Should not have called download service at all
-        _downloadServiceMock.Verify(
-            d => d.DownloadCurrentAsync(It.IsAny<Guid>(), It.IsAny<CallerContext>(), It.IsAny<CancellationToken>()),
-            Times.Never);
+        Assert.IsTrue(await service.SaveEditsAsync(photo.Id, ownerId));
+        Assert.AreEqual(0, coreApi.DownloadedNodeIds.Count);
     }
 
-    // ─── Download Service Throws ─────────────────────────────────────
+    [TestMethod]
+    public async Task SaveEditsAsync_ConsentMissing_ThrowsForbiddenSoTheUiCanAskForIt()
+    {
+        // Saving needs the original, i.e. the core's `files:read` consent. Swallowing the refusal made
+        // the module answer a bare 500 ("Failed to apply edits to thumbnails") and the user had no way to
+        // learn that a consent prompt was all that was needed.
+        var ownerId = Guid.CreateVersion7();
+        var photo = await SeedPhotoWithEditsAsync(ownerId, "image/jpeg", ("Rotate", """{"value":"90"}"""));
+
+        var trailers = new Metadata { { "error-code", "MODULE_CONSENT_REQUIRED" } };
+        var refusal = new RpcException(
+            new Status(
+                StatusCode.PermissionDenied,
+                "[MODULE_CONSENT_REQUIRED] The user has not consented to the scopes this call needs: files:read."),
+            trailers);
+
+        var service = CreateService(new FakeFileModuleApi(refusal));
+
+        var ex = await Assert.ThrowsExactlyAsync<FilesConsentRequiredException>(
+            () => service.SaveEditsAsync(photo.Id, ownerId));
+
+        Assert.AreEqual(FilesConsentRequiredException.Code, ex.ErrorCode);
+    }
 
     [TestMethod]
-    public async Task SaveEditsAsync_DownloadServiceThrows_ReturnsFalse()
+    public async Task SaveEditsAsync_OriginalUnavailable_ReturnsFalse()
     {
-        var caller = TestHelpers.CreateCaller();
+        var ownerId = Guid.CreateVersion7();
+        var photo = await SeedPhotoWithEditsAsync(ownerId, "image/jpeg", ("Rotate", """{"value":"90"}"""));
+
+        var service = CreateService(new FakeFileModuleApi(content: null));
+
+        Assert.IsFalse(await service.SaveEditsAsync(photo.Id, ownerId));
+    }
+
+    [TestMethod]
+    public async Task SaveEditsAsync_RotateEdit_RegeneratesBothThumbnails()
+    {
+        var ownerId = Guid.CreateVersion7();
+        var photo = await SeedPhotoWithEditsAsync(ownerId, "image/jpeg", ("Rotate", """{"value":"90"}"""));
+
+        var service = CreateService(new FakeFileModuleApi(CreateTestImage(400, 300)));
+
+        Assert.IsTrue(await service.SaveEditsAsync(photo.Id, ownerId));
+
+        var stored = _db.Photos.Single(p => p.Id == photo.Id);
+        Assert.IsNotNull(stored.ThumbnailGrid);
+        Assert.IsNotNull(stored.ThumbnailDetail);
+
+        // A quarter turn swaps the aspect ratio, proving the stack was applied before resizing.
+        using var detail = Image.Load(stored.ThumbnailDetail!);
+        Assert.IsTrue(detail.Height > detail.Width);
+    }
+
+    [TestMethod]
+    [DataRow("Flip", """{"value":"0"}""")]
+    [DataRow("Flip", """{"value":"1"}""")]
+    [DataRow("Brightness", """{"value":"20"}""")]
+    [DataRow("Brightness", """{"value":"-20"}""")]
+    [DataRow("Contrast", """{"value":"15"}""")]
+    [DataRow("Saturation", """{"value":"30"}""")]
+    [DataRow("Blur", """{"value":"2"}""")]
+    [DataRow("Sharpen", """{"value":"1"}""")]
+    [DataRow("Blur", """{"value":"0"}""")]
+    [DataRow("Sharpen", """{"value":"0"}""")]
+    public async Task SaveEditsAsync_EverySupportedOperation_RegeneratesThumbnails(string editType, string parametersJson)
+    {
+        var ownerId = Guid.CreateVersion7();
+        var photo = await SeedPhotoWithEditsAsync(ownerId, "image/jpeg", (editType, parametersJson));
+
+        var service = CreateService(new FakeFileModuleApi(CreateTestImage()));
+
+        Assert.IsTrue(await service.SaveEditsAsync(photo.Id, ownerId));
+
+        var stored = _db.Photos.Single(p => p.Id == photo.Id);
+        Assert.IsTrue(stored.ThumbnailDetail is { Length: > 0 });
+        Assert.IsTrue(stored.ThumbnailGrid is { Length: > 0 });
+    }
+
+    [TestMethod]
+    [DataRow("Unknown", """{"value":"1"}""")]
+    [DataRow("Rotate", """{"other":"90"}""")]
+    [DataRow("Rotate", """{"value":"not-a-number"}""")]
+    [DataRow("Rotate", "{}")]
+    public async Task SaveEditsAsync_UnusableEditRecord_IsSkippedButStillSucceeds(string editType, string parametersJson)
+    {
+        var ownerId = Guid.CreateVersion7();
+        var photo = await SeedPhotoWithEditsAsync(ownerId, "image/jpeg", (editType, parametersJson));
+
+        var service = CreateService(new FakeFileModuleApi(CreateTestImage()));
+
+        Assert.IsTrue(await service.SaveEditsAsync(photo.Id, ownerId));
+    }
+
+    [TestMethod]
+    public async Task SaveEditsAsync_MultipleEdits_AreAppliedInStackOrder()
+    {
+        var ownerId = Guid.CreateVersion7();
         var photo = await SeedPhotoWithEditsAsync(
-            caller.UserId,
-            "image/jpeg",
-            ("Rotate", """{"value":"90"}"""));
-
-        _downloadServiceMock
-            .Setup(d => d.DownloadCurrentAsync(photo.FileNodeId, It.IsAny<CallerContext>(), It.IsAny<CancellationToken>()))
-            .ThrowsAsync(new IOException("Disk read failure"));
-
-        var result = await _service.SaveEditsAsync(photo.Id);
-
-        Assert.IsFalse(result);
-    }
-
-    // ─── Successful Save: Rotate ─────────────────────────────────────
-
-    [TestMethod]
-    public async Task SaveEditsAsync_RotateEdit_RegeneratesThumbnails()
-    {
-        var caller = TestHelpers.CreateCaller();
-        var photo = await SeedPhotoWithEditsAsync(
-            caller.UserId,
-            "image/jpeg",
-            ("Rotate", """{"value":"90"}"""));
-
-        SetupDownloadWithImage(photo.FileNodeId);
-
-        var result = await _service.SaveEditsAsync(photo.Id);
-
-        Assert.IsTrue(result);
-
-        var updated = await _db.Photos.FindAsync(photo.Id);
-        Assert.IsNotNull(updated!.ThumbnailGrid);
-        Assert.IsNotNull(updated.ThumbnailDetail);
-        Assert.IsTrue(updated.ThumbnailGrid!.Length > 0);
-        Assert.IsTrue(updated.ThumbnailDetail!.Length > 0);
-    }
-
-    // ─── Successful Save: Flip Horizontal ────────────────────────────
-
-    [TestMethod]
-    public async Task SaveEditsAsync_FlipHorizontal_RegeneratesThumbnails()
-    {
-        var caller = TestHelpers.CreateCaller();
-        var photo = await SeedPhotoWithEditsAsync(
-            caller.UserId,
-            "image/jpeg",
-            ("Flip", """{"value":"0"}"""));
-
-        SetupDownloadWithImage(photo.FileNodeId);
-
-        var result = await _service.SaveEditsAsync(photo.Id);
-
-        Assert.IsTrue(result);
-        var updated = await _db.Photos.FindAsync(photo.Id);
-        Assert.IsNotNull(updated!.ThumbnailGrid);
-        Assert.IsNotNull(updated.ThumbnailDetail);
-    }
-
-    // ─── Successful Save: Flip Vertical ──────────────────────────────
-
-    [TestMethod]
-    public async Task SaveEditsAsync_FlipVertical_RegeneratesThumbnails()
-    {
-        var caller = TestHelpers.CreateCaller();
-        var photo = await SeedPhotoWithEditsAsync(
-            caller.UserId,
-            "image/jpeg",
-            ("Flip", """{"value":"1"}"""));
-
-        SetupDownloadWithImage(photo.FileNodeId);
-
-        var result = await _service.SaveEditsAsync(photo.Id);
-
-        Assert.IsTrue(result);
-    }
-
-    // ─── Successful Save: Brightness ─────────────────────────────────
-
-    [TestMethod]
-    public async Task SaveEditsAsync_BrightnessEdit_RegeneratesThumbnails()
-    {
-        var caller = TestHelpers.CreateCaller();
-        var photo = await SeedPhotoWithEditsAsync(
-            caller.UserId,
-            "image/jpeg",
-            ("Brightness", """{"value":"25"}"""));
-
-        SetupDownloadWithImage(photo.FileNodeId);
-
-        var result = await _service.SaveEditsAsync(photo.Id);
-
-        Assert.IsTrue(result);
-        var updated = await _db.Photos.FindAsync(photo.Id);
-        Assert.IsNotNull(updated!.ThumbnailGrid);
-    }
-
-    // ─── Successful Save: Contrast ───────────────────────────────────
-
-    [TestMethod]
-    public async Task SaveEditsAsync_ContrastEdit_RegeneratesThumbnails()
-    {
-        var caller = TestHelpers.CreateCaller();
-        var photo = await SeedPhotoWithEditsAsync(
-            caller.UserId,
-            "image/jpeg",
-            ("Contrast", """{"value":"30"}"""));
-
-        SetupDownloadWithImage(photo.FileNodeId);
-
-        var result = await _service.SaveEditsAsync(photo.Id);
-
-        Assert.IsTrue(result);
-    }
-
-    // ─── Successful Save: Saturation ─────────────────────────────────
-
-    [TestMethod]
-    public async Task SaveEditsAsync_SaturationEdit_RegeneratesThumbnails()
-    {
-        var caller = TestHelpers.CreateCaller();
-        var photo = await SeedPhotoWithEditsAsync(
-            caller.UserId,
-            "image/jpeg",
-            ("Saturation", """{"value":"-20"}"""));
-
-        SetupDownloadWithImage(photo.FileNodeId);
-
-        var result = await _service.SaveEditsAsync(photo.Id);
-
-        Assert.IsTrue(result);
-    }
-
-    // ─── Successful Save: Blur ───────────────────────────────────────
-
-    [TestMethod]
-    public async Task SaveEditsAsync_BlurEdit_RegeneratesThumbnails()
-    {
-        var caller = TestHelpers.CreateCaller();
-        var photo = await SeedPhotoWithEditsAsync(
-            caller.UserId,
-            "image/jpeg",
-            ("Blur", """{"value":"5"}"""));
-
-        SetupDownloadWithImage(photo.FileNodeId);
-
-        var result = await _service.SaveEditsAsync(photo.Id);
-
-        Assert.IsTrue(result);
-    }
-
-    // ─── Successful Save: Sharpen ────────────────────────────────────
-
-    [TestMethod]
-    public async Task SaveEditsAsync_SharpenEdit_RegeneratesThumbnails()
-    {
-        var caller = TestHelpers.CreateCaller();
-        var photo = await SeedPhotoWithEditsAsync(
-            caller.UserId,
-            "image/jpeg",
-            ("Sharpen", """{"value":"3"}"""));
-
-        SetupDownloadWithImage(photo.FileNodeId);
-
-        var result = await _service.SaveEditsAsync(photo.Id);
-
-        Assert.IsTrue(result);
-    }
-
-    // ─── Blur With Zero Value ────────────────────────────────────────
-
-    [TestMethod]
-    public async Task SaveEditsAsync_BlurZeroValue_StillSucceeds()
-    {
-        var caller = TestHelpers.CreateCaller();
-        var photo = await SeedPhotoWithEditsAsync(
-            caller.UserId,
-            "image/jpeg",
-            ("Blur", """{"value":"0"}"""));
-
-        SetupDownloadWithImage(photo.FileNodeId);
-
-        var result = await _service.SaveEditsAsync(photo.Id);
-
-        Assert.IsTrue(result);
-    }
-
-    // ─── Sharpen With Zero Value ─────────────────────────────────────
-
-    [TestMethod]
-    public async Task SaveEditsAsync_SharpenZeroValue_StillSucceeds()
-    {
-        var caller = TestHelpers.CreateCaller();
-        var photo = await SeedPhotoWithEditsAsync(
-            caller.UserId,
-            "image/jpeg",
-            ("Sharpen", """{"value":"0"}"""));
-
-        SetupDownloadWithImage(photo.FileNodeId);
-
-        var result = await _service.SaveEditsAsync(photo.Id);
-
-        Assert.IsTrue(result);
-    }
-
-    // ─── Multiple Edits ──────────────────────────────────────────────
-
-    [TestMethod]
-    public async Task SaveEditsAsync_MultipleEdits_AppliesAllInOrder()
-    {
-        var caller = TestHelpers.CreateCaller();
-        var photo = await SeedPhotoWithEditsAsync(
-            caller.UserId,
+            ownerId,
             "image/jpeg",
             ("Rotate", """{"value":"90"}"""),
-            ("Flip", """{"value":"0"}"""),
-            ("Brightness", """{"value":"10"}"""),
-            ("Contrast", """{"value":"20"}"""),
-            ("Saturation", """{"value":"-15"}"""));
-
-        SetupDownloadWithImage(photo.FileNodeId);
-
-        var result = await _service.SaveEditsAsync(photo.Id);
-
-        Assert.IsTrue(result);
-        var updated = await _db.Photos.FindAsync(photo.Id);
-        Assert.IsNotNull(updated!.ThumbnailGrid);
-        Assert.IsNotNull(updated.ThumbnailDetail);
-        Assert.IsTrue(updated.ThumbnailGrid!.Length > 0);
-        Assert.IsTrue(updated.ThumbnailDetail!.Length > 0);
-    }
-
-    // ─── UpdatedAt Timestamp ─────────────────────────────────────────
-
-    [TestMethod]
-    public async Task SaveEditsAsync_Success_UpdatesTimestamp()
-    {
-        var caller = TestHelpers.CreateCaller();
-        var photo = await SeedPhotoWithEditsAsync(
-            caller.UserId,
-            "image/jpeg",
-            ("Rotate", """{"value":"180"}"""));
-
-        var originalUpdatedAt = photo.UpdatedAt;
-
-        SetupDownloadWithImage(photo.FileNodeId);
-
-        var result = await _service.SaveEditsAsync(photo.Id);
-
-        Assert.IsTrue(result);
-        var updated = await _db.Photos.FindAsync(photo.Id);
-        Assert.IsTrue(updated!.UpdatedAt >= originalUpdatedAt);
-    }
-
-    // ─── Unknown Edit Type ───────────────────────────────────────────
-
-    [TestMethod]
-    public async Task SaveEditsAsync_UnknownEditType_SkippedGracefully()
-    {
-        var caller = TestHelpers.CreateCaller();
-        var photo = await SeedPhotoWithEditsAsync(
-            caller.UserId,
-            "image/jpeg",
-            ("FutureEditType", """{"value":"42"}"""));
-
-        SetupDownloadWithImage(photo.FileNodeId);
-
-        var result = await _service.SaveEditsAsync(photo.Id);
-
-        Assert.IsTrue(result);
-    }
-
-    // ─── Missing Value Parameter ─────────────────────────────────────
-
-    [TestMethod]
-    public async Task SaveEditsAsync_MissingValueParameter_SkippedGracefully()
-    {
-        var caller = TestHelpers.CreateCaller();
-        var photo = await SeedPhotoWithEditsAsync(
-            caller.UserId,
-            "image/jpeg",
-            ("Rotate", """{"degrees":"90"}""")); // Wrong key
-
-        SetupDownloadWithImage(photo.FileNodeId);
-
-        var result = await _service.SaveEditsAsync(photo.Id);
-
-        Assert.IsTrue(result);
-    }
-
-    // ─── Non-Numeric Value Parameter ─────────────────────────────────
-
-    [TestMethod]
-    public async Task SaveEditsAsync_NonNumericValue_SkippedGracefully()
-    {
-        var caller = TestHelpers.CreateCaller();
-        var photo = await SeedPhotoWithEditsAsync(
-            caller.UserId,
-            "image/jpeg",
-            ("Rotate", """{"value":"abc"}"""));
-
-        SetupDownloadWithImage(photo.FileNodeId);
-
-        var result = await _service.SaveEditsAsync(photo.Id);
-
-        Assert.IsTrue(result);
-    }
-
-    // ─── Supported MIME Types ────────────────────────────────────────
-
-    [TestMethod]
-    [DataRow("image/jpeg")]
-    [DataRow("image/jpg")]
-    [DataRow("image/png")]
-    [DataRow("image/gif")]
-    [DataRow("image/webp")]
-    [DataRow("image/bmp")]
-    [DataRow("image/tiff")]
-    public async Task SaveEditsAsync_SupportedMimeType_Succeeds(string mimeType)
-    {
-        var caller = TestHelpers.CreateCaller();
-        var photo = await SeedPhotoWithEditsAsync(
-            caller.UserId,
-            mimeType,
             ("Rotate", """{"value":"90"}"""));
 
-        SetupDownloadWithImage(photo.FileNodeId);
+        var service = CreateService(new FakeFileModuleApi(CreateTestImage(400, 300)));
 
-        var result = await _service.SaveEditsAsync(photo.Id);
+        Assert.IsTrue(await service.SaveEditsAsync(photo.Id, ownerId));
 
-        Assert.IsTrue(result);
+        using var detail = Image.Load(_db.Photos.Single(p => p.Id == photo.Id).ThumbnailDetail!);
+
+        // Two quarter turns restore the original landscape orientation.
+        Assert.IsTrue(detail.Width > detail.Height);
     }
 
-    // ─── Unsupported MIME Types ──────────────────────────────────────
-
     [TestMethod]
-    [DataRow("application/pdf")]
-    [DataRow("video/mp4")]
-    [DataRow("audio/mpeg")]
-    [DataRow("text/plain")]
-    public async Task SaveEditsAsync_UnsupportedMimeType_ReturnsFalse(string mimeType)
+    public async Task SaveEditsAsync_Success_UpdatesTimestampAndProducesValidJpeg()
     {
-        var caller = TestHelpers.CreateCaller();
-        var photo = await SeedPhotoWithEditsAsync(
-            caller.UserId,
-            mimeType,
-            ("Rotate", """{"value":"90"}"""));
+        var ownerId = Guid.CreateVersion7();
+        var photo = await SeedPhotoWithEditsAsync(ownerId, "image/jpeg", ("Rotate", """{"value":"90"}"""));
+        var before = photo.UpdatedAt;
 
-        var result = await _service.SaveEditsAsync(photo.Id);
+        await Task.Delay(10);
+        var service = CreateService(new FakeFileModuleApi(CreateTestImage()));
 
-        Assert.IsFalse(result);
+        Assert.IsTrue(await service.SaveEditsAsync(photo.Id, ownerId));
+
+        var stored = _db.Photos.Single(p => p.Id == photo.Id);
+        Assert.IsTrue(stored.UpdatedAt >= before);
+
+        using var image = await Image.LoadAsync(new MemoryStream(stored.ThumbnailGrid!));
+        Assert.AreEqual("jpeg", image.Metadata.DecodedImageFormat?.Name.ToLowerInvariant());
     }
 
-    // ─── Detail Thumbnail Is Larger Than Grid ────────────────────────
-
     [TestMethod]
-    public async Task SaveEditsAsync_DetailThumbnailLargerThanGrid()
+    public async Task SaveEditsAsync_ReadsThePhotoFileNodeThroughTheCore()
     {
-        var caller = TestHelpers.CreateCaller();
-        var photo = await SeedPhotoWithEditsAsync(
-            caller.UserId,
-            "image/jpeg",
-            ("Brightness", """{"value":"10"}"""));
+        var ownerId = Guid.CreateVersion7();
+        var photo = await SeedPhotoWithEditsAsync(ownerId, "image/jpeg", ("Rotate", """{"value":"90"}"""));
 
-        SetupDownloadWithImage(photo.FileNodeId, 2000, 2000);
+        var coreApi = new FakeFileModuleApi(CreateTestImage());
+        var service = CreateService(coreApi);
 
-        var result = await _service.SaveEditsAsync(photo.Id);
-
-        Assert.IsTrue(result);
-        var updated = await _db.Photos.FindAsync(photo.Id);
-        Assert.IsTrue(updated!.ThumbnailDetail!.Length > updated.ThumbnailGrid!.Length,
-            "Detail thumbnail should be larger than grid thumbnail for a 2000px source image");
-    }
-
-    // ─── Thumbnails Are Valid JPEG ───────────────────────────────────
-
-    [TestMethod]
-    public async Task SaveEditsAsync_GeneratedThumbnails_AreValidJpeg()
-    {
-        var caller = TestHelpers.CreateCaller();
-        var photo = await SeedPhotoWithEditsAsync(
-            caller.UserId,
-            "image/jpeg",
-            ("Rotate", """{"value":"90"}"""));
-
-        SetupDownloadWithImage(photo.FileNodeId, 500, 500);
-
-        await _service.SaveEditsAsync(photo.Id);
-
-        var updated = await _db.Photos.FindAsync(photo.Id);
-
-        // Verify JPEG magic bytes (FFD8FF)
-        Assert.AreEqual(0xFF, updated!.ThumbnailGrid![0]);
-        Assert.AreEqual(0xD8, updated.ThumbnailGrid[1]);
-        Assert.AreEqual(0xFF, updated.ThumbnailGrid[2]);
-
-        Assert.AreEqual(0xFF, updated.ThumbnailDetail![0]);
-        Assert.AreEqual(0xD8, updated.ThumbnailDetail[1]);
-        Assert.AreEqual(0xFF, updated.ThumbnailDetail[2]);
-    }
-
-    // ─── Download Service Called With Correct FileNodeId ─────────────
-
-    [TestMethod]
-    public async Task SaveEditsAsync_CallsDownloadServiceWithCorrectFileNodeId()
-    {
-        var caller = TestHelpers.CreateCaller();
-        var photo = await SeedPhotoWithEditsAsync(
-            caller.UserId,
-            "image/jpeg",
-            ("Rotate", """{"value":"90"}"""));
-
-        SetupDownloadWithImage(photo.FileNodeId);
-
-        await _service.SaveEditsAsync(photo.Id);
-
-        _downloadServiceMock.Verify(
-            d => d.DownloadCurrentAsync(photo.FileNodeId, It.IsAny<CallerContext>(), It.IsAny<CancellationToken>()),
-            Times.Once);
-    }
-
-    // ─── Download Service Called With System Caller ───────────────────
-
-    [TestMethod]
-    public async Task SaveEditsAsync_UsesSystemCallerContext()
-    {
-        var caller = TestHelpers.CreateCaller();
-        var photo = await SeedPhotoWithEditsAsync(
-            caller.UserId,
-            "image/jpeg",
-            ("Rotate", """{"value":"90"}"""));
-
-        SetupDownloadWithImage(photo.FileNodeId);
-
-        await _service.SaveEditsAsync(photo.Id);
-
-        _downloadServiceMock.Verify(
-            d => d.DownloadCurrentAsync(
-                photo.FileNodeId,
-                It.Is<CallerContext>(c => c.Type == CallerType.System && c.UserId == photo.OwnerId),
-                It.IsAny<CancellationToken>()),
-            Times.Once);
-    }
-
-    // ─── Overwrites Previous Thumbnails ──────────────────────────────
-
-    [TestMethod]
-    public async Task SaveEditsAsync_OverwritesPreviousThumbnails()
-    {
-        var caller = TestHelpers.CreateCaller();
-        var photo = await SeedPhotoWithEditsAsync(
-            caller.UserId,
-            "image/jpeg",
-            ("Rotate", """{"value":"90"}"""));
-
-        // Seed existing thumbnail data
-        photo.ThumbnailGrid = new byte[] { 1, 2, 3 };
-        photo.ThumbnailDetail = new byte[] { 4, 5, 6 };
-        await _db.SaveChangesAsync();
-
-        SetupDownloadWithImage(photo.FileNodeId);
-
-        var result = await _service.SaveEditsAsync(photo.Id);
-
-        Assert.IsTrue(result);
-        var updated = await _db.Photos.FindAsync(photo.Id);
-        Assert.AreNotEqual(3, updated!.ThumbnailGrid!.Length);
-        Assert.AreNotEqual(3, updated.ThumbnailDetail!.Length);
-    }
-
-    // ─── Negative Brightness ─────────────────────────────────────────
-
-    [TestMethod]
-    public async Task SaveEditsAsync_NegativeBrightness_Succeeds()
-    {
-        var caller = TestHelpers.CreateCaller();
-        var photo = await SeedPhotoWithEditsAsync(
-            caller.UserId,
-            "image/jpeg",
-            ("Brightness", """{"value":"-50"}"""));
-
-        SetupDownloadWithImage(photo.FileNodeId);
-
-        var result = await _service.SaveEditsAsync(photo.Id);
-
-        Assert.IsTrue(result);
-    }
-
-    // ─── Negative Contrast ───────────────────────────────────────────
-
-    [TestMethod]
-    public async Task SaveEditsAsync_NegativeContrast_Succeeds()
-    {
-        var caller = TestHelpers.CreateCaller();
-        var photo = await SeedPhotoWithEditsAsync(
-            caller.UserId,
-            "image/jpeg",
-            ("Contrast", """{"value":"-30"}"""));
-
-        SetupDownloadWithImage(photo.FileNodeId);
-
-        var result = await _service.SaveEditsAsync(photo.Id);
-
-        Assert.IsTrue(result);
-    }
-
-    // ─── Empty Parameters JSON ───────────────────────────────────────
-
-    [TestMethod]
-    public async Task SaveEditsAsync_EmptyParametersJson_SkippedGracefully()
-    {
-        var caller = TestHelpers.CreateCaller();
-        var photo = await SeedPhotoWithEditsAsync(
-            caller.UserId,
-            "image/jpeg",
-            ("Rotate", """{}"""));
-
-        SetupDownloadWithImage(photo.FileNodeId);
-
-        var result = await _service.SaveEditsAsync(photo.Id);
-
-        Assert.IsTrue(result);
-    }
-
-    // ─── Edits Applied In StackOrder ─────────────────────────────────
-
-    [TestMethod]
-    public async Task SaveEditsAsync_EditsAppliedInStackOrder()
-    {
-        var caller = TestHelpers.CreateCaller();
-        var photo = await TestHelpers.SeedPhotoAsync(_db, caller.UserId);
-
-        // Add edits with non-sequential insertion but sequential StackOrder
-        _db.PhotoEditRecords.Add(new PhotoEditRecord
-        {
-            PhotoId = photo.Id,
-            OperationType = "Rotate",
-            ParametersJson = """{"value":"90"}""",
-            StackOrder = 2,
-            EditedByUserId = caller.UserId
-        });
-        _db.PhotoEditRecords.Add(new PhotoEditRecord
-        {
-            PhotoId = photo.Id,
-            OperationType = "Brightness",
-            ParametersJson = """{"value":"10"}""",
-            StackOrder = 0,
-            EditedByUserId = caller.UserId
-        });
-        _db.PhotoEditRecords.Add(new PhotoEditRecord
-        {
-            PhotoId = photo.Id,
-            OperationType = "Flip",
-            ParametersJson = """{"value":"0"}""",
-            StackOrder = 1,
-            EditedByUserId = caller.UserId
-        });
-        await _db.SaveChangesAsync();
-
-        SetupDownloadWithImage(photo.FileNodeId);
-
-        var result = await _service.SaveEditsAsync(photo.Id);
-
-        Assert.IsTrue(result);
+        Assert.IsTrue(await service.SaveEditsAsync(photo.Id, ownerId));
+        CollectionAssert.AreEqual(new[] { photo.FileNodeId.ToString() }, coreApi.DownloadedNodeIds);
     }
 }

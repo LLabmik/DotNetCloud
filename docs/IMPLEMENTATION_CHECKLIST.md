@@ -8,6 +8,57 @@
 
 ---
 
+## Recent Work — Track C: Photos module sandboxed (2026-11-10, `feature/third-party-modules`)
+
+Fifth Track C module, and the first whose **media path** had to change: the host used to reference the
+Files module's data layer and read image bytes straight off the shared storage root. Photos now owns
+its schema, reads originals only through the core's `IFileDirectory` capability on the signed-in
+user's behalf, serves its own framed UI, and the core keeps no code or project reference to it.
+
+**Data plane**
+
+- ✓ `PhotosDbContext` schema-neutral (`HasDefaultSchema` removed) and **both** migration sets stripped of `EnsureSchema`/`schema:`/`principalSchema:`, with their original migration ids preserved.
+- ✓ `PhotosDbInitializer` (shared `ModuleSchemaInitializer`: baselines an existing core-managed schema, then self-migrates).
+- ✓ `PhotosUserErasureHandler` — photos, albums, album links, metadata, tags, edit records and shares in both directions; soft-deleted rows included; idempotent; the account id is never logged.
+- ✓ Manifest v2 (`dataStore: "isolated"`, `handlesUserErasure: true`, consent `files:read`/`notifications:send`, iframe app + widget), version `2.0.0`, plus the module-root `LICENSE`/`README.md`/`CHANGELOG.md` the packer requires.
+
+**Media path (the part that made this module different)**
+
+- ✓ The host no longer constructs `FilesDbContext`/`LocalFileStorageEngine`. Thumbnails are generated **lazily on first view** through `IDncModuleApi.DownloadFileAsync` — a request carries the owner's assertion, a background worker has none — and only the owner may generate; `SaveEditsAsync` reads the same way.
+- ✓ Full-size download streams the original through the core and answers **404** when the file belongs to another account (a photo merely shared with the caller keeps its cached previews).
+- ✓ Core-initiated indexing: new `IndexPhoto`/`GetIndexedFileNodeIds`/`RemoveDeletedPhotos` RPCs, `ModuleUserAssertionGrpcInterceptor` (assertion adoption for gRPC, the twin of the HTTP middleware), and `IPhotoIndexingClient` in the core so the media-library import still works — **without** an in-process callback.
+- ✓ Removed rather than left broken: the `FileUploadedEvent` subscription (a sandboxed module never sees another module's events), the thumbnail queue/worker, and `PhotosSharedWithMeProvider` (in-process aggregation).
+
+**Host, UI and decoupling**
+
+- ✓ Sandboxed host: `module.json` topology, module-private DataProtection ring, `AddModuleUserAssertionAccessor()`, **no cookie scheme**, scoped `DOTNETCLOUD_MODULE_DB_CONNECTION_STRING`, erasure registration, static files, `/api/info` instead of mapping `/`.
+- ✓ `PhotosControllerBase` resolves the user from `IModuleUserAssertionAccessor`; `PhotosExceptionFilter` answers **401** for a missing/expired assertion (never 500).
+- ✓ Module-hosted UI: `wwwroot/index.html` + `assets/photos-ui.{js,css}` (paged library, favourites, timeline, search, albums, viewer with non-destructive rotate/flip + save, download, remove, shared-with-me, help) and `wwwroot/widget/` (five most recent photos).
+- ✓ Decoupled: project references (Core.Server, UI.Web, CLI), `DbContextSchemaProvider` entry, both UI registration services, `AddAdditionalAssemblies`, the in-core page/help/layout script and the widget project — all gone; the library is a plain class library.
+
+**Verification**
+
+- ✓ `dotnet build DotNetCloud.CI.slnf` clean; `Photos.Tests` **202 passed**; `Core.Server.Tests` **1673 passed / 2 skipped**; full CI run green apart from the two pre-existing `sqlcmd`-dependent backup integration tests.
+- ✓ **Deep links into the frame** — the shell forwards its query to the app (`ModuleAppUrls.NormalizeFrameQuery`, plain `key=value` pairs only), so `/modules/dotnetcloud.photos?photoId=…` / `?album=…` open one item; search hits and the Home widget use it again.
+- ✓ **Files "Shared with me → Photos" restored** — a `GetSharedWithMe` module RPC (assertion-scoped, titles resolved module-side) and a `PhotosSharedWithMeProvider` that talks gRPC through `IPhotosApiClient`.
+- ✓ **Notifications owned by the module** — album-share fan-out (including teams via `ITeamDirectory`) happens in the module and deep-links into the app; the core's duplicate `AlbumSharedEvent` producer is deleted.
+- ✓ **Least privilege** — `IUserDirectory`/`profile` dropped (never used); capabilities are `IAuditLogger`, `ISearchProvider`, `ITeamDirectory`, `IFileDirectory`, `INotificationService`, consent `files:read`/`notifications:send`.
+- ✓ **Packaged + published to the catalogue** — `dotnetcloud.photos` 2.0.0 (linux-x64 + win-x64, 31,955,574 B, sha256 `e4a0bd35…`) signed `dotnetcloud-official-2026`; store `validate` green (7 packages), catalogue rebuilt/signed `store-2026` (5 packages / 7 versions), `verify-index` clean; the store tool's `KnownScopes` gained `profile` so it tracks the core catalogue.
+- ✓ **Verified live (dev server, 2026-11-10)** — deploy 15/15 with assembly hashes; `/health/ready` **15/15**, `dotnetcloud.photos` `Running`/`Active`/`Bundled`/`Isolated`; adoption left the legacy `photos` schema **empty** and moved **107** photos into `dnc_dotnetcloud_photos_8ccb1097` (8 tables owned by the module principal, history = the five original ids, `USAGE` on its schema and **no `CREATE` on the database**); the host serves `/`, the JS/CSS, the widget and the bridge over its h2c socket; `/api/v1/photos` and `/api/v1/albums` answer **401** unauthenticated; `/apps/dotnetcloud.photos/` **401** and `/modules/dotnetcloud.photos` **302** → login.
+- ✓ **Live on `modules.dotnetcloud.net` (2026-11-10)** — release `20261110-224903` is `current`; all seven advertised `downloadUrl`s answer **200 `application/octet-stream`**; the published Photos package downloaded back over HTTPS is byte-identical (31,955,574 B, sha256 `e4a0bd35…`) and `dotnetcloud-pack verify --key-file …official-2026` reports **OK**.
+- ✓ **Collateral 404s found and fixed** — the deploy robocopy's the site box's *own* store clone, which was missing the AI 2.0.0 and Bookmarks 1.2.0 bytes, so the first release advertised two packages that 404'd. Both were pushed up (per-file SHA-256) and the deploy re-run.
+- ✓ **Verified in a real browser (2026-11-10)** — signed-in click-through of the framed app and the widget on Home. Five defects found and fixed:
+  - ✓ **Images 401'd inside the frame.** Browser-built `<img>` requests carry neither the session cookie (opaque origin) nor the bridge's ticket header. New `bridge.mediaUrl(url)` (SDK) carries the ticket in the query string for browser-initiated subresources; every `src` in the app and widget goes through it, guarded by a test.
+  - ✓ **Edit API could not bind requests** — no module host configured a string-enum converter, so `"operationType": "Rotate"` was a 400. New shared `AddModuleJsonOptions()` in `Core.Grpc`.
+  - ✓ **Edit response serialised the EF entity** — the `Photo` navigation dragged every cached thumbnail in as base64 (27 MB for a tiny edit) and the proxy reset the stream. Now `PhotoEditRecordDto`, with a size/graph regression test.
+  - ✓ **Parameter contract unified** on `value` (clockwise degrees / 0-1 flip), matching what the image pipeline actually applies.
+  - ✓ **Consent refusal is actionable** — 403 `FILES_CONSENT_REQUIRED` → the app calls `bridge.requestConsent(["files:read"])` → the shell shows its permission band; previously a bare 500.
+  - ✓ **Queued edits preview instantly** — CSS transform derived from the stored stack (optimistic, with a stale-response guard), cleared once "Save edits" bakes the pixels.
+- ☐ **Outstanding (found while testing)** — `Revert all edits` leaves the baked previews (no regenerate-from-original path); Crop/Brightness/Contrast/Saturation/Sharpen/Blur are unreachable from the UI and `ApplyEditToImage` needs a `value` parameter; the frame ticket expires after 15 min; approving consent reloads the frame and drops in-progress state.
+- ☐ Commit the store repository.
+
+---
+
 ## Recent Work — Track C: Music conversion withdrawn; two core capabilities kept (2026-11-09, `feature/third-party-modules`)
 
 The Music conversion was completed, deployed and exercised live, then **reverted**: Music stays a

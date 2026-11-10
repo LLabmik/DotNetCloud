@@ -57,7 +57,7 @@ public class AlbumSharedNotificationHandlerTests
     }
 
     [TestMethod]
-    public async Task HandleAsync_TeamShare_SkipsDirectUserNotification()
+    public async Task HandleAsync_TeamShareWithoutATeamDirectory_NotifiesNobody()
     {
         var notifMock = new Mock<INotificationService>();
         var handler = new AlbumSharedNotificationHandler(
@@ -105,8 +105,56 @@ public class AlbumSharedNotificationHandlerTests
 
         notifMock.Verify(n => n.SendAsync(
             It.IsAny<Guid>(),
-            It.Is<NotificationDto>(d => d.ActionUrl == $"/photos/albums/{albumId}"),
+            It.Is<NotificationDto>(d =>
+                d.ActionUrl == $"/modules/dotnetcloud.photos?album={albumId}"),
             It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [TestMethod]
+    public async Task HandleAsync_TeamShare_FansOutToEveryMemberExceptTheSharer()
+    {
+        var notifMock = new Mock<INotificationService>();
+        var teamId = Guid.CreateVersion7();
+        var sharerId = Guid.CreateVersion7();
+        var memberOne = Guid.CreateVersion7();
+        var memberTwo = Guid.CreateVersion7();
+
+        var teamDirectory = new Mock<ITeamDirectory>();
+        teamDirectory
+            .Setup(d => d.GetTeamMembersAsync(teamId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(
+            [
+                new TeamMemberInfo { TeamId = teamId, UserId = sharerId, JoinedAt = DateTime.UtcNow },
+                new TeamMemberInfo { TeamId = teamId, UserId = memberOne, JoinedAt = DateTime.UtcNow },
+                new TeamMemberInfo { TeamId = teamId, UserId = memberTwo, JoinedAt = DateTime.UtcNow },
+            ]);
+
+        var handler = new AlbumSharedNotificationHandler(
+            Mock.Of<ILogger<AlbumSharedNotificationHandler>>(),
+            notifMock.Object,
+            teamDirectory.Object);
+
+        await handler.HandleAsync(
+            new AlbumSharedEvent
+            {
+                EventId = Guid.CreateVersion7(),
+                CreatedAt = DateTime.UtcNow,
+                AlbumId = Guid.CreateVersion7(),
+                SharedByUserId = sharerId,
+                SharedWithTeamId = teamId,
+                Permission = "ReadOnly"
+            },
+            CancellationToken.None);
+
+        notifMock.Verify(
+            n => n.SendAsync(memberOne, It.IsAny<NotificationDto>(), It.IsAny<CancellationToken>()),
+            Times.Once);
+        notifMock.Verify(
+            n => n.SendAsync(memberTwo, It.IsAny<NotificationDto>(), It.IsAny<CancellationToken>()),
+            Times.Once);
+        notifMock.Verify(
+            n => n.SendAsync(sharerId, It.IsAny<NotificationDto>(), It.IsAny<CancellationToken>()),
+            Times.Never);
     }
 
     [TestMethod]

@@ -32,9 +32,22 @@
     <ProjectReference Include="..\DotNetCloud.Modules.Photos.Data\DotNetCloud.Modules.Photos.Data.csproj" />
     <ProjectReference Include="..\DotNetCloud.Modules.Photos.Data.SqlServer\DotNetCloud.Modules.Photos.Data.SqlServer.csproj" />
     <ProjectReference Include="..\..\..\Core\DotNetCloud.Core.Grpc\DotNetCloud.Core.Grpc.csproj" />
-    <!-- Cross-module: needed for IDownloadService to serve full-size originals -->
-    <ProjectReference Include="..\..\Files\DotNetCloud.Modules.Files.Data\DotNetCloud.Modules.Files.Data.csproj" />
-    <ProjectReference Include="..\..\Files\DotNetCloud.Modules.Files\DotNetCloud.Modules.Files.csproj" />
+    <ProjectReference Include="..\..\..\SDK\DotNetCloud.Modules.Sdk\DotNetCloud.Modules.Sdk.csproj" />
+    <!-- No cross-module reference: the user's files are read through the core (IFileDirectory). -->
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- One copy of the protocol in the repo: the SDK bridge, copied into this host's wwwroot. -->
+    <Content Include="..\..\..\SDK\DotNetCloud.Modules.Sdk\wwwroot\dncModuleBridge.js"
+             Link="wwwroot\dncModuleBridge.js"
+             CopyToOutputDirectory="PreserveNewest"
+             CopyToPublishDirectory="PreserveNewest" />
+    <!-- A plain `dotnet publish` must ship the v2 manifest, or the supervisor falls back to a v1
+         default and withholds the module directories. -->
+    <Content Include="..\manifest.json"
+             Link="manifest.json"
+             CopyToOutputDirectory="PreserveNewest"
+             CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

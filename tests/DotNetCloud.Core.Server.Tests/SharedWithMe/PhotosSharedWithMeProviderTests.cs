@@ -1,211 +1,117 @@
-using DotNetCloud.Core.Authorization;
-using DotNetCloud.Core.DTOs;
 using DotNetCloud.Core.Server.SharedWithMe;
-using DotNetCloud.Modules.Photos.Services;
+using DotNetCloud.Core.Services.ModuleApis;
+using DotNetCloud.Core.SharedWithMe;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
-using Moq;
 
 namespace DotNetCloud.Core.Server.Tests.SharedWithMe;
 
 /// <summary>
-/// Tests for <see cref="PhotosSharedWithMeProvider"/>: the Photos module adapter that feeds Files'
-/// virtual "_DotNetCloud/SharedWithMe/Photos" folder.
+/// The core cannot read the Photos module's share tables (it owns its own schema), so the Files
+/// "Shared with me → Photos" entries come from the module's <c>GetSharedWithMe</c> RPC.
 /// </summary>
 [TestClass]
 public class PhotosSharedWithMeProviderTests
 {
-    /// <summary>
-    /// Builds a provider whose DI scope resolves the given mocked module services.
-    /// </summary>
-    private static PhotosSharedWithMeProvider BuildProvider(
-        IPhotoShareService? shareService = null,
-        IAlbumService? albumService = null,
-        IPhotoService? photoService = null)
-    {
-        var services = new ServiceCollection();
-        services.AddSingleton(shareService ?? Mock.Of<IPhotoShareService>());
-        services.AddSingleton(albumService ?? Mock.Of<IAlbumService>());
-        services.AddSingleton(photoService ?? Mock.Of<IPhotoService>());
-        services.AddSingleton<Microsoft.Extensions.Logging.ILogger<PhotosSharedWithMeProvider>>(
-            NullLogger<PhotosSharedWithMeProvider>.Instance);
-        services.AddSingleton<PhotosSharedWithMeProvider>();
-        var serviceProvider = services.BuildServiceProvider();
-        return serviceProvider.GetRequiredService<PhotosSharedWithMeProvider>();
-    }
-
-    private static AlbumDto Album(Guid id, Guid ownerId, string title, DateTime updatedAt) => new()
-    {
-        Id = id,
-        OwnerId = ownerId,
-        Title = title,
-        CreatedAt = DateTime.UtcNow,
-        UpdatedAt = updatedAt
-    };
-
-    private static PhotoDto Photo(Guid id, Guid ownerId, string fileName, DateTime updatedAt) => new()
-    {
-        Id = id,
-        FileNodeId = Guid.CreateVersion7(),
-        OwnerId = ownerId,
-        FileName = fileName,
-        MimeType = "image/jpeg",
-        TakenAt = DateTime.UtcNow,
-        CreatedAt = DateTime.UtcNow,
-        UpdatedAt = updatedAt
-    };
-
-    private static PhotoShareDto AlbumShare(Guid albumId) => new()
-    {
-        Id = Guid.CreateVersion7(),
-        AlbumId = albumId,
-        SharedWithUserId = Guid.CreateVersion7(),
-        Permission = PhotoSharePermission.ReadOnly,
-        CreatedAt = DateTime.UtcNow
-    };
-
-    private static PhotoShareDto PhotoShare(Guid photoId) => new()
-    {
-        Id = Guid.CreateVersion7(),
-        PhotoId = photoId,
-        SharedWithUserId = Guid.CreateVersion7(),
-        Permission = PhotoSharePermission.ReadOnly,
-        CreatedAt = DateTime.UtcNow
-    };
-
     [TestMethod]
-    public async Task ListAsync_AlbumShare_ReturnsAlbumItemWithTitleAndAlbumDeepLink()
+    public async Task ListAsync_MapsAlbumAndPhotoSharesToDeepLinks()
     {
-        var userId = Guid.CreateVersion7();
-        var ownerId = Guid.CreateVersion7();
         var albumId = Guid.CreateVersion7();
-        var updatedAt = DateTime.UtcNow.AddHours(-1);
-
-        var shareService = new Mock<IPhotoShareService>();
-        shareService
-            .Setup(s => s.GetSharedWithMeAsync(It.IsAny<CallerContext>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync([AlbumShare(albumId)]);
-
-        var albumService = new Mock<IAlbumService>();
-        albumService
-            .Setup(s => s.GetAlbumAsync(albumId, It.IsAny<CallerContext>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(Album(albumId, ownerId, "Beach Trip", updatedAt));
-
-        var provider = BuildProvider(shareService.Object, albumService.Object);
-        var items = await provider.ListAsync(userId);
-
-        Assert.AreEqual(1, items.Count);
-        var item = items.Single();
-        Assert.AreEqual("photos", item.ModuleId);
-        Assert.AreEqual("Photos", item.DisplayName);
-        Assert.AreEqual("Album", item.EntityType);
-        Assert.AreEqual(albumId, item.EntityId);
-        Assert.AreEqual("Beach Trip", item.Title);
-        Assert.AreEqual($"/apps/photos?albumId={albumId}", item.DeepLink);
-        Assert.AreEqual("photo_library", item.IconName);
-        Assert.AreEqual(updatedAt, item.UpdatedAt);
-        Assert.AreEqual(1, await provider.CountAsync(userId));
-    }
-
-    [TestMethod]
-    public async Task ListAsync_PhotoShare_ReturnsPhotoItemFromFileNameWithPhotoDeepLink()
-    {
-        var userId = Guid.CreateVersion7();
-        var ownerId = Guid.CreateVersion7();
         var photoId = Guid.CreateVersion7();
-        var updatedAt = DateTime.UtcNow.AddHours(-2);
+        var provider = CreateProvider(
+        [
+            new PhotoSharedItem(Guid.CreateVersion7(), null, albumId, "Summer", "ReadOnly", DateTime.UtcNow),
+            new PhotoSharedItem(Guid.CreateVersion7(), photoId, null, "sunset.jpg", "Download", DateTime.UtcNow),
+        ]);
 
-        var shareService = new Mock<IPhotoShareService>();
-        shareService
-            .Setup(s => s.GetSharedWithMeAsync(It.IsAny<CallerContext>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync([PhotoShare(photoId)]);
+        var items = await provider.ListAsync(Guid.CreateVersion7());
 
-        var photoService = new Mock<IPhotoService>();
-        photoService
-            .Setup(s => s.GetPhotoAsync(photoId, It.IsAny<CallerContext>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(Photo(photoId, ownerId, "IMG_0001.jpg", updatedAt));
+        Assert.AreEqual(2, items.Count);
 
-        var provider = BuildProvider(shareService.Object, photoService: photoService.Object);
-        var items = await provider.ListAsync(userId);
+        var album = items.Single(item => item.EntityType == "Album");
+        Assert.AreEqual(albumId, album.EntityId);
+        Assert.AreEqual("Summer", album.Title);
+        Assert.AreEqual($"/modules/dotnetcloud.photos?album={albumId}", album.DeepLink);
 
-        Assert.AreEqual(1, items.Count);
-        var item = items.Single();
-        Assert.AreEqual("photos", item.ModuleId);
-        Assert.AreEqual("Photo", item.EntityType);
-        Assert.AreEqual(photoId, item.EntityId);
-        Assert.AreEqual("IMG_0001.jpg", item.Title);
-        Assert.AreEqual($"/apps/photos?photoId={photoId}", item.DeepLink);
-        Assert.AreEqual("image", item.IconName);
-        Assert.AreEqual(updatedAt, item.UpdatedAt);
+        var photo = items.Single(item => item.EntityType == "Photo");
+        Assert.AreEqual(photoId, photo.EntityId);
+        Assert.AreEqual("sunset.jpg", photo.Title);
+        Assert.AreEqual($"/modules/dotnetcloud.photos?photoId={photoId}", photo.DeepLink);
     }
 
     [TestMethod]
-    public async Task ListAsync_DuplicateSharesOfSameEntity_DeduplicatesAndSkipsUnresolvable()
+    public async Task ListAsync_SkipsSharesWhoseEntityNoLongerResolves()
     {
-        var userId = Guid.CreateVersion7();
-        var ownerId = Guid.CreateVersion7();
-        var albumId = Guid.CreateVersion7();
-        var missingAlbumId = Guid.CreateVersion7();
+        var provider = CreateProvider(
+        [
+            new PhotoSharedItem(Guid.CreateVersion7(), Guid.CreateVersion7(), null, string.Empty, "ReadOnly", DateTime.UtcNow),
+        ]);
 
-        var shareService = new Mock<IPhotoShareService>();
-        shareService
-            .Setup(s => s.GetSharedWithMeAsync(It.IsAny<CallerContext>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync([
-                AlbumShare(albumId),
-                new PhotoShareDto
-                {
-                    Id = Guid.CreateVersion7(),
-                    AlbumId = albumId,
-                    SharedWithTeamId = Guid.CreateVersion7(),
-                    Permission = PhotoSharePermission.ReadOnly,
-                    CreatedAt = DateTime.UtcNow
-                },
-                AlbumShare(missingAlbumId)
-            ]);
-
-        var albumService = new Mock<IAlbumService>();
-        albumService
-            .Setup(s => s.GetAlbumAsync(albumId, It.IsAny<CallerContext>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(Album(albumId, ownerId, "Beach Trip", DateTime.UtcNow));
-        albumService
-            .Setup(s => s.GetAlbumAsync(missingAlbumId, It.IsAny<CallerContext>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync((AlbumDto?)null);
-
-        var provider = BuildProvider(shareService.Object, albumService.Object);
-        var items = await provider.ListAsync(userId);
-
-        // Only the resolvable album appears, and only once despite two shares.
-        Assert.AreEqual(1, items.Count);
-        Assert.AreEqual(albumId, items.Single().EntityId);
-    }
-
-    [TestMethod]
-    public async Task ListAsync_NoShares_ReturnsEmpty()
-    {
-        var shareService = new Mock<IPhotoShareService>();
-        shareService
-            .Setup(s => s.GetSharedWithMeAsync(It.IsAny<CallerContext>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync([]);
-
-        var provider = BuildProvider(shareService.Object);
         var items = await provider.ListAsync(Guid.CreateVersion7());
 
         Assert.AreEqual(0, items.Count);
-        Assert.AreEqual(0, await provider.CountAsync(Guid.CreateVersion7()));
     }
 
     [TestMethod]
-    public async Task ListAsync_ShareServiceThrows_ReturnsEmpty()
+    public async Task ListAsync_ModuleUnavailable_ReturnsEmptyInsteadOfThrowing()
     {
-        var shareService = new Mock<IPhotoShareService>();
-        shareService
-            .Setup(s => s.GetSharedWithMeAsync(It.IsAny<CallerContext>(), It.IsAny<CancellationToken>()))
-            .ThrowsAsync(new InvalidOperationException("Photos module unavailable"));
+        var provider = CreateProvider([], throwOnList: true);
 
-        var provider = BuildProvider(shareService.Object);
         var items = await provider.ListAsync(Guid.CreateVersion7());
 
         Assert.AreEqual(0, items.Count);
-        Assert.AreEqual(0, await provider.CountAsync(Guid.CreateVersion7()));
+    }
+
+    [TestMethod]
+    public async Task CountAsync_CountsTheReportedShares()
+    {
+        var provider = CreateProvider(
+        [
+            new PhotoSharedItem(Guid.CreateVersion7(), Guid.CreateVersion7(), null, "a.jpg", "ReadOnly", DateTime.UtcNow),
+            new PhotoSharedItem(Guid.CreateVersion7(), null, Guid.CreateVersion7(), "Trip", "ReadOnly", DateTime.UtcNow),
+        ]);
+
+        Assert.AreEqual(2, await provider.CountAsync(Guid.CreateVersion7()));
+    }
+
+    [TestMethod]
+    public void ModuleId_IsTheStableShortName()
+    {
+        var provider = CreateProvider([]);
+
+        Assert.AreEqual("photos", provider.ModuleId);
+        Assert.AreEqual("photo_library", provider.IconName);
+    }
+
+    private static PhotosSharedWithMeProvider CreateProvider(
+        IReadOnlyList<PhotoSharedItem> items,
+        bool throwOnList = false)
+    {
+        var client = new FakePhotosApiClient(items, throwOnList);
+        var services = new ServiceCollection();
+        services.AddSingleton<IPhotosApiClient>(client);
+
+        return new PhotosSharedWithMeProvider(
+            services.BuildServiceProvider().GetRequiredService<IServiceScopeFactory>(),
+            NullLogger<PhotosSharedWithMeProvider>.Instance);
+    }
+
+    private sealed class FakePhotosApiClient : IPhotosApiClient
+    {
+        private readonly IReadOnlyList<PhotoSharedItem> _items;
+        private readonly bool _throwOnList;
+
+        public FakePhotosApiClient(IReadOnlyList<PhotoSharedItem> items, bool throwOnList)
+        {
+            _items = items;
+            _throwOnList = throwOnList;
+        }
+
+        public Task<IReadOnlyList<PhotoSharedItem>> GetSharedWithMeAsync(
+            Guid userId,
+            CancellationToken cancellationToken = default) =>
+            _throwOnList
+                ? Task.FromException<IReadOnlyList<PhotoSharedItem>>(new InvalidOperationException("module offline"))
+                : Task.FromResult(_items);
     }
 }

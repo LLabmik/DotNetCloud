@@ -8,8 +8,8 @@ namespace DotNetCloud.Modules.Photos.Services;
 /// </summary>
 public interface IPhotoEditService
 {
-    /// <summary>Applies an edit operation to a photo.</summary>
-    Task ApplyEditAsync(Guid photoId, PhotoEditOperationDto operation, CallerContext caller, CancellationToken cancellationToken = default);
+    /// <summary>Applies an edit operation to a photo and returns the recorded entry.</summary>
+    Task<PhotoEditRecordDto> ApplyEditAsync(Guid photoId, PhotoEditOperationDto operation, CallerContext caller, CancellationToken cancellationToken = default);
 
     /// <summary>Gets the edit history stack for a photo.</summary>
     Task<IReadOnlyList<PhotoEditOperationDto>> GetEditStackAsync(Guid photoId, CancellationToken cancellationToken = default);

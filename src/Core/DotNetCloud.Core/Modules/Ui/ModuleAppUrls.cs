@@ -24,6 +24,9 @@ public static class ModuleAppUrls
     /// <summary>The route prefix of the core-chrome shell page that frames a module app.</summary>
     public const string ShellRoot = "/modules";
 
+    /// <summary>Longest query string the shell forwards into a module frame.</summary>
+    public const int MaxFrameQueryLength = 512;
+
     /// <summary>
     /// Gets the site-relative base path of a module app proxy, e.g. <c>/apps/dotnetcloud.files</c>.
     /// </summary>
@@ -63,6 +66,55 @@ public static class ModuleAppUrls
         return Uri.TryCreate(url, UriKind.Absolute, out var uri)
             && uri.Scheme == Uri.UriSchemeHttps
             && !string.IsNullOrEmpty(uri.Host);
+    }
+
+    /// <summary>
+    /// Normalizes a query string carried by the shell page so it can be forwarded to the frame.
+    /// </summary>
+    /// <param name="query">The raw query (with or without a leading <c>?</c>).</param>
+    /// <returns>
+    /// A query starting with <c>?</c>, or an empty string when the input is unusable.
+    /// </returns>
+    /// <remarks>
+    /// <para>
+    /// The shell lives at <c>/modules/{moduleId}?photoId=…</c> while the framed document lives at
+    /// <c>/apps/{moduleId}/</c>; without forwarding, a deep link would land on the module's start
+    /// page and silently drop what the user clicked. <see cref="NormalizeEntryPath"/> deliberately
+    /// strips queries from <em>manifest</em> paths, so the forwarded query is a separate value.
+    /// </para>
+    /// <para>
+    /// Everything outside a conservative character set is dropped rather than escaped: the query is
+    /// appended to a URL the core itself builds, and a module frame has no business receiving a
+    /// fragment, a control character or a scheme.
+    /// </para>
+    /// </remarks>
+    public static string NormalizeFrameQuery(string? query)
+    {
+        if (string.IsNullOrWhiteSpace(query))
+        {
+            return string.Empty;
+        }
+
+        var value = query.Trim();
+        if (value.StartsWith('?'))
+        {
+            value = value[1..];
+        }
+
+        if (value.Length == 0 || value.Length > MaxFrameQueryLength)
+        {
+            return string.Empty;
+        }
+
+        foreach (var ch in value)
+        {
+            if (!char.IsAsciiLetterOrDigit(ch) && ch is not ('&' or '=' or '%' or '-' or '_' or '.' or '~' or '+'))
+            {
+                return string.Empty;
+            }
+        }
+
+        return "?" + value;
     }
 
     private static string BuildPath(string root, string moduleId)

@@ -60,6 +60,17 @@ public partial class ModuleAppHost : ComponentBase, IAsyncDisposable
     [Parameter]
     public string Path { get; set; } = "/";
 
+    /// <summary>
+    /// Gets or sets the query string the shell page was opened with, forwarded to the frame.
+    /// </summary>
+    /// <remarks>
+    /// The shell keeps the browser URL (<c>/modules/{moduleId}?photoId=…</c>) while the frame loads
+    /// <c>/apps/{moduleId}/**</c>. Without forwarding, a deep link would land on the module's start
+    /// page and drop what the user clicked.
+    /// </remarks>
+    [Parameter]
+    public string Query { get; set; } = string.Empty;
+
     /// <summary>Gets the site-relative proxy URL the iframe loads.</summary>
     private string Source
     {
@@ -73,6 +84,13 @@ public partial class ModuleAppHost : ComponentBase, IAsyncDisposable
 
             var path = ModuleAppUrls.NormalizeEntryPath(Path);
             var url = path == "/" ? basePath + "/" : basePath + path;
+
+            var query = ModuleAppUrls.NormalizeFrameQuery(Query);
+            if (query.Length > 0)
+            {
+                url += query;
+            }
+
             return ModuleFrameSource.WithTicket(url, _frameTicket);
         }
     }

@@ -1,8 +1,0 @@
-@page "/apps/photos"
-@rendermode @(new InteractiveServerRenderMode(prerender: false))
-@attribute [Authorize]
-@using Microsoft.AspNetCore.Components
-
-<PageTitle>Photos - DotNetCloud</PageTitle>
-
-<ModulePageHost RouteKey="photos.page" Parameters="_parameters" />

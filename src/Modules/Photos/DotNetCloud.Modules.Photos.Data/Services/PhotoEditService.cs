@@ -34,7 +34,7 @@ public sealed class PhotoEditService : IPhotoEditService
     /// <summary>
     /// Applies a non-destructive edit operation to a photo.
     /// </summary>
-    public async Task<PhotoEditRecord> ApplyEditAsync(Guid photoId, PhotoEditOperationDto operation, CallerContext caller, CancellationToken cancellationToken = default)
+    public async Task<PhotoEditRecordDto> ApplyEditAsync(Guid photoId, PhotoEditOperationDto operation, CallerContext caller, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(operation);
 
@@ -71,13 +71,24 @@ public sealed class PhotoEditService : IPhotoEditService
             EditType = operation.OperationType.ToString()
         }, caller, cancellationToken);
 
-        return record;
+        // Project to the boundary DTO here. Returning the entity would serialize its Photo navigation,
+        // i.e. every cached thumbnail as a base64 blob — a 27 MB answer to a 40-byte edit.
+        return new PhotoEditRecordDto
+        {
+            Id = record.Id,
+            PhotoId = record.PhotoId,
+            OperationType = record.OperationType,
+            Parameters = JsonSerializer.Deserialize<Dictionary<string, string>>(record.ParametersJson)
+                ?? new Dictionary<string, string>(),
+            StackOrder = record.StackOrder,
+            CreatedAt = record.CreatedAt
+        };
     }
 
     /// <inheritdoc />
-    async Task IPhotoEditService.ApplyEditAsync(Guid photoId, PhotoEditOperationDto operation, CallerContext caller, CancellationToken cancellationToken)
+    async Task<PhotoEditRecordDto> IPhotoEditService.ApplyEditAsync(Guid photoId, PhotoEditOperationDto operation, CallerContext caller, CancellationToken cancellationToken)
     {
-        await ApplyEditAsync(photoId, operation, caller, cancellationToken);
+        return await ApplyEditAsync(photoId, operation, caller, cancellationToken);
     }
 
     /// <summary>
@@ -143,11 +154,13 @@ public sealed class PhotoEditService : IPhotoEditService
         switch (operation.OperationType)
         {
             case PhotoEditType.Rotate:
-                if (operation.Parameters.TryGetValue("degrees", out var degreesStr))
-                {
-                    if (!int.TryParse(degreesStr, out var degrees) || (degrees != 90 && degrees != 180 && degrees != 270))
-                        throw new BusinessRuleException(ErrorCodes.InvalidPhotoEdit, "Rotation must be 90, 180, or 270 degrees.");
-                }
+                // `value` is the key the image pipeline applies (PhotoThumbnailService.ApplyEditToImage):
+                // clockwise degrees. ImageSharp only has 0/90/180/270, so "-90" is not a rotation.
+                if (!operation.Parameters.TryGetValue("value", out var degreesStr))
+                    throw new BusinessRuleException(ErrorCodes.InvalidPhotoEdit, "Rotate requires a 'value' of 90, 180, or 270 degrees.");
+
+                if (!int.TryParse(degreesStr, out var degrees) || (degrees != 90 && degrees != 180 && degrees != 270))
+                    throw new BusinessRuleException(ErrorCodes.InvalidPhotoEdit, "Rotation must be 90, 180, or 270 degrees.");
                 break;
 
             case PhotoEditType.Crop:
@@ -160,11 +173,11 @@ public sealed class PhotoEditService : IPhotoEditService
                 break;
 
             case PhotoEditType.Flip:
-                if (operation.Parameters.TryGetValue("direction", out var direction))
-                {
-                    if (direction != "horizontal" && direction != "vertical")
-                        throw new BusinessRuleException(ErrorCodes.InvalidPhotoEdit, "Flip direction must be 'horizontal' or 'vertical'.");
-                }
+                if (!operation.Parameters.TryGetValue("value", out var direction))
+                    throw new BusinessRuleException(ErrorCodes.InvalidPhotoEdit, "Flip requires a 'value' of 0 (horizontal) or 1 (vertical).");
+
+                if (!int.TryParse(direction, out var flip) || (flip != 0 && flip != 1))
+                    throw new BusinessRuleException(ErrorCodes.InvalidPhotoEdit, "Flip value must be 0 (horizontal) or 1 (vertical).");
                 break;
 
             case PhotoEditType.Brightness:

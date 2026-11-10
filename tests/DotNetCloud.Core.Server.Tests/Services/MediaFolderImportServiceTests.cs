@@ -2,7 +2,7 @@ using DotNetCloud.Core.DTOs.Media;
 using DotNetCloud.Core.Server.Services;
 using DotNetCloud.Core.Services.ModuleApis;
 using DotNetCloud.Modules.Files.Data;
-using DotNetCloud.Modules.Photos.Events;
+using DotNetCloud.Core.Server.Services.Media;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -53,13 +53,13 @@ public sealed class MediaFolderImportServiceTests
                 ],
             });
 
-        var photoCallbackMock = new Mock<IPhotoIndexingCallback>();
+        var photoCallbackMock = new Mock<IPhotoIndexingClient>();
         photoCallbackMock
             .Setup(callback => callback.GetIndexedFileNodeIdsAsync(ownerId, It.IsAny<CancellationToken>()))
             .ReturnsAsync([]);
         photoCallbackMock
-            .Setup(callback => callback.IndexPhotoAsync(It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<long>(), It.IsAny<Guid>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
-            .Returns(Task.CompletedTask);
+            .Setup(callback => callback.IndexPhotoAsync(It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<long>(), It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.FromResult(true));
 
         using var provider = CreateServiceProvider(Guid.CreateVersion7().ToString(), filesApiClientMock, photoCallbackMock.Object);
         var service = CreateService(provider);
@@ -87,10 +87,10 @@ public sealed class MediaFolderImportServiceTests
         Assert.AreEqual(0, result.Errors.Count);
 
         photoCallbackMock.Verify(
-            callback => callback.IndexPhotoAsync(firstPhotoId, "cover.jpg", "image/jpeg", 128, ownerId, null, It.IsAny<CancellationToken>()),
+            callback => callback.IndexPhotoAsync(firstPhotoId, "cover.jpg", "image/jpeg", 128, ownerId, It.IsAny<CancellationToken>()),
             Times.Once);
         photoCallbackMock.Verify(
-            callback => callback.IndexPhotoAsync(secondPhotoId, "team.png", "image/png", 256, ownerId, null, It.IsAny<CancellationToken>()),
+            callback => callback.IndexPhotoAsync(secondPhotoId, "team.png", "image/png", 256, ownerId, It.IsAny<CancellationToken>()),
             Times.Once);
         photoCallbackMock.Verify(
             callback => callback.RemoveDeletedPhotosAsync(It.IsAny<IReadOnlyCollection<Guid>>(), It.IsAny<Guid>(), It.IsAny<CancellationToken>()),
@@ -118,7 +118,7 @@ public sealed class MediaFolderImportServiceTests
                 Candidates = [],
             });
 
-        var photoCallbackMock = new Mock<IPhotoIndexingCallback>();
+        var photoCallbackMock = new Mock<IPhotoIndexingClient>();
         photoCallbackMock
             .Setup(callback => callback.GetIndexedFileNodeIdsAsync(ownerId, It.IsAny<CancellationToken>()))
             .ReturnsAsync([stalePhotoId]);
@@ -160,7 +160,7 @@ public sealed class MediaFolderImportServiceTests
                 It.IsAny<CancellationToken>()),
             Times.Once);
         photoCallbackMock.Verify(
-            callback => callback.IndexPhotoAsync(It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<long>(), It.IsAny<Guid>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()),
+            callback => callback.IndexPhotoAsync(It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<long>(), It.IsAny<Guid>(), It.IsAny<CancellationToken>()),
             Times.Never);
     }
 
@@ -191,7 +191,7 @@ public sealed class MediaFolderImportServiceTests
                 ],
             });
 
-        var photoCallbackMock = new Mock<IPhotoIndexingCallback>();
+        var photoCallbackMock = new Mock<IPhotoIndexingClient>();
         photoCallbackMock
             .Setup(callback => callback.GetIndexedFileNodeIdsAsync(ownerId, It.IsAny<CancellationToken>()))
             .ReturnsAsync([existingPhotoId]);
@@ -223,7 +223,7 @@ public sealed class MediaFolderImportServiceTests
 
         // Detection must not mutate: no files indexed, none removed.
         photoCallbackMock.Verify(
-            callback => callback.IndexPhotoAsync(It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<long>(), It.IsAny<Guid>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()),
+            callback => callback.IndexPhotoAsync(It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<long>(), It.IsAny<Guid>(), It.IsAny<CancellationToken>()),
             Times.Never);
         photoCallbackMock.Verify(
             callback => callback.RemoveDeletedPhotosAsync(It.IsAny<IReadOnlyCollection<Guid>>(), It.IsAny<Guid>(), It.IsAny<CancellationToken>()),
@@ -237,7 +237,7 @@ public sealed class MediaFolderImportServiceTests
         var filesApiClientMock = new Mock<IFilesApiClient>();
 
         using var provider = CreateServiceProvider(
-            Guid.CreateVersion7().ToString(), filesApiClientMock, new Mock<IPhotoIndexingCallback>().Object);
+            Guid.CreateVersion7().ToString(), filesApiClientMock, new Mock<IPhotoIndexingClient>().Object);
         var service = CreateService(provider);
 
         var result = await service.DiscoverNewMediaFilesAsync([], ownerId, "Photos");
@@ -270,7 +270,7 @@ public sealed class MediaFolderImportServiceTests
             });
 
         using var provider = CreateServiceProvider(
-            Guid.CreateVersion7().ToString(), filesApiClientMock, new Mock<IPhotoIndexingCallback>().Object);
+            Guid.CreateVersion7().ToString(), filesApiClientMock, new Mock<IPhotoIndexingClient>().Object);
         var service = CreateService(provider);
 
         var result = await service.DiscoverNewMediaFilesAsync(
@@ -316,7 +316,7 @@ public sealed class MediaFolderImportServiceTests
                 ],
             });
 
-        var photoCallbackMock = new Mock<IPhotoIndexingCallback>();
+        var photoCallbackMock = new Mock<IPhotoIndexingClient>();
         photoCallbackMock
             .Setup(callback => callback.GetIndexedFileNodeIdsAsync(ownerId, It.IsAny<CancellationToken>()))
             .ReturnsAsync([reachableId, staleId]);
@@ -370,7 +370,7 @@ public sealed class MediaFolderImportServiceTests
                 ],
             });
 
-        var photoCallbackMock = new Mock<IPhotoIndexingCallback>();
+        var photoCallbackMock = new Mock<IPhotoIndexingClient>();
         photoCallbackMock
             .Setup(callback => callback.GetIndexedFileNodeIdsAsync(ownerId, It.IsAny<CancellationToken>()))
             .ReturnsAsync([reachableId, staleId]);
@@ -406,7 +406,7 @@ public sealed class MediaFolderImportServiceTests
                 It.IsAny<CancellationToken>()),
             Times.Once);
         photoCallbackMock.Verify(
-            callback => callback.IndexPhotoAsync(It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<long>(), It.IsAny<Guid>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()),
+            callback => callback.IndexPhotoAsync(It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<long>(), It.IsAny<Guid>(), It.IsAny<CancellationToken>()),
             Times.Never);
     }
 
@@ -418,7 +418,7 @@ public sealed class MediaFolderImportServiceTests
         var secondPhotoId = Guid.CreateVersion7();
 
         var filesApiClientMock = new Mock<IFilesApiClient>();
-        var photoCallbackMock = new Mock<IPhotoIndexingCallback>();
+        var photoCallbackMock = new Mock<IPhotoIndexingClient>();
         photoCallbackMock
             .Setup(callback => callback.GetIndexedFileNodeIdsAsync(ownerId, It.IsAny<CancellationToken>()))
             .ReturnsAsync([firstPhotoId, secondPhotoId]);
@@ -442,7 +442,7 @@ public sealed class MediaFolderImportServiceTests
             Times.Never);
     }
 
-    private static ServiceProvider CreateServiceProvider(string dbName, Mock<IFilesApiClient> filesApiClientMock, IPhotoIndexingCallback photoCallback)
+    private static ServiceProvider CreateServiceProvider(string dbName, Mock<IFilesApiClient> filesApiClientMock, IPhotoIndexingClient photoCallback)
     {
         var services = new ServiceCollection();
         services.AddDbContext<FilesDbContext>(options => options.UseInMemoryDatabase(dbName));

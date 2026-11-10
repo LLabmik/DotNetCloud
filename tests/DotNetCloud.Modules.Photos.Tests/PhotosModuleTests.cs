@@ -47,10 +47,12 @@ public class PhotosModuleManifestTests
     }
 
     [TestMethod]
-    public void Manifest_DeclaresSubscribableEvents()
+    public void Manifest_SubscribesToNoOtherModulesEvents()
     {
+        // A sandboxed module never sees another module's events: the core's media import calls the
+        // module's IndexPhoto RPC instead of the module listening to the Files module's upload event.
         var manifest = new PhotosModuleManifest();
-        Assert.IsTrue(manifest.SubscribedEvents.Any());
+        Assert.IsFalse(manifest.SubscribedEvents.Any());
     }
 }
 

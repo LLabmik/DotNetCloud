@@ -28,8 +28,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\DotNetCloud.Modules.Photos\DotNetCloud.Modules.Photos.csproj" />
-    <!-- Cross-module: needed for AddFilesServices / IDownloadService -->
-    <ProjectReference Include="..\..\Files\DotNetCloud.Modules.Files.Data\DotNetCloud.Modules.Files.Data.csproj" />
+    <ProjectReference Include="..\..\..\SDK\DotNetCloud.Modules.Sdk\DotNetCloud.Modules.Sdk.csproj" />
     <ProjectReference Include="..\..\..\Core\DotNetCloud.Core.Data\DotNetCloud.Core.Data.csproj" />
   </ItemGroup>
 

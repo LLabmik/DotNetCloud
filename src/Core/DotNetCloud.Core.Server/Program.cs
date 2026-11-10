@@ -30,7 +30,6 @@ using DotNetCloud.Modules.Tracks.Data;
 using DotNetCloud.Modules.Tracks.Data.Services;
 using DotNetCloud.Modules.Tracks.Services;
 using DotNetCloud.Modules.Music.Data;
-using DotNetCloud.Modules.Photos.Data;
 using DotNetCloud.Modules.Video.Data;
 using DotNetCloud.Modules.Chat.Data;
 using DotNetCloud.Modules.Chat.Data.Services;
@@ -343,8 +342,9 @@ public class Program
         // (e.g. CsvImportService behind ICsvImportUiService) is present.
         builder.Services.AddTracksUiServices(builder.Configuration!, provider, connectionString);
         builder.Services.AddMusicUiServices(builder.Configuration!, provider, connectionString);
-        builder.Services.AddPhotosUiServices(builder.Configuration!, provider, connectionString);
         builder.Services.AddVideoUiServices(builder.Configuration!, provider, connectionString);
+        // NOTE: Photos is process-isolated — its UI is served by the module host through the
+        // /apps/dotnetcloud.photos frame, and its data is reached through the module API.
         // NOTE: AI chat is process-isolated — it goes through the module host gRPC client
         // (IAiApiClient) below. No in-process AI UI services are registered here.
 
@@ -682,6 +682,10 @@ public class Program
         builder.Services.AddScoped<DotNetCloud.Core.Services.ModuleApis.IFilesApiClient, DotNetCloud.Core.Server.Grpc.Clients.FilesGrpcApiClient>();
         builder.Services.AddScoped<DotNetCloud.Core.Services.ModuleApis.IMusicApiClient, DotNetCloud.Core.Server.Grpc.Clients.MusicGrpcApiClient>();
         builder.Services.AddScoped<DotNetCloud.Core.Services.ModuleApis.IPhotosApiClient, DotNetCloud.Core.Server.Grpc.Clients.PhotosGrpcApiClient>();
+        // Media import indexes photos through the module's own RPCs, with a core-signed assertion
+        // naming the library owner (a sandboxed module never touches the Files module's tables).
+        builder.Services.AddSingleton<DotNetCloud.Core.Server.Services.Media.IPhotoIndexingClient,
+            DotNetCloud.Core.Server.Services.Media.PhotosIndexingGrpcClient>();
         builder.Services.AddScoped<DotNetCloud.Core.Services.ModuleApis.IVideoApiClient, DotNetCloud.Core.Server.Grpc.Clients.VideoGrpcApiClient>();
         builder.Services.AddScoped<DotNetCloud.Core.Services.ModuleApis.IAboutApiClient, DotNetCloud.Core.Server.Grpc.Clients.AboutGrpcApiClient>();
         builder.Services.AddScoped<DotNetCloud.Core.Services.ModuleApis.IAiApiClient, DotNetCloud.Core.Server.Grpc.Clients.AiGrpcApiClient>();
@@ -1095,7 +1099,6 @@ public class Program
             .AddAdditionalAssemblies(
                 typeof(DotNetCloud.UI.Web.Client._Imports).Assembly,
                 typeof(DotNetCloud.Modules.Video.UI.VideoPage).Assembly,
-                typeof(DotNetCloud.Modules.Photos.UI.PhotosPage).Assembly,
                 typeof(DotNetCloud.Modules.Music.UI.MusicPage).Assembly,
                 typeof(DotNetCloud.Modules.Chat.UI.ChatPageLayout).Assembly,
                 typeof(DotNetCloud.Modules.Notes.UI.NotesPage).Assembly,

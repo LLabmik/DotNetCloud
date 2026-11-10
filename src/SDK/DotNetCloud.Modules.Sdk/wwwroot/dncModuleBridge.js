@@ -307,6 +307,28 @@
     /** Re-measures and reports the document height (widget role only). */
     reportHeight: reportResize,
 
+    /**
+     * Authenticates a URL the browser loads on its own — `<img src>`, `<video src>`, `<audio src>`,
+     * `<link href>`, CSS `url(...)`. The ticket header cannot be attached to those requests, so it
+     * travels in the query string instead; the proxy accepts it there as well as in the header.
+     * Returns the URL unchanged when it is empty, third-party, or when no ticket was handed down.
+     * @param {string} url Module-local URL (relative, or the frame's own origin).
+     * @returns {string} The URL to put in the attribute.
+     */
+    mediaUrl: function (url) {
+      if (typeof url !== 'string' || url.length === 0 || !state.ticket || !isFrameLocal(url)) {
+        return typeof url === 'string' ? url : '';
+      }
+
+      // Already carries a ticket (e.g. a re-used cached URL): leave it alone.
+      if (url.indexOf(TICKET_QUERY + '=') !== -1) {
+        return url;
+      }
+
+      var separator = url.indexOf('?') === -1 ? '?' : url.lastIndexOf('?') === url.length - 1 ? '' : '&';
+      return url + separator + TICKET_QUERY + '=' + encodeURIComponent(state.ticket);
+    },
+
     /** Current theme handed down by the core ('light' | 'dark'). */
     getTheme: function () {
       return state.theme;

@@ -1,7 +1,6 @@
-using System.Security.Claims;
 using DotNetCloud.Core.Authorization;
 using DotNetCloud.Core.Errors;
-using Microsoft.AspNetCore.Authorization;
+using DotNetCloud.Core.Grpc;
 using Microsoft.AspNetCore.Mvc;
 
 namespace DotNetCloud.Modules.Photos.Host.Controllers;
@@ -9,34 +8,33 @@ namespace DotNetCloud.Modules.Photos.Host.Controllers;
 /// <summary>
 /// Base controller for Photos module endpoints. Provides authentication helpers and response envelope methods.
 /// </summary>
+/// <remarks>
+/// There is no cookie scheme in this host: the core reverse-proxy strips the browser's session and
+/// mints a short-lived, module-audience <c>dnc-user-assertion</c> instead. The acting user therefore
+/// comes from <see cref="IModuleUserAssertionAccessor"/> and never from a request field — the core
+/// enforces the matching half of that invariant on its own side of every brokered call.
+/// </remarks>
 [ApiController]
-[Authorize(AuthenticationSchemes = "Identity.Application")]
 public abstract class PhotosControllerBase : ControllerBase
 {
     /// <summary>
-    /// Extracts the authenticated caller context from the current request.
+    /// Extracts the authenticated caller context from the verified core assertion.
     /// </summary>
+    /// <returns>The acting user.</returns>
+    /// <exception cref="UnauthorizedAccessException">No verified assertion is present.</exception>
     protected CallerContext GetAuthenticatedCaller()
     {
-        if (User?.Identity?.IsAuthenticated != true)
+        var accessor = HttpContext.RequestServices?.GetService<IModuleUserAssertionAccessor>();
+        var userId = accessor?.GetCurrentUserId();
+
+        if (userId is null || userId.Value == Guid.Empty)
         {
             throw new UnauthorizedAccessException("Authentication is required.");
         }
 
-        var claimValue = User.FindFirstValue(ClaimTypes.NameIdentifier)
-                      ?? User.FindFirstValue("sub");
-
-        if (!Guid.TryParse(claimValue, out var userId))
-        {
-            throw new UnauthorizedAccessException("Authenticated user identifier is invalid.");
-        }
-
-        var roles = User.FindAll(ClaimTypes.Role)
-            .Select(c => c.Value)
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToArray();
-
-        return new CallerContext(userId, roles, CallerType.User);
+        // Roles are not carried on the module assertion: the core re-resolves them for every call it
+        // brokers, so a module has no business trusting a role claim it cannot verify.
+        return new CallerContext(userId.Value, [], CallerType.User);
     }
 
     /// <summary>

@@ -24,7 +24,7 @@ namespace DotNetCloud.Core.Server.Tests.ModuleLoading;
 public class ModuleBoundaryTests
 {
     /// <summary>Modules whose hosts have been migrated by Track C.</summary>
-    private static readonly string[] MigratedModules = ["Email", "Bookmarks", "Example"];
+    private static readonly string[] MigratedModules = ["Email", "Bookmarks", "Example", "Photos"];
 
     [TestMethod]
     public void MigratedModuleHosts_DoNotImportAnotherModulesContract()

@@ -524,35 +524,6 @@ public class NotificationProducerTests
     }
 
     [TestMethod]
-    public async Task AlbumSharedEvent_WithUser_ProducesSingleNotification()
-    {
-        var userId = Guid.CreateVersion7();
-        var albumId = Guid.CreateVersion7();
-        var @event = new AlbumSharedEvent
-        {
-            EventId = Guid.CreateVersion7(),
-            CreatedAt = DateTime.UtcNow,
-            AlbumId = albumId,
-            SharedByUserId = Guid.CreateVersion7(),
-            SharedWithUserId = userId,
-            Permission = "ReadOnly"
-        };
-
-        await _producer.HandleAsync(@event);
-
-        _notificationService.Verify(
-            n => n.SendAsync(
-                userId,
-                It.Is<NotificationDto>(d =>
-                    d.Type == NotificationType.Share &&
-                    d.SourceModuleId == "dotnetcloud.photos" &&
-                    d.Title == "Album shared with you" &&
-                    d.ActionUrl == $"/photos?album={albumId}"),
-                It.IsAny<CancellationToken>()),
-            Times.Once);
-    }
-
-    [TestMethod]
     public async Task ResourceSharedEvent_WithUser_ProducesSingleNotification()
     {
         var userId = Guid.CreateVersion7();

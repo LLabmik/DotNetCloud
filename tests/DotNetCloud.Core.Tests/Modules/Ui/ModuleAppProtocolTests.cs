@@ -58,6 +58,30 @@ public class ModuleAppProtocolTests
     }
 
     [TestMethod]
+    [DataRow("photoId=abc", "?photoId=abc")]
+    [DataRow("?photoId=abc", "?photoId=abc")]
+    [DataRow("album=6f1c3e4a-1b2c-4d5e-8f90-0123456789ab", "?album=6f1c3e4a-1b2c-4d5e-8f90-0123456789ab")]
+    [DataRow("q=50%25+off&page=2", "?q=50%25+off&page=2")]
+    [DataRow(null, "")]
+    [DataRow("   ", "")]
+    [DataRow("?", "")]
+    [DataRow("a=1#fragment", "")]
+    [DataRow("a=1&b=2 3", "")]
+    [DataRow("a=javascript:alert(1)", "")]
+    [DataRow("a=<script>", "")]
+    public void NormalizeFrameQuery_AllowsOnlyPlainPairs(string? query, string expected)
+    {
+        Assert.AreEqual(expected, ModuleAppUrls.NormalizeFrameQuery(query));
+    }
+
+    [TestMethod]
+    public void NormalizeFrameQuery_TooLong_IsDropped()
+    {
+        var query = "id=" + new string('a', ModuleAppUrls.MaxFrameQueryLength);
+        Assert.AreEqual(string.Empty, ModuleAppUrls.NormalizeFrameQuery(query));
+    }
+
+    [TestMethod]
     public void FromFrame_ContainsEveryFrameOriginatedType()
     {
         Assert.IsTrue(ModuleAppProtocol.IsFromFrameMessage(ModuleAppProtocol.Ready));

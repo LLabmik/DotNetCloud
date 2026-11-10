@@ -3,7 +3,7 @@ using DotNetCloud.Core.Server.Services;
 using DotNetCloud.Core.Services;
 using DotNetCloud.Core.Services.ModuleApis;
 using DotNetCloud.Modules.Files.Data;
-using DotNetCloud.Modules.Photos.Events;
+using DotNetCloud.Core.Server.Services.Media;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -26,13 +26,13 @@ public sealed class MediaFolderImportServiceParallelTests
 
         var active = 0;
         var maxActive = 0;
-        var callback = new Mock<IPhotoIndexingCallback>();
+        var callback = new Mock<IPhotoIndexingClient>();
         callback.Setup(c => c.GetIndexedFileNodeIdsAsync(ownerId, It.IsAny<CancellationToken>()))
             .ReturnsAsync([]);
         callback.Setup(c => c.IndexPhotoAsync(
                 It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<long>(),
-                It.IsAny<Guid>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
-            .Returns(async (Guid _, string _, string _, long _, Guid _, string? _, CancellationToken ct) =>
+                It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+            .Returns(async (Guid _, string _, string _, long _, Guid _, CancellationToken ct) =>
             {
                 var current = Interlocked.Increment(ref active);
                 InterlockedMax(ref maxActive, current);
@@ -44,6 +44,8 @@ public sealed class MediaFolderImportServiceParallelTests
                 {
                     Interlocked.Decrement(ref active);
                 }
+
+                return true;
             });
 
         using var provider = CreateProvider(callback, candidates, ownerId);
@@ -64,16 +66,16 @@ public sealed class MediaFolderImportServiceParallelTests
         var candidates = Enumerable.Range(0, 6).Select(i => Candidate($"photo{i:00}.jpg")).ToList();
         var failingId = candidates[2].Id;
 
-        var callback = new Mock<IPhotoIndexingCallback>();
+        var callback = new Mock<IPhotoIndexingClient>();
         callback.Setup(c => c.GetIndexedFileNodeIdsAsync(ownerId, It.IsAny<CancellationToken>()))
             .ReturnsAsync([]);
         callback.Setup(c => c.IndexPhotoAsync(
                 It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<long>(),
-                It.IsAny<Guid>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
-            .Returns((Guid fileNodeId, string _, string _, long _, Guid _, string? _, CancellationToken _) =>
+                It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+            .Returns((Guid fileNodeId, string _, string _, long _, Guid _, CancellationToken _) =>
                 fileNodeId == failingId
-                    ? Task.FromException(new InvalidOperationException("decode failed"))
-                    : Task.CompletedTask);
+                    ? Task.FromException<bool>(new InvalidOperationException("decode failed"))
+                    : Task.FromResult(true));
 
         using var provider = CreateProvider(callback, candidates, ownerId);
         var service = CreateService(provider);
@@ -93,7 +95,7 @@ public sealed class MediaFolderImportServiceParallelTests
         var ownerId = Guid.CreateVersion7();
         var candidates = Enumerable.Range(0, 5).Select(i => Candidate($"photo{i:00}.jpg")).ToList();
 
-        var callback = new Mock<IPhotoIndexingCallback>();
+        var callback = new Mock<IPhotoIndexingClient>();
         callback.Setup(c => c.GetIndexedFileNodeIdsAsync(ownerId, It.IsAny<CancellationToken>()))
             .ReturnsAsync([]);
 
@@ -109,7 +111,7 @@ public sealed class MediaFolderImportServiceParallelTests
         callback.Verify(
             c => c.IndexPhotoAsync(
                 It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<long>(),
-                It.IsAny<Guid>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()),
+                It.IsAny<Guid>(), It.IsAny<CancellationToken>()),
             Times.Never);
     }
 
@@ -119,13 +121,13 @@ public sealed class MediaFolderImportServiceParallelTests
         var ownerId = Guid.CreateVersion7();
         var candidates = Enumerable.Range(0, 4).Select(i => Candidate($"photo{i:00}.jpg")).ToList();
 
-        var callback = new Mock<IPhotoIndexingCallback>();
+        var callback = new Mock<IPhotoIndexingClient>();
         callback.Setup(c => c.GetIndexedFileNodeIdsAsync(ownerId, It.IsAny<CancellationToken>()))
             .ReturnsAsync([]);
         callback.Setup(c => c.IndexPhotoAsync(
                 It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<long>(),
-                It.IsAny<Guid>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
-            .Returns(Task.CompletedTask);
+                It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.FromResult(true));
 
         using var provider = CreateProvider(callback, candidates, ownerId);
         var service = CreateService(provider);
@@ -191,7 +193,7 @@ public sealed class MediaFolderImportServiceParallelTests
     ];
 
     private static ServiceProvider CreateProvider(
-        Mock<IPhotoIndexingCallback> callback,
+        Mock<IPhotoIndexingClient> callback,
         IReadOnlyList<MediaFileCandidateDto> candidates,
         Guid ownerId)
     {
