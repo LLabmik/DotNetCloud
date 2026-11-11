@@ -17,6 +17,14 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- The frame bridge is the SDK's file, not a copy: one implementation, no npm. It patches
+         window.fetch so every request carries the frame ticket and the module assertion. -->
+    <Content Include="..\..\..\SDK\DotNetCloud.Modules.Sdk\wwwroot\dncModuleBridge.js"
+             Link="wwwroot\js\dncModuleBridge.js"
+             CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
     <!-- Browser-safe by design: DotNetCloud.Core only references Microsoft.AspNetCore.Http.Abstractions,
          and UI.Shared is the same Razor Class Library the server-side Blazor app and the existing
          WASM client (DotNetCloud.UI.Web.Client) use. -->

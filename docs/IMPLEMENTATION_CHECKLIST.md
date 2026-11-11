@@ -27,6 +27,12 @@ in-core Blazor UI and the core's migration of the `tracks` schema keep working u
 - ✓ **Verification** — Tracks tests **210/210** pass; `DotNetCloud.CI.slnf` builds with 0 warnings / 0 errors. **Live (2026-11-11)**: `deploy --force --verify` **15/15 targets**, hashes verified, `/health/ready` **200** with **15/15** modules healthy (Tracks `Running`/`Active`/`Bundled`), unauthenticated real routes **401** via `TracksRequireUserAssertionFilter`, `/apps/tracks` still **302**. The first attempt crashed on a module-private DataProtection path under read-only `/opt` (legacy launches get no `DOTNETCLOUD_MODULE_DATA_DIR`); the fallback now keeps the shared `DOTNETCLOUD_DATA_DIR` ring until the flip.
 - ☐ **Next** — Stage B: port the pages into the WASM app (full parity before the flip); Stage C: atomic flip (schema-neutral model + re-stamped migrations + manifest v2 isolated + delete the in-core UI and core coupling); Stage D: pack, publish, live verify.
 
+### Stage B progress
+
+- ✓ **B1 — frame plumbing (2026-11-11)** — the SDK bridge is linked into the WASM `wwwroot` and started before Blazor, so its `window.fetch` patch attaches the frame ticket to every `HttpClient` call; a C# `ModuleBridge` exposes theme/locale, `mediaUrl` for browser-built subresources, navigate, title, toast and consent; `TracksApi` reads the module's `{ success, data }` / `{ success, error { code, message } }` envelopes with enum-name JSON; a `MainLayout` shell follows the core theme. Published assets verified (`js/dncModuleBridge.js`, `js/tracks-bridge.js`, `index.html`, `_framework/blazor.webassembly.js`); the published `wwwroot` is ~21 MB, which is what the package will grow by.
+- ☐ **B2** — organization/product listing: add a `GetUserOrganizations` capability RPC (proto → core service → `CapabilityCatalog` → gRPC client) and `GET api/v1/organizations` on the host, because the in-core page used the in-process `IOrganizationDirectory`.
+- ☐ **B3** — screen ports (products, kanban/backlog/list/timeline, item detail + `tracks.item`, sprints/planning, teams, review, settings, widget). No `localStorage`: an opaque-origin frame throws on storage access.
+
 ---
 
 Fifth Track C module, and the first whose **media path** had to change: the host used to reference the

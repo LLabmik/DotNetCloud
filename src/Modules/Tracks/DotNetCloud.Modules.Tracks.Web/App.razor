@@ -3,13 +3,13 @@
 
 <Router AppAssembly="@typeof(App).Assembly">
     <Found Context="routeData">
-        <RouteView RouteData="@routeData" />
+        <RouteView RouteData="@routeData" DefaultLayout="@typeof(Layout.MainLayout)" />
         <FocusOnNavigate RouteData="@routeData" Selector="h1" />
     </Found>
     <NotFound>
-        <main class="tracks-shell">
+        <LayoutView Layout="@typeof(Layout.MainLayout)">
             <h1>Tracks</h1>
             <p role="alert">No page matches this address.</p>
-        </main>
+        </LayoutView>
     </NotFound>
 </Router>
