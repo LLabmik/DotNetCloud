@@ -3,12 +3,31 @@
 > **Document Version:** 1.0  
 > **Purpose:** Comprehensive task breakdown for implementing the DotNetCloud architecture  
 > **Scope:** All phases from Foundation (Phase 0) through Auto-Updates (Phase 11)  
-> **Last Updated:** 2026-11-08
+> **Last Updated:** 2026-11-11
 > **Audience:** Development team, project managers, technical leads
 
 ---
 
-## Recent Work — Track C: Photos module sandboxed (2026-11-10, `feature/third-party-modules`)
+## Recent Work — Track C: Tracks module Stage A — sandbox-ready host (2026-11-11, `feature/third-party-modules`)
+
+Sixth Track C module and the largest surface in the program (~200 source files, 32 REST controllers, 148 gRPC RPCs,
+97 Blazor UI files). This stage makes the host ready for the sandbox **without changing live behaviour** — the
+in-core Blazor UI and the core's migration of the `tracks` schema keep working until the atomic flip.
+
+- ✓ **Sandboxed identity** — the host's cookie scheme (`Identity.Application`) and the controller-level `[Authorize]` are gone; identity comes only from the core-minted assertion (`AddModuleUserAssertionAccessor`), and a module-wide `TracksRequireUserAssertionFilter` gates every action so the seven actions that never resolve a caller (share links, guest access, product templates, sprint discussions, webhook deliveries, recurring-rule sweep) cannot be reached anonymously through the proxy.
+- ✓ **Error mapping** — `TracksExceptionFilter` answers **401** for a missing/expired assertion (was 500) and 403/404/409/400 for the domain exceptions, in the module's error envelope.
+- ✓ **Enum binding** — `AddModuleJsonOptions()` so a framed UI can send and read enum names (`InProgress`, `Rotate`).
+- ✓ **Module-private DataProtection ring** (`DOTNETCLOUD_MODULE_DATA_DIR`, app name `DotNetCloud.Modules.Tracks`); verified nothing else in the module uses DataProtection, so no stored payload becomes unreadable.
+- ✓ **Scoped database connection** — `DOTNETCLOUD_MODULE_DB_CONNECTION_STRING` first, legacy `config.json` only as fallback; `ITableNamingStrategy` registered and the SQL Server migrations assembly named for the provider.
+- ✓ **Account erasure (F12)** — `TracksUserErasureHandler`: products the account owns are torn down with the retention sweep's own routine; memberships, team roles, assignments, watchers, time entries, activity, comments + reactions, votes, review participation, sprint discussions, custom views, share links, templates, goals, automation rules, webhooks (+ deliveries), recurring rules, poker sessions and created teams are erased; soft-deleted rows included; audit columns cleared on surviving rows; idempotent. 4 tests.
+- ✓ **Baseline-aware initializer** — `TracksDbInitializer` now uses `ModuleSchemaInitializer` so an adopted `tracks.*` schema with an empty history is baselined instead of replayed. Deliberately not wired at startup yet: it would race the core, which still migrates Tracks.
+- ✓ **Model drift guard** — `TracksDbContextModelTests.Model_WithDesignTimeNaming_HasNoPendingModelChanges`; the schema-neutrality assertions land with the data-plane flip.
+- ✓ **Static UI plane ready** — `UseDefaultFiles`/`UseStaticFiles`, the version probe moved from `/` to `/api/info` (a mapped `/` shadows `index.html`), developer exception page limited to Development, startup template seeding degrades instead of crashing.
+- ✓ **UI technology decided — Blazor WebAssembly, not JavaScript** — `src/Modules/Tracks/DotNetCloud.Modules.Tracks.Web` (`Microsoft.NET.Sdk.BlazorWebAssembly`, referencing `DotNetCloud.Core` + `DotNetCloud.UI.Shared`) builds clean, so the existing 97 Razor components are reused rather than rewritten. Feasible because `DotNetCloud.Core` is browser-safe and the module UI proxy's CSP carries no `script-src` directive. No npm packages.
+- ✓ **Verification** — Tracks tests **210/210** pass; `DotNetCloud.CI.slnf` builds with 0 warnings / 0 errors. **Live (2026-11-11)**: `deploy --force --verify` **15/15 targets**, hashes verified, `/health/ready` **200** with **15/15** modules healthy (Tracks `Running`/`Active`/`Bundled`), unauthenticated real routes **401** via `TracksRequireUserAssertionFilter`, `/apps/tracks` still **302**. The first attempt crashed on a module-private DataProtection path under read-only `/opt` (legacy launches get no `DOTNETCLOUD_MODULE_DATA_DIR`); the fallback now keeps the shared `DOTNETCLOUD_DATA_DIR` ring until the flip.
+- ☐ **Next** — Stage B: port the pages into the WASM app (full parity before the flip); Stage C: atomic flip (schema-neutral model + re-stamped migrations + manifest v2 isolated + delete the in-core UI and core coupling); Stage D: pack, publish, live verify.
+
+---
 
 Fifth Track C module, and the first whose **media path** had to change: the host used to reference the
 Files module's data layer and read image bytes straight off the shared storage root. Photos now owns
@@ -46,7 +65,7 @@ user's behalf, serves its own framed UI, and the core keeps no code or project r
 - ✓ **Packaged + published to the catalogue** — `dotnetcloud.photos` 2.0.0 (linux-x64 + win-x64, 31,955,574 B, sha256 `e4a0bd35…`) signed `dotnetcloud-official-2026`; store `validate` green (7 packages), catalogue rebuilt/signed `store-2026` (5 packages / 7 versions), `verify-index` clean; the store tool's `KnownScopes` gained `profile` so it tracks the core catalogue.
 - ✓ **Verified live (dev server, 2026-11-10)** — deploy 15/15 with assembly hashes; `/health/ready` **15/15**, `dotnetcloud.photos` `Running`/`Active`/`Bundled`/`Isolated`; adoption left the legacy `photos` schema **empty** and moved **107** photos into `dnc_dotnetcloud_photos_8ccb1097` (8 tables owned by the module principal, history = the five original ids, `USAGE` on its schema and **no `CREATE` on the database**); the host serves `/`, the JS/CSS, the widget and the bridge over its h2c socket; `/api/v1/photos` and `/api/v1/albums` answer **401** unauthenticated; `/apps/dotnetcloud.photos/` **401** and `/modules/dotnetcloud.photos` **302** → login.
 - ✓ **Live on `modules.dotnetcloud.net` (2026-11-10)** — release `20261110-224903` is `current`; all seven advertised `downloadUrl`s answer **200 `application/octet-stream`**; the published Photos package downloaded back over HTTPS is byte-identical (31,955,574 B, sha256 `e4a0bd35…`) and `dotnetcloud-pack verify --key-file …official-2026` reports **OK**.
-- ✓ **Collateral 404s found and fixed** — the deploy robocopy's the site box's *own* store clone, which was missing the AI 2.0.0 and Bookmarks 1.2.0 bytes, so the first release advertised two packages that 404'd. Both were pushed up (per-file SHA-256) and the deploy re-run.
+- ✓ **Collateral 404s found and fixed** — the deploy robocopy's the site box's _own_ store clone, which was missing the AI 2.0.0 and Bookmarks 1.2.0 bytes, so the first release advertised two packages that 404'd. Both were pushed up (per-file SHA-256) and the deploy re-run.
 - ✓ **Verified in a real browser (2026-11-10)** — signed-in click-through of the framed app and the widget on Home. Five defects found and fixed:
   - ✓ **Images 401'd inside the frame.** Browser-built `<img>` requests carry neither the session cookie (opaque origin) nor the bridge's ticket header. New `bridge.mediaUrl(url)` (SDK) carries the ticket in the query string for browser-initiated subresources; every `src` in the app and widget goes through it, guarded by a test.
   - ✓ **Edit API could not bind requests** — no module host configured a string-enum converter, so `"operationType": "Rotate"` was a 400. New shared `AddModuleJsonOptions()` in `Core.Grpc`.

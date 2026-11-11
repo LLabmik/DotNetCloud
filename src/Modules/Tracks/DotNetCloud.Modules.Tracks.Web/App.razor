@@ -1,0 +1,15 @@
+@* Root component of the Tracks module UI (Blazor WebAssembly, served from the module host). *@
+@using Microsoft.AspNetCore.Components.Routing
+
+<Router AppAssembly="@typeof(App).Assembly">
+    <Found Context="routeData">
+        <RouteView RouteData="@routeData" />
+        <FocusOnNavigate RouteData="@routeData" Selector="h1" />
+    </Found>
+    <NotFound>
+        <main class="tracks-shell">
+            <h1>Tracks</h1>
+            <p role="alert">No page matches this address.</p>
+        </main>
+    </NotFound>
+</Router>

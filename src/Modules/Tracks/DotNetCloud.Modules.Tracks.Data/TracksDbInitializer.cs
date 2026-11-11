@@ -1,3 +1,4 @@
+using DotNetCloud.Core.Data.Modules;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
@@ -11,6 +12,29 @@ public static class TracksDbInitializer
     /// <summary>
     /// Applies pending Tracks migrations to the database.
     /// </summary>
+    /// <remarks>
+    /// <para>
+    /// A sandboxed module owns its schema, so it applies its own migrations (Track C). Once the module
+    /// declares <c>dataStore: "isolated"</c>, the provisioned connection string pins <c>search_path</c>
+    /// (PostgreSQL) or the user's default schema (SQL Server), which is where the tables and
+    /// <c>__EFMigrationsHistory</c> land — so the model and the migrations are schema-neutral.
+    /// </para>
+    /// <para>
+    /// On an adopted install the legacy <c>tracks</c> schema already holds the tables while the
+    /// module's history table is empty, so a bare <c>MigrateAsync</c> would replay the initial
+    /// migration and die with "already exists". <see cref="ModuleSchemaInitializer"/> baselines that
+    /// case — the same recovery the core uses for its own module schemas.
+    /// </para>
+    /// <para>
+    /// ⚠️ Not called from the host yet: while the core still migrates Tracks (the module manifest is
+    /// still v1 and the in-core Blazor UI reads the same tables through <c>TracksDbContext</c>),
+    /// calling this from the host too would race the core. It is wired up with the data-plane flip.
+    /// </para>
+    /// </remarks>
+    /// <param name="db">The module's database context.</param>
+    /// <param name="logger">Optional logger.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>A task that completes when the schema is usable.</returns>
     public static async Task InitializeAsync(
         TracksDbContext db,
         ILogger? logger = null,
@@ -18,8 +42,8 @@ public static class TracksDbInitializer
     {
         ArgumentNullException.ThrowIfNull(db);
 
-        await db.Database.MigrateAsync(cancellationToken);
+        await ModuleSchemaInitializer.InitializeAsync(db, "dotnetcloud.tracks", logger, cancellationToken);
 
-        logger?.LogInformation("Tracks database initialized");
+        logger?.LogInformation("Tracks database schema is up to date");
     }
 }

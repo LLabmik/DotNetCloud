@@ -1,0 +1,58 @@
+@page "/"
+@inject HttpClient Http
+
+<PageTitle>Tracks</PageTitle>
+
+<main class="tracks-shell">
+    <h1>Tracks</h1>
+
+    <p>
+        This page is the Blazor WebAssembly shell of the Tracks module. It is served by the module
+        host and framed by the core at <code>/apps/dotnetcloud.tracks/</code>; every asset and API
+        reference is relative because the core proxy strips that prefix.
+    </p>
+
+    <section class="tracks-shell__status">
+        <h2>Module host</h2>
+        @if (_info is null)
+        {
+            <p>@_status</p>
+        }
+        else
+        {
+            <dl>
+                <dt>Module</dt>
+                <dd>@_info.Module</dd>
+                <dt>Version</dt>
+                <dd>@_info.Version</dd>
+                <dt>Status</dt>
+                <dd>@_info.Status</dd>
+            </dl>
+        }
+    </section>
+</main>
+
+@code {
+    private ModuleInfo? _info;
+    private string _status = "Contacting the module host…";
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            _info = await Http.GetFromJsonAsync<ModuleInfo>("api/info");
+            if (_info is null)
+            {
+                _status = "The module host answered without an info payload.";
+            }
+        }
+        catch (Exception ex) when (ex is HttpRequestException or NotSupportedException)
+        {
+            // Expected while the UI is served standalone (outside the core proxy): the relative
+            // api/info path then does not resolve to the host.
+            _status = $"The module host is not reachable from this address ({ex.GetType().Name}).";
+        }
+    }
+
+    private sealed record ModuleInfo(string Module, string Version, string Status);
+}

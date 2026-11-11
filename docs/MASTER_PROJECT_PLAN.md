@@ -12,6 +12,26 @@
 
 ---
 
+> **Recent work (2026-11-11, `feature/third-party-modules`): Track C — Tracks module Stage A, sandbox-ready host.**
+> The largest Track-C surface (~200 source files, 32 REST controllers, 148 gRPC RPCs, 97 Blazor UI files) is now
+> prepared for the sandbox **without changing live behaviour**: the cookie scheme and controller `[Authorize]` are
+> replaced by the core-minted assertion plus a module-wide `TracksRequireUserAssertionFilter` (the seven actions that
+> never resolved a caller were anonymously reachable once the cookie handler is gone), `TracksExceptionFilter` answers
+> 401 instead of 500, `AddModuleJsonOptions` binds enum names, DataProtection is module-private, the connection string
+> prefers `DOTNETCLOUD_MODULE_DB_CONNECTION_STRING`, static files are served and the version probe moved to `/api/info`.
+> `TracksUserErasureHandler` covers F12 (owned products via the retention sweep's teardown; memberships, assignments,
+> watchers, time entries, activity, comments/reactions, votes, review participation, discussions, custom views, share
+> links, templates, goals, automation rules, webhooks, recurring rules, poker sessions and teams; soft-deleted rows
+> included; idempotent). `TracksDbInitializer` is baseline-aware (not wired yet — it would race the core's migration),
+> and a model-drift test now guards the snapshot. **UI technology settled: Blazor WebAssembly, not JavaScript** —
+> `DotNetCloud.Modules.Tracks.Web` (`Microsoft.NET.Sdk.BlazorWebAssembly`, referencing `DotNetCloud.Core` +
+> `DotNetCloud.UI.Shared`) builds clean, so the 97 Razor components are reused; the module UI proxy's CSP carries no
+> `script-src`, and no npm packages are involved. Verification: Tracks tests **210/210**, CI solution filter builds with
+> 0 warnings / 0 errors. ☐ Next: Stage B (UI port, full parity before the flip), Stage C (atomic data-plane flip +
+> decoupling), Stage D (pack, publish, live verify).
+
+---
+
 > **Recent fix (2026-11-05, branch `fix/calendar-event-times`):** **calendar event times rendered as raw UTC — the browser-timezone service never resolved a zone.**
 > `BrowserTimeProvider.EnsureInitializedAsync` called the JS identifier `Intl.DateTimeFormat().resolvedOptions().timeZone`;
 > Blazor resolves JS identifiers as dotted property paths (it does not evaluate expressions), so the call always threw
@@ -1946,7 +1966,7 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 - ✓ **Packaged + published to the signed catalogue:** `dotnetcloud.photos` 2.0.0 (linux-x64 + win-x64, 31,955,574 B, sha256 `e4a0bd35…`), signed `dotnetcloud-official-2026`; store `validate` green (7 packages), catalogue rebuilt/signed `store-2026` (5 packages / 7 versions), `verify-index` clean. Store tool fix while publishing: `StorePolicy.KnownScopes` was missing the core's `profile` scope.
 - ✓ **Verified live (dev server, 2026-11-10):** deploy 15/15 targets, every assembly hash verified; `/health/ready` **15/15** with `dotnetcloud.photos` `Running`/`Active`/`Bundled`/`Isolated`; adoption left the legacy `photos` schema **empty** and moved **107** photos into `dnc_dotnetcloud_photos_8ccb1097` (8 tables owned by `dnc_mod_dotnetcloud_photos_8ccb1097`, history = the five original ids; `USAGE` on its schema, **no `CREATE` on the database**); the host serves `/` (11,256 B), the JS (37,882 B), the CSS, the widget and the bridge over its h2c socket; `/api/v1/photos` and `/api/v1/albums` answer **401** unauthenticated; `/apps/dotnetcloud.photos/` **401** and `/modules/dotnetcloud.photos` **302** → login.
 - ✓ **Live on `modules.dotnetcloud.net` (2026-11-10):** release `20261110-224903` is `current`; every advertised `downloadUrl` answers **200 `application/octet-stream`** (AI 2.0.0, Bookmarks 1.2.0, Email 1.2.0, Example 1.0.0/1.0.1/1.0.2, Photos 2.0.0); the published Photos package downloaded back over HTTPS is byte-identical (31,955,574 B, sha256 `e4a0bd35…`) and `dotnetcloud-pack verify --key-file …official-2026` reports **OK**.
-- ✓ **Collateral 404s found and fixed:** the deploy robocopy's the site box's *own* store clone, which was missing the AI 2.0.0 and Bookmarks 1.2.0 bytes, so the first release advertised two packages that 404'd. Both were pushed up (per-file SHA-256 verified) and the deploy re-run until all seven URLs were green.
+- ✓ **Collateral 404s found and fixed:** the deploy robocopy's the site box's _own_ store clone, which was missing the AI 2.0.0 and Bookmarks 1.2.0 bytes, so the first release advertised two packages that 404'd. Both were pushed up (per-file SHA-256 verified) and the deploy re-run until all seven URLs were green.
 - ✓ **Verified in a real browser (2026-11-10):** signed-in click-through of the framed app and the widget. Found and fixed five defects no unit test could see — framed `<img>` requests 401'd (new `bridge.mediaUrl`), the edit API could not bind enum names (new `AddModuleJsonOptions`), the edit endpoint returned the EF entity and streamed 27 MB of thumbnails, the UI and the pipeline disagreed on edit parameters, and a missing `files:read` consent surfaced as a bare 500 instead of an actionable 403 that raises the shell's consent prompt. Queued edits now preview instantly via a stack-derived CSS transform.
 - ☐ Commit `DotNetCloud.ModuleStore`.
 
