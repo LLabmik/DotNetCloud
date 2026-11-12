@@ -1,13 +1,8 @@
 @inherits LayoutComponentBase
 @inject ModuleBridge Bridge
 
-<div class="tracks-shell" data-theme="@Bridge.Theme">
-    <header class="tracks-shell__header">
-        <span class="tracks-shell__brand">Tracks</span>
-        <span class="tracks-shell__meta">@Bridge.Theme</span>
-    </header>
-
-    <main class="tracks-shell__content">
-        @Body
-    </main>
+@* The shell is deliberately thin: the ported Tracks UI brings its own full-height layout, so the
+   frame only supplies the theme the bridge reports from the parent document. *@
+<div class="tracks-root" data-theme="@Bridge.Theme">
+    @Body
 </div>

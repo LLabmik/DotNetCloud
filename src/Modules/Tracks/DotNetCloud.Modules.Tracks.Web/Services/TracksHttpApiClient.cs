@@ -2,16 +2,36 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using DotNetCloud.Core.Capabilities;
 using DotNetCloud.Core.DTOs;
-using DotNetCloud.Modules.Tracks.Models;
+using DotNetCloud.Core.Services.ModuleApis;
 
-namespace DotNetCloud.Modules.Tracks.Services;
+namespace DotNetCloud.Modules.Tracks.Web.Services;
 
-public sealed class TracksApiClient : ITracksApiClient
+/// <summary>
+/// Browser-side <see cref="ITracksApiClient"/>: the module UI's own REST API reached through the core
+/// proxy that serves the frame.
+/// </summary>
+/// <remarks>
+/// <para>
+/// This was the module's in-core HTTP client. It moved here when the UI did: the sandboxed UI talks to
+/// its own host, never to the core, and every URL is relative because the proxy strips the
+/// <c>/apps/dotnetcloud.tracks/</c> prefix. Authorization is the frame ticket the SDK bridge's fetch
+/// patch attaches, so nothing here handles credentials.
+/// </para>
+/// <para>
+/// The class intentionally keeps the module's existing envelope handling: payloads arrive wrapped in
+/// <c>{ success, data }</c>, and a failure carries <c>{ error: { code, message } }</c>.
+/// </para>
+/// </remarks>
+public sealed class TracksHttpApiClient : ITracksApiClient
 {
     private readonly HttpClient _httpClient;
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
-    public TracksApiClient(HttpClient httpClient)
+    /// <summary>
+    /// Initializes a new instance of the <see cref="TracksHttpApiClient"/> class.
+    /// </summary>
+    /// <param name="httpClient">The client whose base address is the frame's module root.</param>
+    public TracksHttpApiClient(HttpClient httpClient)
     {
         _httpClient = httpClient;
     }
@@ -769,21 +789,21 @@ public sealed class TracksApiClient : ITracksApiClient
 
     // ── Webhooks ─────────────────────────────────────────────
 
-    public async Task<IReadOnlyList<WebhookSubscription>> ListProductWebhooksAsync(Guid productId, CancellationToken ct = default)
-        => await ReadDataAsync<IReadOnlyList<WebhookSubscription>>($"api/v1/products/{productId}/webhooks", ct) ?? [];
+    public async Task<IReadOnlyList<WebhookSubscriptionDto>> ListProductWebhooksAsync(Guid productId, CancellationToken ct = default)
+        => await ReadDataAsync<IReadOnlyList<WebhookSubscriptionDto>>($"api/v1/products/{productId}/webhooks", ct) ?? [];
 
-    public async Task<WebhookSubscription?> CreateProductWebhookAsync(Guid productId, string url, List<string> eventTypes, CancellationToken ct = default)
+    public async Task<WebhookSubscriptionDto?> CreateProductWebhookAsync(Guid productId, string url, List<string> eventTypes, CancellationToken ct = default)
     {
         var response = await _httpClient.PostAsJsonAsync($"api/v1/products/{productId}/webhooks", new { url, eventTypes }, ct);
         await EnsureSuccessOrThrowAsync(response);
-        return await ReadDataFromResponseAsync<WebhookSubscription>(response, ct);
+        return await ReadDataFromResponseAsync<WebhookSubscriptionDto>(response, ct);
     }
 
-    public async Task<WebhookSubscription?> UpdateProductWebhookAsync(Guid productId, Guid subscriptionId, string url, List<string> eventTypes, bool isActive, CancellationToken ct = default)
+    public async Task<WebhookSubscriptionDto?> UpdateProductWebhookAsync(Guid productId, Guid subscriptionId, string url, List<string> eventTypes, bool isActive, CancellationToken ct = default)
     {
         var response = await _httpClient.PutAsJsonAsync($"api/v1/products/{productId}/webhooks/{subscriptionId}", new { url, eventTypes, isActive }, ct);
         await EnsureSuccessOrThrowAsync(response);
-        return await ReadDataFromResponseAsync<WebhookSubscription>(response, ct);
+        return await ReadDataFromResponseAsync<WebhookSubscriptionDto>(response, ct);
     }
 
     public async Task DeleteProductWebhookAsync(Guid productId, Guid subscriptionId, CancellationToken ct = default)
@@ -810,6 +830,28 @@ public sealed class TracksApiClient : ITracksApiClient
         }
 
         return new WebhookTestResult(false, null, 0, "Unable to parse response");
+    }
+
+    // ── Discussions ─────────────────────────────────────────
+
+    public async Task<IReadOnlyList<SprintDiscussionDto>> ListSprintDiscussionsAsync(Guid sprintId, int skip = 0, int take = 50, CancellationToken ct = default)
+        => await ReadDataAsync<IReadOnlyList<SprintDiscussionDto>>($"api/v1/sprints/{sprintId}/discussions?skip={skip}&take={take}", ct) ?? [];
+
+    public async Task<SprintDiscussionDto?> SendSprintDiscussionAsync(Guid sprintId, string content, CancellationToken ct = default)
+    {
+        var response = await _httpClient.PostAsJsonAsync($"api/v1/sprints/{sprintId}/discussions", new SendSprintDiscussionDto(content), ct);
+        await EnsureSuccessOrThrowAsync(response);
+        return await ReadDataFromResponseAsync<SprintDiscussionDto>(response, ct);
+    }
+
+    public async Task<IReadOnlyList<SprintDiscussionDto>> ListReviewDiscussionsAsync(Guid reviewSessionId, int skip = 0, int take = 50, CancellationToken ct = default)
+        => await ReadDataAsync<IReadOnlyList<SprintDiscussionDto>>($"api/v1/reviews/{reviewSessionId}/discussions?skip={skip}&take={take}", ct) ?? [];
+
+    public async Task<SprintDiscussionDto?> SendReviewDiscussionAsync(Guid reviewSessionId, string content, CancellationToken ct = default)
+    {
+        var response = await _httpClient.PostAsJsonAsync($"api/v1/reviews/{reviewSessionId}/discussions", new SendSprintDiscussionDto(content), ct);
+        await EnsureSuccessOrThrowAsync(response);
+        return await ReadDataFromResponseAsync<SprintDiscussionDto>(response, ct);
     }
 
     // ── Roadmap ──────────────────────────────────────────────

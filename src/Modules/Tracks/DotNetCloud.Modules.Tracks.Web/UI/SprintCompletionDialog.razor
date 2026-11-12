@@ -1,0 +1,107 @@
+@namespace DotNetCloud.Modules.Tracks.Web.UI
+
+<div class="tracks-dialog-overlay" @onclick="OnCancel">
+    <div class="tracks-dialog tracks-sprint-completion" @onclick:stopPropagation>
+        <div class="tracks-dialog-header">
+            <h3>🏁 Complete Sprint: @Sprint.Title</h3>
+            <button class="tracks-dialog-close" @onclick="OnCancel">✕</button>
+        </div>
+
+        @if (_isLoading)
+        {
+            <div class="tracks-dialog-body">
+                <p class="tracks-muted">Loading sprint summary...</p>
+            </div>
+        }
+        else if (_report is not null)
+        {
+            <div class="tracks-dialog-body">
+                @* ── Summary Stats ── *@
+                <div class="tracks-completion-stats">
+                    <div class="tracks-completion-stat">
+                        <span class="tracks-completion-label">Items Completed</span>
+                        <span class="tracks-completion-value">
+                            @_report.CompletedItems / @(_report.CompletedItems + _report.IncompleteItems)
+                            (@((_report.CompletedItems + _report.IncompleteItems) > 0 ? _report.CompletedItems * 100 / (_report.CompletedItems + _report.IncompleteItems) : 0)%)
+                        </span>
+                    </div>
+                    <div class="tracks-completion-stat">
+                        <span class="tracks-completion-label">Story Points</span>
+                        <span class="tracks-completion-value">
+                            @_report.CompletedStoryPoints / @_report.TotalStoryPoints SP
+                            (@(_report.TotalStoryPoints > 0 ? _report.CompletedStoryPoints * 100 / _report.TotalStoryPoints : 0)%)
+                        </span>
+                    </div>
+                </div>
+
+                @* ── Progress Bar ── *@
+                @{
+                    var pct = _report.TotalStoryPoints > 0
+                        ? _report.CompletedStoryPoints * 100 / _report.TotalStoryPoints
+                        : 0;
+                }
+                <div class="tracks-progress-bar" style="margin: 12px 0;">
+                    <div class="tracks-progress-fill" style="width: @pct%"></div>
+                </div>
+
+                @* ── Incomplete Cards ── *@
+                @if (_incompleteItems.Count > 0)
+                {
+                    <div class="tracks-completion-incomplete">
+                        <h4>Incomplete Items (@_incompleteItems.Count)</h4>
+                        <div class="tracks-planning-card-list" style="max-height: 180px;">
+                            @foreach (var item in _incompleteItems)
+                            {
+                                <div class="tracks-planning-card">
+                                    <span class="tracks-card-number">#@item.ItemNumber</span>
+                                    <span class="tracks-planning-card-title">@item.Title</span>
+                                    @if (item.StoryPoints.HasValue)
+                                    {
+                                        <span class="tracks-sprint-card-sp">@item.StoryPoints SP</span>
+                                    }
+                                </div>
+                            }
+                        </div>
+
+                        <div class="tracks-completion-move-options">
+                            <h4>Move incomplete items to:</h4>
+                            <label class="tracks-radio">
+                                <input type="radio" name="moveTarget" value="backlog"
+                                       checked="@(_moveTarget == "backlog")"
+                                       @onchange="@(() => _moveTarget = "backlog")" />
+                                Product Backlog
+                            </label>
+                            @{
+                                var nextSprints = AvailableSprints
+                                    .Where(s => s.Id != Sprint.Id && s.Status != SprintStatus.Completed)
+                                    .ToList();
+                            }
+                            @foreach (var ns in nextSprints)
+                            {
+                                <label class="tracks-radio">
+                                    <input type="radio" name="moveTarget" value="@ns.Id"
+                                           checked="@(_moveTarget == ns.Id.ToString())"
+                                           @onchange="@(() => _moveTarget = ns.Id.ToString())" />
+                                    @ns.Title @(ns.Status == SprintStatus.Active ? "(Active)" : "(Planning)")
+                                </label>
+                            }
+                        </div>
+                    </div>
+                }
+                else
+                {
+                    <p class="tracks-muted" style="margin-top: 12px;">
+                        🎉 All items completed! Great work.
+                    </p>
+                }
+            </div>
+
+            <div class="tracks-dialog-footer">
+                <button class="btn btn-primary" @onclick="CompleteAsync" disabled="@_isCompleting">
+                    @(_isCompleting ? "Completing..." : "✅ Complete Sprint")
+                </button>
+                <button class="btn btn-secondary" @onclick="OnCancel" disabled="@_isCompleting">Cancel</button>
+            </div>
+        }
+    </div>
+</div>

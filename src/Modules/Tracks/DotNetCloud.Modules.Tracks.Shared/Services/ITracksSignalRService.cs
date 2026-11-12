@@ -106,7 +106,7 @@ public interface ITracksSignalRService
 /// No-op implementation used when no real-time connection is configured.
 /// All event subscriptions are silently ignored.
 /// </summary>
-internal sealed class NullTracksSignalRService : ITracksSignalRService
+public sealed class NullTracksSignalRService : ITracksSignalRService
 {
     /// <inheritdoc />
     public bool IsActive => false;

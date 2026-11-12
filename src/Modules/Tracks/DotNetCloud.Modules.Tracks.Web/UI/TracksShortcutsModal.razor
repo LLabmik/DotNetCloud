@@ -1,0 +1,61 @@
+@namespace DotNetCloud.Modules.Tracks.Web.UI
+
+@* ── Keyboard Shortcuts Modal ── *@
+<div class="tracks-shortcuts-overlay" @onclick="OnClose">
+    <div class="tracks-shortcuts-modal" @onclick:stopPropagation>
+        <div class="tracks-shortcuts-header">
+            <h2>⌨️ Keyboard Shortcuts</h2>
+            <p class="tracks-shortcuts-subtitle">
+                Use these shortcuts to work faster. Press <kbd>?</kbd> anytime to see this reference.
+            </p>
+            <button class="tracks-close-btn" @onclick="OnClose" title="Close (or press Esc)">✕</button>
+        </div>
+
+        <div class="tracks-shortcuts-body">
+            <div class="tracks-shortcuts-section">
+                <h3>📝 Work Items</h3>
+                <div class="tracks-shortcut-row">
+                    <span class="tracks-shortcut-desc">Create a new work item</span>
+                    <span class="tracks-shortcut-keys"><kbd>N</kbd></span>
+                </div>
+                <div class="tracks-shortcut-row">
+                    <span class="tracks-shortcut-desc">Search or filter items</span>
+                    <span class="tracks-shortcut-keys"><kbd>/</kbd></span>
+                </div>
+                <div class="tracks-shortcut-row">
+                    <span class="tracks-shortcut-desc">Close detail panel or cancel</span>
+                    <span class="tracks-shortcut-keys"><kbd>Esc</kbd></span>
+                </div>
+                <div class="tracks-shortcut-row">
+                    <span class="tracks-shortcut-desc">Submit current form</span>
+                    <span class="tracks-shortcut-keys"><kbd>Ctrl</kbd> + <kbd>Enter</kbd></span>
+                </div>
+            </div>
+
+            <div class="tracks-shortcuts-section">
+                <h3>🧭 Navigation</h3>
+                <div class="tracks-shortcut-row">
+                    <span class="tracks-shortcut-desc">Go up one level (e.g., Feature → Epic)</span>
+                    <span class="tracks-shortcut-keys"><kbd>←</kbd></span>
+                </div>
+                <div class="tracks-shortcut-row">
+                    <span class="tracks-shortcut-desc">Go down one level (e.g., Epic → Feature)</span>
+                    <span class="tracks-shortcut-keys"><kbd>→</kbd></span>
+                </div>
+            </div>
+
+            <div class="tracks-shortcuts-section">
+                <h3>💡 Tips</h3>
+                <ul class="tracks-shortcuts-tips">
+                    <li>Shortcuts work when you're not typing in a text field.</li>
+                    <li>Press <kbd>?</kbd> at any time to see this reference again.</li>
+                    <li>Most actions also have buttons you can click if you prefer using your mouse.</li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="tracks-shortcuts-footer">
+            <button class="btn btn-primary" @onclick="OnClose">Got it!</button>
+        </div>
+    </div>
+</div>

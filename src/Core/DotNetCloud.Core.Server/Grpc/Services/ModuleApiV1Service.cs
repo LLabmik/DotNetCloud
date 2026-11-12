@@ -254,6 +254,29 @@ internal sealed class ModuleApiV1Service : Api.ModuleApi.ModuleApiBase
     }
 
     /// <inheritdoc />
+    public override async Task<Api.GetUserOrganizationsResponse> GetUserOrganizations(
+        Api.GetUserOrganizationsRequest request,
+        ServerCallContext context)
+    {
+        var legacy = await _legacy.GetUserOrganizations(
+            new Legacy.GetUserOrganizationsRequest { UserId = request.UserId },
+            context);
+
+        var response = new Api.GetUserOrganizationsResponse();
+        response.Organizations.AddRange(legacy.Organizations.Select(organization => new Api.ModuleOrganization
+        {
+            Id = organization.Id,
+            Name = organization.Name,
+            Description = organization.Description,
+            MemberCount = organization.MemberCount,
+            TeamCount = organization.TeamCount,
+            CreatedAt = organization.CreatedAt,
+        }));
+
+        return response;
+    }
+
+    /// <inheritdoc />
     public override async Task<Api.SendNotificationResponse> SendNotification(
         Api.SendNotificationRequest request,
         ServerCallContext context)

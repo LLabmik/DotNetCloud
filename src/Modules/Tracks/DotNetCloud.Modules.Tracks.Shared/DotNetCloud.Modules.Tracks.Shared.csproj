@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>DotNetCloud.Modules.Tracks</RootNamespace>
+    <AssemblyName>DotNetCloud.Modules.Tracks.Shared</AssemblyName>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!--
+      Browser-safe by design: this assembly holds the contracts the Tracks UI componentry is written
+      against (real-time signal interfaces, command palette, onboarding, CSV import) plus their DTOs.
+      The module host and the Blazor WebAssembly UI in DotNetCloud.Modules.Tracks.Web both reference
+      it, so the two never drift. It must never reference EF Core, ASP.NET Core or the module's own
+      assembly — a WebAssembly build has none of them.
+    -->
+    <ProjectReference Include="..\..\..\Core\DotNetCloud.Core\DotNetCloud.Core.csproj" />
+  </ItemGroup>
+
+</Project>

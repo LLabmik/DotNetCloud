@@ -102,6 +102,7 @@ public static class CapabilityCatalog
         [Rpc(CoreCapabilitiesService, "GetGroupsForUser")] = nameof(ITeamDirectory),
         [Rpc(CoreCapabilitiesService, "GetTeam")] = nameof(ITeamDirectory),
         [Rpc(CoreCapabilitiesService, "GetTeamsForUser")] = nameof(ITeamDirectory),
+        [Rpc(CoreCapabilitiesService, "GetUserOrganizations")] = nameof(IOrganizationDirectory),
         [Rpc(CoreCapabilitiesService, "CleanupAdminSharedFolder")] = nameof(IAdminSharedFolderCleanup),
 
         // Re-tiered away from Public INotificationService: broadcasting a platform-branded
@@ -122,6 +123,7 @@ public static class CapabilityCatalog
         [Rpc(ModuleApiService, "GetGroupsForUser")] = nameof(ITeamDirectory),
         [Rpc(ModuleApiService, "GetTeam")] = nameof(ITeamDirectory),
         [Rpc(ModuleApiService, "GetTeamsForUser")] = nameof(ITeamDirectory),
+        [Rpc(ModuleApiService, "GetUserOrganizations")] = nameof(IOrganizationDirectory),
         [Rpc(ModuleApiService, "BroadcastRealtimeEvent")] = nameof(IRealtimeBroadcaster),
         [Rpc(ModuleApiService, "LogAudit")] = nameof(IAuditLogger),
         [Rpc(ModuleApiService, "SubmitSearchIndex")] = nameof(ISearchProvider),

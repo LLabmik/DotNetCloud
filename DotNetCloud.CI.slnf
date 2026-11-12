@@ -1,4 +1,4 @@
-{
+﻿{
   "solution": {
     "path": "DotNetCloud.sln",
     "projects": [
@@ -48,6 +48,7 @@
       "src\\Modules\\Tracks\\DotNetCloud.Modules.Tracks.Data\\DotNetCloud.Modules.Tracks.Data.csproj",
       "src\\Modules\\Tracks\\DotNetCloud.Modules.Tracks.Data.SqlServer\\DotNetCloud.Modules.Tracks.Data.SqlServer.csproj",
       "src\\Modules\\Tracks\\DotNetCloud.Modules.Tracks.Host\\DotNetCloud.Modules.Tracks.Host.csproj",
+      "src\\Modules\\Tracks\\DotNetCloud.Modules.Tracks.Shared\\DotNetCloud.Modules.Tracks.Shared.csproj",
       "src\\Modules\\Tracks\\DotNetCloud.Modules.Tracks.Web\\DotNetCloud.Modules.Tracks.Web.csproj",
       "src\\Modules\\Photos\\DotNetCloud.Modules.Photos\\DotNetCloud.Modules.Photos.csproj",
       "src\\Modules\\Photos\\DotNetCloud.Modules.Photos.Data\\DotNetCloud.Modules.Photos.Data.csproj",

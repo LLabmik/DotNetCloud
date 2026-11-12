@@ -32,6 +32,11 @@
     <ProjectReference Include="..\DotNetCloud.Modules.Tracks.Data\DotNetCloud.Modules.Tracks.Data.csproj" />
     <ProjectReference Include="..\DotNetCloud.Modules.Tracks.Data.SqlServer\DotNetCloud.Modules.Tracks.Data.SqlServer.csproj" />
     <ProjectReference Include="..\..\..\Core\DotNetCloud.Core.Grpc\DotNetCloud.Core.Grpc.csproj" />
+    <!-- The module UI. This is the standard hosted-Blazor-WebAssembly shape: referencing the
+         WebAssembly project contributes its published files as this host's static web assets, so
+         the frame the core loads at /apps/dotnetcloud.tracks/ is served by the module process
+         itself. No copy step, no duplicated output. -->
+    <ProjectReference Include="..\DotNetCloud.Modules.Tracks.Web\DotNetCloud.Modules.Tracks.Web.csproj" />
   </ItemGroup>
 
 </Project>

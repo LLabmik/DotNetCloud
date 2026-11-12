@@ -27,8 +27,24 @@
 > `DotNetCloud.Modules.Tracks.Web` (`Microsoft.NET.Sdk.BlazorWebAssembly`, referencing `DotNetCloud.Core` +
 > `DotNetCloud.UI.Shared`) builds clean, so the 97 Razor components are reused; the module UI proxy's CSP carries no
 > `script-src`, and no npm packages are involved. Verification: Tracks tests **210/210**, CI solution filter builds with
-> 0 warnings / 0 errors. ☐ Next: Stage B (UI port, full parity before the flip), Stage C (atomic data-plane flip +
-> decoupling), Stage D (pack, publish, live verify).
+> 0 warnings / 0 errors.
+>
+> **Follow-on (2026-11-11): Tracks Stage B2 + B3 — the sandboxed UI runs.** `GetUserOrganizations` was added to both
+> capability surfaces (subject-bound exactly like `GetTeamsForUser`, `profile` consent scope, mapped to
+> `IOrganizationDirectory` in `CapabilityCatalog`), with a `GrpcOrganizationDirectory` client for hosts and
+> `ModuleOrganizationDirectory`/`ModuleUserDirectory` for the frame. Host endpoints added: `GET api/v1/organizations`,
+> `GET api/v1/me`, `POST api/v1/users/display-names`, `GET api/v1/organizations/{orgId}/palette`; CSV import honours a
+> caller-supplied `mappingJson`. All **97** UI files moved into `DotNetCloud.Modules.Tracks.Web` and compile — the UI
+> contracts (real-time feeds, palette, onboarding, CSV) now live in a browser-safe `DotNetCloud.Modules.Tracks.Shared`
+> assembly so host and frame share one definition, the module's dead HTTP client became `TracksHttpApiClient`, and every
+> core-DI dependency has a frame equivalent (`api/v1/me` claims, in-memory onboarding, `BrowserPreferenceStore` because an
+> opaque origin forbids `localStorage`, no-op realtime feeds). `Tracks.Host` references the WASM project, so `publish`
+> emits the UI into its `wwwroot` (**24 MB**, `_framework` included). Verified in a browser against the published host:
+> the real Tracks shell renders and reports "Authentication is required" when called without a core assertion. Two traps
+> fixed: `@* … *@` in `wwwroot/index.html` is not Razor (it was served as visible text) and the `#blazor-error-ui` CSS
+> keyed on `:not(:empty)` showed the error bar permanently. Tests: Tracks **214/214**, `DotNetCloud.CI.slnf` green.
+> ☐ Next: Stage B3.5 (MaterialIcon sweep, `tracks.item` deep link), Stage C (atomic data-plane flip + decoupling),
+> Stage D (pack, publish, live verify).
 
 ---
 

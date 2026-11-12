@@ -27,9 +27,11 @@
   <ItemGroup>
     <!-- Browser-safe by design: DotNetCloud.Core only references Microsoft.AspNetCore.Http.Abstractions,
          and UI.Shared is the same Razor Class Library the server-side Blazor app and the existing
-         WASM client (DotNetCloud.UI.Web.Client) use. -->
+         WASM client (DotNetCloud.UI.Web.Client) use. Shared holds the module's own UI contracts so the
+         host and this UI cannot drift. -->
     <ProjectReference Include="..\..\..\Core\DotNetCloud.Core\DotNetCloud.Core.csproj" />
     <ProjectReference Include="..\..\..\UI\DotNetCloud.UI.Shared\DotNetCloud.UI.Shared.csproj" />
+    <ProjectReference Include="..\DotNetCloud.Modules.Tracks.Shared\DotNetCloud.Modules.Tracks.Shared.csproj" />
   </ItemGroup>
 
 </Project>

@@ -24,6 +24,7 @@ public class ModuleApiContractTests
         "GetGroupsForUser",
         "GetTeam",
         "GetTeamsForUser",
+        "GetUserOrganizations",
         "SendNotification",
         "PublishEvent",
         "GetSetting",

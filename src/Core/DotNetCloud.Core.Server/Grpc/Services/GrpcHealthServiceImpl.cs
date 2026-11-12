@@ -704,6 +704,60 @@ internal class CoreCapabilitiesServiceImpl : CoreCapabilities.CoreCapabilitiesBa
     }
 
     /// <summary>
+    /// Lists the organizations a user is an active member of (IOrganizationDirectory capability).
+    /// </summary>
+    /// <remarks>
+    /// A module host has no access to <c>core.organizations</c>, so without this RPC a sandboxed
+    /// module UI cannot offer an organization picker and has to ask the user to paste a GUID. The
+    /// subject is bound to the verified caller exactly as for <see cref="GetTeamsForUser"/>: naming
+    /// another user is rejected, and the call is subject to the <c>profile</c> consent scope when the
+    /// module declared it.
+    /// </remarks>
+    public override async Task<GetUserOrganizationsResponse> GetUserOrganizations(
+        GetUserOrganizationsRequest request, ServerCallContext context)
+    {
+        var binding = await BindSubjectAsync(context, request.UserId, "GetUserOrganizations");
+        if (binding.UserId == Guid.Empty)
+        {
+            return new GetUserOrganizationsResponse();
+        }
+
+        var userId = binding.UserId;
+
+        _logger.LogDebug("GetUserOrganizations called for {UserId} by module {ModuleId}",
+            userId, GetModuleId(context));
+
+        await EnforceProfileConsentAsync(context, userId, "GetUserOrganizations");
+
+        try
+        {
+            using var scope = _serviceProvider.CreateScope();
+            var organizationDirectory = scope.ServiceProvider.GetRequiredService<IOrganizationDirectory>();
+            var organizations = await organizationDirectory.GetUserOrganizationsAsync(userId, context.CancellationToken);
+
+            var response = new GetUserOrganizationsResponse();
+            response.Organizations.AddRange(organizations.Select(o => new OrganizationInfoMessage
+            {
+                Id = o.Id.ToString(),
+                Name = o.Name,
+                Description = o.Description ?? string.Empty,
+                MemberCount = o.MemberCount,
+                TeamCount = o.TeamCount,
+                CreatedAt = o.CreatedAt.ToString("O"),
+            }));
+
+            _logger.LogDebug("GetUserOrganizations: found {Count} organizations for user {UserId}",
+                response.Organizations.Count, userId);
+            return response;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "GetUserOrganizations failed for {UserId}", userId);
+            return new GetUserOrganizationsResponse();
+        }
+    }
+
+    /// <summary>
     /// Lists the groups a user belongs to (IGroupDirectory capability). Module hosts use this to
     /// resolve admin shared-folder group grants; without it a host cannot tell whether a caller
     /// is entitled to a folder, and must deny by default.

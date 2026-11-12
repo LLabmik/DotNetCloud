@@ -34,7 +34,7 @@ public interface IChatActivitySignalRService
 /// No-op implementation used when the Chat module is not installed.
 /// All event subscriptions are silently ignored.
 /// </summary>
-internal sealed class NullChatActivitySignalRService : IChatActivitySignalRService
+public sealed class NullChatActivitySignalRService : IChatActivitySignalRService
 {
     /// <inheritdoc />
     public bool IsActive => false;

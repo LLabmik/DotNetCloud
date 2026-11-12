@@ -838,6 +838,7 @@ public class WorkItemsController : TracksControllerBase
         IFormFile file,
         [FromQuery] Guid? swimlaneId = null,
         [FromQuery] bool dryRun = false,
+        [FromForm] string? mappingJson = null,
         CancellationToken ct = default)
     {
         var caller = GetAuthenticatedCaller();
@@ -858,8 +859,8 @@ public class WorkItemsController : TracksControllerBase
             // Parse the CSV
             var parseResult = await csvService.ParseCsvAsync(stream, ct);
 
-            // Build auto-mapping from headers
-            var mapping = AutoMapColumns(parseResult.Headers);
+            // A caller-supplied mapping wins: the wizard lets the user override the header guess.
+            var mapping = TryReadMapping(mappingJson) ?? AutoMapColumns(parseResult.Headers);
 
             stream.Position = 0;
 
@@ -944,6 +945,34 @@ public class WorkItemsController : TracksControllerBase
     }
 
     // ─── Helpers ───────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Reads a caller-supplied column mapping, or returns <see langword="null"/> when absent/invalid.
+    /// </summary>
+    /// <remarks>
+    /// The module UI's import wizard lets the user correct the automatic header guess, so it posts its
+    /// mapping back. A malformed mapping must not fail the request — the automatic one is a safe
+    /// fallback and the dry run shows the user what it did.
+    /// </remarks>
+    private static CsvColumnMapping? TryReadMapping(string? mappingJson)
+    {
+        if (string.IsNullOrWhiteSpace(mappingJson))
+            return null;
+
+        try
+        {
+            var mapping = System.Text.Json.JsonSerializer.Deserialize<CsvColumnMapping>(
+                mappingJson,
+                new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web));
+
+            // Without a title column the import cannot create anything.
+            return mapping is { TitleColumn: >= 0 } ? mapping : null;
+        }
+        catch (System.Text.Json.JsonException)
+        {
+            return null;
+        }
+    }
 
     /// <summary>
     /// Resolves the product ID from a swimlane and creates a work item of the specified type.

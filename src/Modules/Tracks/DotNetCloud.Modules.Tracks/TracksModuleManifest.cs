@@ -25,7 +25,11 @@ public sealed class TracksModuleManifest : IModuleManifest
         nameof(Core.Capabilities.IUserDirectory),
         nameof(Core.Capabilities.ICurrentUserContext),
         nameof(Core.Capabilities.IAuditLogger),
-        nameof(Core.Capabilities.IRealtimeBroadcaster)
+        nameof(Core.Capabilities.IRealtimeBroadcaster),
+
+        // Tracks is organization-scoped: the module UI resolves the acting user's organizations
+        // through this capability (the host cannot read core.organizations).
+        nameof(Core.Capabilities.IOrganizationDirectory)
     };
 
     /// <inheritdoc />

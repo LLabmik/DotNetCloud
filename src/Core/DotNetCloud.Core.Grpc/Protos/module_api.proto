@@ -54,6 +54,9 @@ service ModuleApi {
   // Lists the teams a user belongs to (empty target = acting user).
   rpc GetTeamsForUser (GetTeamsForUserRequest) returns (GetTeamsForUserResponse);
 
+  // Lists the organizations a user is an active member of (empty target = acting user).
+  rpc GetUserOrganizations (GetUserOrganizationsRequest) returns (GetUserOrganizationsResponse);
+
   // --- Notifications (INotificationService) ---------------------------------------------------
 
   // Sends a notification. The core attributes the notification to the authenticated module and
@@ -255,6 +258,29 @@ message GetTeamsForUserRequest {
 
 message GetTeamsForUserResponse {
   repeated ModuleTeam teams = 1;
+}
+
+// --- Organizations (IOrganizationDirectory) ---------------------------------------------------
+
+message GetUserOrganizationsRequest {
+  reserved 1;
+  reserved "caller";
+
+  // Empty = the acting user from the user assertion.
+  string user_id = 2;
+}
+
+message GetUserOrganizationsResponse {
+  repeated ModuleOrganization organizations = 1;
+}
+
+message ModuleOrganization {
+  string id = 1;
+  string name = 2;
+  string description = 3;
+  int32 member_count = 4;
+  int32 team_count = 5;
+  string created_at = 6;
 }
 
 // --- Notifications ----------------------------------------------------------------------------

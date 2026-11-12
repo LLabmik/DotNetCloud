@@ -1,0 +1,14 @@
+@page "/"
+@using DotNetCloud.Modules.Tracks.Web.UI
+
+<PageTitle>Tracks</PageTitle>
+
+@* The module UI's entry page. Deep links arrive as query parameters on the frame URL:
+   /apps/dotnetcloud.tracks/?kanban=<workItemId> opens that item's board, as the core's page did. *@
+<TracksPage KanbanId="@Kanban" />
+
+@code {
+    /// <summary>Gets or sets the work item whose kanban board should open.</summary>
+    [SupplyParameterFromQuery(Name = "kanban")]
+    public string? Kanban { get; set; }
+}

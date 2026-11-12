@@ -75,6 +75,10 @@ builder.Services.AddModuleUserAssertionAccessor();
 // Register the gRPC-backed audit logger (SOC 2 CC4) — routes to Core.Server.
 builder.Services.AddAuditLogger();
 
+// Organization membership is core data. The host has no access to core.organizations, so the
+// organizations endpoint resolves the acting user's memberships through the capability.
+builder.Services.AddGrpcOrganizationDirectory();
+
 // Register the module as singleton
 builder.Services.AddSingleton<TracksModule>();
 
@@ -164,6 +168,11 @@ if (app.Environment.IsDevelopment())
 // Serve this module's own web UI. The core frames /apps/dotnetcloud.tracks/ and proxies it here, so
 // the page and its assets are plain static files of this host — index.html is the default document,
 // and every reference in it is relative because the proxy strips the prefix.
+//
+// The UI is a Blazor WebAssembly app (DotNetCloud.Modules.Tracks.Web). Its published files — including
+// _framework/, which is what a standalone WebAssembly app loads — arrive here as this project's static
+// web assets through the project reference, so plain static files is the whole story: no
+// UseBlazorFrameworkFiles, which exists to map a *client* project's assets from a server project.
 app.UseDefaultFiles();
 app.UseStaticFiles();
 

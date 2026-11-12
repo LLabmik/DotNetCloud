@@ -1,0 +1,186 @@
+@namespace DotNetCloud.Modules.Tracks.Web.UI
+
+<div class="review-session review-participant">
+    @* ── Session Header ── *@
+    <div class="review-header">
+        <div class="review-header-left">
+            <h2>🎯 Review Session</h2>
+            <span class="review-status-badge @ReviewSessionHost.GetStatusClass(Session.Status)">@Session.Status</span>
+        </div>
+        <div class="review-header-right">
+            <span class="review-participant-count">
+                👥 @Session.ParticipantCount participants
+            </span>
+            <button class="btn btn-sm btn-outline" @onclick="LeaveSession">Leave Session</button>
+        </div>
+    </div>
+
+    <div class="review-body">
+        @* ── Left: Current Card (auto-synced from host) ── *@
+        <div class="review-card-area">
+            <div class="review-following-indicator">
+                <span>📡 Following host's view</span>
+            </div>
+
+            @if (_currentItem is not null)
+            {
+                <div class="review-card-detail">
+                    <div class="review-card-header">
+                        <span class="review-card-number">#@_currentItem.ItemNumber</span>
+                        <h3 class="review-card-title">@_currentItem.Title</h3>
+                        @if (_currentItem.StoryPoints.HasValue)
+                        {
+                            <span class="review-card-points">@_currentItem.StoryPoints SP</span>
+                        }
+                    </div>
+                    @if (_currentItem.Priority != Priority.None)
+                    {
+                        <span class="review-card-priority priority-@_currentItem.Priority.ToString().ToLowerInvariant()">
+                            @_currentItem.Priority
+                        </span>
+                    }
+                    @if (!string.IsNullOrWhiteSpace(_currentItem.Description))
+                    {
+                        <div class="review-card-description">@_currentItem.Description</div>
+                    }
+                    @if (_currentItem.Labels.Count > 0)
+                    {
+                        <div class="review-card-labels">
+                            @foreach (var label in _currentItem.Labels)
+                            {
+                                <span class="review-label" style="background: @(label.Color ?? "#6b7280");">@label.Title</span>
+                            }
+                        </div>
+                    }
+                    @if (_currentItem.Assignments.Count > 0)
+                    {
+                        <div class="review-card-assignments">
+                            <span class="review-assignments-label">Assigned:</span>
+                            @foreach (var a in _currentItem.Assignments)
+                            {
+                                <span class="review-assignee">@(a.DisplayName ?? a.UserId.ToString()[..8])</span>
+                            }
+                        </div>
+                    }
+                    @if (_currentItem.DueDate.HasValue)
+                    {
+                        <div class="review-card-due">
+                            📅 Due: @_currentItem.DueDate.Value.ToString("MMM d, yyyy")
+                        </div>
+                    }
+                </div>
+            }
+            else
+            {
+                <div class="review-card-empty">
+                    <p>Waiting for host to select a card…</p>
+                </div>
+            }
+        </div>
+
+        @* ── Right: Participants + Poker Voting ── *@
+        <div class="review-sidebar">
+            @* Participants Panel *@
+            <div class="review-participants">
+                <h4>Participants</h4>
+                <div class="review-participant-list">
+                    <p class="tracks-muted">@Session.ParticipantCount participant(s) connected</p>
+                </div>
+            </div>
+
+            @* Poker Panel *@
+            <div class="review-poker">
+                <h4>Planning Poker</h4>
+
+                @if (_activePoker is null)
+                {
+                    <p class="review-poker-hint">Waiting for host to start a poker session…</p>
+                }
+                else if (_activePoker.Status == PokerSessionStatus.Voting)
+                {
+                    @if (_hasVoted)
+                    {
+                        <div class="review-poker-waiting">
+                            <span class="review-poker-waiting-icon">⏳</span>
+                            <p>Vote submitted! Waiting for host to reveal…</p>
+                            <span class="review-poker-your-vote">Your vote: @_myVote</span>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="review-poker-vote-area">
+                            <p>Select your estimate:</p>
+                            <div class="review-poker-scale-options">
+                                @foreach (var val in ReviewSessionHost.GetScaleValues(_activePoker.Scale))
+                                {
+                                    <button class="review-poker-card @(_selectedVote == val ? "selected" : "")"
+                                            @onclick="() => _selectedVote = val">
+                                        @val
+                                    </button>
+                                }
+                            </div>
+                            @if (_selectedVote is not null)
+                            {
+                                <button class="btn btn-primary btn-sm" @onclick="SubmitVote" disabled="@_isSubmittingVote">
+                                    Submit: @_selectedVote
+                                </button>
+                            }
+                        </div>
+                    }
+                }
+                else if (_activePoker.Status == PokerSessionStatus.Revealed)
+                {
+                    @* Revealed — show vote status *@
+                    <div class="review-poker-results">
+                        <p>Votes have been revealed. Host will accept an estimate.</p>
+                    </div>
+                    <p class="review-poker-hint">Waiting for host to accept an estimate…</p>
+                }
+                else if (_activePoker.Status == PokerSessionStatus.Completed)
+                {
+                    <div class="review-poker-completed">
+                        <span class="review-poker-accepted">Accepted: @_activePoker.AcceptedEstimate</span>
+                    </div>
+                }
+            </div>
+
+            @* Discussion Panel *@
+            <div class="review-discussion">
+                <h4>💬 Discussion</h4>
+                <div class="tracks-discussion-messages">
+                    @if (_discussionMessages.Count == 0)
+                    {
+                        <p class="tracks-muted discussion-empty">No messages yet.</p>
+                    }
+                    else
+                    {
+                        @foreach (var msg in _discussionMessages)
+                        {
+                            <div class="tracks-discussion-message">
+                                <div class="tracks-discussion-message-header">
+                                    <span class="tracks-discussion-author">@msg.UserDisplayName</span>
+                                    <span class="tracks-discussion-time">@GetRelativeDiscussionTime(msg.CreatedAt)</span>
+                                </div>
+                                <div class="tracks-discussion-content">@msg.Content</div>
+                            </div>
+                        }
+                    }
+                </div>
+                <div class="tracks-discussion-input">
+                    <textarea class="form-control" @bind="_discussionInput" @onkeydown="HandleDiscussionKeyDown"
+                              placeholder="Type a message..." rows="2" maxlength="2000"
+                              disabled="@_isSendingDiscussion"></textarea>
+                    <button class="btn btn-sm btn-primary" @onclick="SendDiscussionMessageAsync"
+                            disabled="@(string.IsNullOrWhiteSpace(_discussionInput) || _isSendingDiscussion)">
+                        Send
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    @if (_errorMessage is not null)
+    {
+        <div class="review-error">@_errorMessage</div>
+    }
+</div>

@@ -1,5 +1,6 @@
 using DotNetCloud.Core.Capabilities;
 using DotNetCloud.Core.DTOs;
+using DotNetCloud.Core.Services.ModuleApis;
 using DotNetCloud.UI.Shared.Services;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Web;
@@ -12,7 +13,7 @@ namespace DotNetCloud.Modules.Tracks.UI;
 public sealed partial class TeamManagement : ComponentBase
 {
     [Inject]
-    private Services.ITracksApiClient Api { get; set; } = default!;
+    private ITracksApiClient Api { get; set; } = default!;
 
     [Inject]
     private IUserDirectory UserDirectory { get; set; } = default!;

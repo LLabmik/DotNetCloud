@@ -8,7 +8,7 @@
 
 ---
 
-## Recent Work — Track C: Tracks module Stage A — sandbox-ready host (2026-11-11, `feature/third-party-modules`)
+## Recent Work — Track C: Tracks module Stages A + B — sandbox-ready host and sandboxed UI (2026-11-11, `feature/third-party-modules`)
 
 Sixth Track C module and the largest surface in the program (~200 source files, 32 REST controllers, 148 gRPC RPCs,
 97 Blazor UI files). This stage makes the host ready for the sandbox **without changing live behaviour** — the
@@ -30,8 +30,10 @@ in-core Blazor UI and the core's migration of the `tracks` schema keep working u
 ### Stage B progress
 
 - ✓ **B1 — frame plumbing (2026-11-11)** — the SDK bridge is linked into the WASM `wwwroot` and started before Blazor, so its `window.fetch` patch attaches the frame ticket to every `HttpClient` call; a C# `ModuleBridge` exposes theme/locale, `mediaUrl` for browser-built subresources, navigate, title, toast and consent; `TracksApi` reads the module's `{ success, data }` / `{ success, error { code, message } }` envelopes with enum-name JSON; a `MainLayout` shell follows the core theme. Published assets verified (`js/dncModuleBridge.js`, `js/tracks-bridge.js`, `index.html`, `_framework/blazor.webassembly.js`); the published `wwwroot` is ~21 MB, which is what the package will grow by.
-- ☐ **B2** — organization/product listing: add a `GetUserOrganizations` capability RPC (proto → core service → `CapabilityCatalog` → gRPC client) and `GET api/v1/organizations` on the host, because the in-core page used the in-process `IOrganizationDirectory`.
-- ☐ **B3** — screen ports (products, kanban/backlog/list/timeline, item detail + `tracks.item`, sprints/planning, teams, review, settings, widget). No `localStorage`: an opaque-origin frame throws on storage access.
+- ✓ **B2 — data access (2026-11-11)** — `GetUserOrganizations` landed on both capability surfaces (legacy + canonical), implemented with the same subject binding as `GetTeamsForUser` and the `profile` consent scope, and mapped to `IOrganizationDirectory` in `CapabilityCatalog`; new `GrpcOrganizationDirectory` client for hosts plus `ModuleOrganizationDirectory` / `ModuleUserDirectory` for the frame. Host endpoints: `GET api/v1/organizations` (with the module's own product count), `GET api/v1/me`, `POST api/v1/users/display-names`, `GET api/v1/organizations/{orgId}/palette`; CSV import now honours a caller-supplied `mappingJson` (8 new tests).
+- ✓ **B3 — screens (2026-11-11)** — all **97** UI files moved into the WASM app and compile; a new browser-safe `DotNetCloud.Modules.Tracks.Shared` assembly holds the UI contracts (real-time feeds, palette, onboarding, CSV) so host and frame share one definition; the module's dead HTTP client became `TracksHttpApiClient`; core DI dependencies replaced by frame equivalents (`TracksAuthenticationStateProvider` → `api/v1/me`, in-memory onboarding, host-backed palette/CSV, `BrowserPreferenceStore` for storage that an opaque origin forbids); `Tracks.Host` references the WASM project so `publish` produces its `wwwroot` (**24 MB**). Verified in a browser against the published host: the real Tracks shell renders and reports "Authentication is required" when called without a core assertion. Two traps fixed: `@* … *@` in `wwwroot/index.html` is not Razor (served as visible text), and a `#blazor-error-ui` CSS rule keyed on `:not(:empty)` showed the error bar permanently.
+- ☐ **B3.5 — icon sweep and client tests** — the ported components still use emoji where the repo mandates `MaterialIcon` (~250 occurrences, arrows excluded); pre-existing debt from the in-core UI, must be cleared before the flip. Deep link `?kanban=…` works; `tracks.item`/`cardId` routing still to add. The browser-side clients are untested because a WebAssembly project cannot be referenced by a test project — covering them needs the non-UI services in a plain `net10.0` library.
+- ☐ **Next** — Stage C: atomic flip (schema-neutral model + re-stamped migrations + manifest v2 isolated + delete the in-core UI and core coupling); Stage D: pack, publish, live verify.
 
 ---
 
