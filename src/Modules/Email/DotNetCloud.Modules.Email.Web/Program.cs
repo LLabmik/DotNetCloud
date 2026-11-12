@@ -20,6 +20,11 @@ builder.Services.AddScoped(_ => new HttpClient
 builder.Services.AddScoped<ModuleApiClient>();
 builder.Services.AddScoped<EmailApi>();
 
+// The panels are thin views over EmailState, which the pages, the panel base class and the overlays all
+// inject. Nothing else registers it: without this the whole frame dies at render time with
+// "Cannot provide a value for property 'State' ... There is no registered service of type ...EmailState".
+builder.Services.AddScoped<EmailState>();
+
 // Frame contract with the core shell: theme, title, toasts, consent prompts and external tabs.
 builder.Services.AddSingleton<ModuleFrameBridge>();
 

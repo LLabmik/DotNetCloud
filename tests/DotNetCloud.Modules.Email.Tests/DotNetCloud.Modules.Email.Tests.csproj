@@ -44,6 +44,9 @@
          document and stylesheet. -->
     <None Include="..\..\src\Modules\Email\DotNetCloud.Modules.Email.Web\wwwroot\index.html" Link="ui\index.html" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\src\Modules\Email\DotNetCloud.Modules.Email.Web\wwwroot\css\app.css" Link="ui\css\app.css" CopyToOutputDirectory="PreserveNewest" />
+    <!-- The frame's service registrations are asserted directly: a missing one is a blank frame in the
+         browser, which no other test would catch. -->
+    <None Include="..\..\src\Modules\Email\DotNetCloud.Modules.Email.Web\Program.cs" Link="ui\Program.cs" CopyToOutputDirectory="PreserveNewest" />
         <!-- The bridge is the SDK's single copy of the UI protocol; the host copies it at build time. -->
     <None Include="..\..\src\SDK\DotNetCloud.Modules.Sdk\wwwroot\dncModuleBridge.js" Link="ui\js\dncModuleBridge.js" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\src\SDK\DotNetCloud.Modules.Sdk.Web\wwwroot\dncModuleFrame.js" Link="ui\js\dncModuleFrame.js" CopyToOutputDirectory="PreserveNewest" />

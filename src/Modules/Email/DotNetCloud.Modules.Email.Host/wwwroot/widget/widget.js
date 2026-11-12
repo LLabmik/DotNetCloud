@@ -10,7 +10,10 @@
 (function () {
   "use strict";
 
-  var API = "api/v1/email";
+  // Relative to the widget document, which the core serves at /apps/dotnetcloud.email/widget/, so the
+  // app root is one level up. Keeping it widget-relative made every call 404 ("Unable to load
+  // email." in the Home widget, found live on 2026-11-12).
+  var API = "../api/v1/email";
 
   var message = document.getElementById("message");
   var list = document.getElementById("items");

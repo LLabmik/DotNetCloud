@@ -10,11 +10,11 @@ its own web UI and Home-page widget.
   schema-neutral: the scoped connection string's `search_path` (PostgreSQL) or default schema
   (SQL Server) decides where `Conversations`, `ConversationMessages` and `__EFMigrationsHistory`
   land. Never name a schema in a sandboxed module's model or migrations.
-- **Own UI.** `wwwroot/index.html` + `assets/ai-ui.js` are served by this host and framed by the
-  core at `/apps/dotnetcloud.ai/`; `wwwroot/widget/` is the Home-page card. Every asset path is
-  relative and every API call is same-origin to the frame. Model output is rendered by a small
-  markdown renderer that only ever creates text nodes and a fixed element set, so a model cannot
-  inject markup into the core's origin.
+- **Own UI.** The module serves its Blazor WebAssembly app from `wwwroot/` (`index.html` plus
+  `_framework`) and the Home-page widget from `wwwroot/widget/`; the core frames both at
+  `/apps/dotnetcloud.ai/`. Every asset path is relative and every API call is same-origin to the
+  frame. Model output is rendered by a small markdown renderer that only ever creates text nodes and a
+  fixed element set, so a model cannot inject markup into the core's origin.
 - **Identity.** There is no cookie scheme. The core proxy strips the browser's session and injects a
   `dnc-user-assertion`; the module answers 401 (never 500) when it is missing, and the acting user is
   always the asserted subject — never a user id from the request payload.

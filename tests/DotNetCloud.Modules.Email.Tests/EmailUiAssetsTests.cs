@@ -127,6 +127,16 @@ public class EmailUiAssetsTests
     }
 
     [TestMethod]
+    public void WidgetScript_ResolvesTheApiFromTheAppRootNotTheWidgetDirectory()
+    {
+        var script = ReadUiFile("widget/widget.js");
+
+        Assert.IsFalse(
+            Regex.IsMatch(script, @"(?<!\.\./)api/v1/email"),
+            "the widget document is served from /apps/<moduleId>/widget/, so an api path without '../' resolves under /widget/ and every call answers 404");
+    }
+
+    [TestMethod]
     public void Bridge_IsShippedAsAStaticAsset()
     {
         var bridge = ReadUiFile("js/dncModuleBridge.js");

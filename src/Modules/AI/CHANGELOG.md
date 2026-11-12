@@ -2,6 +2,22 @@
 
 All notable changes to the AI Assistant module are documented here.
 
+## 2.0.1
+
+The framed UI is now a Blazor WebAssembly app rather than a hand-written JavaScript page, and it was
+verified in a browser against a live deploy before publication.
+
+- **UI re-platformed.** The host serves the module's Blazor WebAssembly app (`_framework` included)
+  from `wwwroot/`, so the assistant is built from the same components as the rest of the product
+  instead of a parallel JavaScript implementation. The SDK bridge is linked in before Blazor starts,
+  so every `HttpClient` call carries the frame ticket. No npm packages.
+- **Frame plumbing.** Theme and locale changes from the shell, the in-frame title, toasts and consent
+  prompts go through the SDK bridge; the streaming client and the markdown renderer are registered in
+  the frame's own container.
+- **Verified live** on a dev deploy: the framed app renders the assistant, the Home widget loads with
+  no failed requests, the shell's theme toggle reaches the frame without a remount, and the configured
+  model is read from the module settings plane rather than `appsettings.json`.
+
 ## 2.0.0
 
 Track C: the module leaves the core and runs as a sandboxed host with its own UI and widget.
