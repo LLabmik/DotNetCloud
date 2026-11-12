@@ -12,7 +12,7 @@
                 <span class="tracks-wizard-step-number">
                     @if (step < _currentStep)
                     {
-                        <span>✓</span>
+                        <MaterialIcon Icon="check" Size="MaterialIconSize.Sm" />
                     }
                     else
                     {
@@ -106,7 +106,7 @@
                                 {
                                     <button class="tracks-icon-btn tracks-icon-btn--danger"
                                             @onclick="() => RemoveSwimlane(idx)" title="Remove">
-                                        ✕
+                                        <MaterialIcon Icon="close" Size="MaterialIconSize.Sm" />
                                     </button>
                                 }
                             </div>
@@ -184,7 +184,7 @@
 
                     <div class="tracks-wizard-review">
                         <div class="tracks-wizard-review-section">
-                            <h4>📅 Sprint Plan</h4>
+                            <h4><MaterialIcon Icon="calendar_month" Size="MaterialIconSize.Sm" /> Sprint Plan</h4>
                             <div class="tracks-wizard-review-grid">
                                 <div class="tracks-wizard-review-item">
                                     <span class="tracks-wizard-review-label">Start Date</span>
@@ -206,7 +206,7 @@
                         </div>
 
                         <div class="tracks-wizard-review-section">
-                            <h4>📋 Swimlanes</h4>
+                            <h4><MaterialIcon Icon="checklist" Size="MaterialIconSize.Sm" /> Swimlanes</h4>
                             <div class="tracks-wizard-review-swimlanes">
                                 @foreach (var sl in _swimlanes)
                                 {
@@ -222,7 +222,7 @@
                         </div>
 
                         <div class="tracks-wizard-review-section">
-                            <h4>🏃 Sprint Schedule</h4>
+                            <h4><MaterialIcon Icon="directions_run" Size="MaterialIconSize.Sm" /> Sprint Schedule</h4>
                             <div class="tracks-wizard-mini-timeline">
                                 @foreach (var sprint in _sprintSchedule)
                                 {
@@ -244,7 +244,7 @@
     @if (!string.IsNullOrEmpty(_errorMessage))
     {
         <div class="tracks-wizard-error">
-            <span>⚠ @_errorMessage</span>
+            <span><MaterialIcon Icon="warning" Size="MaterialIconSize.Sm" /> @_errorMessage</span>
         </div>
     }
 

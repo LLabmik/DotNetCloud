@@ -11,7 +11,7 @@
     @if (_teams.Count == 0)
     {
         <div class="tracks-empty-state">
-            <span class="tracks-empty-icon">👥</span>
+            <span class="tracks-empty-icon"><MaterialIcon Icon="group" Size="MaterialIconSize.Xl" /></span>
             <h3>No teams yet</h3>
             <p>Create a team to collaborate on boards together.</p>
             <button class="btn btn-primary" @onclick="() => _showCreateDialog = true">Create Team</button>
@@ -26,7 +26,7 @@
                     <div class="tracks-team-card-header">
                         <h3>@team.Name</h3>
                         <div class="tracks-team-card-meta">
-                            <span class="tracks-team-stat" title="Members">👥 @team.MemberCount</span>
+                            <span class="tracks-team-stat" title="Members"><MaterialIcon Icon="group" Size="MaterialIconSize.Sm" /> @team.MemberCount</span>
                         </div>
                     </div>
                     @if (!string.IsNullOrEmpty(team.Description))
@@ -37,7 +37,7 @@
                     @if (team.MemberCount > 0)
                     {
                         <div class="tracks-team-members-preview">
-                            <span class="tracks-team-stat">👥 @team.MemberCount member(s)</span>
+                            <span class="tracks-team-stat"><MaterialIcon Icon="group" Size="MaterialIconSize.Sm" /> @team.MemberCount member(s)</span>
                         </div>
                     }
 
@@ -122,7 +122,7 @@
                                                 </select>
                                                 <button class="btn btn-sm btn-outline tracks-remove-btn"
                                                         @onclick="() => RemoveMemberAsync(team.Id, member.UserId)"
-                                                        title="Remove member">✕</button>
+                                                        title="Remove member"><MaterialIcon Icon="close" Size="MaterialIconSize.Sm" /></button>
                                             </div>
                                         }
                                     </div>
@@ -152,7 +152,7 @@
             <div class="tracks-dialog" @onclick:stopPropagation>
                 <div class="tracks-dialog-header">
                     <h3>Create Team</h3>
-                    <button class="tracks-icon-btn" @onclick="() => _showCreateDialog = false">✕</button>
+                    <button class="tracks-icon-btn" @onclick="() => _showCreateDialog = false" title="Close"><MaterialIcon Icon="close" /></button>
                 </div>
                 <div class="tracks-dialog-body">
                     <div class="tracks-form-group">
@@ -180,7 +180,7 @@
         <DncModal Title="Delete Team" StartVisible OnClose="() => _showDeleteTeamConfirm = false">
             <ChildContent>
                 <p>Are you sure you want to <strong>permanently delete</strong> this team?</p>
-                <p class="tracks-modal-warning">⚠️ This will remove the team and all associated data. This action cannot be undone.</p>
+                <p class="tracks-modal-warning"><MaterialIcon Icon="warning" Size="MaterialIconSize.Sm" /> This will remove the team and all associated data. This action cannot be undone.</p>
             </ChildContent>
             <Footer>
                 <button class="btn btn-danger" @onclick="() => DeleteTeamAsync(_teamToDeleteId)">
@@ -195,7 +195,7 @@
     {
         <div class="tracks-toast tracks-toast-error">
             <span>@_errorMessage</span>
-            <button class="tracks-icon-btn" @onclick="() => _errorMessage = null">✕</button>
+            <button class="tracks-icon-btn" @onclick="() => _errorMessage = null" title="Dismiss"><MaterialIcon Icon="close" Size="MaterialIconSize.Sm" /></button>
         </div>
     }
 </div>

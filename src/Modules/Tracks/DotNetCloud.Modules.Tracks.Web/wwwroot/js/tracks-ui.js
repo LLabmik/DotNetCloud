@@ -4,7 +4,9 @@
  * Named functions, never `eval`: the frame inherits the core's Content-Security-Policy, which has no
  * 'unsafe-eval'.
  */
-window.tracksList = window.tracksList || (function () {
+window.tracksList =
+  window.tracksList ||
+  (function () {
     "use strict";
 
     /**
@@ -13,10 +15,14 @@ window.tracksList = window.tracksList || (function () {
      * @param {string} fileName - Suggested file name.
      */
     function downloadCsv(base64, fileName) {
-        window.dotnetcloudDom.downloadData(base64, fileName, "text/csv;charset=utf-8");
+      window.dotnetcloudDom.downloadData(
+        base64,
+        fileName,
+        "text/csv;charset=utf-8",
+      );
     }
 
     return {
-        downloadCsv: downloadCsv
+      downloadCsv: downloadCsv,
     };
-})();
+  })();

@@ -382,15 +382,6 @@ public partial class KanbanBoard : ComponentBase
         _ => ""
     };
 
-    private static string GetPriorityIcon(Priority priority) => priority switch
-    {
-        Priority.Urgent => "🔴",
-        Priority.High => "🟠",
-        Priority.Medium => "🟡",
-        Priority.Low => "🟢",
-        _ => ""
-    };
-
     private static bool IsOverdue(DateTime dueDate) => dueDate < DateTime.UtcNow;
 
     private static bool IsDueSoon(DateTime dueDate) =>
@@ -448,14 +439,7 @@ public partial class KanbanBoard : ComponentBase
 
     // ── Hierarchy Visuals ──────────────────────────────────
 
-    private string GetLevelIcon() => CreateWorkItemType switch
-    {
-        WorkItemType.Epic => "🏗️",
-        WorkItemType.Feature => "🎯",
-        WorkItemType.Item => "📋",
-        WorkItemType.SubItem => "📌",
-        _ => "📋"
-    };
+    private string GetLevelIcon() => TracksIcons.ForType(CreateWorkItemType);
 
     private string GetLevelLabel() => CreateWorkItemType switch
     {

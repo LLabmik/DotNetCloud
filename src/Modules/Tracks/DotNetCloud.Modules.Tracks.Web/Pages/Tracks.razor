@@ -3,12 +3,19 @@
 
 <PageTitle>Tracks</PageTitle>
 
-@* The module UI's entry page. Deep links arrive as query parameters on the frame URL:
-   /apps/dotnetcloud.tracks/?kanban=<workItemId> opens that item's board, as the core's page did. *@
-<TracksPage KanbanId="@Kanban" />
+@* The module UI's entry page. Deep links arrive as query parameters on the frame URL — a path
+   segment would not survive a reload, because the module proxy only serves static files under
+   /apps/{moduleId}/** and the wasm router never sees the request:
+     ?kanban=<workItemId>  opens that work item's board (as the core's page did)
+     ?card=<workItemId>    additionally opens that work item's detail panel *@
+<TracksPage KanbanId="@Kanban" CardId="@Card" />
 
 @code {
     /// <summary>Gets or sets the work item whose kanban board should open.</summary>
     [SupplyParameterFromQuery(Name = "kanban")]
     public string? Kanban { get; set; }
+
+    /// <summary>Gets or sets the id of the work item whose detail panel should open.</summary>
+    [SupplyParameterFromQuery(Name = "card")]
+    public string? Card { get; set; }
 }

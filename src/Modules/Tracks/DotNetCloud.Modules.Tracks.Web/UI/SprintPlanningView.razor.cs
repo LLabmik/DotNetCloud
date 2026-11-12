@@ -197,11 +197,11 @@ public partial class SprintPlanningView : ComponentBase, IDisposable
 
     private static string GetPriorityLabel(Priority priority) => priority switch
     {
-        Priority.Urgent => "🔴 Urgent",
-        Priority.High => "🟠 High",
-        Priority.Medium => "🟡 Medium",
-        Priority.Low => "🔵 Low",
-        _ => "⚪ None"
+        Priority.Urgent => "Urgent",
+        Priority.High => "High",
+        Priority.Medium => "Medium",
+        Priority.Low => "Low",
+        _ => "None"
     };
 
     private static string GetStatusBadgeClass(SprintStatus status) => status switch

@@ -140,13 +140,13 @@ public partial class WebhookManagementPage : ComponentBase
             var result = await ApiClient.TestProductWebhookAsync(ProductId, sub.Id);
             _testSuccess = result.Success;
             _testResult = result.Success
-                ? $"✅ Test ping succeeded — HTTP {result.StatusCode} in {result.DurationMs}ms"
-                : $"❌ Test ping failed — {result.Error ?? $"HTTP {result.StatusCode}"}";
+                ? $"Test ping succeeded — HTTP {result.StatusCode} in {result.DurationMs}ms"
+                : $"Test ping failed — {result.Error ?? $"HTTP {result.StatusCode}"}";
         }
         catch (Exception ex)
         {
             _testSuccess = false;
-            _testResult = $"❌ Test ping error: {ex.Message}";
+            _testResult = $"Test ping error: {ex.Message}";
         }
 
         StateHasChanged();

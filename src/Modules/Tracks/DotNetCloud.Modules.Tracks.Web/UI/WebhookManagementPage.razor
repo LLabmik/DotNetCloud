@@ -26,7 +26,7 @@
     else if (_subscriptions.Count == 0)
     {
         <div class="wh-empty">
-            <div class="wh-empty-icon">🔗</div>
+            <div class="wh-empty-icon"><MaterialIcon Icon="link" Size="MaterialIconSize.Xl" /></div>
             <p>No webhooks configured yet.</p>
             <p class="wh-empty-hint">Create one to get notified when work items change.</p>
         </div>
@@ -64,13 +64,13 @@
                     </div>
                     <div class="wh-card-actions">
                         <button class="wh-btn wh-btn-sm" @onclick="() => TestWebhook(sub)" title="Send test ping">
-                            🧪
+                            <MaterialIcon Icon="send" Size="MaterialIconSize.Sm" />
                         </button>
                         <button class="wh-btn wh-btn-sm" @onclick="() => OpenEditModal(sub)" title="Edit">
-                            ✏️
+                            <MaterialIcon Icon="edit" Size="MaterialIconSize.Sm" />
                         </button>
                         <button class="wh-btn wh-btn-sm wh-btn-danger" @onclick="() => DeleteWebhook(sub)" title="Delete">
-                            🗑
+                            <MaterialIcon Icon="delete" Size="MaterialIconSize.Sm" />
                         </button>
                     </div>
                 </div>
@@ -135,7 +135,7 @@
     @if (!string.IsNullOrEmpty(_testResult))
     {
         <div class="wh-toast @(_testSuccess ? "wh-toast-success" : "wh-toast-error")">
-            @_testResult
+            <MaterialIcon Icon="@(_testSuccess ? "check_circle" : "error")" Size="MaterialIconSize.Sm" /> @_testResult
         </div>
     }
 </div>

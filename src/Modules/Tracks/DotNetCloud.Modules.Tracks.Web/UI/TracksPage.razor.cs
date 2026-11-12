@@ -20,10 +20,17 @@ public partial class TracksPage : ComponentBase, IDisposable
 {
     /// <summary>
     /// Optional work item ID to auto-navigate to its kanban board.
-    /// Set via the <c>kanban</c> query parameter on <c>/apps/tracks</c>.
+    /// Set via the <c>kanban</c> query parameter on the frame URL.
     /// </summary>
     [Parameter]
     public string? KanbanId { get; set; }
+
+    /// <summary>
+    /// Optional work item ID whose detail panel opens once the board is shown.
+    /// Set via the <c>card</c> query parameter on the frame URL.
+    /// </summary>
+    [Parameter]
+    public string? CardId { get; set; }
 
     [Inject] private DotNetCloud.Core.Services.ModuleApis.ITracksApiClient ApiClient { get; set; } = default!;
     [Inject] private ITracksSignalRService SignalRService { get; set; } = default!;
@@ -105,6 +112,13 @@ public partial class TracksPage : ComponentBase, IDisposable
         if (!string.IsNullOrWhiteSpace(KanbanId) && Guid.TryParse(KanbanId, out var parsed))
         {
             await NavigateToKanbanAsync(parsed);
+        }
+
+        // Deep link to a single card: the board is already selected above when the link supplies
+        // both parameters, so opening the panel is enough.
+        if (!string.IsNullOrWhiteSpace(CardId) && Guid.TryParse(CardId, out var cardId))
+        {
+            await SelectWorkItem(cardId);
         }
     }
 

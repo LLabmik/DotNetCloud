@@ -117,12 +117,5 @@ public partial class WorkItemTrashView : ComponentBase
         }
     }
 
-    private static string GetTypeIcon(WorkItemType type) => type switch
-    {
-        WorkItemType.Epic => "🌟",
-        WorkItemType.Feature => "✨",
-        WorkItemType.Item => "📋",
-        WorkItemType.SubItem => "🔹",
-        _ => "📌"
-    };
+    private static string GetTypeIcon(WorkItemType type) => TracksIcons.ForType(type);
 }

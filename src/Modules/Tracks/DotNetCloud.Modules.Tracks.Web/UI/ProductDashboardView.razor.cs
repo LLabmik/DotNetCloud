@@ -161,23 +161,7 @@ public partial class ProductDashboardView : ComponentBase, IDisposable
         _ => "#9ca3af"
     };
 
-    private static string GetPriorityIcon(Priority priority) => priority switch
-    {
-        Priority.Urgent => "🔴",
-        Priority.High => "🟠",
-        Priority.Medium => "🟡",
-        Priority.Low => "🟢",
-        _ => "⚪"
-    };
-
-    private static string GetTypeIcon(WorkItemType type) => type switch
-    {
-        WorkItemType.Epic => "⚡",
-        WorkItemType.Feature => "🎯",
-        WorkItemType.Item => "📋",
-        WorkItemType.SubItem => "📌",
-        _ => "📋"
-    };
+    private static string GetTypeIcon(WorkItemType type) => TracksIcons.ForType(type);
 
     private static string FormatDueDate(DateTime dueDate)
     {

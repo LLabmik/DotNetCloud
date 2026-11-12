@@ -17,13 +17,13 @@
             <div class="automation-presets">
                 <h5>Quick Presets</h5>
                 <button class="btn btn-outline btn-sm" @onclick='() => CreatePreset("done_label")'>
-                    ✓ When moved to Done, add "Done" label
+                    <MaterialIcon Icon="check" Size="MaterialIconSize.Sm" /> When moved to Done, add "Done" label
                 </button>
                 <button class="btn btn-outline btn-sm" @onclick='() => CreatePreset("urgent_notify")'>
-                    🔔 When urgent item created, notify product members
+                    <MaterialIcon Icon="notifications" Size="MaterialIconSize.Sm" /> When urgent item created, notify product members
                 </button>
                 <button class="btn btn-outline btn-sm" @onclick='() => CreatePreset("due_reminder")'>
-                    ⏰ When due date is tomorrow, notify assignee
+                    <MaterialIcon Icon="schedule" Size="MaterialIconSize.Sm" /> When due date is tomorrow, notify assignee
                 </button>
             </div>
         </div>
@@ -48,7 +48,7 @@
                     </div>
                     <div class="automation-rule-summary">
                         <span class="automation-trigger-badge">@FormatTrigger(rule.Trigger)</span>
-                        <span>→</span>
+                        <MaterialIcon Icon="arrow_forward" Size="MaterialIconSize.Sm" />
                         <span>@FormatActions(rule.ActionsJson)</span>
                     </div>
                     @if (rule.LastTriggeredAt.HasValue)
@@ -150,7 +150,7 @@
                                            placeholder="@(action.Type == "set_field" ? "Field ID" : "Comment text")"
                                            @bind="action.FieldOrCommentValue" />
                                 }
-                                <button class="btn btn-sm btn-danger" @onclick="() => RemoveAction(i)">✕</button>
+                                <button class="btn btn-sm btn-danger" @onclick="() => RemoveAction(i)" title="Remove action"><MaterialIcon Icon="close" Size="MaterialIconSize.Sm" /></button>
                             </div>
                         }
                     </div>

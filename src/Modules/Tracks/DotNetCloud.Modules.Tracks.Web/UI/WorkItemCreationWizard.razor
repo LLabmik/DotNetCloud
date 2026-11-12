@@ -4,9 +4,9 @@
     <div class="tracks-wizard tracks-wizard--wide" @onclick:stopPropagation>
         @* ── Header ── *@
         <div class="tracks-wizard-header">
-            <h2>@GetTypeIcon(_selectedType) New @_selectedType</h2>
+            <h2><MaterialIcon Icon="@GetTypeIcon(_selectedType)" /> New @_selectedType</h2>
             <p class="tracks-wizard-subtitle">Create a new @_selectedType.ToString().ToLowerInvariant() @GetTypeDescription(_selectedType)</p>
-            <button class="tracks-close-btn" @onclick="HandleCancel" title="Close">✕</button>
+            <button class="tracks-close-btn" @onclick="HandleCancel" title="Close"><MaterialIcon Icon="close" /></button>
         </div>
 
         @* ── Progress Steps ── *@
@@ -20,7 +20,7 @@
                     <span class="tracks-wizard-step-number">
                         @if (step < _currentStep)
                         {
-                            <span>✓</span>
+                            <MaterialIcon Icon="check" Size="MaterialIconSize.Sm" />
                         }
                         else
                         {
@@ -56,7 +56,7 @@
                                         @onclick="() => { if (canCreate) _selectedType = type; }"
                                         title="@(canCreate ? $"Create a {type}" : reason)"
                                         type="button">
-                                    <span class="tracks-wizard-type-icon">@GetTypeIcon(type)</span>
+                                    <span class="tracks-wizard-type-icon"><MaterialIcon Icon="@GetTypeIcon(type)" /></span>
                                     <span class="tracks-wizard-type-name">@type</span>
                                     <span class="tracks-wizard-type-desc">@GetTypeDescription(type)</span>
                                 </button>
@@ -111,10 +111,10 @@
                                     <label>Priority</label>
                                     <select class="form-control" @bind="_priority">
                                         <option value="None">None</option>
-                                        <option value="Low">🟢 Low</option>
-                                        <option value="Medium">🟡 Medium</option>
-                                        <option value="High">🟠 High</option>
-                                        <option value="Urgent">🔴 Urgent</option>
+                                        <option value="Low">Low</option>
+                                        <option value="Medium">Medium</option>
+                                        <option value="High">High</option>
+                                        <option value="Urgent">Urgent</option>
                                     </select>
                                 </div>
                                 <div class="tracks-form-group">
@@ -150,7 +150,7 @@
                         @if (Members.Count > 0)
                         {
                             <div class="tracks-wizard-section">
-                                <h4>👤 Team Members</h4>
+                                <h4><MaterialIcon Icon="person" Size="MaterialIconSize.Sm" /> Team Members</h4>
                                 <div class="tracks-wizard-chip-grid">
                                     @foreach (var member in Members)
                                     {
@@ -161,7 +161,7 @@
                                             <span>@(member.DisplayName ?? "Unknown User")</span>
                                             @if (isSelected)
                                             {
-                                                <span class="tracks-wizard-chip-check">✓</span>
+                                                <span class="tracks-wizard-chip-check"><MaterialIcon Icon="check" Size="MaterialIconSize.Sm" /></span>
                                             }
                                         </button>
                                     }
@@ -173,7 +173,7 @@
                         @if (Labels.Count > 0)
                         {
                             <div class="tracks-wizard-section">
-                                <h4>🏷️ Labels</h4>
+                                <h4><MaterialIcon Icon="label" Size="MaterialIconSize.Sm" /> Labels</h4>
                                 <div class="tracks-wizard-chip-grid">
                                     @foreach (var label in Labels)
                                     {
@@ -185,7 +185,7 @@
                                             <span>@label.Title</span>
                                             @if (isSelected)
                                             {
-                                                <span class="tracks-wizard-chip-check">✓</span>
+                                                <span class="tracks-wizard-chip-check"><MaterialIcon Icon="check" Size="MaterialIconSize.Sm" /></span>
                                             }
                                         </button>
                                     }
@@ -210,7 +210,7 @@
 
                         <div class="tracks-wizard-review">
                             <div class="tracks-wizard-review-section">
-                                <h4>@GetTypeIcon(_selectedType) @_selectedType</h4>
+                                <h4><MaterialIcon Icon="@GetTypeIcon(_selectedType)" Size="MaterialIconSize.Sm" /> @_selectedType</h4>
                                 <div class="tracks-wizard-review-grid">
                                     <div class="tracks-wizard-review-item">
                                         <span class="tracks-wizard-review-label">Title</span>
@@ -249,7 +249,7 @@
                             @if (_selectedMemberIds.Count > 0)
                             {
                                 <div class="tracks-wizard-review-section">
-                                    <h4>👤 Assigned Members (@_selectedMemberIds.Count)</h4>
+                                    <h4><MaterialIcon Icon="person" Size="MaterialIconSize.Sm" /> Assigned Members (@_selectedMemberIds.Count)</h4>
                                     <div class="tracks-wizard-review-chips">
                                         @foreach (var memberId in _selectedMemberIds)
                                         {
@@ -263,7 +263,7 @@
                             @if (_selectedLabelIds.Count > 0)
                             {
                                 <div class="tracks-wizard-review-section">
-                                    <h4>🏷️ Labels (@_selectedLabelIds.Count)</h4>
+                                    <h4><MaterialIcon Icon="label" Size="MaterialIconSize.Sm" /> Labels (@_selectedLabelIds.Count)</h4>
                                     <div class="tracks-wizard-review-chips">
                                         @foreach (var labelId in _selectedLabelIds)
                                         {

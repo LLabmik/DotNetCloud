@@ -19,35 +19,35 @@ public class OnboardingTourBase : ComponentBase, IDisposable
     protected bool _isVisible;
     protected int _currentStep;
 
-    protected sealed record TourStep(string Emoji, string Title, string Description);
+    protected sealed record TourStep(string Icon, string Title, string Description);
 
     protected static readonly List<TourStep> _steps =
     [
-        new("👋", "Welcome to Tracks",
+        new("home", "Welcome to Tracks",
             "Tracks is your project management toolkit — kanban boards, sprints, backlogs, and more. Let's take a quick tour!"),
 
-        new("📦", "Products",
+        new("inventory_2", "Products",
             "Everything in Tracks lives inside a Product. Create one for each project you manage. Each product gets its own boards, labels, members, and settings."),
 
-        new("📋", "Kanban Boards",
+        new("checklist", "Kanban Boards",
             "Inside each product, you'll find a Kanban board with swimlanes (columns) like Backlog, To Do, In Progress, and Done. Drag work items between columns as they progress."),
 
-        new("📝", "Work Items",
+        new("edit_note", "Work Items",
             "Work items are your tasks, features, and bugs. Tracks supports a full hierarchy: Epics → Features → Items → Sub-Items. Each item has descriptions, comments, attachments, labels, and assignments."),
 
-        new("👀", "Views",
+        new("view_list", "Views",
             "Tracks offers multiple views: Kanban, List, Calendar, Dashboard, and Roadmap. Switch between them in the sidebar when you're inside a product."),
 
-        new("🏃", "Sprints",
+        new("directions_run", "Sprints",
             "Sprints are time-boxed work periods. Plan your sprint from the backlog, track progress with burndown charts, and review velocity to improve over time."),
 
-        new("🔍", "Filter & Search",
+        new("search", "Filter & Search",
             "Filter items by text, priority, label, or sprint. Save your filters as Custom Views. Press Ctrl+K to open the command palette for fast keyboard navigation."),
 
-        new("⚙️", "Settings & Power Tools",
+        new("settings", "Settings & Power Tools",
             "Product Settings let you configure swimlanes, labels, members, custom fields, automation rules, and webhooks. Tracks grows with your team."),
 
-        new("🚀", "You're All Set!",
+        new("check_circle", "You're All Set!",
             "Now go create your first product and start organizing! You can replay this tour anytime from the Show Tour button in the sidebar. Happy tracking!"),
     ];
 

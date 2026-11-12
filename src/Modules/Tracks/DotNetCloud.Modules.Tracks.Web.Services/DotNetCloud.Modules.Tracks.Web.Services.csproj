@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <!--
+      Plain library, not a Blazor WebAssembly project: the browser-side services the module UI runs
+      on have no markup, and a Microsoft.NET.Sdk.BlazorWebAssembly project cannot be referenced by a
+      test project. Keeping them here is what makes them testable.
+    -->
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!--
+      Packages, not FrameworkReference: a FrameworkReference would require an ASP.NET Core runtime
+      pack for the browser-wasm RID, and this library is consumed by the Blazor WebAssembly UI.
+      These give AuthenticationStateProvider, IJSRuntime and ILogger<T>.
+    -->
+    <PackageReference Include="Microsoft.AspNetCore.Components.Authorization" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+    <PackageReference Include="Microsoft.JSInterop" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\Core\DotNetCloud.Core\DotNetCloud.Core.csproj" />
+    <ProjectReference Include="..\DotNetCloud.Modules.Tracks.Shared\DotNetCloud.Modules.Tracks.Shared.csproj" />
+  </ItemGroup>
+
+</Project>

@@ -4,11 +4,12 @@ namespace DotNetCloud.Modules.Tracks.Web.UI;
 
 /// <summary>
 /// Code-behind for the tour tooltip component.
-/// Renders a centered tooltip card with emoji, title, description, and navigation buttons.
+/// Renders a centered tooltip card with a Material icon, title, description, and navigation buttons.
 /// </summary>
 public class TourTooltipBase : ComponentBase
 {
-    [Parameter] public string? Emoji { get; set; }
+    /// <summary>Material icon name for the step (e.g. <c>checklist</c>).</summary>
+    [Parameter] public string? Icon { get; set; }
 
     [Parameter, EditorRequired]
     public string Title { get; set; } = string.Empty;

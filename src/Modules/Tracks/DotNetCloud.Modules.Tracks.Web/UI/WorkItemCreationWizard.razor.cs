@@ -65,14 +65,7 @@ public partial class WorkItemCreationWizard : ComponentBase
             _selectedSwimlaneId = Swimlanes[0].Id;
     }
 
-    private string GetTypeIcon(WorkItemType type) => type switch
-    {
-        WorkItemType.Epic => "🏗️",
-        WorkItemType.Feature => "🎯",
-        WorkItemType.Item => "📋",
-        WorkItemType.SubItem => "📌",
-        _ => "📋"
-    };
+    private static string GetTypeIcon(WorkItemType type) => TracksIcons.ForType(type);
 
     private string GetTypeDescription(WorkItemType type) => type switch
     {

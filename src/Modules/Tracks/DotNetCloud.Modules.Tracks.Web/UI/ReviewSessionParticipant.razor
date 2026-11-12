@@ -4,12 +4,12 @@
     @* ── Session Header ── *@
     <div class="review-header">
         <div class="review-header-left">
-            <h2>🎯 Review Session</h2>
+            <h2><MaterialIcon Icon="visibility" Size="MaterialIconSize.Sm" /> Review Session</h2>
             <span class="review-status-badge @ReviewSessionHost.GetStatusClass(Session.Status)">@Session.Status</span>
         </div>
         <div class="review-header-right">
             <span class="review-participant-count">
-                👥 @Session.ParticipantCount participants
+                <MaterialIcon Icon="group" Size="MaterialIconSize.Sm" /> @Session.ParticipantCount participants
             </span>
             <button class="btn btn-sm btn-outline" @onclick="LeaveSession">Leave Session</button>
         </div>
@@ -19,7 +19,7 @@
         @* ── Left: Current Card (auto-synced from host) ── *@
         <div class="review-card-area">
             <div class="review-following-indicator">
-                <span>📡 Following host's view</span>
+                <span><MaterialIcon Icon="live_tv" Size="MaterialIconSize.Sm" /> Following host's view</span>
             </div>
 
             @if (_currentItem is not null)
@@ -65,7 +65,7 @@
                     @if (_currentItem.DueDate.HasValue)
                     {
                         <div class="review-card-due">
-                            📅 Due: @_currentItem.DueDate.Value.ToString("MMM d, yyyy")
+                            <MaterialIcon Icon="calendar_today" Size="MaterialIconSize.Sm" /> Due: @_currentItem.DueDate.Value.ToString("MMM d, yyyy")
                         </div>
                     }
                 </div>
@@ -101,7 +101,7 @@
                     @if (_hasVoted)
                     {
                         <div class="review-poker-waiting">
-                            <span class="review-poker-waiting-icon">⏳</span>
+                            <span class="review-poker-waiting-icon"><MaterialIcon Icon="hourglass_empty" Size="MaterialIconSize.Lg" /></span>
                             <p>Vote submitted! Waiting for host to reveal…</p>
                             <span class="review-poker-your-vote">Your vote: @_myVote</span>
                         </div>
@@ -146,7 +146,7 @@
 
             @* Discussion Panel *@
             <div class="review-discussion">
-                <h4>💬 Discussion</h4>
+                <h4><MaterialIcon Icon="chat" Size="MaterialIconSize.Sm" /> Discussion</h4>
                 <div class="tracks-discussion-messages">
                     @if (_discussionMessages.Count == 0)
                     {

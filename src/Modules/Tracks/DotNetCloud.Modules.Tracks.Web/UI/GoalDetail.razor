@@ -17,7 +17,9 @@
     {
         <div class="goal-detail-card @(_goal.Status == "completed" ? "completed" : "")">
             <div class="goal-detail-top">
-                <span class="goal-detail-type">@(_goal.Type == "objective" ? "🎯 Objective" : "📊 Key Result")</span>
+                <span class="goal-detail-type">
+                    <MaterialIcon Icon="@(_goal.Type == "objective" ? "flag" : "bar_chart")" Size="MaterialIconSize.Sm" /> @(_goal.Type == "objective" ? "Objective" : "Key Result")
+                </span>
                 <span class="goal-detail-status">@FormatStatus(_goal.Status)</span>
             </div>
 

@@ -29,7 +29,7 @@
                 <div class="goal-card @(objective.Status == "completed" ? "completed" : "")"
                      @onclick="() => OnGoalSelected.InvokeAsync(objective.Id)">
                     <div class="goal-card-header">
-                        <span class="goal-type-badge">🎯 Objective</span>
+                        <span class="goal-type-badge"><MaterialIcon Icon="flag" Size="MaterialIconSize.Sm" /> Objective</span>
                         <span class="goal-status-badge" style="background: @statusColor">@FormatStatus(objective.Status)</span>
                     </div>
                     <div class="goal-card-title">@objective.Title</div>
@@ -75,7 +75,7 @@
                     @if (objective.LinkedWorkItemCount > 0)
                     {
                         <div class="goal-linked-items">
-                            📎 @objective.CompletedLinkedWorkItemCount / @objective.LinkedWorkItemCount work items
+                            <MaterialIcon Icon="attach_file" Size="MaterialIconSize.Sm" /> @objective.CompletedLinkedWorkItemCount / @objective.LinkedWorkItemCount work items
                         </div>
                     }
 

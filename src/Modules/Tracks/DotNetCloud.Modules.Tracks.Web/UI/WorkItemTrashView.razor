@@ -5,8 +5,8 @@
     {
         <div class="tracks-deleted-section">
             <button class="tracks-deleted-toggle" @onclick="() => _showDeleted = !_showDeleted">
-                <span class="tracks-deleted-toggle-icon">@(_showDeleted ? "▼" : "▶")</span>
-                <span>🗑 Trash (@_deletedItems.Count)</span>
+                <span class="tracks-deleted-toggle-icon"><MaterialIcon Icon="@(_showDeleted ? "expand_more" : "chevron_right")" Size="MaterialIconSize.Sm" /></span>
+                <span><MaterialIcon Icon="delete" Size="MaterialIconSize.Sm" /> Trash (@_deletedItems.Count)</span>
                 <span class="tracks-deleted-toggle-hint">Restorable within 30 days</span>
             </button>
 
@@ -17,7 +17,7 @@
                     <div class="tracks-trash-actions">
                         <button class="btn btn-sm btn-danger" @onclick="EmptyTrashAsync"
                                 disabled="@(_isEmptyingTrash || _deletedItems.Count == 0)">
-                            @(_isEmptyingTrash ? "Emptying..." : "🗑 Empty Trash")
+                            @(_isEmptyingTrash ? "Emptying..." : "Empty Trash")
                         </button>
                         <span class="tracks-trash-hint">Permanently delete all @_deletedItems.Count trashed items</span>
                     </div>
@@ -26,7 +26,7 @@
                     {
                         <div class="tracks-wizard-overlay" @onclick="() => _showEmptyConfirm = false">
                             <div class="tracks-confirm-dialog" @onclick:stopPropagation>
-                                <div class="tracks-confirm-icon">⚠️</div>
+                                <div class="tracks-confirm-icon"><MaterialIcon Icon="warning" Size="MaterialIconSize.Xl" /></div>
                                 <h3>Empty Trash?</h3>
                                 <p>This will <strong>permanently delete</strong> all @_deletedItems.Count trashed items. This cannot be
                                     undone.</p>
@@ -49,7 +49,7 @@
                                 <div class="tracks-board-card-body">
                                     <div class="tracks-board-card-header">
                                         <h3>
-                                            @GetTypeIcon(item.Type) #@item.ItemNumber @item.Title
+                                            <MaterialIcon Icon="@GetTypeIcon(item.Type)" Size="MaterialIconSize.Sm" /> #@item.ItemNumber @item.Title
                                         </h3>
                                         <div class="tracks-board-card-header-actions">
                                             @if (item.DeletedAt.HasValue)
@@ -62,13 +62,20 @@
                                             }
                                             <button class="tracks-deleted-restore-btn" @onclick="() => RestoreItemAsync(item)"
                                                     disabled="@(_restoringId == item.Id)" title="Restore work item">
-                                                @(_restoringId == item.Id ? "Restoring..." : "↩ Restore")
+                                                @(_restoringId == item.Id ? "Restoring..." : "Restore")
                                             </button>
                                             @if (IsAdmin)
                                             {
                                                 <button class="tracks-deleted-permanent-btn" @onclick="() => PermanentDeleteItemAsync(item)"
                                                         disabled="@(_deletingId == item.Id)" title="Permanently delete — cannot be undone">
-                                                    @(_deletingId == item.Id ? "Deleting..." : "🗑")
+                                                    @if (_deletingId == item.Id)
+                                                    {
+                                                        <text>Deleting...</text>
+                                                    }
+                                                    else
+                                                    {
+                                                        <MaterialIcon Icon="delete" Size="MaterialIconSize.Sm" />
+                                                    }
                                                 </button>
                                             }
                                         </div>

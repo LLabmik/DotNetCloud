@@ -28,7 +28,7 @@
                             title="@(_isWatching ? "You are following this item. Click to unfollow." : "Follow this item to get notified of changes.")">
                         @if (_isWatching)
                         {
-                            <span>🔔</span>
+                            <MaterialIcon Icon="notifications_active" />
                             if (_watcherCount > 1)
                             {
                                 <span class="tracks-watch-count">@_watcherCount</span>
@@ -36,12 +36,12 @@
                         }
                         else
                         {
-                            <span>🔕</span>
+                            <MaterialIcon Icon="notifications_off" />
                         }
                     </button>
                     <a href="/apps/tracks/item/@Product.Id/@WorkItem.ItemNumber" target="_blank"
-                       class="tracks-open-newtab-btn panel" title="Open in new tab">⧉</a>
-                    <button class="tracks-close-btn" @onclick="OnClose" title="Close">✕</button>
+                       class="tracks-open-newtab-btn panel" title="Open in new tab"><MaterialIcon Icon="open_in_new" Size="MaterialIconSize.Sm" /></a>
+                    <button class="tracks-close-btn" @onclick="OnClose" title="Close"><MaterialIcon Icon="close" /></button>
                 </div>
             </div>
 
@@ -99,7 +99,7 @@
                         <div class="tracks-card-section">
                             <div class="tracks-section-header">
                                 <h4>Features (@_childWorkItems.Count)</h4>
-                                <button class="btn btn-sm btn-primary" @onclick="() => OnOpenKanban.InvokeAsync(WorkItem.Id)">📋
+                                <button class="btn btn-sm btn-primary" @onclick="() => OnOpenKanban.InvokeAsync(WorkItem.Id)"><MaterialIcon Icon="checklist" Size="MaterialIconSize.Sm" />
                                     Open Kanban</button>
                                 </div>
                                 @foreach (var feature in _childWorkItems)
@@ -120,8 +120,7 @@
                                     <div class="tracks-sprint-row">
                                         <span
                                             class="tracks-sprint-status @(sprint.Status == SprintStatus.Active ? "active" : sprint.Status == SprintStatus.Completed ? "completed" : "planning")">
-                                            @(sprint.Status == SprintStatus.Active ? "🏃" : sprint.Status == SprintStatus.Completed ?
-                                   "✅" : "📋")
+                                            <MaterialIcon Icon="@(sprint.Status == SprintStatus.Active ? "directions_run" : sprint.Status == SprintStatus.Completed ? "check_circle" : "checklist")" Size="MaterialIconSize.Sm" />
                                         </span>
                                         <span>@sprint.Title</span>
                                         <span class="tracks-sprint-dates">
@@ -138,7 +137,7 @@
                             <div class="tracks-card-section">
                                 <div class="tracks-section-header">
                                     <h4>Items (@_childWorkItems.Count)</h4>
-                                    <button class="btn btn-sm btn-primary" @onclick="() => OnOpenKanban.InvokeAsync(WorkItem.Id)">📋
+                                    <button class="btn btn-sm btn-primary" @onclick="() => OnOpenKanban.InvokeAsync(WorkItem.Id)"><MaterialIcon Icon="checklist" Size="MaterialIconSize.Sm" />
                                         Open Kanban</button>
                                     </div>
                                     @foreach (var item in _childWorkItems)
@@ -164,9 +163,9 @@
                                         var done = checklist.Items.Count(i => i.IsCompleted);
                                         <div class="tracks-card-section">
                                             <div class="tracks-checklist-header">
-                                                <h4>☑ @checklist.Title</h4>
+                                                <h4><MaterialIcon Icon="task_alt" Size="MaterialIconSize.Sm" /> @checklist.Title</h4>
                                                 <button class="tracks-icon-btn" title="Delete checklist"
-                                                        @onclick="() => DeleteChecklistAsync(checklist.Id)">×</button>
+                                                        @onclick="() => DeleteChecklistAsync(checklist.Id)"><MaterialIcon Icon="close" Size="MaterialIconSize.Sm" /></button>
                                             </div>
                                             @if (total > 0)
                                             {
@@ -268,7 +267,7 @@
                                         {
                                             <button class="tracks-link-btn tracks-deleted-comments-toggle"
                                                     @onclick="() => _showDeletedComments = !_showDeletedComments">
-                                                @(_showDeletedComments ? "▼" : "▶") Show @_deletedComments.Count deleted comment@(_deletedComments.Count != 1 ? "s" : "")
+                                                <MaterialIcon Icon="@(_showDeletedComments ? "expand_more" : "chevron_right")" Size="MaterialIconSize.Sm" /> Show @_deletedComments.Count deleted comment@(_deletedComments.Count != 1 ? "s" : "")
                                             </button>
 
                                             @if (_showDeletedComments)
@@ -287,12 +286,12 @@
                                                             <button class="tracks-link-btn"
                                                                     @onclick="() => RestoreCommentAsync(comment.Id)"
                                                                     disabled="@(_restoringCommentId == comment.Id)">
-                                                                @(_restoringCommentId == comment.Id ? "Restoring..." : "↩ Restore")
+                                                                @(_restoringCommentId == comment.Id ? "Restoring..." : "Restore")
                                                             </button>
                                                             <button class="tracks-link-btn tracks-link-btn--danger"
                                                                     @onclick="() => PermanentDeleteCommentAsync(comment.Id)"
                                                                     disabled="@(_deletingCommentId == comment.Id)">
-                                                                @(_deletingCommentId == comment.Id ? "Deleting..." : "🗑 Permanent")
+                                                                @(_deletingCommentId == comment.Id ? "Deleting..." : "Permanent Delete")
                                                             </button>
                                                         </div>
                                                     </div>
@@ -349,10 +348,10 @@
                                         <select class="form-control form-control-sm" @bind="_selectedPriority"
                                                 @bind:after="SavePriorityAsync">
                                             <option value="None">None</option>
-                                            <option value="Low">🟢 Low</option>
-                                            <option value="Medium">🟡 Medium</option>
-                                            <option value="High">🟠 High</option>
-                                            <option value="Urgent">🔴 Urgent</option>
+                                            <option value="Low">Low</option>
+                                            <option value="Medium">Medium</option>
+                                            <option value="High">High</option>
+                                            <option value="Urgent">Urgent</option>
                                         </select>
                                     </div>
 
@@ -471,8 +470,8 @@
                                         @foreach (var att in _attachments)
                                         {
                                             <div class="tracks-attachment-row">
-                                                <span>📎 @att.FileName</span>
-                                                <button class="tracks-icon-btn" @onclick="() => RemoveAttachmentAsync(att.Id)">×</button>
+                                                <span><MaterialIcon Icon="attach_file" Size="MaterialIconSize.Sm" /> @att.FileName</span>
+                                                <button class="tracks-icon-btn" @onclick="() => RemoveAttachmentAsync(att.Id)" title="Remove attachment"><MaterialIcon Icon="close" Size="MaterialIconSize.Sm" /></button>
                                             </div>
                                         }
                                         @if (_showAttachmentInput)
@@ -482,7 +481,7 @@
                                                     <InputFile OnChange="HandleFileSelectedAsync" multiple class="tracks-file-input"
                                                                id="item-file-upload" />
                                                     <label for="item-file-upload" class="btn btn-sm btn-outline tracks-file-label">
-                                                        @(_isUploadingFile ? "Uploading…" : "📁 Browse Files")
+                                                        @(_isUploadingFile ? "Uploading…" : "Browse Files")
                                                     </label>
                                                 </div>
                                                 <div class="tracks-attachment-divider">
@@ -514,10 +513,10 @@
                                                 @foreach (var dep in _dependencies)
                                                 {
                                                     <div class="tracks-dependency-row">
-                                                        <span class="tracks-dep-type">@(dep.Type == DependencyType.BlockedBy ? "🚫 Blocked by" : "🔗 Relates to")</span>
+                                                        <span class="tracks-dep-type"><MaterialIcon Icon="@(dep.Type == DependencyType.BlockedBy ? "block" : "link")" Size="MaterialIconSize.Sm" /> @(dep.Type == DependencyType.BlockedBy ? "Blocked by" : "Relates to")</span>
                                                         <div class="tracks-dep-target">
                                                             <span>@(dep.DependsOnTitle ?? dep.DependsOnWorkItemId.ToString()[..8])</span>
-                                                            <button class="tracks-icon-btn" @onclick="() => RemoveDependencyAsync(dep.Id)">×</button>
+                                                            <button class="tracks-icon-btn" @onclick="() => RemoveDependencyAsync(dep.Id)" title="Remove dependency"><MaterialIcon Icon="close" Size="MaterialIconSize.Sm" /></button>
                                                         </div>
                                                     </div>
                                                 }
@@ -525,8 +524,8 @@
                                                 {
                                                     <div class="tracks-dependency-add">
                                                         <select class="form-control form-control-sm" @bind="_depType">
-                                                            <option value="BlockedBy">🚫 Blocked by</option>
-                                                            <option value="RelatesTo">🔗 Relates to</option>
+                                                            <option value="BlockedBy">Blocked by</option>
+                                                            <option value="RelatesTo">Relates to</option>
                                                         </select>
                                                         <select class="form-control form-control-sm" @bind="_depTargetItemId">
                                                             <option value="">Select item...</option>

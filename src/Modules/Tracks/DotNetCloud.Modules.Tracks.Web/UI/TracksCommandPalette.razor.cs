@@ -250,21 +250,7 @@ public class TracksCommandPaletteBase : ComponentBase, IDisposable
         }
     }
 
-    protected static string GetIcon(PaletteItem item)
-    {
-        return item.Subtitle switch
-        {
-            "Quick Action" => "⚡",
-            "Product" => "📦",
-            "Sprint" => "🏃",
-            "Saved View" => "👁",
-            "Epic" => "⚡",
-            "Feature" => "🔷",
-            "Item" => "📋",
-            "SubItem" => "📌",
-            _ => "📋"
-        };
-    }
+    protected static string GetIcon(PaletteItem item) => TracksIcons.ForPaletteCategory(item.Subtitle);
 
     private void TrackRecentItem(PaletteItem item)
     {

@@ -1,89 +1,90 @@
 :root {
-    color-scheme: light dark;
-    --tracks-text: #1f2328;
-    --tracks-muted: #5c6570;
-    --tracks-surface: #ffffff;
-    --tracks-border: #d0d7de;
+  color-scheme: light dark;
+  --tracks-text: #1f2328;
+  --tracks-muted: #5c6570;
+  --tracks-surface: #ffffff;
+  --tracks-border: #d0d7de;
 }
 
 @media (prefers-color-scheme: dark) {
-    :root {
-        --tracks-text: #e6edf3;
-        --tracks-muted: #9198a1;
-        --tracks-surface: #161b22;
-        --tracks-border: #30363d;
-    }
-}
-
-/* The core shell's own theme switch wins over the OS preference. */
-[data-theme='dark'] {
+  :root {
     --tracks-text: #e6edf3;
     --tracks-muted: #9198a1;
     --tracks-surface: #161b22;
     --tracks-border: #30363d;
+  }
 }
 
-[data-theme='light'] {
-    --tracks-text: #1f2328;
-    --tracks-muted: #5c6570;
-    --tracks-surface: #ffffff;
-    --tracks-border: #d0d7de;
+/* The core shell's own theme switch wins over the OS preference. */
+[data-theme="dark"] {
+  --tracks-text: #e6edf3;
+  --tracks-muted: #9198a1;
+  --tracks-surface: #161b22;
+  --tracks-border: #30363d;
+}
+
+[data-theme="light"] {
+  --tracks-text: #1f2328;
+  --tracks-muted: #5c6570;
+  --tracks-surface: #ffffff;
+  --tracks-border: #d0d7de;
 }
 
 html,
 body {
-    height: 100%;
-    margin: 0;
+  height: 100%;
+  margin: 0;
 }
 
 body {
-    background: var(--tracks-surface);
-    color: var(--tracks-text);
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  background: var(--tracks-surface);
+  color: var(--tracks-text);
+  font-family:
+    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial,
+    sans-serif;
 }
 
 /* The layout wrapper the router renders into. The ported Tracks UI is a full-height app shell. */
 .tracks-root {
-    height: 100%;
-    min-height: 100vh;
+  height: 100%;
+  min-height: 100vh;
 }
 
 .tracks-shell {
-    max-width: 60rem;
-    margin: 0 auto;
-    padding: 1.5rem;
+  max-width: 60rem;
+  margin: 0 auto;
+  padding: 1.5rem;
 }
 
 .tracks-shell__status {
-    border: 1px solid var(--tracks-border);
-    border-radius: 0.5rem;
-    padding: 0.75rem 1rem;
+  border: 1px solid var(--tracks-border);
+  border-radius: 0.5rem;
+  padding: 0.75rem 1rem;
 }
 
 .tracks-shell__status dl {
-    display: grid;
-    grid-template-columns: max-content 1fr;
-    gap: 0.25rem 1rem;
-    margin: 0;
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 0.25rem 1rem;
+  margin: 0;
 }
 
 .tracks-shell__status dt {
-    color: var(--tracks-muted);
+  color: var(--tracks-muted);
 }
 
 .tracks-error {
-    display: none;
-    position: fixed;
-    inset-block-end: 0;
-    inset-inline: 0;
-    padding: 0.75rem 1rem;
-    background: #b42318;
-    color: #fff;
+  display: none;
+  position: fixed;
+  inset-block-end: 0;
+  inset-inline: 0;
+  padding: 0.75rem 1rem;
+  background: #b42318;
+  color: #fff;
 }
 
 /* blazor.webassembly.js reveals #blazor-error-ui by setting its display inline when the runtime
    fails, so the stylesheet must keep it hidden rather than decide by content. */
 .blazor-error-boundary {
-    display: block;
+  display: block;
 }
-

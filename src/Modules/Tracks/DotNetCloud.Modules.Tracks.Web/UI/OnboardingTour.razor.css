@@ -37,12 +37,14 @@
     text-align: center;
 }
 
-/* ── Emoji ── */
+/* ── Step icon ── */
 
-::deep .tour-tooltip__emoji {
-    font-size: 40px;
+::deep .tour-tooltip__icon {
+    display: flex;
+    justify-content: center;
     line-height: 1;
     margin-bottom: 12px;
+    color: var(--tracks-accent, #3b82f6);
 }
 
 /* ── Step Indicator ── */
@@ -143,7 +145,7 @@
         font-size: 13px;
     }
 
-    ::deep .tour-tooltip__emoji {
-        font-size: 32px;
+    ::deep .tour-tooltip__icon {
+        margin-bottom: 8px;
     }
 }

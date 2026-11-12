@@ -6,11 +6,11 @@
     <div class="tracks-calendar-header">
         <div class="tracks-calendar-nav">
             <button class="tracks-calendar-nav-btn" @onclick="GoToPrevious" title="Previous">
-                ←
+                <MaterialIcon Icon="chevron_left" Size="MaterialIconSize.Sm" />
             </button>
             <h2>@_currentMonthName @_currentYear</h2>
             <button class="tracks-calendar-nav-btn" @onclick="GoToNext" title="Next">
-                →
+                <MaterialIcon Icon="chevron_right" Size="MaterialIconSize.Sm" />
             </button>
             <button class="btn btn-sm btn-outline tracks-calendar-today-btn" @onclick="GoToToday">
                 Today

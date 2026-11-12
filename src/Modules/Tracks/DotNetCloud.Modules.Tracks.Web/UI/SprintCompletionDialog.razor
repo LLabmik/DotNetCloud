@@ -3,8 +3,8 @@
 <div class="tracks-dialog-overlay" @onclick="OnCancel">
     <div class="tracks-dialog tracks-sprint-completion" @onclick:stopPropagation>
         <div class="tracks-dialog-header">
-            <h3>🏁 Complete Sprint: @Sprint.Title</h3>
-            <button class="tracks-dialog-close" @onclick="OnCancel">✕</button>
+            <h3><MaterialIcon Icon="task_alt" Size="MaterialIconSize.Sm" /> Complete Sprint: @Sprint.Title</h3>
+            <button class="tracks-dialog-close" @onclick="OnCancel" title="Cancel"><MaterialIcon Icon="close" /></button>
         </div>
 
         @if (_isLoading)
@@ -91,14 +91,14 @@
                 else
                 {
                     <p class="tracks-muted" style="margin-top: 12px;">
-                        🎉 All items completed! Great work.
+                        <MaterialIcon Icon="check_circle" Size="MaterialIconSize.Sm" /> All items completed! Great work.
                     </p>
                 }
             </div>
 
             <div class="tracks-dialog-footer">
                 <button class="btn btn-primary" @onclick="CompleteAsync" disabled="@_isCompleting">
-                    @(_isCompleting ? "Completing..." : "✅ Complete Sprint")
+                    @(_isCompleting ? "Completing..." : "Complete Sprint")
                 </button>
                 <button class="btn btn-secondary" @onclick="OnCancel" disabled="@_isCompleting">Cancel</button>
             </div>

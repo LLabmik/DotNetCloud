@@ -56,6 +56,12 @@
     <PackageVersion Include="Microsoft.AspNetCore.Components.WebAssembly" Version="10.0.14" />
     <PackageVersion Include="Microsoft.AspNetCore.Components.WebAssembly.Authentication" Version="10.0.14" />
     <PackageVersion Include="Microsoft.AspNetCore.Components.WebAssembly.Server" Version="10.0.14" />
+    <!--
+      IJSRuntime as a normal package: the Tracks module UI's browser-side services live in a plain
+      net10.0 library (so they can be unit tested), which cannot use FrameworkReference
+      Microsoft.AspNetCore.App — the browser-wasm RID has no ASP.NET Core runtime pack.
+    -->
+    <PackageVersion Include="Microsoft.JSInterop" Version="10.0.14" />
     <!-- MAUI packages pinned; use VersionOverride in Android projects if workload differs -->
     <PackageVersion Include="Microsoft.AspNetCore.Components.WebView.Maui" Version="10.0.90" />
     <PackageVersion Include="Microsoft.AspNetCore.Http.Abstractions" Version="2.3.13" />

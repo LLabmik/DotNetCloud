@@ -4,10 +4,10 @@
     <div class="tracks-wizard tracks-wizard--wide" @onclick:stopPropagation>
         @* ── Header ── *@
         <div class="tracks-wizard-header">
-            <h2>📦 New Product</h2>
+            <h2><MaterialIcon Icon="inventory_2" Size="MaterialIconSize.Sm" /> New Product</h2>
             <p class="tracks-wizard-subtitle">Create a product to organize your work into epics, features, and items.
             </p>
-            <button class="tracks-close-btn" @onclick="HandleCancel" title="Close">✕</button>
+            <button class="tracks-close-btn" @onclick="HandleCancel" title="Close"><MaterialIcon Icon="close" /></button>
         </div>
 
         @* ── Progress Steps ── *@
@@ -21,7 +21,7 @@
                     <span class="tracks-wizard-step-number">
                         @if (step < _currentStep)
                         {
-                            <span>✓</span>
+                            <MaterialIcon Icon="check" Size="MaterialIconSize.Sm" />
                         }
                         else
                         {
@@ -82,7 +82,7 @@
                                                             style="background: @color;" @onclick="() => _color = color">
                                                         @if (_color == color)
                                                         {
-                                                            <span>✓</span>
+                                                            <MaterialIcon Icon="check" Size="MaterialIconSize.Sm" />
                                                         }
                                                     </button>
                                                 }
@@ -134,7 +134,7 @@
                                                                 {
                                                                     <button class="tracks-icon-btn tracks-icon-btn--danger"
                                                                             @onclick="() => RemoveDefaultSwimlane(idx)" title="Remove" type="button">
-                                                                        ✕
+                                                                        <MaterialIcon Icon="close" Size="MaterialIconSize.Sm" />
                                                                     </button>
                                                                 }
                                                             </div>
@@ -160,7 +160,7 @@
                                                     @if (_selectedMembers.Count > 0)
                                                     {
                                                         <div class="tracks-wizard-section">
-                                                            <h4>👤 Added Members (@_selectedMembers.Count)</h4>
+                                                            <h4><MaterialIcon Icon="person" Size="MaterialIconSize.Sm" /> Added Members (@_selectedMembers.Count)</h4>
                                                             <div class="tracks-wizard-chip-grid">
                                                                 @foreach (var member in _selectedMembers)
                                                                 {
@@ -168,7 +168,7 @@
                                                                             title="Click to remove">
                                                                         <span class="tracks-wizard-chip-avatar">@member.DisplayName[..1].ToUpperInvariant()</span>
                                                                         <span>@member.DisplayName</span>
-                                                                        <span class="tracks-wizard-chip-remove">×</span>
+                                                                        <span class="tracks-wizard-chip-remove"><MaterialIcon Icon="close" Size="MaterialIconSize.Sm" /></span>
                                                                     </button>
                                                                 }
                                                             </div>
@@ -220,7 +220,7 @@
 
                                                         <div class="tracks-wizard-review">
                                                             <div class="tracks-wizard-review-section">
-                                                                <h4>📦 Product Details</h4>
+                                                                <h4><MaterialIcon Icon="inventory_2" Size="MaterialIconSize.Sm" /> Product Details</h4>
                                                                 <div class="tracks-wizard-review-grid">
                                                                     <div class="tracks-wizard-review-item">
                                                                         <span class="tracks-wizard-review-label">Name</span>
@@ -254,14 +254,17 @@
                                                                 @if (_showSwimlaneSetup && _defaultSwimlanes.Any(s => !string.IsNullOrWhiteSpace(s.Title)))
                                                                 {
                                                                     <div class="tracks-wizard-review-section">
-                                                                        <h4>🏊 Default Swimlanes (@_defaultSwimlanes.Count(s => !string.IsNullOrWhiteSpace(s.Title)))
+                                                                        <h4><MaterialIcon Icon="view_list" Size="MaterialIconSize.Sm" /> Default Swimlanes (@_defaultSwimlanes.Count(s => !string.IsNullOrWhiteSpace(s.Title)))
                                                                         </h4>
                                                                         <div class="tracks-wizard-review-chips">
                                                                             @foreach (var sw in _defaultSwimlanes.Where(s => !string.IsNullOrWhiteSpace(s.Title)))
                                                                             {
                                                                                 <span class="tracks-wizard-review-chip"
                                                                                       style="background: @(sw.Color ?? "#6b7280"); color: #fff;">
-                                                                                    @sw.Title @(sw.IsDone ? "✓" : "")
+                                                                                    @sw.Title @if (sw.IsDone)
+                                                                                    {
+                                                                                        <MaterialIcon Icon="check" Size="MaterialIconSize.Sm" />
+                                                                                    }
                                                                                 </span>
                                                                             }
                                                                         </div>
@@ -271,7 +274,7 @@
                                                                 @if (_selectedMembers.Count > 0)
                                                                 {
                                                                     <div class="tracks-wizard-review-section">
-                                                                        <h4>👤 Team Members (@_selectedMembers.Count)</h4>
+                                                                        <h4><MaterialIcon Icon="person" Size="MaterialIconSize.Sm" /> Team Members (@_selectedMembers.Count)</h4>
                                                                         <div class="tracks-wizard-review-chips">
                                                                             @foreach (var member in _selectedMembers)
                                                                             {

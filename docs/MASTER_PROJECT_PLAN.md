@@ -43,8 +43,16 @@
 > the real Tracks shell renders and reports "Authentication is required" when called without a core assertion. Two traps
 > fixed: `@* … *@` in `wwwroot/index.html` is not Razor (it was served as visible text) and the `#blazor-error-ui` CSS
 > keyed on `:not(:empty)` showed the error bar permanently. Tests: Tracks **214/214**, `DotNetCloud.CI.slnf` green.
-> ☐ Next: Stage B3.5 (MaterialIcon sweep, `tracks.item` deep link), Stage C (atomic data-plane flip + decoupling),
-> Stage D (pack, publish, live verify).
+>
+> **B3.5 (2026-11-11) — icons, deep link, client tests.** The ported UI now uses `MaterialIcon` everywhere: one
+> `UI/TracksIcons` map (type / view kind / palette category → icon name), 15 new `MaterialSvgIcons` paths, a
+> `TracksPriorityIcon` component that renders priority as one Material dot coloured by CSS, and no emoji or inline SVG
+> left in the module's markup. The frame route contract is `?kanban=<id>` (board) plus `?card=<id>` (item panel) —
+> query parameters, because the proxy only serves static files under `/apps/{id}/**`. The browser-side services moved
+> into `DotNetCloud.Modules.Tracks.Web.Services` (plain `net10.0`), which made them testable: **42 new tests**,
+> Tracks **260/260**, CI build clean. That library must use `PackageReference`s, not `FrameworkReference`
+> `Microsoft.AspNetCore.App` (`NETSDK1082` on the `browser-wasm` RID).
+> ☐ Next: Stage C (atomic data-plane flip + decoupling), Stage D (pack, publish, live verify).
 
 ---
 

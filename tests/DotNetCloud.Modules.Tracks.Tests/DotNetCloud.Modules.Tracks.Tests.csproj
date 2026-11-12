@@ -27,6 +27,8 @@
     <ProjectReference Include="..\..\src\Modules\Tracks\DotNetCloud.Modules.Tracks\DotNetCloud.Modules.Tracks.csproj" />
     <ProjectReference Include="..\..\src\Modules\Tracks\DotNetCloud.Modules.Tracks.Data\DotNetCloud.Modules.Tracks.Data.csproj" />
     <ProjectReference Include="..\..\src\Modules\Tracks\DotNetCloud.Modules.Tracks.Host\DotNetCloud.Modules.Tracks.Host.csproj" />
+    <!-- The browser-side services: a plain net10.0 library precisely so they can be tested here. -->
+    <ProjectReference Include="..\..\src\Modules\Tracks\DotNetCloud.Modules.Tracks.Web.Services\DotNetCloud.Modules.Tracks.Web.Services.csproj" />
   </ItemGroup>
 
   <ItemGroup>

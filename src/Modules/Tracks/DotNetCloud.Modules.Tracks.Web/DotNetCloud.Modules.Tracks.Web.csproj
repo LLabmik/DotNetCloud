@@ -32,6 +32,9 @@
     <ProjectReference Include="..\..\..\Core\DotNetCloud.Core\DotNetCloud.Core.csproj" />
     <ProjectReference Include="..\..\..\UI\DotNetCloud.UI.Shared\DotNetCloud.UI.Shared.csproj" />
     <ProjectReference Include="..\DotNetCloud.Modules.Tracks.Shared\DotNetCloud.Modules.Tracks.Shared.csproj" />
+    <!-- The browser-side services (API client, capability clients, preferences) live in a plain
+         library so they can be unit tested; this project only adds the Razor components. -->
+    <ProjectReference Include="..\DotNetCloud.Modules.Tracks.Web.Services\DotNetCloud.Modules.Tracks.Web.Services.csproj" />
   </ItemGroup>
 
 </Project>

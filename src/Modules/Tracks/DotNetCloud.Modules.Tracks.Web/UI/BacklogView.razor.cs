@@ -235,14 +235,6 @@ public partial class BacklogView : ComponentBase
         _ => ""
     };
 
-    private static string GetPriorityIcon(Priority priority) => priority switch
-    {
-        Priority.Urgent => "🔴",
-        Priority.High => "🟠",
-        Priority.Medium => "🟡",
-        Priority.Low => "🟢",
-        _ => ""
-    };
 
     private static string GetContrastTextColor(string? hexColor)
     {

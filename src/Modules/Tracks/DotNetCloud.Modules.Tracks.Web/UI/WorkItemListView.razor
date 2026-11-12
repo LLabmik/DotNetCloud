@@ -4,7 +4,7 @@
     @* ── Header ── *@
     <div class="tracks-list-header">
         <div class="tracks-list-title-area">
-            <h2>📊 @Product.Name — List View</h2>
+            <h2><MaterialIcon Icon="view_list" /> @Product.Name — List View</h2>
             <div class="tracks-list-stats">
                 <span class="tracks-list-stat">@_allItems.Count total</span>
                 <span class="tracks-list-stat">@_filteredItems.Count shown</span>
@@ -20,10 +20,10 @@
                        @bind="_filterText" @bind:event="oninput" @bind:after="ApplyFiltersAndSort" />
                 <select class="tracks-filter-select" @bind="_priorityFilter" @bind:after="ApplyFiltersAndSort">
                     <option value="">All priorities</option>
-                    <option value="Urgent">🔴 Urgent</option>
-                    <option value="High">🟠 High</option>
-                    <option value="Medium">🟡 Medium</option>
-                    <option value="Low">🟢 Low</option>
+                    <option value="Urgent">Urgent</option>
+                    <option value="High">High</option>
+                    <option value="Medium">Medium</option>
+                    <option value="Low">Low</option>
                     <option value="None">No priority</option>
                 </select>
                 @if (Swimlanes.Count > 0)
@@ -57,7 +57,7 @@
             </div>
             <div class="tracks-list-actions">
                 <div class="tracks-list-column-chooser">
-                    <button class="btn btn-sm btn-outline" @onclick="() => _showColumnChooser = !_showColumnChooser" title="Choose columns">⚙️ Columns</button>
+                    <button class="btn btn-sm btn-outline" @onclick="() => _showColumnChooser = !_showColumnChooser" title="Choose columns"><MaterialIcon Icon="settings" Size="MaterialIconSize.Sm" /> Columns</button>
                     @if (_showColumnChooser)
                     {
                         <div class="tracks-list-column-chooser-dropdown">
@@ -71,8 +71,8 @@
                         </div>
                     }
                 </div>
-                <button class="btn btn-sm btn-outline" @onclick="ExportToCsvAsync" disabled="@_isExporting" title="Export to CSV">📥 @(_isExporting ? "Exporting..." : "CSV")</button>
-                <button class="btn btn-sm btn-outline" @onclick="() => LoadDataAsync()">↻ Refresh</button>
+                <button class="btn btn-sm btn-outline" @onclick="ExportToCsvAsync" disabled="@_isExporting" title="Export to CSV"><MaterialIcon Icon="download" Size="MaterialIconSize.Sm" /> @(_isExporting ? "Exporting..." : "CSV")</button>
+                <button class="btn btn-sm btn-outline" @onclick="() => LoadDataAsync()"><MaterialIcon Icon="refresh" Size="MaterialIconSize.Sm" /> Refresh</button>
             </div>
         </div>
     </div>
@@ -82,13 +82,13 @@
     {
         <div class="tracks-list-bulk-toolbar">
             <span class="tracks-list-bulk-label">@_selectedIds.Count selected —</span>
-            <button class="btn btn-sm btn-outline" @onclick="() => _ = BulkArchiveAsync()" disabled="@_isBulkActing">📦 Archive</button>
-            <button class="btn btn-sm btn-outline btn-danger" @onclick="() => _ = BulkDeleteAsync()" disabled="@_isBulkActing">🗑️ Delete</button>
-            <button class="btn btn-sm btn-outline" @onclick="() => _ = BulkRestoreAsync()" disabled="@_isBulkActing">↩ Restore</button>
+            <button class="btn btn-sm btn-outline" @onclick="() => _ = BulkArchiveAsync()" disabled="@_isBulkActing"><MaterialIcon Icon="archive" Size="MaterialIconSize.Sm" /> Archive</button>
+            <button class="btn btn-sm btn-outline btn-danger" @onclick="() => _ = BulkDeleteAsync()" disabled="@_isBulkActing"><MaterialIcon Icon="delete" Size="MaterialIconSize.Sm" /> Delete</button>
+            <button class="btn btn-sm btn-outline" @onclick="() => _ = BulkRestoreAsync()" disabled="@_isBulkActing"><MaterialIcon Icon="undo" Size="MaterialIconSize.Sm" /> Restore</button>
             @if (Swimlanes.Count > 0)
             {
                 <div class="tracks-list-bulk-dropdown">
-                    <button class="btn btn-sm btn-outline" @onclick="() => _showBulkMoveDropdown = !_showBulkMoveDropdown">↔️ Move</button>
+                    <button class="btn btn-sm btn-outline" @onclick="() => _showBulkMoveDropdown = !_showBulkMoveDropdown"><MaterialIcon Icon="swap_horiz" Size="MaterialIconSize.Sm" /> Move</button>
                     @if (_showBulkMoveDropdown)
                     {
                         <div class="tracks-list-bulk-dropdown-menu">
@@ -103,7 +103,7 @@
             @if (Labels.Count > 0)
             {
                 <div class="tracks-list-bulk-dropdown">
-                    <button class="btn btn-sm btn-outline" @onclick="() => _showBulkLabelDropdown = !_showBulkLabelDropdown">🏷️ Label</button>
+                    <button class="btn btn-sm btn-outline" @onclick="() => _showBulkLabelDropdown = !_showBulkLabelDropdown"><MaterialIcon Icon="label" Size="MaterialIconSize.Sm" /> Label</button>
                     @if (_showBulkLabelDropdown)
                     {
                         <div class="tracks-list-bulk-dropdown-menu">
@@ -116,14 +116,14 @@
                 </div>
             }
             <div class="tracks-list-bulk-dropdown">
-                <button class="btn btn-sm btn-outline" @onclick="() => _showBulkPriorityDropdown = !_showBulkPriorityDropdown">🚩 Priority</button>
+                <button class="btn btn-sm btn-outline" @onclick="() => _showBulkPriorityDropdown = !_showBulkPriorityDropdown"><MaterialIcon Icon="flag" Size="MaterialIconSize.Sm" /> Priority</button>
                 @if (_showBulkPriorityDropdown)
                 {
                     <div class="tracks-list-bulk-dropdown-menu">
-                        <button class="tracks-list-bulk-dropdown-item" @onclick="() => _ = BulkSetPriorityAsync(Priority.Urgent)">🔴 Urgent</button>
-                        <button class="tracks-list-bulk-dropdown-item" @onclick="() => _ = BulkSetPriorityAsync(Priority.High)">🟠 High</button>
-                        <button class="tracks-list-bulk-dropdown-item" @onclick="() => _ = BulkSetPriorityAsync(Priority.Medium)">🟡 Medium</button>
-                        <button class="tracks-list-bulk-dropdown-item" @onclick="() => _ = BulkSetPriorityAsync(Priority.Low)">🟢 Low</button>
+                        <button class="tracks-list-bulk-dropdown-item" @onclick="() => _ = BulkSetPriorityAsync(Priority.Urgent)"><TracksPriorityIcon Priority="Priority.Urgent" /> Urgent</button>
+                        <button class="tracks-list-bulk-dropdown-item" @onclick="() => _ = BulkSetPriorityAsync(Priority.High)"><TracksPriorityIcon Priority="Priority.High" /> High</button>
+                        <button class="tracks-list-bulk-dropdown-item" @onclick="() => _ = BulkSetPriorityAsync(Priority.Medium)"><TracksPriorityIcon Priority="Priority.Medium" /> Medium</button>
+                        <button class="tracks-list-bulk-dropdown-item" @onclick="() => _ = BulkSetPriorityAsync(Priority.Low)"><TracksPriorityIcon Priority="Priority.Low" /> Low</button>
                         <button class="tracks-list-bulk-dropdown-item" @onclick="() => _ = BulkSetPriorityAsync(Priority.None)">No priority</button>
                     </div>
                 }
@@ -131,7 +131,7 @@
             @if (Members.Count > 0)
             {
                 <div class="tracks-list-bulk-dropdown">
-                    <button class="btn btn-sm btn-outline" @onclick="() => _showBulkAssignDropdown = !_showBulkAssignDropdown">👤 Assign</button>
+                    <button class="btn btn-sm btn-outline" @onclick="() => _showBulkAssignDropdown = !_showBulkAssignDropdown"><MaterialIcon Icon="person_add" Size="MaterialIconSize.Sm" /> Assign</button>
                     @if (_showBulkAssignDropdown)
                     {
                         <div class="tracks-list-bulk-dropdown-menu">
@@ -146,7 +146,7 @@
             @if (Sprints is not null && Sprints.Count > 0)
             {
                 <div class="tracks-list-bulk-dropdown">
-                    <button class="btn btn-sm btn-outline" @onclick="() => _showBulkSprintDropdown = !_showBulkSprintDropdown">🏃 Sprint</button>
+                    <button class="btn btn-sm btn-outline" @onclick="() => _showBulkSprintDropdown = !_showBulkSprintDropdown"><MaterialIcon Icon="directions_run" Size="MaterialIconSize.Sm" /> Sprint</button>
                     @if (_showBulkSprintDropdown)
                     {
                         <div class="tracks-list-bulk-dropdown-menu">
@@ -173,7 +173,7 @@
     else if (_allItems.Count == 0)
     {
         <div class="tracks-list-empty">
-            <div class="tracks-list-empty-icon">📭</div>
+            <div class="tracks-list-empty-icon"><MaterialIcon Icon="outbox" Size="MaterialIconSize.Xl" /></div>
             <h3>No work items yet</h3>
             <p>Create items in the Kanban view first.</p>
         </div>
@@ -232,7 +232,7 @@
                                     {
                                         <span class="tracks-list-title-text" @onclick:stopPropagation
                                               @ondblclick='() => StartInlineEdit(item.Id, "Title")' title="Double-click to edit">
-                                            @GetTypeIcon(item.Type) @item.Title
+                                            <MaterialIcon Icon="@GetTypeIcon(item.Type)" Size="MaterialIconSize.Sm" /> @item.Title
                                         </span>
                                     }
                                 </td>
@@ -250,10 +250,10 @@
                                                 @onchange='(e) => _editValue = (string?)e.Value ?? ""'
                                                 @onblur="CommitInlineEditAsync" autofocus>
                                             <option value="">—</option>
-                                            <option value="Urgent">🔴 Urgent</option>
-                                            <option value="High">🟠 High</option>
-                                            <option value="Medium">🟡 Medium</option>
-                                            <option value="Low">🟢 Low</option>
+                                            <option value="Urgent">Urgent</option>
+                                            <option value="High">High</option>
+                                            <option value="Medium">Medium</option>
+                                            <option value="Low">Low</option>
                                             <option value="None">No priority</option>
                                         </select>
                                     }
@@ -261,7 +261,7 @@
                                     {
                                         <span class="tracks-list-priority-cell" @onclick:stopPropagation
                                               @ondblclick='() => StartInlineEdit(item.Id, "Priority")' title="Double-click to edit">
-                                            @if (item.Priority != Priority.None) { @GetPriorityIcon(item.Priority) @item.Priority.ToString() }
+                                            @if (item.Priority != Priority.None) { <TracksPriorityIcon Priority="@item.Priority" /> @item.Priority.ToString() }
                                             else { <span class="tracks-list-muted">—</span> }
                                         </span>
                                     }
@@ -308,7 +308,7 @@
                                     @if (item.DueDate.HasValue)
                                     {
                                         var overdue = item.DueDate.Value.Date < DateTime.UtcNow.Date;
-                                        <span class="@(overdue ? "tracks-list-overdue" : "")">@item.DueDate.Value.ToString("MMM d")@(overdue ? " ⚠️" : "")</span>
+                                        <span class="@(overdue ? "tracks-list-overdue" : "")">@item.DueDate.Value.ToString("MMM d")@if (overdue) { <MaterialIcon Icon="warning" Size="MaterialIconSize.Sm" /> }</span>
                                     }
                                     else { <span class="tracks-list-muted">—</span> }
                                 </td>

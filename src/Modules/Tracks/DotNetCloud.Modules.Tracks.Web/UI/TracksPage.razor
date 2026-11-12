@@ -68,32 +68,32 @@
                 }
                 <button class="tracks-nav-item @(_view == TracksView.ProductKanban ? "active" : "")"
                         @onclick="() => SelectProduct(_selectedProduct.Id)" title="Kanban Board">
-                    <span class="tracks-nav-icon">📋</span>
+                    <span class="tracks-nav-icon"><MaterialIcon Icon="checklist" Size="MaterialIconSize.Sm" /></span>
                     @if (!_sidebarCollapsed) { <span class="tracks-nav-text">Kanban</span> }
                 </button>
                 <button class="tracks-nav-item @(_view == TracksView.List ? "active" : "")"
                         @onclick="OpenList" title="Table View">
-                    <span class="tracks-nav-icon">📊</span>
+                    <span class="tracks-nav-icon"><MaterialIcon Icon="view_list" Size="MaterialIconSize.Sm" /></span>
                     @if (!_sidebarCollapsed) { <span class="tracks-nav-text">List</span> }
                 </button>
                 <button class="tracks-nav-item @(_view == TracksView.Calendar ? "active" : "")"
                         @onclick="OpenCalendar" title="Calendar View">
-                    <span class="tracks-nav-icon">📅</span>
+                    <span class="tracks-nav-icon"><MaterialIcon Icon="calendar_today" Size="MaterialIconSize.Sm" /></span>
                     @if (!_sidebarCollapsed) { <span class="tracks-nav-text">Calendar</span> }
                 </button>
                 <button class="tracks-nav-item @(_view == TracksView.Dashboard ? "active" : "")"
                         @onclick="OpenDashboard" title="Dashboard">
-                    <span class="tracks-nav-icon">📈</span>
+                    <span class="tracks-nav-icon"><MaterialIcon Icon="trending_up" Size="MaterialIconSize.Sm" /></span>
                     @if (!_sidebarCollapsed) { <span class="tracks-nav-text">Dashboard</span> }
                 </button>
                 <button class="tracks-nav-item @(_view == TracksView.Roadmap ? "active" : "")"
                         @onclick="OpenRoadmap" title="Roadmap">
-                    <span class="tracks-nav-icon">🗺️</span>
+                    <span class="tracks-nav-icon"><MaterialIcon Icon="map" Size="MaterialIconSize.Sm" /></span>
                     @if (!_sidebarCollapsed) { <span class="tracks-nav-text">Roadmap</span> }
                 </button>
                 <button class="tracks-nav-item @(_view == TracksView.Settings ? "active" : "")"
                         @onclick="OpenSettings" title="Product Settings">
-                    <span class="tracks-nav-icon">⚙️</span>
+                    <span class="tracks-nav-icon"><MaterialIcon Icon="settings" Size="MaterialIconSize.Sm" /></span>
                     @if (!_sidebarCollapsed) { <span class="tracks-nav-text">Settings</span> }
                 </button>
             </div>
@@ -111,49 +111,49 @@
                 }
                 <button class="tracks-nav-item @(_showSprints ? "active" : "")"
                         @onclick="ToggleSprints" title="Sprints">
-                    <span class="tracks-nav-icon">🏃</span>
+                    <span class="tracks-nav-icon"><MaterialIcon Icon="directions_run" Size="MaterialIconSize.Sm" /></span>
                     @if (!_sidebarCollapsed) { <span class="tracks-nav-text">Sprints</span> }
                 </button>
                 @if (PlannableSprint is not null)
                 {
                     <button class="tracks-nav-item @(_view == TracksView.Planning ? "active" : "")"
                             @onclick="() => OpenSprintPlanning(PlannableSprint)" title="Sprint Planning">
-                        <span class="tracks-nav-icon">📊</span>
+                        <span class="tracks-nav-icon"><MaterialIcon Icon="tune" Size="MaterialIconSize.Sm" /></span>
                         @if (!_sidebarCollapsed) { <span class="tracks-nav-text">Planning</span> }
                     </button>
                 }
                 <button class="tracks-nav-item @(_view == TracksView.Wizard ? "active" : "")"
                         @onclick="OpenWizard" title="Year Plan Wizard">
-                    <span class="tracks-nav-icon">📅</span>
+                    <span class="tracks-nav-icon"><MaterialIcon Icon="calendar_month" Size="MaterialIconSize.Sm" /></span>
                     @if (!_sidebarCollapsed) { <span class="tracks-nav-text">Year Plan</span> }
                 </button>
                 <button class="tracks-nav-item @(_view == TracksView.Backlog ? "active" : "")"
                         @onclick="OpenBacklog" title="Backlog">
-                    <span class="tracks-nav-icon">📋</span>
+                    <span class="tracks-nav-icon"><MaterialIcon Icon="checklist" Size="MaterialIconSize.Sm" /></span>
                     @if (!_sidebarCollapsed) { <span class="tracks-nav-text">Backlog</span> }
                 </button>
                 <button class="tracks-nav-item @(_view == TracksView.Timeline ? "active" : "")"
                         @onclick="OpenTimeline" title="Year Timeline">
-                    <span class="tracks-nav-icon">📊</span>
+                    <span class="tracks-nav-icon"><MaterialIcon Icon="bar_chart" Size="MaterialIconSize.Sm" /></span>
                     @if (!_sidebarCollapsed) { <span class="tracks-nav-text">Timeline</span> }
                 </button>
                 <button class="tracks-nav-item @(_view == TracksView.Review ? "active" : "")"
                         @onclick="OpenReview" title="Live Review">
-                    <span class="tracks-nav-icon">🎯</span>
+                    <span class="tracks-nav-icon"><MaterialIcon Icon="visibility" Size="MaterialIconSize.Sm" /></span>
                     @if (!_sidebarCollapsed) { <span class="tracks-nav-text">Review</span> }
                 </button>
                 <button class="tracks-nav-item @(_view == TracksView.Calendar ? "active" : "")"
                         @onclick="OpenCalendar" title="Calendar View">
-                    <span class="tracks-nav-icon">📅</span>
+                    <span class="tracks-nav-icon"><MaterialIcon Icon="calendar_today" Size="MaterialIconSize.Sm" /></span>
                     @if (!_sidebarCollapsed) { <span class="tracks-nav-text">Calendar</span> }
                 </button>
                 <button class="tracks-nav-item @(_view == TracksView.Settings ? "active" : "")"
                         @onclick="OpenSettings" title="Product Settings">
-                    <span class="tracks-nav-icon">⚙️</span>
+                    <span class="tracks-nav-icon"><MaterialIcon Icon="settings" Size="MaterialIconSize.Sm" /></span>
                     @if (!_sidebarCollapsed) { <span class="tracks-nav-text">Settings</span> }
                 </button>
                 <button class="tracks-nav-item" @onclick="() => OpenEpicKanban(_selectedEpic.Id)" title="Back to Epic Kanban">
-                    <span class="tracks-nav-icon">←</span>
+                    <span class="tracks-nav-icon"><MaterialIcon Icon="arrow_back" Size="MaterialIconSize.Sm" /></span>
                     @if (!_sidebarCollapsed) { <span class="tracks-nav-text">Kanban</span> }
                 </button>
             </div>
@@ -174,7 +174,7 @@
         <div class="tracks-nav">
             <button class="tracks-nav-item @(_view == TracksView.Teams ? "active" : "")"
                     @onclick="ShowTeams" title="Teams">
-                <span class="tracks-nav-icon">👥</span>
+                <span class="tracks-nav-icon"><MaterialIcon Icon="group" Size="MaterialIconSize.Sm" /></span>
                 @if (!_sidebarCollapsed) { <span class="tracks-nav-text">Teams</span> }
             </button>
         </div>
@@ -183,7 +183,7 @@
         <div class="tracks-nav tracks-nav--bottom">
             <button class="tracks-nav-item tracks-nav-item--tour"
                     @onclick="ShowTour" title="Show Tour">
-                <span class="tracks-nav-icon">🎓</span>
+                <span class="tracks-nav-icon"><MaterialIcon Icon="school" Size="MaterialIconSize.Sm" /></span>
                 @if (!_sidebarCollapsed) { <span class="tracks-nav-text">Show Tour</span> }
             </button>
         </div>
@@ -383,12 +383,12 @@
                         else
                         {
                             <div class="review-landing">
-                                <div class="review-landing-icon">🎯</div>
+                                <div class="review-landing-icon"><MaterialIcon Icon="visibility" Size="MaterialIconSize.Xl" /></div>
                                 <h3>Live Review Session</h3>
                                 <p>Start a review session to synchronize item navigation with your team and run planning poker in real-time.</p>
                                 <div class="review-landing-actions">
                                     <button class="btn btn-primary" @onclick="OpenReview" disabled="@_isStartingReview">
-                                        🚀 Start Review Session
+                                        <MaterialIcon Icon="play_arrow" Size="MaterialIconSize.Sm" /> Start Review Session
                                     </button>
                                 </div>
                                 @if (_reviewStartError is not null)

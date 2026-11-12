@@ -4,12 +4,12 @@
 <div class="tracks-kanban @GetDepthClass()">
     @* ── Hierarchy Level Indicator ── *@
     <div class="tracks-kanban-level">
-        <span class="tracks-kanban-level-icon">@GetLevelIcon()</span>
+        <span class="tracks-kanban-level-icon"><MaterialIcon Icon="@GetLevelIcon()" /></span>
         <span class="tracks-kanban-level-label">@GetLevelLabel()</span>
         <span class="tracks-kanban-level-count">@GetTotalCardCount() cards</span>
         <button class="btn btn-sm btn-primary tracks-kanban-level-create" @onclick="OpenCreateWizard"
                 title="New @CreateWorkItemType">
-            ＋ New @CreateWorkItemType
+            <MaterialIcon Icon="add" Size="MaterialIconSize.Sm" /> New @CreateWorkItemType
         </button>
     </div>
 
@@ -17,9 +17,9 @@
     @if (_showWipWarning && _wipWarningMessage is not null)
     {
         <div class="tracks-wip-warning-toast @(_wipWarningMessage.Contains("blocked") ? "wip-blocked" : "")">
-            <span class="tracks-wip-warning-icon">@(_wipWarningMessage.Contains("blocked") ? "🚫" : "⚠️")</span>
+            <span class="tracks-wip-warning-icon"><MaterialIcon Icon="@(_wipWarningMessage.Contains("blocked") ? "block" : "warning")" /></span>
             <span class="tracks-wip-warning-text">@_wipWarningMessage</span>
-            <button class="tracks-wip-warning-close" @onclick="() => _showWipWarning = false">×</button>
+            <button class="tracks-wip-warning-close" @onclick="() => _showWipWarning = false" title="Dismiss"><MaterialIcon Icon="close" Size="MaterialIconSize.Sm" /></button>
         </div>
     }
 
@@ -38,10 +38,10 @@
                        @bind:event="oninput" />
                 <select class="tracks-filter-select" @bind="_priorityFilter">
                     <option value="">All priorities</option>
-                    <option value="Urgent">🔴 Urgent</option>
-                    <option value="High">🟠 High</option>
-                    <option value="Medium">🟡 Medium</option>
-                    <option value="Low">🟢 Low</option>
+                    <option value="Urgent">Urgent</option>
+                    <option value="High">High</option>
+                    <option value="Medium">Medium</option>
+                    <option value="Low">Low</option>
                 </select>
                 @if (Labels is not null && Labels.Count > 0)
                 {
@@ -59,7 +59,7 @@
                         <option value="">All items</option>
                         @foreach (var sprint in Sprints.Where(s => s.Status != SprintStatus.Completed))
                         {
-                            <option value="@sprint.Id">@sprint.Title @(sprint.Status == SprintStatus.Active ? "✓" : "")</option>
+                            <option value="@sprint.Id">@sprint.Title@(sprint.Status == SprintStatus.Active ? " (active)" : "")</option>
                         }
                         <option value="none">Backlog</option>
                     </select>
@@ -68,9 +68,9 @@
             <div class="tracks-toolbar-actions">
                 <button class="btn btn-sm btn-outline" @onclick="ExportToCsvAsync" disabled="@_isExporting"
                         title="Download this board as a spreadsheet you can open in Excel or Google Sheets">
-                    📥 @(_isExporting ? "Preparing..." : "Export Spreadsheet")
+                    <MaterialIcon Icon="download" Size="MaterialIconSize.Sm" /> @(_isExporting ? "Preparing..." : "Export Spreadsheet")
                 </button>
-                <button class="btn btn-sm btn-outline" @onclick="() => OnRefreshRequested.InvokeAsync()">↻
+                <button class="btn btn-sm btn-outline" @onclick="() => OnRefreshRequested.InvokeAsync()"><MaterialIcon Icon="refresh" Size="MaterialIconSize.Sm" />
                     Refresh</button>
                 </div>
             </div>
@@ -93,13 +93,13 @@
                         @sprint.Title
                         @if (sprint.Status == SprintStatus.Active)
                         {
-                            <span class="tracks-sprint-tab-indicator">●</span>
+                            <span class="tracks-sprint-tab-indicator"><MaterialIcon Icon="circle" Size="MaterialIconSize.Sm" /></span>
                         }
                     </button>
                 }
                 <button class="tracks-sprint-tab @(_sprintFilter == "none" ? "active" : "")"
                         @onclick='() => _sprintFilter = "none"'>
-                    📋 Backlog
+                    <MaterialIcon Icon="checklist" Size="MaterialIconSize.Sm" /> Backlog
                 </button>
             </div>
         }
@@ -152,10 +152,10 @@
                                         @if (item.Priority != Priority.None)
                                         {
                                             <span class="tracks-card-priority-badge"
-                                                  title="@item.Priority">@GetPriorityIcon(item.Priority)</span>
+                                                  title="@item.Priority"><TracksPriorityIcon Priority="@item.Priority" /></span>
                                         }
                                         <a href="/apps/tracks/item/@Product.Id/@item.ItemNumber" target="_blank"
-                                           class="tracks-open-newtab-btn" title="Open in new tab" @onclick:stopPropagation>⧉</a>
+                                           class="tracks-open-newtab-btn" title="Open in new tab" @onclick:stopPropagation><MaterialIcon Icon="open_in_new" Size="MaterialIconSize.Sm" /></a>
                                     </div>
                                 </div>
 
@@ -188,7 +188,7 @@
                                             {
                                                 <span
                                                     class="tracks-card-badge @(IsOverdue(item.DueDate.Value) ? "overdue" : IsDueSoon(item.DueDate.Value) ? "due-soon" : "")">
-                                                    📅 @TimeProvider.ToLocal(item.DueDate.Value).ToString("MMM d")
+                                                    <MaterialIcon Icon="calendar_today" Size="MaterialIconSize.Sm" /> @TimeProvider.ToLocal(item.DueDate.Value).ToString("MMM d")
                                                 </span>
                                             }
                                             @if (item.StoryPoints.HasValue)
@@ -201,16 +201,16 @@
                                                 var doneItems = item.Checklists.Sum(c => c.Items.Count(i => i.IsCompleted));
                                                 <span
                                                     class="tracks-card-badge @(doneItems == totalItems && totalItems > 0 ? "complete" : "")">
-                                                    ☑ @doneItems/@totalItems
+                                                    <MaterialIcon Icon="task_alt" Size="MaterialIconSize.Sm" /> @doneItems/@totalItems
                                                 </span>
                                             }
                                             @if (item.CommentCount > 0)
                                             {
-                                                <span class="tracks-card-badge">💬 @item.CommentCount</span>
+                                                <span class="tracks-card-badge"><MaterialIcon Icon="chat" Size="MaterialIconSize.Sm" /> @item.CommentCount</span>
                                             }
                                             @if (item.AttachmentCount > 0)
                                             {
-                                                <span class="tracks-card-badge">📎 @item.AttachmentCount</span>
+                                                <span class="tracks-card-badge"><MaterialIcon Icon="attach_file" Size="MaterialIconSize.Sm" /> @item.AttachmentCount</span>
                                             }
                                         </div>
                                     }
@@ -218,7 +218,7 @@
                                     @* ── Sprint Badge ── *@
                                     @if (!string.IsNullOrEmpty(item.SprintTitle) && string.IsNullOrEmpty(_sprintFilter))
                                     {
-                                        <div class="tracks-card-sprint-badge">🏃 @item.SprintTitle</div>
+                                        <div class="tracks-card-sprint-badge"><MaterialIcon Icon="directions_run" Size="MaterialIconSize.Sm" /> @item.SprintTitle</div>
                                     }
 
                                     @* ── Footer: Assignees ── *@

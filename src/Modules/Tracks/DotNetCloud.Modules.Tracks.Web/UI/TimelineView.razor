@@ -4,7 +4,7 @@
     @* ── Header ── *@
     <div class="tracks-timeline-header">
         <div class="tracks-timeline-title-area">
-            <h2>📅 Year Timeline</h2>
+            <h2><MaterialIcon Icon="calendar_month" /> Year Timeline</h2>
             @if (_planOverview is not null)
             {
                 <div class="tracks-timeline-stats">
@@ -20,7 +20,7 @@
             }
         </div>
         <div class="tracks-timeline-toolbar">
-            <button class="btn btn-sm btn-outline" @onclick="RefreshAsync" disabled="@_isLoading">↻ Refresh</button>
+            <button class="btn btn-sm btn-outline" @onclick="RefreshAsync" disabled="@_isLoading"><MaterialIcon Icon="refresh" Size="MaterialIconSize.Sm" /> Refresh</button>
         </div>
     </div>
 
@@ -38,7 +38,7 @@
     else if (_planOverview is null || _planOverview.Count == 0)
     {
         <div class="tracks-timeline-empty">
-            <div class="tracks-timeline-empty-icon">📅</div>
+            <div class="tracks-timeline-empty-icon"><MaterialIcon Icon="calendar_month" Size="MaterialIconSize.Xl" /></div>
             <h3>No sprint plan</h3>
             <p>Create a sprint plan using the Year Plan Wizard to see the timeline view.</p>
             <button class="btn btn-primary" @onclick="() => OnOpenWizard.InvokeAsync()">Open Year Plan Wizard</button>

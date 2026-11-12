@@ -45,7 +45,7 @@
     else if (_data is null || _data.Items.Count == 0)
     {
         <div class="roadmap-empty">
-            <div class="roadmap-empty-icon">🗺️</div>
+            <div class="roadmap-empty-icon"><MaterialIcon Icon="map" Size="MaterialIconSize.Xl" /></div>
             <h3>No roadmap items</h3>
             <p>Create epics with due dates to see them here. Features with dates will also appear on the timeline.</p>
         </div>
@@ -129,7 +129,7 @@
                     <div class="roadmap-detail-header">
                         <span class="roadmap-detail-type">@_selectedItem.Type</span>
                         <span class="roadmap-detail-number">#@_selectedItem.ItemNumber</span>
-                        <button class="roadmap-detail-close" @onclick="CloseDetail">✕</button>
+                        <button class="roadmap-detail-close" @onclick="CloseDetail" title="Close"><MaterialIcon Icon="close" Size="MaterialIconSize.Sm" /></button>
                     </div>
                     <h4>@_selectedItem.Title</h4>
                     @if (_selectedItem.DueDate.HasValue)

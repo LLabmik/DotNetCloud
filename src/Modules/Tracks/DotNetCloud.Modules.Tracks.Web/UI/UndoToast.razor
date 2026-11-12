@@ -10,7 +10,7 @@
 {
     <div class="undo-toast @(_isLeaving ? "undo-toast--leaving" : "")">
         <div class="undo-toast-content">
-            <span class="undo-toast-icon">✓</span>
+            <span class="undo-toast-icon"><MaterialIcon Icon="check" Size="MaterialIconSize.Sm" /></span>
             <span class="undo-toast-message">@Message</span>
             @if (HasUndoAction)
             {
@@ -18,7 +18,7 @@
                     @(_isUndoing ? "Undoing..." : "Undo")
                 </button>
             }
-            <button class="undo-toast-dismiss" @onclick="Dismiss" title="Dismiss">✕</button>
+            <button class="undo-toast-dismiss" @onclick="Dismiss" title="Dismiss"><MaterialIcon Icon="close" Size="MaterialIconSize.Sm" /></button>
         </div>
     </div>
 }

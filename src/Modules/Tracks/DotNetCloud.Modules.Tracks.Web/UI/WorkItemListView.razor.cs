@@ -441,23 +441,7 @@ public partial class WorkItemListView : ComponentBase, IDisposable
         _ => ""
     };
 
-    private static string GetPriorityIcon(Priority priority) => priority switch
-    {
-        Priority.Urgent => "🔴",
-        Priority.High => "🟠",
-        Priority.Medium => "🟡",
-        Priority.Low => "🟢",
-        _ => ""
-    };
-
-    private static string GetTypeIcon(WorkItemType type) => type switch
-    {
-        WorkItemType.Epic => "⚡",
-        WorkItemType.Feature => "🎯",
-        WorkItemType.Item => "📋",
-        WorkItemType.SubItem => "📌",
-        _ => "📋"
-    };
+    private static string GetTypeIcon(WorkItemType type) => TracksIcons.ForType(type);
 
     private string GetAssigneeDisplay(WorkItemDto item)
     {

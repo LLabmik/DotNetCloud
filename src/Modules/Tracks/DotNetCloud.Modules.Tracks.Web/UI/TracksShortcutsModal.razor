@@ -4,16 +4,16 @@
 <div class="tracks-shortcuts-overlay" @onclick="OnClose">
     <div class="tracks-shortcuts-modal" @onclick:stopPropagation>
         <div class="tracks-shortcuts-header">
-            <h2>⌨️ Keyboard Shortcuts</h2>
+            <h2><MaterialIcon Icon="key" /> Keyboard Shortcuts</h2>
             <p class="tracks-shortcuts-subtitle">
                 Use these shortcuts to work faster. Press <kbd>?</kbd> anytime to see this reference.
             </p>
-            <button class="tracks-close-btn" @onclick="OnClose" title="Close (or press Esc)">✕</button>
+            <button class="tracks-close-btn" @onclick="OnClose" title="Close (or press Esc)"><MaterialIcon Icon="close" /></button>
         </div>
 
         <div class="tracks-shortcuts-body">
             <div class="tracks-shortcuts-section">
-                <h3>📝 Work Items</h3>
+                <h3><MaterialIcon Icon="edit_note" Size="MaterialIconSize.Sm" /> Work Items</h3>
                 <div class="tracks-shortcut-row">
                     <span class="tracks-shortcut-desc">Create a new work item</span>
                     <span class="tracks-shortcut-keys"><kbd>N</kbd></span>
@@ -33,7 +33,7 @@
             </div>
 
             <div class="tracks-shortcuts-section">
-                <h3>🧭 Navigation</h3>
+                <h3><MaterialIcon Icon="map" Size="MaterialIconSize.Sm" /> Navigation</h3>
                 <div class="tracks-shortcut-row">
                     <span class="tracks-shortcut-desc">Go up one level (e.g., Feature → Epic)</span>
                     <span class="tracks-shortcut-keys"><kbd>←</kbd></span>
@@ -45,7 +45,7 @@
             </div>
 
             <div class="tracks-shortcuts-section">
-                <h3>💡 Tips</h3>
+                <h3><MaterialIcon Icon="lightbulb" Size="MaterialIconSize.Sm" /> Tips</h3>
                 <ul class="tracks-shortcuts-tips">
                     <li>Shortcuts work when you're not typing in a text field.</li>
                     <li>Press <kbd>?</kbd> at any time to see this reference again.</li>

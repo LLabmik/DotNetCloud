@@ -17,7 +17,7 @@
     @if (FilteredProducts.Count == 0)
     {
         <div class="tracks-empty-state">
-            <div class="tracks-empty-icon">📋</div>
+            <div class="tracks-empty-icon"><MaterialIcon Icon="inventory_2" Size="MaterialIconSize.Xl" /></div>
             <h3>No products yet</h3>
             <p>Create your first product to start tracking work.</p>
             <button class="btn btn-primary" @onclick="OpenCreateWizard">Create Product</button>
@@ -43,7 +43,7 @@
                                 <button class="tracks-board-card-delete-btn"
                                         @onclick="() => ConfirmDelete(product)"
                                         title="Delete product">
-                                    🗑
+                                    <MaterialIcon Icon="delete" Size="MaterialIconSize.Sm" />
                                 </button>
                             </div>
                         </div>
@@ -73,8 +73,8 @@
     {
         <div class="tracks-deleted-section">
             <button class="tracks-deleted-toggle" @onclick="() => _showDeleted = !_showDeleted">
-                <span class="tracks-deleted-toggle-icon">@(_showDeleted ? "▼" : "▶")</span>
-                <span>🗑 Trash (@_deletedProducts.Count)</span>
+                <span class="tracks-deleted-toggle-icon"><MaterialIcon Icon="@(_showDeleted ? "expand_more" : "chevron_right")" Size="MaterialIconSize.Sm" /></span>
+                <span><MaterialIcon Icon="delete" Size="MaterialIconSize.Sm" /> Trash (@_deletedProducts.Count)</span>
                 <span class="tracks-deleted-toggle-hint">Restorable within 30 days</span>
             </button>
 
@@ -101,13 +101,20 @@
                                                 @onclick="() => RestoreProductAsync(product)"
                                                 disabled="@(_isRestoring == product.Id)"
                                                 title="Restore product">
-                                            @(_isRestoring == product.Id ? "Restoring..." : "↩ Restore")
+                                            @(_isRestoring == product.Id ? "Restoring..." : "Restore")
                                         </button>
                                         <button class="tracks-deleted-permanent-btn"
                                                 @onclick="() => PermanentDeleteProductAsync(product)"
                                                 disabled="@(_isPermanentlyDeleting == product.Id)"
                                                 title="Permanently delete — cannot be undone">
-                                            @(_isPermanentlyDeleting == product.Id ? "Deleting..." : "🗑")
+                                            @if (_isPermanentlyDeleting == product.Id)
+                                            {
+                                                <text>Deleting...</text>
+                                            }
+                                            else
+                                            {
+                                                <MaterialIcon Icon="delete" Size="MaterialIconSize.Sm" />
+                                            }
                                         </button>
                                     </div>
                                 </div>
@@ -143,7 +150,7 @@
 {
     <div class="tracks-wizard-overlay" @onclick="CancelDelete">
         <div class="tracks-confirm-dialog" @onclick:stopPropagation>
-            <div class="tracks-confirm-icon">⚠️</div>
+            <div class="tracks-confirm-icon"><MaterialIcon Icon="warning" Size="MaterialIconSize.Xl" /></div>
             <h3>@($"Delete \"{_deleteTarget.Name}\"?")</h3>
             <p>This will mark the product for deletion. It can be restored within 30 days by an admin. <strong>After 30 days it will be permanently removed.</strong></p>
             <div class="tracks-confirm-actions">

@@ -4,12 +4,12 @@
     @* ── Session Header ── *@
     <div class="review-header">
         <div class="review-header-left">
-            <h2>🎯 Live Review Session</h2>
+            <h2><MaterialIcon Icon="visibility" Size="MaterialIconSize.Sm" /> Live Review Session</h2>
             <span class="review-status-badge @GetStatusClass()">@Session.Status</span>
         </div>
         <div class="review-header-right">
             <span class="review-participant-count">
-                👥 @Session.ParticipantCount participants
+                <MaterialIcon Icon="group" Size="MaterialIconSize.Sm" /> @Session.ParticipantCount participants
             </span>
             <button class="btn btn-sm btn-danger" @onclick="EndSession">End Session</button>
         </div>
@@ -82,7 +82,7 @@
                     @if (_currentItem.DueDate.HasValue)
                     {
                         <div class="review-card-due">
-                            📅 Due: @_currentItem.DueDate.Value.ToString("MMM d, yyyy")
+                            <MaterialIcon Icon="calendar_today" Size="MaterialIconSize.Sm" /> Due: @_currentItem.DueDate.Value.ToString("MMM d, yyyy")
                         </div>
                     }
                 </div>
@@ -140,7 +140,7 @@
                                 </select>
                             </div>
                             <button class="btn btn-primary btn-sm" @onclick="StartPoker" disabled="@_isStartingPoker">
-                                🃏 Start Poker
+                                <MaterialIcon Icon="add" Size="MaterialIconSize.Sm" /> Start Poker
                             </button>
                         </div>
                     }
@@ -186,7 +186,7 @@
 
                             <div class="review-poker-controls">
                                 <button class="btn btn-sm btn-accent" @onclick="RevealVotes" disabled="@_isRevealingVotes">
-                                    👁 Reveal Votes
+                                    <MaterialIcon Icon="visibility" Size="MaterialIconSize.Sm" /> Reveal Votes
                                 </button>
                             </div>
                         }
@@ -208,7 +208,7 @@
                                 @if (_acceptEstimate is not null)
                                 {
                                     <button class="btn btn-sm btn-primary" @onclick="AcceptEstimate" disabled="@_isAccepting">
-                                        ✓ Accept @_acceptEstimate
+                                        <MaterialIcon Icon="check" Size="MaterialIconSize.Sm" /> Accept @_acceptEstimate
                                     </button>
                                 }
                                 @* Re-vote: start a new poker session *@
@@ -227,7 +227,7 @@
 
             @* Discussion Panel *@
             <div class="review-discussion">
-                <h4>💬 Discussion</h4>
+                <h4><MaterialIcon Icon="chat" Size="MaterialIconSize.Sm" /> Discussion</h4>
                 <div class="tracks-discussion-messages">
                     @if (_discussionMessages.Count == 0)
                     {

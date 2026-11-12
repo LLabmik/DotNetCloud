@@ -13,8 +13,8 @@
     {
         @* ── Header ── *@
         <div class="tracks-dashboard-header">
-            <h2>📈 @Product.Name — Dashboard</h2>
-            <button class="btn btn-sm btn-outline" @onclick="() => LoadDashboardAsync()">↻ Refresh</button>
+            <h2><MaterialIcon Icon="trending_up" /> @Product.Name — Dashboard</h2>
+            <button class="btn btn-sm btn-outline" @onclick="() => LoadDashboardAsync()"><MaterialIcon Icon="refresh" Size="MaterialIconSize.Sm" /> Refresh</button>
         </div>
 
         @* ── KPI Row ── *@
@@ -167,7 +167,7 @@
                             {
                                 <button class="tracks-dashboard-feed-item"
                                         @onclick="() => OnWorkItemSelected.InvokeAsync(item.Id)">
-                                    <span class="tracks-dashboard-feed-icon">@GetTypeIcon(item.Type)</span>
+                                    <span class="tracks-dashboard-feed-icon"><MaterialIcon Icon="@GetTypeIcon(item.Type)" Size="MaterialIconSize.Sm" /></span>
                                     <div class="tracks-dashboard-feed-content">
                                         <span class="tracks-dashboard-feed-title">#@item.ItemNumber @item.Title</span>
                                         <span class="tracks-dashboard-feed-meta">
@@ -177,7 +177,7 @@
                                             }
                                             @if (item.Priority != Priority.None)
                                             {
-                                                <span>· @GetPriorityIcon(item.Priority)</span>
+                                                <span>· <TracksPriorityIcon Priority="@item.Priority" /></span>
                                             }
                                         </span>
                                     </div>
@@ -208,7 +208,7 @@
                                 var isOverdue = item.DueDate.Date < DateTime.UtcNow.Date;
                                 <button class="tracks-dashboard-feed-item @(isOverdue ? "overdue" : "")"
                                         @onclick="() => OnWorkItemSelected.InvokeAsync(item.Id)">
-                                    <span class="tracks-dashboard-feed-icon">@GetTypeIcon(item.Type)</span>
+                                    <span class="tracks-dashboard-feed-icon"><MaterialIcon Icon="@GetTypeIcon(item.Type)" Size="MaterialIconSize.Sm" /></span>
                                     <div class="tracks-dashboard-feed-content">
                                         <span class="tracks-dashboard-feed-title">#@item.ItemNumber @item.Title</span>
                                         <span class="tracks-dashboard-feed-meta">
@@ -218,7 +218,7 @@
                                             }
                                             @if (item.Priority != Priority.None)
                                             {
-                                                <span>· @GetPriorityIcon(item.Priority)</span>
+                                                <span>· <TracksPriorityIcon Priority="@item.Priority" /></span>
                                             }
                                         </span>
                                     </div>

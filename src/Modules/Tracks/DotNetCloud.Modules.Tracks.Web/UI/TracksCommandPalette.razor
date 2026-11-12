@@ -9,9 +9,7 @@
     <div class="command-palette-overlay" @onclick="Close" @onkeydown="HandleOverlayKeyDown" @onclick:preventDefault="false">
         <div class="command-palette-dialog" @onclick:stopPropagation="true" @onclick:preventDefault="true">
             <div class="command-palette-search">
-                <svg class="cp-search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <circle cx="11" cy="11" r="8" /><path d="m21 21-4.35-4.35" />
-                </svg>
+                <MaterialIcon Icon="search" CssClass="cp-search-icon" />
                 <input @ref="_searchInput"
                        type="text"
                        class="cp-search-input"
@@ -54,7 +52,7 @@
                                      aria-selected="@isSelected">
                                     <div class="cp-item-main">
                                         <span class="cp-item-icon">
-                                            @GetIcon(item)
+                                            <MaterialIcon Icon="@GetIcon(item)" Size="MaterialIconSize.Sm" />
                                         </span>
                                         <span class="cp-item-title">@item.Title</span>
                                     </div>

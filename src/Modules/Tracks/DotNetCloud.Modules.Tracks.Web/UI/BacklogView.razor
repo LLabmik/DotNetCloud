@@ -5,7 +5,7 @@
     @* ── Header ── *@
     <div class="tracks-backlog-header">
         <div class="tracks-backlog-title-area">
-            <h2>📋 Backlog</h2>
+            <h2><MaterialIcon Icon="checklist" /> Backlog</h2>
             <div class="tracks-backlog-stats">
                 <span class="tracks-backlog-stat">@_backlogItems.Count items</span>
                 @{
@@ -23,10 +23,10 @@
                        @bind="_filterText" @bind:event="oninput" />
                 <select class="tracks-filter-select" @bind="_priorityFilter">
                     <option value="">All priorities</option>
-                    <option value="Urgent">🔴 Urgent</option>
-                    <option value="High">🟠 High</option>
-                    <option value="Medium">🟡 Medium</option>
-                    <option value="Low">🟢 Low</option>
+                    <option value="Urgent">Urgent</option>
+                    <option value="High">High</option>
+                    <option value="Medium">Medium</option>
+                    <option value="Low">Low</option>
                 </select>
             </div>
             <div class="tracks-backlog-actions">
@@ -49,10 +49,10 @@
                 <button class="btn btn-sm btn-outline" @onclick="ExportToCsvAsync"
                         disabled="@_isExporting"
                         title="Download this back-log as a spreadsheet you can open in Excel or Google Sheets">
-                    📥 @(_isExporting ? "Preparing..." : "Export Spreadsheet")
+                    <MaterialIcon Icon="download" Size="MaterialIconSize.Sm" /> @(_isExporting ? "Preparing..." : "Export Spreadsheet")
                 </button>
-                <button class="btn btn-sm btn-outline" @onclick="RefreshBacklogAsync">↻ Refresh</button>
-                <button class="btn btn-sm btn-primary" @onclick="ToggleAddCard">＋ New Card</button>
+                <button class="btn btn-sm btn-outline" @onclick="RefreshBacklogAsync"><MaterialIcon Icon="refresh" Size="MaterialIconSize.Sm" /> Refresh</button>
+                <button class="btn btn-sm btn-primary" @onclick="ToggleAddCard"><MaterialIcon Icon="add" Size="MaterialIconSize.Sm" /> New Card</button>
             </div>
         </div>
     </div>
@@ -76,10 +76,10 @@
                 }
                 <select class="tracks-filter-select" @bind="_newCardPriority">
                     <option value="">No priority</option>
-                    <option value="Low">🟢 Low</option>
-                    <option value="Medium">🟡 Medium</option>
-                    <option value="High">🟠 High</option>
-                    <option value="Urgent">🔴 Urgent</option>
+                    <option value="Low">Low</option>
+                    <option value="Medium">Medium</option>
+                    <option value="High">High</option>
+                    <option value="Urgent">Urgent</option>
                 </select>
             </div>
             <div class="tracks-backlog-add-card-actions">
@@ -102,12 +102,12 @@
     else if (_backlogItems.Count == 0 && string.IsNullOrEmpty(_filterText) && string.IsNullOrEmpty(_priorityFilter))
     {
         <div class="tracks-backlog-empty">
-            <div class="tracks-backlog-empty-icon">📭</div>
+            <div class="tracks-backlog-empty-icon"><MaterialIcon Icon="outbox" Size="MaterialIconSize.Xl" /></div>
             <h3>Backlog is empty</h3>
             <p>Items not assigned to any sprint will appear here.</p>
             @if (Swimlanes.Count > 0)
             {
-                <button class="btn btn-sm btn-primary" style="margin-top: 12px;" @onclick="ToggleAddCard">＋ Create your first item</button>
+                <button class="btn btn-sm btn-primary" style="margin-top: 12px;" @onclick="ToggleAddCard"><MaterialIcon Icon="add" Size="MaterialIconSize.Sm" /> Create your first item</button>
             }
         </div>
     }
@@ -137,7 +137,7 @@
                             <span class="tracks-backlog-card-title">@item.Title</span>
                             @if (item.Priority != Priority.None)
                             {
-                                <span class="tracks-card-priority-badge" title="@item.Priority">@GetPriorityIcon(item.Priority)</span>
+                                <span class="tracks-card-priority-badge" title="@item.Priority"><TracksPriorityIcon Priority="@item.Priority" /></span>
                             }
                         </div>
                         <div class="tracks-backlog-card-meta">
@@ -155,15 +155,15 @@
                             }
                             @if (item.Assignments.Count > 0)
                             {
-                                <span class="tracks-card-badge">👤 @item.Assignments.Count</span>
+                                <span class="tracks-card-badge"><MaterialIcon Icon="person" Size="MaterialIconSize.Sm" /> @item.Assignments.Count</span>
                             }
                             @if (item.DueDate.HasValue)
                             {
-                                <span class="tracks-card-badge">📅 @item.DueDate.Value.ToString("MMM d")</span>
+                                <span class="tracks-card-badge"><MaterialIcon Icon="calendar_today" Size="MaterialIconSize.Sm" /> @item.DueDate.Value.ToString("MMM d")</span>
                             }
                             @if (item.CommentCount > 0)
                             {
-                                <span class="tracks-card-badge">💬 @item.CommentCount</span>
+                                <span class="tracks-card-badge"><MaterialIcon Icon="chat" Size="MaterialIconSize.Sm" /> @item.CommentCount</span>
                             }
                         </div>
                     </div>
