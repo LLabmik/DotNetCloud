@@ -201,6 +201,13 @@ generation, secret storage, offline backup, rotation, compromise response) is
   `ALTER ROLE "<app-role>" CREATEROLE;` as a superuser, then restart the server. Without it the
   install stops with `DATASTORE_PROVISIONING_FAILED` and the remediation text naming the real role.
   Installs created by the current setup wizard already grant it; older ones do not.
+- **SQL Server containment.** The equivalent prerequisite is contained-database authentication:
+  `sp_configure 'contained database authentication', 1; RECONFIGURE;` (server admin, once) and the
+  database at `CONTAINMENT = PARTIAL` — `ALTER DATABASE [<db>] SET CONTAINMENT = PARTIAL;`, which the
+  app's `db_owner` can do itself and the provisioning service applies on first use. A contained user
+  that owns a schema still lacks database-scoped DDL, so provisioning also grants
+  `CREATE TABLE/VIEW/FUNCTION/PROCEDURE/TYPE/SYNONYM`; creation anywhere else stays denied.
+  `dotnetcloud setup` and `dotnetcloud datastore preflight` print the exact statement when it is missing.
 - **`CachePath` must be writable by the service account.** Under the systemd unit the application
   directory is read-only (`ProtectSystem=strict`), so set it under the data directory, for example
   `/var/lib/dotnetcloud/store-cache`. The client creates the directory on first use.

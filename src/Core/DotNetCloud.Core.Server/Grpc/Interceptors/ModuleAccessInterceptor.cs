@@ -16,7 +16,7 @@ namespace DotNetCloud.Core.Server.Grpc.Interceptors;
 /// <remarks>
 /// <para>
 /// Thin adapter: the evaluator decides (catalog lookup + cached grant set), this interceptor turns
-/// a deny into <c>PERMISSION_DENIED</c> with <c>error-code: CAPABILITY_NOT_GRANTED</c> and writes an
+/// a deny into <c>PERMISSION_DENIED</c> with <c>error-code: CAP_NOT_GRANTED</c> and writes an
 /// audit entry. Keeping policy out of the interceptor is what lets the internal REST facade reuse
 /// the same decision.
 /// </para>

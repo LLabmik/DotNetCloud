@@ -205,11 +205,20 @@ Same 6 endpoints — content type determined by extension only, not file signatu
 
 ### M-5: gRPC Unix Socket Permissions
 
-**Status:** 🔄 Documented — Needs verification per deployment
+**Status:** ✅ Verified — resolved 2026-11-12
 
-**Analysis:** No formal documentation exists for Unix socket file permissions. Module trust boundaries rely on process isolation.
+**Analysis:** The transport is no longer loopback TCP by default. Each module gets a Unix domain
+socket at `<dataDir>/modules/<moduleId>/run/module.sock` (directory `0700`, socket file `0600`) on
+Linux/macOS and a `PipeOptions.CurrentUserOnly` Named Pipe on Windows; loopback TCP remains an
+opt-in fallback (`Modules:Transport=Tcp`).
 
-**Recommendation:** Document expected socket permissions (0600 for socket files, module-specific user accounts) in deployment hardening guide.
+**Documented in:** `docs/modules/MODULE_SECURITY.md` §9 (transport matrix, what the transport does
+and does not protect, deployment guidance per mode).
+
+**Residual limitation:** module hosts run as the core's service account, so the socket/pipe
+permission keys on that one user and a sibling module can reach another module's socket — the
+per-launch credential is what denies it. Per-module OS accounts are a public-store launch gate, and
+it is recorded there rather than as an open finding.
 
 ### M-6: ValidateAntiForgeryToken Coverage
 
@@ -426,7 +435,7 @@ See H-1 for endpoint inventory. Key findings:
 | Area                         | Status        | Details                                                                 |
 | ---------------------------- | ------------- | ----------------------------------------------------------------------- |
 | gRPC server authentication   | ✅ Verified   | All gRPC services configured with authentication                        |
-| Unix socket permissions      | 🔄 Documented | Need formal documentation (see M-5)                                     |
+| Unix socket permissions      | ✅ Verified   | `0700` dir / `0600` socket (Linux), `CurrentUserOnly` pipe (Windows); see M-5 and MODULE_SECURITY §9 |
 | No direct database access    | ✅ Verified   | No module accesses another module's database directly                   |
 | Context propagation          | ✅ Verified   | `CallerContext` propagated across gRPC calls                            |
 | Error isolation              | ✅ Verified   | gRPC call failures don't crash calling module                           |

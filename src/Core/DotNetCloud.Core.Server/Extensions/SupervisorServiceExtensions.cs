@@ -61,6 +61,11 @@ internal static class SupervisorServiceExtensions
         services.AddSingleton<IConsentScopeRegistry>(sp =>
             (IConsentScopeRegistry)sp.GetRequiredService<IModuleManifestRegistry>());
 
+        // The manifest decides the schema mode: a v2 `dataStore: "isolated"` module self-migrates,
+        // so the core's schema pass must skip it instead of running the same migrations twice.
+        services.AddSingleton<IModuleDataStoreModeSource>(sp =>
+            (IModuleDataStoreModeSource)sp.GetRequiredService<IModuleManifestRegistry>());
+
         // Register supervisor infrastructure
         services.AddSingleton<GrpcChannelManager>();
         services.AddSingleton<IModuleGrpcChannelProvider>(sp => sp.GetRequiredService<GrpcChannelManager>());

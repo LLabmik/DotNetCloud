@@ -518,22 +518,24 @@ Deleting an account must delete that user's data everywhere, including module sc
 - gRPC `EnableDetailedErrors` is now `builder.Environment.IsDevelopment()`.
 - Tests added: `CapabilityCatalogTests`, `CapabilityGrantMappingTests`, `ModuleCompatibilityTests`, `PathContainmentTests`, `CoreCapabilitiesCurrentUserTests`, plus a `SubmitSearchIndex` attribution regression. `DotNetCloud.Core.Server.Tests`: 966 passed / 0 failed.
 
-**Remaining documentation inventory (Track D follow-up — still asserts Unix sockets / Named Pipes / mTLS for the module transport):**
+**Remaining documentation inventory (Track D follow-up — re-verified 2026-11-12):** every entry below
+has been re-read against the implemented transport. All of them now describe Unix sockets / Named
+Pipes correctly, so the inventory is closed.
 
-- ☐ `docs/modules/chat/ARCHITECTURE.md:5,15`
-- ☐ `docs/modules/AI_ASSISTANT.md:55`
-- ☐ `docs/modules/SEARCH.md:58,309`
-- ☐ `docs/admin/PIM_MODULES.md:312`
-- ☐ `docs/admin/server/INSTALLATION.md:48`
-- ☐ `docs/security/SECURITY_REVIEW_FINDINGS.md:210,336,429`
-- ☐ `docs/security/SOC2_TYPE_II_AUDITOR_REPORT.md:35`
-- ☐ `docs/security/DEPLOYMENT_HARDENING.md:198` (socket permissions presented as current, not planned)
+- ✓ `docs/modules/chat/ARCHITECTURE.md:5,15` — "gRPC over Unix sockets (Linux) or Named Pipes (Windows)" (true)
+- ✓ `docs/modules/AI_ASSISTANT.md:55` — per-module socket/pipe + per-launch credential (true)
+- ✓ `docs/modules/SEARCH.md:58,309` — `unix://` supported, socket transport (true)
+- ✓ `docs/admin/PIM_MODULES.md:312` — standard module isolation over sockets/pipes (true)
+- ✓ `docs/admin/server/INSTALLATION.md:48` — module hosts shown as gRPC / Unix socket (true)
+- ✓ `docs/security/SECURITY_REVIEW_FINDINGS.md:210,336,429` — M-5 closed: socket permissions are documented in `MODULE_SECURITY.md` §9
+- ✓ `docs/security/SOC2_TYPE_II_AUDITOR_REPORT.md:35` — sockets / Named Pipes (true)
+- ✓ `docs/security/DEPLOYMENT_HARDENING.md` §9 — rewritten: it no longer claims per-module Linux accounts; it states the real boundary (credential + capability + consent) and the socket/pipe permissions
 
 ---
 
 ### Phase A1 — Isolation foundation
 
-**Status:** 🔄 In progress (started 2026-11-06 — data model, manifest v2, settings plane, registry upsert, trust-tier gating, DB-principal provisioning, supervisor env split, the Example host, the admin/CLI data-store surface, the full F10 quota plane, F5 storage namespacing, the §9 adoption service, live provisioning/adoption integration tests on both providers and the setup-wizard prerequisite report are complete. The credential audit record landed with A2 and the end-to-end sandbox-environment proof came from the live 1.0.2 install (2026-11-08); **only the manifest-driven schema-mode switch remains**, and it is deferred into the Track C adoption work that needs it)
+**Status:** ✅ Completed (2026-11-12)
 **Effort:** Large (~2–3 weeks; +2–4 days for the newly identified prerequisites below)
 **Blocks:** everything else in Track A and B3.
 
@@ -541,7 +543,7 @@ Deleting an account must delete that user's data everywhere, including module sc
 
 - ✓ Manifest v2 in `src/Core/DotNetCloud.Core.Server/ModuleLoading/ModuleManifestLoader.cs` (`ModuleManifestData` + validation rules per §4.7), keeping v1 parsing untouched for required modules. Strict camelCase parsing for v2 (`UnmappedMemberHandling.Disallow`), lenient v1 unchanged; unknown fields, comments and trailing commas rejected only for v2.
 - ✓ Remove the dead `schemaProvider` field from the manifest model and all in-repo manifests (D5).
-- ☐ Make the manifest authoritative for schema mode: replace `DbContextSchemaProvider`'s hard-coded `ModuleDbContextTypes` switch with registration the manifest can drive (required modules stay core-managed; non-required modules become self-managed). Deferred to the Track C adoption work because flipping bundled modules to self-managed without the ownership-transfer step would strand their migration history.
+- ✓ Make the manifest authoritative for schema mode: the schema plane now reads the manifest's `dataStore` instead of a compile-time switch. `DbContextSchemaProvider`'s `ModuleDbContextTypes` table only *registers* which DbContexts this process owns; `IsCoreManaged` returns `true` for required modules and otherwise only when the manifest has **not** declared a data store (`IModuleDataStoreModeSource` → `ModuleManifestRegistry.GetDataStoreMode`, `null` for a v1 manifest so a legacy bundled module keeps migrating). A v2 `dataStore: "isolated"` module is skipped by the core's pass, so the two migrators can never race. Converted modules have already dropped out of the table along with their `.Data` references; Music and Video stay core-managed until they are converted because they still declare v1 manifests. Tests: `DbContextSchemaProviderSchemaModeTests` (7) + `ModuleManifestRegistryTests` data-store cases (4).
 - ✓ New entities + configurations + migrations for `ModuleDataStore`, `ModuleSetting`, `ModuleQuota`, `UserErasureRequest`, `ModuleUserErasure`, and the extended `InstalledModule` (§4.8). **No `ModuleCredential` entity** — D1 decided credentials are ephemeral. Migrations: `AddModuleSandboxModel` (PostgreSQL) and `AddModuleSandboxModel_SqlServer`.
 - ✓ Make `SyncDiscoveredModulesToDatabaseAsync` an **upsert** (version, status, `IsRequired`, trust tier, data-store mode, sandbox state) instead of insert-only.
 - ✓ Gate manifest-derived capability grants by trust tier: required/bundled modules keep the auto-grant; **store-tier modules are never auto-granted**. Tier is provenance-derived at first discovery and preserved on upgrade (`GrantedByUserId` for operator grants arrives with B3).
@@ -1010,7 +1012,7 @@ Per-module directories: `<dataDir>/modules/<moduleId>/{config,data,run}` created
 
 ## 7. Track C — Dogfood migrations (non-required first-party modules)
 
-**Status:** 🔄 In progress — **Example (2026-11-08)**, **Bookmarks (2026-11-08)**, **Email (2026-11-08)**, **AI (2026-11-09)**, **Photos (2026-11-10)** and **Tracks (2026-11-11)** complete: data plane, module-hosted UI (app + manifest-declared iframe widget), decoupling and store publication. **Music was converted and then withdrawn (2026-11-09)** — see the entry below. Next: the remaining Track D documentation work.
+**Status:** ✅ Completed (2026-11-12) — **Example (2026-11-08)**, **Bookmarks (2026-11-08)**, **Email (2026-11-08)**, **AI (2026-11-09)**, **Photos (2026-11-10)** and **Tracks (2026-11-11)** complete: data plane, module-hosted UI (app + manifest-declared iframe widget), decoupling and store publication. **Music was converted and then withdrawn (2026-11-09)** and **Video is excluded (2026-11-09)** — both need a core media plane that does not exist yet; their manifests stay v1 and they remain core-migrated. The leftover `/apps/{shortname}` links from the flips were swept on 2026-11-12.
 **Effort:** Large (per-module; order below balances risk)
 **Depends on:** A1/A2 for the data plane, A5 for the UI plane.
 
@@ -1167,18 +1169,20 @@ A module completes the checklist only when: no ProjectReference remains, it runs
 
 ## 8. Track D — Documentation & process
 
-**Status:** ☐ Not started
+**Status:** ✅ Completed (2026-11-12)
 **Parallel with:** all tracks (write as you go).
 
 **Deliverables**
 
-- ☐ This plan committed at `docs/THIRD_PARTY_MODULE_SANDBOX_AND_STORE_PLAN.md`.
-- ☐ `docs/architecture/ARCHITECTURE.md` §5 (module system & security), §12 (API design), §13 (data model) updated to describe trust tiers, the module API, consent, transport, and the store.
-- ☐ `docs/security/CROSS_MODULE_TRUST.md` updated so every claim it makes (sockets, permissions, authentication) is **true** after A2/A4.
-- ☐ `docs/guides/MODULE_DEVELOPMENT.md` rewritten around manifest v2, the SDK, packaging, and the sandbox model.
-- ☐ New docs: `docs/modules/MODULE_SECURITY.md`, `docs/modules/MODULE_STORE.md`, `docs/modules/MODULE_UI_HOSTING.md`, `docs/modules/MODULE_PACKAGING.md`.
-- ☐ Deployment docs: provisioning prerequisites (PostgreSQL `CREATEROLE`, SQL Server containment), socket transport + Docker volumes, store mirror / air-gapped install (`--file`, `AllowUnverified`), backup/restore note on module credentials.
-- ☐ `docs/IMPLEMENTATION_CHECKLIST.md` + `docs/MASTER_PROJECT_PLAN.md` updated with targeted edits (✓/☐) as each phase completes — the only status-tracking formats are `✓` and `☐`.
+- ✓ This plan committed at `docs/THIRD_PARTY_MODULE_SANDBOX_AND_STORE_PLAN.md`.
+- ✓ `docs/architecture/ARCHITECTURE.md` §5 (module system & security), §12 (API design), §13 (data model) updated to describe trust tiers, the module API, consent, transport, and the store. §5 now leads with a real manifest-v2 document, the two independent decisions (capability grant vs user consent), the provenance-derived trust tiers (`Required`/`Bundled`/`Store`), a table of what the sandbox actually contains and six security principles; §12 documents the `/apps/{moduleId}/**` proxy (reverse-DNS ids only) and assertion-based identity binding; §13 lists the sandbox entities and records why there is no `ModuleCredential` table. §2's transport table (sockets/pipes are default, TCP is the fallback) and §3's schema/principal isolation were corrected in the same pass.
+- ✓ `docs/security/CROSS_MODULE_TRUST.md` updated so every claim it makes (sockets, permissions, authentication) is **true** after A2/A4. The "planned, not implemented (phase A4)" caveat is gone, the inter-module dependency map now states there is **no** module-to-module dependency (with the Contacts → Calendar ref removed), the stale `FileUploaded` → Music/Photos/Video/Tracks subscription table is replaced by the actual state (`events.subscribes` has no delivery channel yet; the publishing side is enforced), the transport row in the security-model table is corrected, a `Consent` row was added, and a new **browser-side boundary** section covers the opaque-origin frame.
+- ✓ `docs/guides/MODULE_DEVELOPMENT.md` rewritten around manifest v2, the SDK, packaging, and the sandbox model (567 → 919 lines). New structure: three planes → project layout → full manifest-v2 field reference and validation rules → the host process (every `DOTNETCLOUD_MODULE_*` variable, the canonical `Program.cs`) → lifecycle → data store → core API (capabilities, consent, settings, erasure) → event plane → UI plane (WASM + frame bridge) → packaging/install → testing → reference implementation. Removed: the loopback-TCP transport statement, `GetService<IStorageProvider>()` null-injection, `dotnetcloud module grant` (no such command), the `IXxxApiClient`-in-`Core.Server/Grpc/Clients` requirement, and the "dynamically loaded Blazor components" section.
+- ✓ New docs: `docs/modules/MODULE_SECURITY.md`, `docs/modules/MODULE_STORE.md`, `docs/modules/MODULE_UI_HOSTING.md`, `docs/modules/MODULE_PACKAGING.md` — all four already existed (written during A/B/C) and were re-verified against the code for this track rather than authored from scratch; the only gap found was the SQL Server containment prerequisite, which is now in `MODULE_STORE.md` §3 next to `CREATEROLE`.
+- ✓ Deployment docs: provisioning prerequisites (`MODULE_STORE.md` §3 now covers PostgreSQL **and** SQL Server: `sp_configure 'contained database authentication'`, `CONTAINMENT = PARTIAL`, and the schema-scoped DDL grants), socket transport + Docker volumes (`MODULE_SECURITY.md` §9.2/§9.4, restated in `DEPLOYMENT_HARDENING.md` §9), store mirror / air-gapped install (`--file`, `--from-feed`, `--allow-unverified` in `MODULE_STORE.md` §5), backup/restore of module credentials (`MODULE_SECURITY.md` §11.5: the key ring must be in the backup, and `datastore reset-credentials` is the recovery path).
+- ✓ `docs/IMPLEMENTATION_CHECKLIST.md` + `docs/MASTER_PROJECT_PLAN.md` updated with targeted edits (✓/☐) as each phase completes — the only status-tracking formats are `✓` and `☐`.
+
+**Notes.** `docs/SECURITY_REVIEW_FINDINGS.md` M-5 ("no formal documentation exists for Unix socket file permissions") was the last open documentation finding and is now closed with a pointer to `MODULE_SECURITY.md` §9 plus the residual limitation. Two items stay deferred by decision, not by omission: the store client's index parsing/mirror fallback (D6) and per-module OS accounts (public-store launch gate).
 
 ---
 

@@ -12,6 +12,39 @@
 
 ---
 
+> **Documentation (2026-11-12, `feature/third-party-modules`): Track D complete — the sandbox and store are documented, and A1 is closed.**
+> **Track D:** `docs/guides/MODULE_DEVELOPMENT.md` is rewritten around manifest v2 (567 → 919 lines): three planes, project
+> layout and the SDK, a full field-by-field manifest-v2 reference with the validation rules that catch real mistakes, the
+> host process (every `DOTNETCLOUD_MODULE_*` variable plus a canonical `Program.cs`), lifecycle, the isolated data store,
+> the core API (capabilities/consent/settings/erasure), the event plane, the WASM UI plane and the frame bridge, packaging
+> and install, testing, and a reference-implementation map. Five claims that were simply wrong are gone: loopback TCP as
+> the default transport, capabilities injected as `null`, `dotnetcloud module grant` (no such command), an `IXxxApiClient`
+> in `Core.Server/Grpc/Clients`, and dynamically-loaded Blazor components. `ARCHITECTURE.md` §5 now leads with a real
+> manifest-v2 document, the two independent decisions, the provenance-derived `Required`/`Bundled`/`Store` tiers, what the
+> sandbox actually contains and six principles; §12 documents the `/apps/{moduleId}/**` proxy (reverse-DNS ids only) and
+> assertion-based identity binding; §13 lists the sandbox entities and records why there is no `ModuleCredential` table;
+> §2's transport table and §3's schema/principal isolation were corrected in the same pass. `CROSS_MODULE_TRUST.md` was
+> truth-passed — the "planned, not implemented (A4)" caveat is gone, the inter-module dependency map now says there is **no**
+> module-to-module dependency, and the stale `FileUploaded` → Music/Photos/Video/Tracks subscription table is replaced by
+> the actual state: `events.subscribes` has no core→module delivery channel, so no module declares one, while the publishing
+> side *is* enforced (`MODULE_EVENT_REJECTED`). `docs/modules/{MODULE_SECURITY,MODULE_STORE,MODULE_UI_HOSTING,MODULE_PACKAGING}.md`
+> already existed from A/B/C and were re-verified rather than rewritten — the only gap was the SQL Server containment
+> prerequisite, now in `MODULE_STORE.md` §3 beside `CREATEROLE`. Deployment coverage is complete: both engines'
+> provisioning prerequisites (incl. the schema-scoped DDL grants a contained user needs), socket/pipe vs
+> `Modules__Transport=Tcp` with Docker-volume guidance, air-gapped `--file`/`--from-feed`/`--allow-unverified`, and
+> module-credential backup/restore (`reset-credentials` when the key ring is lost). `DEPLOYMENT_HARDENING.md` §9 no longer
+> claims per-module Linux accounts; `SECURITY_REVIEW_FINDINGS.md` M-5 (socket permissions undocumented) is closed; the A0
+> documentation inventory is verified and closed.
+> **A1 tail:** the manifest is now authoritative for schema mode. `DbContextSchemaProvider`'s `ModuleDbContextTypes` table
+> only registers which DbContexts this process owns; `IsCoreManaged` returns true for a required module, and otherwise only
+> when the manifest has **not** declared a data store — `IModuleDataStoreModeSource` → `ModuleManifestRegistry.GetDataStoreMode`
+> returns `null` for a v1 manifest so a bundled module keeps migrating, while a v2 `isolated` module is skipped by the core's
+> pass (the two migrators can no longer race) and a `none` module is skipped because there is nothing to migrate. Converted
+> modules had already dropped out of the table with their `.Data` references; Music and Video stay core-managed until they
+> are converted. New tests: `DbContextSchemaProviderSchemaModeTests` (7, incl. the "required module declaring `isolated`"
+> guard and the CLI-without-registry fallback) and four `ModuleManifestRegistryTests` data-store cases. Build clean;
+> Core.Server.Tests 17/17 on the touched suites.
+
 > **Follow-up (2026-11-12, `feature/third-party-modules`): legacy `/apps/{module}` routes purged from the converted module UIs.**
 > A double-check of the six Blazor WebAssembly modules (AI, Bookmarks, Email, Example, Photos, Tracks) found four leftover
 > links to shell pages the flips had deleted. **Tracks:** the two in-frame "open in new tab" anchors are removed — a popup

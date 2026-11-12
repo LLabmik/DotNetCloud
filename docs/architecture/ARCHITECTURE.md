@@ -6,7 +6,7 @@
 
 > **Version:** 1.0  
 > **Status:** Approved  
-> **Last Updated:** 2026-11-06 (module transport section reconciled with v0.7.0)  
+> **Last Updated:** 2026-11-12 (module system: manifest v2, trust tiers, sandbox, store)  
 > **Domain:** dotnetcloud.net  
 > **Repository:** https://github.com/LLabmik/DotNetCloud
 
@@ -102,32 +102,39 @@ dotnetcloud (core process — supervisor)
 
 ### Process Communication
 
-| Platform          | Transport (v0.7.0)                                                                        |
-| ----------------- | ----------------------------------------------------------------------------------------- |
-| Linux / macOS     | Unix domain socket (`<dataDir>/modules/<id>/run/module.sock`, 0600) — **default** (phase A4) |
-| Windows           | Named Pipe (`\\.\pipe\dotnetcloud-<id>`, `PipeOptions.CurrentUserOnly`) — **default** (A4)   |
-| All platforms     | Loopback TCP, cleartext HTTP/2 (h2c) via `Modules:Transport=Tcp` — the documented fallback   |
+| Platform       | Transport (default)                                                                    |
+| -------------- | --------------------------------------------------------------------------------------- |
+| Linux / macOS  | Unix domain socket — `<dataDir>/modules/<id>/run/module.sock`, directory `0700`, socket `0600` |
+| Windows        | Named Pipe (`dotnetcloud-<id>`, `PipeOptions.CurrentUserOnly`)                            |
+| Fallback       | Loopback TCP, cleartext HTTP/2 (h2c) via `Modules:Transport=Tcp`                          |
 
-Every connection is cleartext HTTP/2 (h2c) and carries the per-launch module credential. See
-`docs/modules/MODULE_SECURITY.md` §9 for the transport matrix and deployment guidance (Docker volume /
-`Modules:Transport=Tcp`).
+Every connection is cleartext HTTP/2 (h2c) and carries the per-launch **module credential**; a
+core→module call is authenticated with the same credential, and a module never asserts an end-user
+identity (the core mints a short-lived, module-scoped assertion instead). `ModuleTransportSelection`
+resolves the transport once at startup so the supervisor, channel manager, REST proxy and endpoint
+provider can never disagree. See `docs/modules/MODULE_SECURITY.md` §9 for the full matrix and the
+Docker / `Modules:Transport=Tcp` deployment guidance.
 
 Modules connect **only to the core**. There is no module-to-module transport.
 
 #### ⚠️ Inter-Module Communication Policy (MANDATORY)
 
-All inter-module communication **MUST** use gRPC exclusively. This is a hard architectural requirement, not a guideline.
+All inter-module communication **MUST** go through the core. This is a hard architectural requirement, not a guideline.
 
 - Modules **MUST NOT** reference each other's Host projects as `<ProjectReference>`
 - Modules **MUST NOT** resolve each other's services from the DI container
-- Modules **MUST NOT** access each other's databases directly
-- The **ONLY** allowed cross-module communication is:
-  - gRPC calls (for request/response operations)
-  - Event bus messages (for pub/sub notifications — event bus itself relays via gRPC)
+- Modules **MUST NOT** access each other's databases or schemas
+- The **ONLY** seams between modules are:
+  - the core's module API (capability RPCs brokered by the core)
+  - events published to the core event bus
+  - the core-owned search index
 - Violation is a **HARD BLOCKER** for PR approval
-- First-party modules use the **same gRPC interface** as third-party modules (dogfooding)
+- First-party modules use the **same** manifest, API and sandbox as third-party modules (dogfooding)
 
-> ⚠️ **ENFORCEMENT:** Any module that communicates with another module via direct in-process calls, shared DI, or direct database access will be rejected in code review. The Contacts → Calendar cross-module gRPC pattern (Calendar.Host uses `ContactsGrpcClient` to call the Contacts module) is the **ONLY** acceptable pattern.
+> ⚠️ **ENFORCEMENT:** A module that reaches another module via an in-process call, a shared DI
+> container or a direct database connection is rejected in code review. There is no approved
+> module→module gRPC channel, so "call the other module's client" is not a workaround — the core API
+> or an event is.
 
 ### Process Supervisor Responsibilities
 
@@ -151,17 +158,26 @@ All inter-module communication **MUST** use gRPC exclusively. This is a hard arc
 | PostgreSQL | ✅ Initial release | Npgsql (PostgreSQL License)                   |
 | SQL Server | ✅ Initial release | Microsoft.EntityFrameworkCore.SqlServer (MIT) |
 
-### Schema Isolation
+### Schema and principal isolation
 
-Each module owns its own `DbContext` with its own tables. Modules never share database tables or access other modules' data directly.
+Each module owns its own `DbContext` and its own data. A module never reads another module's tables
+and never shares a principal with the core:
 
-| Approach   | Database support                                      |
-| ---------- | ----------------------------------------------------- |
-| PostgreSQL | Separate schemas (`files.*`, `chat.*`)                |
-| SQL Server | Separate schemas (`files.Documents`, `chat.Messages`) |
-|            |
+| Tier / mode           | Where the module's data lives                                                                   |
+| --------------------- | ----------------------------------------------------------------------------------------------- |
+| Required modules      | The shared `core` schema, migrated by the core                                                  |
+| `dataStore: isolated` | A generated schema (`dnc_<module>_<hash>`), owned by a generated login principal, migrated by the module itself |
+| `dataStore: none`     | Nowhere — settings (`ModuleSetting`) plus module-namespaced files                                 |
 
-A configurable table naming strategy defaults to prefixes for universal compatibility, with real schemas on Postgres/SQL Server.
+Naming differs per engine via `ITableNamingStrategy`: PostgreSQL uses snake_case schemas
+(`core.users`), SQL Server uses PascalCase (`[core].[Users]`). The core decides which module it still
+migrates from the manifest (`dataStore`), not from a compile-time table — a converted module drops out
+of `DbContextSchemaProvider`'s registration entirely.
+
+The module principal is denied `core`, every sibling schema, and database-scoped DDL; it owns only its
+own schema and can create objects inside it. Adoption of a pre-existing (core-migrated) schema transfers
+ownership — including `__EFMigrationsHistory` — so a converted module's next self-migration succeeds
+without re-applying anything.
 
 ### Core DbContext
 
@@ -210,41 +226,113 @@ The current hand-rolled auth (manual salt/hash via `PasswordHelper`, manual JWT 
 
 ## 5. Module System & Security
 
-### Module Manifest
+### Module manifest (v2)
 
-Every module declares its identity, capabilities, and events upfront:
+The manifest is the contract. `manifest.json` is the single source of identity, capabilities, consent
+scopes, events, UI, resource requests and setting defaults; anything not declared is not available.
+Non-required modules must use `manifestVersion: 2`, parsed strictly (unknown members, comments and
+trailing commas are rejected). Required modules keep v1 manifests because they are core parts.
 
-```csharp
-public class ChatModuleManifest : IModuleManifest
+```json
 {
-    public string Id => "dotnetcloud.chat";
-    public string Name => "Chat & Video";
-    public Version Version => new(1, 0, 0);
-
-    public IReadOnlyList<CapabilityRequest> RequiredCapabilities => [ ... ];
-    public IReadOnlyList<string> PublishedEvents => [ ... ];
-    public IReadOnlyList<string> SubscribedEvents => [ ... ];
+  "manifestVersion": 2,
+  "id": "dotnetcloud.tracks",
+  "name": "Tracks",
+  "version": "2.0.0",
+  "publisher": { "id": "dotnetcloud", "name": "DotNetCloud", "url": "https://dotnetcloud.net" },
+  "moduleApiVersion": 1,
+  "minCoreVersion": "0.7.0",
+  "dataStore": "isolated",
+  "handlesUserErasure": true,
+  "capabilities": ["IAuditLogger", "IUserDirectory", "INotificationService", "IRealtimeBroadcaster"],
+  "userConsentScopes": ["profile", "notifications:send"],
+  "events": { "publishes": ["WorkItemCreatedEvent"], "subscribes": [] },
+  "ui": {
+    "type": "iframe",
+    "entryPath": "/",
+    "navItems": [ { "id": "tracks", "label": "Tracks", "icon": "assignment", "path": "/" } ],
+    "widget": { "path": "/widget/index.html" }
+  },
+  "resources": { "memoryLimitMb": 512, "connectionLimit": 20 }
 }
 ```
 
-### Capability Interface Tiers
+The in-process `IModuleManifest` C# class still exists (it is what `IModule.Manifest` returns), but it
+authorizes nothing — the JSON is authoritative. Authoring reference:
+[`../guides/MODULE_DEVELOPMENT.md`](../guides/MODULE_DEVELOPMENT.md#module-manifest-v2).
+
+### Capability interface tiers
 
 | Tier           | Examples                                                                     | Access                                   |
 | -------------- | ---------------------------------------------------------------------------- | ---------------------------------------- |
-| **Public**     | `IUserDirectory`, `ICurrentUserContext`, `INotificationService`, `IEventBus` | Auto-granted                             |
-| **Restricted** | `IStorageProvider` (scoped), `IModuleSettings`, `ITeamDirectory`             | Admin must approve                       |
-| **Privileged** | `IUserManager` (create/disable users)                                        | Admin must approve, flagged as sensitive |
-| **Forbidden**  | `CoreDbContext`, `IConfiguration`                                            | Never injected into modules              |
+| **Public**     | `IUserDirectory`, `ICurrentUserContext`, `INotificationService`              | Auto-granted for required/bundled modules |
+| **Restricted** | `IStorageProvider` (scoped), `IModuleSettings`, `ITeamDirectory`, `IFileDirectory`, `IFileWriter` | Admin must approve |
+| **Privileged** | `IUserManager` (create/disable users), `IBackupProvider`                     | Admin must approve, flagged as sensitive |
+| **Forbidden**  | `CoreDbContext`, `IConfiguration`                                            | Never reachable from a module            |
 
-### Security Principles
+### Two independent decisions
 
-1. **Structural impossibility:** Modules interact only through capability interfaces. Sensitive data (password hashes, MFA secrets, signing keys) is not exposed through any interface — it's not about trusting developers, it's about making the wrong thing impossible at the type system level.
+A call that touches personal data needs both, and neither implies the other:
 
-2. **Admin approval for capability escalation:** Modules declare capabilities in their manifest. Public tier is auto-granted. Restricted and Privileged require admin approval.
+| Decision         | Decided by    | Stored as               | Answers                               |
+| ---------------- | ------------- | ----------------------- | ------------------------------------- |
+| Capability grant | Administrator | `ModuleCapabilityGrant` | May this module call this API at all? |
+| User consent     | Each end user | `ModuleUserConsent`     | May this module touch **my** data?    |
 
-3. **Update with degraded mode (Option C):** Module updates install immediately (security patches flow through). New capability requests are disabled until admin approves. Modules handle "capability not granted" gracefully with null injection.
+`ModuleScopes` is the single source of truth for the scope catalog; the OpenIddict registry, module
+OIDC clients, manifest validation, the consent prompt and token introspection all read it. A missing
+grant fails with `CAP_NOT_GRANTED`; a missing consent with `MODULE_CONSENT_REQUIRED` plus the
+missing scopes. Full matrix: [`../modules/MODULE_SECURITY.md`](../modules/MODULE_SECURITY.md).
 
-4. **Explicit caller context:** Every capability interface method requires a `CallerContext` parameter — user identity always flows explicitly. No ambient/implicit context.
+### Trust tiers
+
+Derived from **provenance** at install time and persisted — never inferred from the module id.
+
+| Tier       | How it got there                                     | Grants                                                                   |
+| ---------- | ---------------------------------------------------- | ------------------------------------------------------------------------ |
+| `Required` | Ships with the core                                  | Shares the `core` schema; cannot be disabled or uninstalled                |
+| `Bundled`  | First-party optional module shipped with the product | Sandboxed; declared capabilities auto-granted from the manifest            |
+| `Store`    | Installed from a signed package or sideloaded        | Sandboxed; capabilities start `Pending` until an operator grants them      |
+
+A store-tier module is never silently promoted on upgrade. An unverified (unsigned) sideload carries
+the same tier with a persisted `unverified` receipt flag and a warning in the admin UI.
+
+### What the sandbox actually contains
+
+| Control         | Implementation                                                                                             |
+| --------------- | ---------------------------------------------------------------------------------------------------------- |
+| Process         | Separate process, launched by `ProcessSupervisor`, restarted per policy                                    |
+| Environment     | `DOTNETCLOUD_MODULE_*` only — no `DOTNETCLOUD_CONFIG_DIR`, no `DOTNETCLOUD_DATA_DIR`, no core key ring     |
+| Filesystem      | `<dataDir>/modules/<id>/{config,data,run}`, `0700`, written by `ModuleSandboxLayout`                        |
+| Data store      | `isolated` → generated schema + database principal + scoped connection string; `none` → settings only      |
+| Identity        | Per-launch credential (constant-time compare) + core-signed, module-scoped user assertion                   |
+| Resources       | cgroup `memory.max`/`cpu.max`/`pids.max`, DB connection limit, data-dir and schema size measurement         |
+| UI              | Own process, framed at `/apps/{moduleId}/` in an opaque-origin iframe with a message bridge                |
+| Erasure         | `EraseUserData` RPC per account deletion, retried, reported if a module fails                              |
+| Audit           | Module-originated audit text sanitized (control characters stripped) and rate-limited                      |
+
+A module that exceeds its quota is suspended (`QuotaExceeded`) and refuses to restart until usage
+falls below 90% of the limit or the quota is raised.
+
+### Security principles
+
+1. **Structural impossibility.** Modules interact only through capability RPCs brokered by the core.
+   Sensitive data (password hashes, MFA secrets, signing keys, other users' rows) is not reachable
+   through any interface — it is not about trusting developers, it is about making the wrong thing
+   unexpressible.
+2. **Denied is loud.** A capability that is not granted, a consent that is missing, an undeclared
+   event type or a rate limit is an explicit error code, never a silent `null` and never a dropped
+   call. Modules degrade deliberately.
+3. **Server-derived caller context.** Every call carries a `CallerContext` the core derives itself
+   (`User` from the verified assertion, `Module` from the verified credential). `System` is
+   unreachable over the module transport, and `caller-type`/`caller-roles` headers are ignored.
+4. **Provenance-driven trust.** Tier is a property of how the bytes arrived (bundled, signed package,
+   sideload), recorded at install and never inferred at runtime.
+5. **Defense in depth.** Path containment, quoting/identifier hashing for schema and principal names,
+   archive hardening on `.dncpkg`, secret redaction in `ModuleDataStore.LastError`, and sanitized
+   audit text all apply independently.
+6. **Code signing & review.** Store packages are signed by a publisher key and the catalogue by a
+   store key; installing requires both, and either can be revoked.
 
 ```csharp
 public record CallerContext
@@ -254,29 +342,6 @@ public record CallerContext
     public required CallerType Type { get; init; } // User, System, Module
 }
 ```
-
-5. **Cross-module communication security:**
-   - **Event bus:** Manifest-declared, admin-approved, strictly enforced at runtime. Tiered payloads — detail level depends on granted capabilities.
-   - **Direct interfaces:** Cross-module calls go through declared public interfaces (e.g., `IFileService`). The owning module enforces its own permission checks using the `CallerContext`.
-
-6. **Transport identity binding (REST + gRPC):** User-scoped endpoints require authenticated identity to match requested user scope. In practice, `request.user_id`/query `userId` must match token claims (`NameIdentifier`/`sub`) or the request is rejected.
-
-7. **Tenant-scoped lookups:** Files module read/write operations are owner-scoped (or share-scoped where explicitly allowed) so cross-user probing cannot leak existence or metadata.
-
-8. **Storage namespace isolation:** Each module's `IStorageProvider` is scoped to its own namespace. Path traversal attacks blocked by both path sanitization and OS-level directory isolation (defense in depth).
-
-9. **Process isolation:** Each module runs in a separate process. Even reflection-based attacks can't access core memory.
-
-10. **Code signing & review:** Modules are signed by trusted publishers. Official module registry with community review.
-
-### Trust Levels
-
-| Level                  | Who                                  | Treatment                                      |
-| ---------------------- | ------------------------------------ | ---------------------------------------------- |
-| Core                   | DotNetCloud platform                 | Full access                                    |
-| First-Party Modules    | Official modules (Files, Chat, etc.) | Same sandbox as third-party (dog-fooding)      |
-| Third-Party Verified   | Reviewed & signed community modules  | Full sandbox, all capabilities available       |
-| Third-Party Unverified | Unreviewed modules                   | Warning shown, Privileged capabilities blocked |
 
 ### Zero-Knowledge Encryption (E2EE)
 
@@ -784,24 +849,40 @@ REST with OpenAPI auto-generation (primary). GraphQL as optional future module.
 
 URL path versioning: `/api/v1/`, `/api/v2/`
 
-### Module Namespacing
+### Module namespacing
+
+Core surfaces:
 
 ```
 /api/v1/core/users
 /api/v1/core/auth
-/api/v1/files/list
-/api/v1/chat/channels
-/api/v1/calendar/events
-/api/v1/music/library
+/api/v1/core/admin/modules          # registry, grants, datastore, quotas, store
+/api/v1/core/admin/modules/store    # catalogue, inspect, install
 ```
 
-Disabled modules return `404` for their entire namespace.
+A module's own HTTP surface is **its own process** and is reached through the core proxy:
 
-### Identity Binding Semantics
+```
+/apps/{moduleId}/{**catchAll}   →   <module endpoint>/{**catchAll}
+```
 
-- REST and gRPC user-scoped operations are claim-bound: caller identity (`NameIdentifier`/`sub`) must match the requested user scope (`userId` / `request.user_id`)
-- Mismatches are treated as authorization failures, preventing user impersonation via crafted request parameters
-- Files read paths may intentionally return `404` for unauthorized callers to reduce metadata leakage (existence probing)
+`{moduleId}` is a reverse-DNS id (`dotnetcloud.tracks`), never a short name — `/apps/tracks` does not
+route. The proxy authenticates the shell session, strips cookies, injects a short-lived
+module-scoped user assertion, enforces `frame-ancestors`, and returns `503` when the module is stopped.
+A disabled module therefore has no reachable namespace.
+
+### Identity binding semantics
+
+- A module's UI never passes a user id: the core proxy mints the assertion from the authenticated
+  session and the module forwards it on core calls (`ModuleUserAssertionContext`).
+- Module-originated REST/gRPC calls are bound to the **credential** (module id) plus, when a user is
+  acting, to the assertion's subject. A caller-supplied `userId` that disagrees with the assertion is
+  an authorization failure, not a lookup.
+- Personal-data calls additionally require the acting user's consent for the matching scope; the
+  refusal is `MODULE_CONSENT_REQUIRED` with `details.consentScopes` so the client can launch exactly
+  that consent request.
+- Files read paths may intentionally return `404` for unauthorized callers to reduce metadata leakage
+  (existence probing).
 
 ### Response Envelope
 
@@ -880,9 +961,19 @@ Three scopes: `SystemSetting`, `OrganizationSetting`, `UserSetting`. Each keyed 
 
 ### Devices & Modules
 
-- `UserDevice` — registered sync clients and mobile devices
-- `InstalledModule` — module registry with version, status, capabilities
-- `ModuleCapabilityGrant` — admin-approved capabilities per module
+| Entity                  | Purpose                                                                                            |
+| ----------------------- | -------------------------------------------------------------------------------------------------- |
+| `UserDevice`            | Registered sync clients and mobile devices                                                        |
+| `InstalledModule`       | Registry row: version, `IsRequired`, `TrustTier`, `SandboxStatus`, data-store mode, enabled status  |
+| `ModuleDataStore`       | Per-module schema/principal + DataProtection-encrypted connection string and `LastError`          |
+| `ModuleCapabilityGrant` | Admin-approved capability per module (`GrantedByUserId`, pending/rejected state)                  |
+| `ModuleUserConsent`     | Per-user, per-scope consent row, with grant/revoke/expiry                                          |
+| `ModuleSetting`         | Module-namespaced settings, replacing per-module rows in `SystemSetting`                          |
+| `ModuleQuota`           | Operator quota overrides, clamped by `Modules:Quotas` policy                                       |
+| `UserErasureRequest` / `ModuleUserErasure` | Account-deletion request and the per-module acknowledgement tracked against it      |
+
+There is deliberately **no** `ModuleCredential` table: launch credentials are ephemeral (minted per
+process start, never persisted); only a status record with a four-character hint is kept.
 
 ---
 

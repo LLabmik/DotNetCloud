@@ -23,7 +23,7 @@ Neither implies the other:
 - The admin installing a "Receipt Scanner" module grants `IStorageProvider` because the module
   needs the storage API. That must not silently mean "the publisher may read every user's files".
 - A user approving `files:read` for that module does not bypass the capability grant: without the
-  admin grant the call is already denied with `CAPABILITY_NOT_GRANTED` before consent is consulted.
+  admin grant the call is already denied with `CAP_NOT_GRANTED` before consent is consulted.
 
 System capabilities — notifications, the event bus, settings, audit, search submit — carry no
 personal data of their own and need **no** consent. Note that `INotificationService` still maps to

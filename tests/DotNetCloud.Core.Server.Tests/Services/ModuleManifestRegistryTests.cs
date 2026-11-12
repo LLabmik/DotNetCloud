@@ -1,3 +1,4 @@
+using DotNetCloud.Core.Data.Entities.Modules;
 using DotNetCloud.Core.Server.ModuleLoading;
 
 namespace DotNetCloud.Core.Server.Tests.Services;
@@ -12,12 +13,14 @@ public class ModuleManifestRegistryTests
     private static ModuleManifestData CreateManifest(
         int manifestVersion = 1,
         IReadOnlyList<string>? publishedEvents = null,
-        IReadOnlyList<string>? v2Publishes = null) => new()
+        IReadOnlyList<string>? v2Publishes = null,
+        string? dataStore = null) => new()
         {
             ManifestVersion = manifestVersion,
             Id = "dotnetcloud.test",
             Name = "Test",
             Version = "1.0.0",
+            DataStore = dataStore,
             PublishedEvents = publishedEvents ?? [],
             Events = manifestVersion >= 2 && v2Publishes is not null
                 ? new ManifestEvents { Publishes = v2Publishes, Subscribes = [] }
@@ -92,5 +95,46 @@ public class ModuleManifestRegistryTests
         registry.Record("dotnetcloud.files", CreateManifest(publishedEvents: ["FileUploadedEvent"]));
 
         Assert.IsNotNull(registry.GetPublishedEvents("DotNetCloud.Files"));
+    }
+
+    [TestMethod]
+    public void GetDataStoreMode_UnknownModule_ReturnsNull()
+    {
+        var registry = new ModuleManifestRegistry();
+
+        Assert.IsNull(registry.GetDataStoreMode("org.example.unknown"));
+    }
+
+    [TestMethod]
+    public void GetDataStoreMode_V1Manifest_ReturnsNull()
+    {
+        // A v1 manifest cannot declare dataStore, so the schema plane must fall back to its legacy
+        // core-migration behaviour rather than reading "none" into the field.
+        var registry = new ModuleManifestRegistry();
+        registry.Record("dotnetcloud.music", CreateManifest(manifestVersion: 1));
+
+        Assert.IsNull(registry.GetDataStoreMode("dotnetcloud.music"));
+    }
+
+    [TestMethod]
+    public void GetDataStoreMode_V2ManifestDeclaringIsolated_ReturnsIsolated()
+    {
+        var registry = new ModuleManifestRegistry();
+        registry.Record(
+            "org.example.app",
+            CreateManifest(manifestVersion: 2, v2Publishes: [], dataStore: "isolated"));
+
+        Assert.AreEqual(ModuleDataStoreMode.Isolated, registry.GetDataStoreMode("org.example.app"));
+    }
+
+    [TestMethod]
+    public void GetDataStoreMode_V2ManifestDeclaringNone_ReturnsNone()
+    {
+        var registry = new ModuleManifestRegistry();
+        registry.Record(
+            "org.example.app",
+            CreateManifest(manifestVersion: 2, v2Publishes: [], dataStore: "none"));
+
+        Assert.AreEqual(ModuleDataStoreMode.None, registry.GetDataStoreMode("org.example.app"));
     }
 }

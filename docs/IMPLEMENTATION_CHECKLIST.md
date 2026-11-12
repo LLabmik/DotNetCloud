@@ -3772,7 +3772,7 @@ Plan: `docs/THIRD_PARTY_MODULE_SANDBOX_AND_STORE_PLAN.md` (phase A0). Branch `fe
 - ✓ gRPC detailed errors limited to Development
 - ✓ Module transport documentation truth-passed (`CROSS_MODULE_TRUST.md`, `SECURITY_MODEL.md`, `ARCHITECTURE.md`, `MODULE_DEVELOPMENT.md`); remaining files recorded for Track D in the plan
 - ✓ Regression tests: capability mapping completeness, capability tiers, `minCoreVersion`, path containment, verified `GetCurrentUser`, search-index attribution
-- 🔄 Phase A1 — isolation foundation (in progress)
+- ✓ Phase A1 — isolation foundation (complete 2026-11-12)
   - ✓ Manifest v2 model + strict validation; `schemaProvider` removed
   - ✓ Sandbox entities (`ModuleDataStore`, `ModuleSetting`, `ModuleQuota`, `UserErasureRequest`, `ModuleUserErasure`) + `InstalledModule` extension + PostgreSQL and SQL Server migrations
   - ✓ Module registry upsert (version, required flag, trust tier, data-store mode, sandbox state)
@@ -3789,6 +3789,7 @@ Plan: `docs/THIRD_PARTY_MODULE_SANDBOX_AND_STORE_PLAN.md` (phase A0). Branch `fe
   - ✓ Resource quotas (F10): policy + resolver, admin `GET/PUT modules/{id}/quota`, cgroup memory/cpu/pids, PG `CONNECTION LIMIT` + pool size, identity-keyed request/event/notification/audit limiters, and measured DB/data-dir usage with `QuotaExceeded` suspension + start refusal
   - ✓ Storage namespacing (F5): `IStorageProvider` namespaced contract + `ModuleStorageNamespace` (module/user segment from verified identity, traversal/rooted/encoding rejection, containment re-check, 30 tests)
   - ✓ Adoption/legacy-override service (§9): preflight report, in-place schema/object ownership transfer incl. `__EFMigrationsHistory`, startup migration service ordered before the supervisor, bundled-only audited `LegacyOverride`, `datastore preflight` CLI
+  - ✓ Manifest-authoritative schema mode (the A1 tail): `DbContextSchemaProvider.ModuleDbContextTypes` now only registers which DbContexts this process owns; `IsCoreManaged` = required module, or no manifest-declared data store (`IModuleDataStoreModeSource` → `ModuleManifestRegistry.GetDataStoreMode`, `null` for v1). A v2 `dataStore: "isolated"` module is skipped by the core pass, so the two migrators cannot race; a `none` module is skipped too. Converted modules have already left the table with their `.Data` references. Tests: `DbContextSchemaProviderSchemaModeTests` (7) + 4 registry cases
 - ✓ Phase A2 — module API v1 (complete)
   - ✓ D2 transport-identity rename: `dnc-module-id` / `dnc-module-token` / `dnc-user-assertion` headers and `DOTNETCLOUD_MODULE_TOKEN` env var, cut over in one release (single source: `ModuleIdentityMetadata`); credential-store/supervisor terminology moved from secret to token; `CROSS_MODULE_TRUST.md`/`SECURITY_MODEL.md` updated
   - ✓ Drift guard: producer↔consumer tests prove `ModuleIdentityMetadata.Create` output is accepted by `AuthenticationInterceptor` and `ModulePeerAuthenticationInterceptor`
@@ -8841,3 +8842,15 @@ WebAssembly apps served by their own module host, matching the Tracks shape.
   gate green, `DotNetCloud.CI.slnf` builds with 0 warnings / 0 errors.
 - ☐ **Next** — browser click-through of each frame against a deployed host (the Tracks click-through found eight
   defects unit tests could not see), then re-pack/re-publish the five modules.
+
+#### Documentation — Third-Party Module Sandbox Track D (2026-11-12)
+
+Plan: `docs/THIRD_PARTY_MODULE_SANDBOX_AND_STORE_PLAN.md` (Track D).
+
+- ✓ `docs/guides/MODULE_DEVELOPMENT.md` rewritten around manifest v2, the SDK, packaging and the sandbox (567 → 919 lines); removed the loopback-TCP statement, `GetService<IStorageProvider>()` null-injection, the non-existent `dotnetcloud module grant` command, the `IXxxApiClient`-in-`Core.Server/Grpc/Clients` requirement and the "dynamically loaded Blazor components" section
+- ✓ `docs/architecture/ARCHITECTURE.md` §5 rewritten (manifest-v2 document, two independent decisions, `Required`/`Bundled`/`Store` trust tiers, what the sandbox contains, six principles), §12 (module proxy + assertion identity binding), §13 (sandbox entities, no `ModuleCredential` table), and §2's transport table + §3's schema/principal isolation corrected
+- ✓ `docs/security/CROSS_MODULE_TRUST.md` truth pass: A4 caveat removed, inter-module dependency map replaced ("no module-to-module dependency"; Contacts → Calendar ref gone), stale `FileUploaded` subscriber table replaced with the real state (`events.subscribes` has no delivery channel yet), consent row added, new browser-side boundary section
+- ✓ `docs/modules/{MODULE_SECURITY,MODULE_STORE,MODULE_UI_HOSTING,MODULE_PACKAGING}.md` re-verified against the code; the one gap (SQL Server containment prerequisite) added to `MODULE_STORE.md` §3
+- ✓ Deployment docs: PostgreSQL `CREATEROLE` + SQL Server containment + scoped DDL grants (`MODULE_STORE.md` §3), socket/pipe vs `Modules__Transport=Tcp` with Docker volume guidance (`MODULE_SECURITY.md` §9.4, `DEPLOYMENT_HARDENING.md` §9 rewritten), air-gapped `--file`/`--from-feed`/`--allow-unverified`, module-credential backup/restore (`MODULE_SECURITY.md` §11.5)
+- ✓ `docs/SECURITY_REVIEW_FINDINGS.md` M-5 (socket permissions undocumented) closed with a pointer to `MODULE_SECURITY.md` §9 and the residual same-OS-user limitation
+- ✓ A0 documentation inventory in the plan closed — all eight flagged files re-verified as accurate

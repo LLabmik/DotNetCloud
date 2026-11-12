@@ -1,7 +1,32 @@
 using System.Collections.Concurrent;
+using DotNetCloud.Core.Data.Entities.Modules;
 using DotNetCloud.Core.Modules;
 
 namespace DotNetCloud.Core.Server.ModuleLoading;
+
+/// <summary>
+/// Read-only view of the data-store mode a discovered module declared in its manifest.
+/// </summary>
+/// <remarks>
+/// The schema plane uses this so the **manifest** — not a compile-time table — decides which
+/// modules the core migrates: a v2 manifest declaring <c>dataStore: "isolated"</c> means the
+/// module process provisions and migrates its own schema (and the core must not race it), while a
+/// module whose manifest predates v2 keeps the legacy core-migration behaviour until it is
+/// converted.
+/// </remarks>
+public interface IModuleDataStoreModeSource
+{
+    /// <summary>
+    /// Gets the data-store mode a module declared.
+    /// </summary>
+    /// <param name="moduleId">The module id.</param>
+    /// <returns>
+    /// <see cref="ModuleDataStoreMode.Isolated"/> or <see cref="ModuleDataStoreMode.None"/> for a
+    /// v2 manifest; <see langword="null"/> when the module is unknown or its manifest predates
+    /// <c>dataStore</c> (v1), in which case the caller must use its legacy behaviour.
+    /// </returns>
+    ModuleDataStoreMode? GetDataStoreMode(string moduleId);
+}
 
 /// <summary>
 /// Holds the events each discovered module declared it publishes in its manifest.
@@ -67,7 +92,7 @@ internal interface IModuleManifestRegistry
 }
 
 /// <inheritdoc />
-internal sealed class ModuleManifestRegistry : IModuleManifestRegistry, IConsentScopeRegistry
+internal sealed class ModuleManifestRegistry : IModuleManifestRegistry, IConsentScopeRegistry, IModuleDataStoreModeSource
 {
     private readonly ConcurrentDictionary<string, ModuleManifestData> _manifests =
         new(StringComparer.OrdinalIgnoreCase);
@@ -96,6 +121,12 @@ internal sealed class ModuleManifestRegistry : IModuleManifestRegistry, IConsent
     /// <inheritdoc />
     public IReadOnlyCollection<string>? GetUserConsentScopes(string moduleId) =>
         GetManifest(moduleId) is { } manifest ? Normalize(manifest.UserConsentScopes) : null;
+
+    /// <inheritdoc />
+    public ModuleDataStoreMode? GetDataStoreMode(string moduleId) =>
+        GetManifest(moduleId) is { ManifestVersion: >= 2 } manifest
+            ? manifest.EffectiveDataStoreMode
+            : null;
 
     /// <inheritdoc />
     public IReadOnlyCollection<string> GetModuleIds() => _manifests.Keys.ToArray();
