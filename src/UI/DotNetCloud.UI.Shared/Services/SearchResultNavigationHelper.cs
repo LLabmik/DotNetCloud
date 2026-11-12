@@ -70,7 +70,8 @@ public static class SearchResultNavigationHelper
             // Tracks serves its own framed UI (Track C); the shell forwards its query into the frame,
             // so the hit opens that work item's detail panel inside the module app.
             "tracks" => $"/modules/dotnetcloud.tracks?card={item.EntityId}",
-            "ai" => $"/apps/ai?conversationId={item.EntityId}",
+            // AI serves its own framed UI (Track C); the conversation id is forwarded into the frame.
+            "ai" => $"/modules/dotnetcloud.ai?conversationId={item.EntityId}",
             _ => $"/search?q={item.Title}"
         };
     }

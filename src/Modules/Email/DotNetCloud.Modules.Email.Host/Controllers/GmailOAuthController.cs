@@ -177,14 +177,14 @@ public class GmailOAuthController : EmailControllerBase
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to exchange Gmail OAuth code for tokens");
-            return Redirect("/apps/email?gmail=error&reason=token_exchange_failed");
+            return Redirect(ModuleUrl("gmail=error&reason=token_exchange_failed"));
         }
 
         if (!tokenResponse.IsSuccessStatusCode)
         {
             // Log only the status code, not the full error body (may contain sensitive OAuth details)
             _logger.LogError("Gmail OAuth token exchange failed: HTTP {StatusCode}", (int)tokenResponse.StatusCode);
-            return Redirect("/apps/email?gmail=error&reason=google_rejected");
+            return Redirect(ModuleUrl("gmail=error&reason=google_rejected"));
         }
 
         var tokenJson = await tokenResponse.Content.ReadAsStringAsync();
@@ -198,7 +198,7 @@ public class GmailOAuthController : EmailControllerBase
         if (string.IsNullOrWhiteSpace(accessToken))
         {
             _logger.LogError("Gmail OAuth response missing access_token");
-            return Redirect("/apps/email?gmail=error&reason=invalid_token_response");
+            return Redirect(ModuleUrl("gmail=error&reason=invalid_token_response"));
         }
 
         // Fetch user profile to get email address

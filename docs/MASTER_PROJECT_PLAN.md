@@ -12,6 +12,21 @@
 
 ---
 
+> **Follow-up (2026-11-12, `feature/third-party-modules`): legacy `/apps/{module}` routes purged from the converted module UIs.**
+> A double-check of the six Blazor WebAssembly modules (AI, Bookmarks, Email, Example, Photos, Tracks) found four leftover
+> links to shell pages the flips had deleted. **Tracks:** the two in-frame "open in new tab" anchors are removed — a popup
+> inherits the sandbox's opaque origin, so a core shell tab can never carry the session cookie, and the card click already
+> opens the detail panel — and the unreachable `WorkItemFullscreenPage` (`@page`-less and referenced nowhere; its shared panel
+> styles already ship in `TracksPage.razor.css`) is deleted; the 8 `TracksNotificationService` `ActionUrl`s now target
+> `/modules/dotnetcloud.tracks?card=…`, and the dead server-side `CommandPaletteService` (the framed UI owns the palette) is
+> gone. **AI:** the orphaned `/apps/ai` page (its `ai.page` route key was removed in the flip) is deleted and
+> `SearchResultNavigationHelper` maps AI hits to `/modules/dotnetcloud.ai?conversationId=…`. **Email:** the three Gmail OAuth
+> error branches now use `ModuleUrl()` like the rest of the controller instead of redirecting to `/apps/email`. Also fixed a
+> red `UI.Shared` gate the conversions had left behind — six Razor icon names had no `MaterialSvgIcons` path (`assistant` →
+> `smart_toy`, `bookmarks` → `bookmark`, `upload` → `file_upload`, `people` → `group`, `save_alt` → `download`, plus a new
+> `timeline` path). Tests: Tracks **302/302**, UI.Shared **252**, Email **69**, AI **63**, Bookmarks **47**, Photos **213**,
+> Core.Server **1693**; `DotNetCloud.CI.slnf` builds with 0 warnings / 0 errors.
+
 > **Recent work (2026-11-11, `feature/third-party-modules`): Track C — Tracks module Stage A, sandbox-ready host.**
 > The largest Track-C surface (~200 source files, 32 REST controllers, 148 gRPC RPCs, 97 Blazor UI files) is now
 > prepared for the sandbox **without changing live behaviour**: the cookie scheme and controller `[Authorize]` are

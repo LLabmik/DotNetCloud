@@ -58,6 +58,28 @@ public class TracksNotificationServiceTests
             It.IsAny<CancellationToken>()), Times.Never);
     }
 
+    [TestMethod]
+    public async Task NotifyCardAssigned_ActionUrl_OpensTheFramedModuleApp()
+    {
+        var boardId = Guid.CreateVersion7();
+        var cardId = Guid.CreateVersion7();
+        var assignedUserId = Guid.CreateVersion7();
+        NotificationDto? sent = null;
+
+        _notificationService
+            .Setup(n => n.SendAsync(assignedUserId, It.IsAny<NotificationDto>(), It.IsAny<CancellationToken>()))
+            .Callback<Guid, NotificationDto, CancellationToken>((_, dto, _) => sent = dto)
+            .Returns(Task.CompletedTask);
+
+        await _service.NotifyCardAssignedAsync(boardId, cardId, "Test Card", assignedUserId, Guid.CreateVersion7());
+
+        Assert.IsNotNull(sent);
+        Assert.AreEqual(
+            $"/modules/dotnetcloud.tracks?card={cardId}",
+            sent.ActionUrl,
+            "Tracks serves its own framed UI; the deleted /apps/tracks shell route must never come back.");
+    }
+
     // ── Mentions ────────────────────────────────────────────
 
     [TestMethod]

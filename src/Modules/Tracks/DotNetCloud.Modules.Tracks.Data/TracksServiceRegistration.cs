@@ -63,7 +63,8 @@ public static class TracksServiceRegistration
         services.AddScoped<WebhookService>();
         services.AddScoped<WebhookDeliveryService>();
         services.AddScoped<IWebhookDispatchService, WebhookDispatchService>();
-        services.AddScoped<ICommandPaletteService, CommandPaletteService>();
+        // The command palette moved into the framed WASM UI (Tracks.Web.Services.BrowserCommandPalette);
+        // there is no core-side palette RPC, so the server implementation was dead code.
         services.AddScoped<AutomationRuleService>();
         services.AddScoped<GoalService>();
         services.AddScoped<IAutomationRuleExecutionService, AutomationRuleExecutionService>();

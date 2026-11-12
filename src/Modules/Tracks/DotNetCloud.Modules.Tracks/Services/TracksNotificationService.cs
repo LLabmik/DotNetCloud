@@ -47,7 +47,7 @@ internal sealed class TracksNotificationService : ITracksNotificationService
             Title = $"You were assigned to card \"{cardTitle}\"",
             Message = "A card has been assigned to you on a Tracks board.",
             Priority = NotificationPriority.Normal,
-            ActionUrl = $"/apps/tracks?board={boardId}&card={cardId}",
+            ActionUrl = $"/modules/dotnetcloud.tracks?card={cardId}",
             CreatedAtUtc = DateTime.UtcNow
         };
 
@@ -88,7 +88,7 @@ internal sealed class TracksNotificationService : ITracksNotificationService
                     Title = $"You were mentioned in a comment on \"{cardTitle}\"",
                     Message = $"@{username} was mentioned in a Tracks card comment.",
                     Priority = NotificationPriority.Normal,
-                    ActionUrl = $"/apps/tracks?board={boardId}&card={cardId}",
+                    ActionUrl = $"/modules/dotnetcloud.tracks?card={cardId}",
                     CreatedAtUtc = DateTime.UtcNow
                 };
 
@@ -120,7 +120,7 @@ internal sealed class TracksNotificationService : ITracksNotificationService
             Title = $"Sprint \"{sprintTitle}\" has started",
             Message = "A new sprint has been started on your board.",
             Priority = NotificationPriority.Normal,
-            ActionUrl = $"/apps/tracks?board={boardId}",
+            ActionUrl = "/modules/dotnetcloud.tracks",
             CreatedAtUtc = DateTime.UtcNow
         };
 
@@ -153,7 +153,7 @@ internal sealed class TracksNotificationService : ITracksNotificationService
             Title = $"Sprint \"{sprintTitle}\" completed",
             Message = "A sprint on your board has been completed.",
             Priority = NotificationPriority.Normal,
-            ActionUrl = $"/apps/tracks?board={boardId}",
+            ActionUrl = "/modules/dotnetcloud.tracks",
             CreatedAtUtc = DateTime.UtcNow
         };
 
@@ -184,7 +184,7 @@ internal sealed class TracksNotificationService : ITracksNotificationService
             Title = $"You were added to team \"{teamName}\"",
             Message = "You have been added as a member of a Tracks team.",
             Priority = NotificationPriority.Normal,
-            ActionUrl = "/apps/tracks?view=teams",
+            ActionUrl = "/modules/dotnetcloud.tracks",
             CreatedAtUtc = DateTime.UtcNow
         };
 
@@ -213,7 +213,7 @@ internal sealed class TracksNotificationService : ITracksNotificationService
             Title = $"You were removed from team \"{teamName}\"",
             Message = "You have been removed from a Tracks team.",
             Priority = NotificationPriority.Normal,
-            ActionUrl = "/apps/tracks?view=teams",
+            ActionUrl = "/modules/dotnetcloud.tracks",
             CreatedAtUtc = DateTime.UtcNow
         };
 
@@ -246,7 +246,7 @@ internal sealed class TracksNotificationService : ITracksNotificationService
             Title = $"New comment on \"{cardTitle}\"",
             Message = "A comment was added to a card you are assigned to.",
             Priority = NotificationPriority.Normal,
-            ActionUrl = $"/apps/tracks?board={boardId}&card={cardId}",
+            ActionUrl = $"/modules/dotnetcloud.tracks?card={cardId}",
             CreatedAtUtc = DateTime.UtcNow
         };
 
@@ -278,7 +278,7 @@ internal sealed class TracksNotificationService : ITracksNotificationService
             Title = $"Card due soon: \"{cardTitle}\"",
             Message = $"This card is due in {timeLabel}.",
             Priority = NotificationPriority.High,
-            ActionUrl = $"/apps/tracks?board={boardId}&card={cardId}",
+            ActionUrl = $"/modules/dotnetcloud.tracks?card={cardId}",
             CreatedAtUtc = DateTime.UtcNow
         };
 

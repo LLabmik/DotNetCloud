@@ -28,7 +28,7 @@
     <div class="sidebar-section">
         <p class="sidebar-section-header">Views</p>
         <button type="button" class="nav-item @(IsNavActive("nav-all") ? "is-active" : null)" @onclick="SelectAllAsync">
-            <MaterialIcon Icon="bookmarks" Size="MaterialIconSize.Sm" />
+            <MaterialIcon Icon="bookmark" Size="MaterialIconSize.Sm" />
             <span class="nav-text">All bookmarks</span>
         </button>
         <button type="button" class="nav-item @(IsNavActive("nav-favorites") ? "is-active" : null)" @onclick="SelectFavoritesAsync">
@@ -69,7 +69,7 @@
     <div class="sidebar-section sidebar-section-tools">
         <p class="sidebar-section-header">Tools</p>
         <button type="button" class="nav-item @(IsNavActive("nav-import") ? "is-active" : null)" @onclick="OpenImport">
-            <MaterialIcon Icon="upload" Size="MaterialIconSize.Sm" />
+            <MaterialIcon Icon="file_upload" Size="MaterialIconSize.Sm" />
             <span class="nav-text">Import</span>
         </button>
         <button type="button" class="nav-item" @onclick="ExportAsync">
@@ -135,7 +135,7 @@
             @if (VisibleItems.Count == 0)
             {
                 <div class="empty-state">
-                    <MaterialIcon Icon="bookmarks" Size="MaterialIconSize.Xl" />
+                    <MaterialIcon Icon="bookmark" Size="MaterialIconSize.Xl" />
                     <h3>@EmptyTitle</h3>
                     <p>@EmptyText</p>
                     @if (_searchQuery is null && !_showFavorites)
