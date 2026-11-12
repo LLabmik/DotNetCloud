@@ -239,6 +239,40 @@ public class ModuleAppRegistrationHostedServiceTests
         Assert.IsTrue(nav[0].SortOrder < nav[1].SortOrder);
     }
 
+    /// <summary>
+    /// Replacing a module whose UI is already registered must survive a subscriber that throws.
+    /// </summary>
+    /// <remarks>
+    /// Live failure this prevents: installing a newer package for a framed module while a browser
+    /// session was open removed the old descriptor on the reconciler's thread, the change
+    /// notification threw "The current thread is not associated with the Dispatcher", and the app
+    /// never came back - the shell answered "This app is not installed, or it does not provide a
+    /// web interface" until the core was restarted.
+    /// </remarks>
+    [TestMethod]
+    public async Task RefreshAsync_WhenARegisteredAppChangesAndASubscriberThrows_KeepsTheApp()
+    {
+        SeedInstalled(IframeModule, "Enabled");
+        DeclareUi(IframeModule, navItems: [("open", "Receipts", "receipt_long", "/")]);
+
+        var service = CreateService();
+        await service.RefreshAsync(CancellationToken.None);
+        Assert.IsNotNull(_moduleRegistry.GetApp(IframeModule));
+
+        _moduleRegistry.OnChange += () =>
+            throw new InvalidOperationException("The current thread is not associated with the Dispatcher.");
+
+        DeclareUi(IframeModule, navItems: [("open", "Receipts 2", "receipt_long", "/")]);
+        await service.RefreshAsync(CancellationToken.None);
+
+        Assert.IsNotNull(
+            _moduleRegistry.GetApp(IframeModule),
+            "the replacement must be applied even when a change subscriber throws");
+        Assert.AreEqual(
+            "Receipts 2",
+            _moduleRegistry.NavItems.Single(n => n.ModuleId == IframeModule).Label);
+    }
+
     private ModuleAppRegistrationHostedService CreateService() => new(
         _provider.GetRequiredService<IServiceScopeFactory>(),
         _manifests,

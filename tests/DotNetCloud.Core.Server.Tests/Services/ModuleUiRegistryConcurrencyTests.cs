@@ -20,6 +20,49 @@ public class ModuleUiRegistryConcurrencyTests
     private static readonly Type PageType = typeof(FakePage);
 
     /// <summary>
+    /// A subscriber that throws must not abort the mutation or starve the other subscribers.
+    /// </summary>
+    /// <remarks>
+    /// Live failure this prevents: <c>NavMenu</c> subscribed <c>StateHasChanged</c> directly, so the
+    /// change event delivered from a background reconciler threw "The current thread is not
+    /// associated with the Dispatcher" out of <c>UnregisterModule</c>. The registry had already
+    /// removed the app, the caller's remaining work never ran, and the module lost its UI until the
+    /// next restart.
+    /// </remarks>
+    [TestMethod]
+    public void RegisterApp_WhenASubscriberThrows_StillStoresTheAppAndNotifiesLaterSubscribers()
+    {
+        var registry = new ModuleUiRegistry();
+        var laterSubscriberCalled = false;
+
+        registry.OnChange += () => throw new InvalidOperationException("The current thread is not associated with the Dispatcher.");
+        registry.OnChange += () => laterSubscriberCalled = true;
+
+        var app = new ModuleAppDescriptor("vendor.receipts", "Receipts", "/apps/vendor.receipts", "/");
+
+        registry.RegisterApp(app);
+
+        Assert.IsNotNull(registry.GetApp("vendor.receipts"));
+        Assert.IsTrue(laterSubscriberCalled, "a throwing subscriber must not prevent the next one from being notified");
+    }
+
+    /// <summary>
+    /// Unregistering with a throwing subscriber must still remove the module.
+    /// </summary>
+    [TestMethod]
+    public void UnregisterModule_WhenASubscriberThrows_StillRemovesTheModule()
+    {
+        var registry = new ModuleUiRegistry();
+        registry.RegisterApp(new ModuleAppDescriptor("vendor.receipts", "Receipts", "/apps/vendor.receipts", "/"));
+
+        registry.OnChange += () => throw new InvalidOperationException("The current thread is not associated with the Dispatcher.");
+
+        registry.UnregisterModule("vendor.receipts");
+
+        Assert.IsNull(registry.GetApp("vendor.receipts"));
+    }
+
+    /// <summary>
     /// Unregistering a module while another thread registers pages must never throw, and must leave
     /// the registry usable.
     /// </summary>

@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Components;
+using Microsoft.Extensions.Logging;
 
 namespace DotNetCloud.UI.Web.Services;
 
@@ -21,11 +22,47 @@ public sealed class ModuleUiRegistry
     private readonly List<ModuleNavItem> _navItems = [];
     private readonly Dictionary<string, Type> _modulePages = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, ModuleAppDescriptor> _apps = new(StringComparer.OrdinalIgnoreCase);
+    private readonly ILogger<ModuleUiRegistry>? _logger;
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="ModuleUiRegistry"/> class.
+    /// </summary>
+    /// <param name="logger">Optional logger; the registry works without one.</param>
+    public ModuleUiRegistry(ILogger<ModuleUiRegistry>? logger = null) => _logger = logger;
 
     /// <summary>
     /// Raised when the registry changes.
     /// </summary>
     public event Action? OnChange;
+
+    /// <summary>
+    /// Notifies subscribers, isolating every handler.
+    /// </summary>
+    /// <remarks>
+    /// A subscriber that throws must never abort the mutation that raised the event: the write has
+    /// already been applied, and the caller is usually a background reconciler whose remaining work
+    /// (registering the new descriptor) would otherwise be skipped. That happened live when a
+    /// component subscribed <c>StateHasChanged</c> directly and the event arrived off the dispatcher.
+    /// </remarks>
+    private void NotifyChanged()
+    {
+        if (OnChange is not { } handlers)
+        {
+            return;
+        }
+
+        foreach (var handler in handlers.GetInvocationList().Cast<Action>())
+        {
+            try
+            {
+                handler();
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogWarning(ex, "A module UI registry subscriber failed to be notified; the registration itself is complete.");
+            }
+        }
+    }
 
     /// <summary>
     /// Gets a snapshot of the registered navigation items from all modules.
@@ -75,7 +112,7 @@ public sealed class ModuleUiRegistry
             _navItems.Sort((a, b) => a.SortOrder.CompareTo(b.SortOrder));
         }
 
-        OnChange?.Invoke();
+        NotifyChanged();
     }
 
     /// <summary>
@@ -92,7 +129,7 @@ public sealed class ModuleUiRegistry
             _modulePages[routeKey] = componentType;
         }
 
-        OnChange?.Invoke();
+        NotifyChanged();
     }
 
     /// <summary>
@@ -108,7 +145,7 @@ public sealed class ModuleUiRegistry
             _apps[app.ModuleId] = app;
         }
 
-        OnChange?.Invoke();
+        NotifyChanged();
     }
 
     /// <summary>
@@ -167,7 +204,7 @@ public sealed class ModuleUiRegistry
             }
         }
 
-        OnChange?.Invoke();
+        NotifyChanged();
     }
 }
 
