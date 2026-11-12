@@ -26,9 +26,10 @@ public static class TracksDbInitializer
     /// case — the same recovery the core uses for its own module schemas.
     /// </para>
     /// <para>
-    /// ⚠️ Not called from the host yet: while the core still migrates Tracks (the module manifest is
-    /// still v1 and the in-core Blazor UI reads the same tables through <c>TracksDbContext</c>),
-    /// calling this from the host too would race the core. It is wired up with the data-plane flip.
+    /// Unlike the core, the module never anticipates this itself: the host calls it at startup with
+    /// retry, so a briefly unavailable database leaves the module degraded and healthy again once it
+    /// recovers. Two migrators must never run against the same history, which is why the core's
+    /// <c>DbContextSchemaProvider</c> entry for Tracks was removed in the same change.
     /// </para>
     /// </remarks>
     /// <param name="db">The module's database context.</param>

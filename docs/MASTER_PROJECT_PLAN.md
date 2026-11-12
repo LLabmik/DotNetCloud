@@ -52,7 +52,30 @@
 > into `DotNetCloud.Modules.Tracks.Web.Services` (plain `net10.0`), which made them testable: **42 new tests**,
 > Tracks **260/260**, CI build clean. That library must use `PackageReference`s, not `FrameworkReference`
 > `Microsoft.AspNetCore.App` (`NETSDK1082` on the `browser-wasm` RID).
-> ☐ Next: Stage C (atomic data-plane flip + decoupling), Stage D (pack, publish, live verify).
+>
+> **Stage C (2026-11-11) — atomic flip: Tracks owns its schema and runs fully sandboxed.** `TracksDbContext` is
+> schema-neutral (no `HasDefaultSchema`, no schema-qualified `ToTable`, no `EnsureSchema`) and **both** provider
+> migration sets were re-stamped unqualified with their original ids preserved — the one migration that only
+> re-qualified every table into `tracks` is now intentionally empty. `TracksDbInitializer` is wired at host startup with
+> retry/backoff, so the module owns `__EFMigrationsHistory` in the schema the core provisions. Manifest v2 carries
+> `dataStore: "isolated"`, `handlesUserErasure`, capabilities narrowed (the never-used `ICurrentUserContext` is gone),
+> consent `profile` + `notifications:send`, an iframe `ui` block and a `ui.widget`; the host ships `manifest.json` and a
+> new widget frame backed by `GET api/v1/tracks/widget/upcoming` (assertion-scoped, no user id in the payload). The
+> in-core `UI/` (97 files), the `Tracks.Widget` project, the four `/apps/tracks*` shell/help pages, `AddTracksUiServices`,
+> the `DbContextSchemaProvider` entry, the widget/UI descriptors and every core/UI/CLI project reference are deleted, so
+> Tracks is reached only through gRPC (the proto is the sole remaining link). Search hits deep-link to
+> `/modules/dotnetcloud.tracks?card=…`. Tests: Tracks **272/272** (model drift + both provider schema-neutrality guards,
+> widget controller, UI asset guards), Core.Server **1690**, Core.Data **199**, UI.Shared **249**, Blazor standards gate
+> green. **Live (2026-11-11)**: deploy **15/15 targets** with every assembly hash verified; `/health/ready` **15/15** with
+> Tracks `Healthy`/`Running`/`Active`/`Isolated`/`Bundled`; adoption log — *"Moved 41 object(s) from the legacy schema
+> tracks of module dotnetcloud.tracks into dnc_dotnetcloud_tracks_10d1672d"* and *"Adopted the existing data store …
+> principal dnc_mod_dotnetcloud_tracks_10d1672d"*; the legacy schema now holds **0** relations, the module schema **41**
+> business tables plus a 12-row history (`InitialCreate` … `AddSprintDiscussion`), and the principal is
+> `createdb=false`, `superuser=false` with `schema_usage=true` / `create_on_db=false`. Routes: `/apps/dotnetcloud.tracks/`
+> **401**, the widget and its API **401**, `/apps/tracks` **404**, `/modules/dotnetcloud.tracks` **302**, and the published
+> WASM bundle serves (`blazor.webassembly.js` 60,682 B, scoped CSS 264,159 B, widget script/CSS, bridge).
+> ☐ Next: Stage D (pack the `.dncpkg`, publish `dotnetcloud.tracks` to the store, signed-in browser click-through of the
+> framed app + widget).
 
 ---
 

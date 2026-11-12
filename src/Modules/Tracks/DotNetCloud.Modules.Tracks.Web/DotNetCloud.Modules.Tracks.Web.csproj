@@ -17,6 +17,12 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- The component state tests (ChatActivityIndicator) live in the module test project; the
+         test assembly reaches the ported component's internal event types directly. -->
+    <InternalsVisibleTo Include="DotNetCloud.Modules.Tracks.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
     <!-- The frame bridge is the SDK's file, not a copy: one implementation, no npm. It patches
          window.fetch so every request carries the frame ticket and the module assertion. -->
     <Content Include="..\..\..\SDK\DotNetCloud.Modules.Sdk\wwwroot\dncModuleBridge.js"

@@ -39,10 +39,10 @@ DotNetCloud.Core.Grpc.ModuleGrpcEndpointBinding.ConfigureModuleGrpcEndpoint(buil
 // core's key ring: sharing it would let the module mint core cookies, and the core's rotation would
 // silently break the module.
 //
-// Legacy compatibility launches (no manifest yet) do not receive DOTNETCLOUD_MODULE_DATA_DIR, and the
-// module's content root is /opt/dotnetcloud — read-only for the module user. Falling back to the
-// shared DOTNETCLOUD_DATA_DIR keeps the pre-sandbox behaviour there; the private ring starts with the
-// data-plane flip, which is the first launch that provides a module data directory.
+// Legacy compatibility launches (pre-v2 manifest) do not receive DOTNETCLOUD_MODULE_DATA_DIR, and
+// the module's content root is /opt/dotnetcloud — read-only for the module user. Falling back to the
+// shared DOTNETCLOUD_DATA_DIR keeps that shape working; a sandboxed launch always provides the
+// module data directory, so from the data-plane flip onwards the private ring is the normal path.
 var moduleDataDir = Environment.GetEnvironmentVariable("DOTNETCLOUD_MODULE_DATA_DIR");
 string dpKeysPath;
 string dpApplicationName;
@@ -159,6 +159,44 @@ var app = builder.Build();
 // Adopt the core-signed end-user assertion before anything can call back into the core.
 app.UseModuleUserAssertion();
 
+// Initialize the database schema (creates tables if they don't exist).
+// Retries with exponential backoff so a database that is briefly unavailable at startup does not
+// crash the module — it continues running in degraded mode and resumes once the database recovers.
+// The core no longer migrates Tracks: this host owns `__EFMigrationsHistory` in the schema the core
+// provisioned (search_path / default schema), and a legacy `tracks` schema was moved into it by the
+// adoption step before the first sandboxed start.
+{
+    const int maxAttempts = 5;
+    var delay = TimeSpan.FromSeconds(2);
+    var initLogger = app.Services.GetRequiredService<ILogger<Program>>();
+
+    for (var attempt = 1; attempt <= maxAttempts; attempt++)
+    {
+        try
+        {
+            using var scope = app.Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<TracksDbContext>();
+            await TracksDbInitializer.InitializeAsync(db, initLogger, CancellationToken.None);
+            break;
+        }
+        catch (Exception ex) when (attempt < maxAttempts)
+        {
+            initLogger.LogWarning(ex,
+                "Tracks database initialization attempt {Attempt}/{MaxAttempts} failed. Retrying in {Delay}s...",
+                attempt, maxAttempts, delay.TotalSeconds);
+            await Task.Delay(delay);
+            delay *= 2;
+        }
+        catch (Exception ex)
+        {
+            initLogger.LogError(ex,
+                "Tracks database initialization failed after {MaxAttempts} attempts. " +
+                "Continuing in degraded mode; retries will resume when the database recovers.",
+                maxAttempts);
+        }
+    }
+}
+
 // Show exception details only while developing; a sandboxed host must not leak stack traces.
 if (app.Environment.IsDevelopment())
 {
@@ -213,7 +251,7 @@ catch (Exception ex)
 app.MapGet("/api/info", () => Results.Ok(new
 {
     module = "dotnetcloud.tracks",
-    version = "1.0.0",
+    version = "2.0.0",
     status = "running"
 }));
 

@@ -45,7 +45,9 @@
     else if (_data is null || _data.Items.Count == 0)
     {
         <div class="roadmap-empty">
-            <div class="roadmap-empty-icon"><MaterialIcon Icon="map" Size="MaterialIconSize.Xl" /></div>
+            <div class="roadmap-empty-icon">
+                <MaterialIcon Icon="map" Size="MaterialIconSize.Xl" />
+            </div>
             <h3>No roadmap items</h3>
             <p>Create epics with due dates to see them here. Features with dates will also appear on the timeline.</p>
         </div>
@@ -66,8 +68,7 @@
                 var milestonePos = GetDatePositionPercent(milestone.DueDate);
                 if (milestonePos >= 0 && milestonePos <= 100)
                 {
-                    <div class="roadmap-milestone" style="@GetMilestoneStyle(milestonePos)"
-                         title="@GetMilestoneTooltip(milestone)">
+                    <div class="roadmap-milestone" style="@GetMilestoneStyle(milestonePos)" title="@GetMilestoneTooltip(milestone)">
                         <div class="roadmap-milestone-diamond" style="@GetMilestoneDiamondStyle(milestone)"></div>
                         <span class="roadmap-milestone-label">@milestone.Title</span>
                     </div>
@@ -84,10 +85,8 @@
                         {
                             var barStyle = GetBarStyle(item);
 
-                            <div class="roadmap-item-bar @(_selectedItem?.Id == item.Id ? "selected" : "")"
-                                 style="@barStyle"
-                                 @onclick='() => SelectItem(item)'
-                                 title="@item.Title (#@item.ItemNumber)">
+                            <div class="roadmap-item-bar @(_selectedItem?.Id == item.Id ? "selected" : "")" style="@barStyle"
+                                 @onclick='() => SelectItem(item)' title="@item.Title (#@item.ItemNumber)">
                                 <span class="roadmap-item-bar-label">#@item.ItemNumber @item.Title</span>
                             </div>
                         }
@@ -99,8 +98,7 @@
             <svg class="roadmap-dependency-svg">
                 @foreach (var dep in _dependencyArrows)
                 {
-                    <path d="@dep.Path" stroke="#9ca3af" stroke-width="1.5" fill="none"
-                          marker-end="url(#arrowhead)" />
+                    <path d="@dep.Path" stroke="#9ca3af" stroke-width="1.5" fill="none" marker-end="url(#arrowhead)" />
                 }
                 <defs>
                     <marker id="arrowhead" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
@@ -129,7 +127,9 @@
                     <div class="roadmap-detail-header">
                         <span class="roadmap-detail-type">@_selectedItem.Type</span>
                         <span class="roadmap-detail-number">#@_selectedItem.ItemNumber</span>
-                        <button class="roadmap-detail-close" @onclick="CloseDetail" title="Close"><MaterialIcon Icon="close" Size="MaterialIconSize.Sm" /></button>
+                        <button class="roadmap-detail-close" @onclick="CloseDetail" title="Close">
+                            <MaterialIcon Icon="close" Size="MaterialIconSize.Sm" />
+                        </button>
                     </div>
                     <h4>@_selectedItem.Title</h4>
                     @if (_selectedItem.DueDate.HasValue)
@@ -160,8 +160,7 @@
                             <span>@_selectedItem.AssigneeDisplayName</span>
                         </div>
                     }
-                    <button class="btn btn-primary btn-sm roadmap-detail-open"
-                            @onclick="() => OpenWorkItem(_selectedItem)">
+                    <button class="btn btn-primary btn-sm roadmap-detail-open" @onclick="() => OpenWorkItem(_selectedItem)">
                         Open Full Detail →
                     </button>
                 </div>

@@ -6,7 +6,6 @@ using DotNetCloud.Modules.Contacts.Data;
 using DotNetCloud.Modules.Files.Data;
 using DotNetCloud.Modules.Music.Data;
 using DotNetCloud.Modules.Notes.Data;
-using DotNetCloud.Modules.Tracks.Data;
 using DotNetCloud.Modules.Video.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
@@ -35,7 +34,6 @@ public class DbContextSchemaProvider : IModuleSchemaProvider
         ["dotnetcloud.contacts"] = typeof(ContactsDbContext),
         ["dotnetcloud.calendar"] = typeof(CalendarDbContext),
         ["dotnetcloud.notes"] = typeof(NotesDbContext),
-        ["dotnetcloud.tracks"] = typeof(TracksDbContext),
         ["dotnetcloud.music"] = typeof(MusicDbContext),
         ["dotnetcloud.video"] = typeof(VideoDbContext),
     };

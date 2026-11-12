@@ -33,11 +33,15 @@
         <button class="btn btn-primary btn-sm" @onclick="() => OnNext.InvokeAsync()">
             @if (CurrentStep < TotalSteps - 1)
             {
-                <text>Next <MaterialIcon Icon="arrow_forward" Size="MaterialIconSize.Sm" /></text>
+                <text>Next
+                    <MaterialIcon Icon="arrow_forward" Size="MaterialIconSize.Sm" />
+                </text>
             }
             else
             {
-                <text>Finish <MaterialIcon Icon="check" Size="MaterialIconSize.Sm" /></text>
+                <text>Finish
+                    <MaterialIcon Icon="check" Size="MaterialIconSize.Sm" />
+                </text>
             }
         </button>
     </div>

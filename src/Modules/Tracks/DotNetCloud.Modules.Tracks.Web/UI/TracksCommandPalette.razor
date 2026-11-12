@@ -10,15 +10,9 @@
         <div class="command-palette-dialog" @onclick:stopPropagation="true" @onclick:preventDefault="true">
             <div class="command-palette-search">
                 <MaterialIcon Icon="search" CssClass="cp-search-icon" />
-                <input @ref="_searchInput"
-                       type="text"
-                       class="cp-search-input"
-                       placeholder="Search work items, products, actions..."
-                       @bind-value="_query"
-                       @bind-value:event="oninput"
-                       @onkeydown="HandleKeyDown"
-                       autocomplete="off"
-                       spellcheck="false" />
+                <input @ref="_searchInput" type="text" class="cp-search-input"
+                       placeholder="Search work items, products, actions..." @bind-value="_query" @bind-value:event="oninput"
+                       @onkeydown="HandleKeyDown" autocomplete="off" spellcheck="false" />
                 <span class="cp-shortcut-hint">ESC to close</span>
             </div>
 
@@ -45,10 +39,8 @@
                                 var isSelected = _groupsFlat is not null && _selectedIndex >= 0 &&
                                     _selectedIndex < _groupsFlat.Count && _groupsFlat[_selectedIndex] == item;
 
-                                <div class="cp-item @(isSelected ? "cp-item-selected" : "")"
-                                     @onclick="() => ExecuteItem(item)"
-                                     @onmouseenter="() => _selectedIndex = FindFlatIndex(item)"
-                                     role="option"
+                                <div class="cp-item @(isSelected ? "cp-item-selected" : "")" @onclick="() => ExecuteItem(item)"
+                                     @onmouseenter="() => _selectedIndex = FindFlatIndex(item)" role="option"
                                      aria-selected="@isSelected">
                                     <div class="cp-item-main">
                                         <span class="cp-item-icon">

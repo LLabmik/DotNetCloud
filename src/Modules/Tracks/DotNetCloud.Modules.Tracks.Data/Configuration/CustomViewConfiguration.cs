@@ -12,7 +12,7 @@ internal sealed class CustomViewConfiguration : IEntityTypeConfiguration<CustomV
     /// <inheritdoc />
     public void Configure(EntityTypeBuilder<CustomView> builder)
     {
-        builder.ToTable("CustomViews", "tracks");
+        builder.ToTable("CustomViews");
 
         builder.HasKey(cv => cv.Id);
 

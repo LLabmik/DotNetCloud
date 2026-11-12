@@ -46,16 +46,14 @@
                 @foreach (var day in _calendarDays)
                 {
                     <div class="tracks-calendar-day @(day.IsToday ? "today" : "") @(day.IsCurrentMonth ? "" : "other-month")"
-                         @ondrop="() => HandleDropOnDate(day.Date)"
-                         @ondragover:preventDefault>
+                         @ondrop="() => HandleDropOnDate(day.Date)" @ondragover:preventDefault>
                         <div class="tracks-calendar-day-number">
                             @day.Date.Day
                         </div>
                         <div class="tracks-calendar-day-items">
                             @foreach (var item in day.Items.Take(4))
                             {
-                                <div class="tracks-calendar-item @GetPriorityClass(item.Priority)"
-                                     draggable="true"
+                                <div class="tracks-calendar-item @GetPriorityClass(item.Priority)" draggable="true"
                                      @ondragstart="() => HandleDragStart(item)"
                                      @onclick="() => OnWorkItemSelected.InvokeAsync(item.ItemNumber)"
                                      title="#@item.ItemNumber @item.Title (@item.Priority)">
@@ -85,13 +83,11 @@
                             <span class="tracks-calendar-week-day-name">@day.Date.ToString("ddd")</span>
                             <span class="tracks-calendar-week-day-number">@day.Date.Day</span>
                         </div>
-                        <div class="tracks-calendar-week-items"
-                             @ondrop="() => HandleDropOnDate(day.Date)"
+                        <div class="tracks-calendar-week-items" @ondrop="() => HandleDropOnDate(day.Date)"
                              @ondragover:preventDefault>
                             @foreach (var item in day.Items)
                             {
-                                <div class="tracks-calendar-item @GetPriorityClass(item.Priority)"
-                                     draggable="true"
+                                <div class="tracks-calendar-item @GetPriorityClass(item.Priority)" draggable="true"
                                      @ondragstart="() => HandleDragStart(item)"
                                      @onclick="() => OnWorkItemSelected.InvokeAsync(item.ItemNumber)"
                                      title="#@item.ItemNumber @item.Title">

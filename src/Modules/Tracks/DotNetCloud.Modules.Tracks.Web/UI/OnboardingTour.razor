@@ -12,13 +12,8 @@
     </div>
 
     <div class="onboarding-tooltip-wrapper">
-        <TourTooltip Icon="@_currentStepDef.Icon"
-                     Title="@_currentStepDef.Title"
-                     Description="@_currentStepDef.Description"
-                     CurrentStep="@_currentStep"
-                     TotalSteps="@_steps.Count"
-                     OnPrevious="GoToPreviousAsync"
-                     OnNext="GoToNextAsync"
+        <TourTooltip Icon="@_currentStepDef.Icon" Title="@_currentStepDef.Title" Description="@_currentStepDef.Description"
+                     CurrentStep="@_currentStep" TotalSteps="@_steps.Count" OnPrevious="GoToPreviousAsync" OnNext="GoToNextAsync"
                      OnSkip="SkipTourAsync" />
     </div>
 }

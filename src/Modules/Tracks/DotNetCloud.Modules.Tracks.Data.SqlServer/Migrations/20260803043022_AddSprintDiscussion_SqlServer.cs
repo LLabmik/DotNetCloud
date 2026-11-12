@@ -13,7 +13,6 @@ namespace DotNetCloud.Modules.Tracks.Data.SqlServer.Migrations
         {
             migrationBuilder.CreateTable(
                 name: "SprintDiscussions",
-                schema: "tracks",
                 columns: table => new
                 {
                     Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false, defaultValueSql: "NEWSEQUENTIALID()"),
@@ -30,14 +29,12 @@ namespace DotNetCloud.Modules.Tracks.Data.SqlServer.Migrations
                     table.ForeignKey(
                         name: "FK_SprintDiscussions_ReviewSessions_ReviewSessionId",
                         column: x => x.ReviewSessionId,
-                        principalSchema: "tracks",
                         principalTable: "ReviewSessions",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Cascade);
                     table.ForeignKey(
                         name: "FK_SprintDiscussions_Sprints_SprintId",
                         column: x => x.SprintId,
-                        principalSchema: "tracks",
                         principalTable: "Sprints",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Cascade);
@@ -45,13 +42,11 @@ namespace DotNetCloud.Modules.Tracks.Data.SqlServer.Migrations
 
             migrationBuilder.CreateIndex(
                 name: "ix_sprint_discussions_review_created",
-                schema: "tracks",
                 table: "SprintDiscussions",
                 columns: new[] { "ReviewSessionId", "CreatedAt" });
 
             migrationBuilder.CreateIndex(
                 name: "ix_sprint_discussions_sprint_created",
-                schema: "tracks",
                 table: "SprintDiscussions",
                 columns: new[] { "SprintId", "CreatedAt" });
         }
@@ -60,8 +55,7 @@ namespace DotNetCloud.Modules.Tracks.Data.SqlServer.Migrations
         protected override void Down(MigrationBuilder migrationBuilder)
         {
             migrationBuilder.DropTable(
-                name: "SprintDiscussions",
-                schema: "tracks");
+                name: "SprintDiscussions");
         }
     }
 }

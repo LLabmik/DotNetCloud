@@ -29,7 +29,9 @@
                 <div class="goal-card @(objective.Status == "completed" ? "completed" : "")"
                      @onclick="() => OnGoalSelected.InvokeAsync(objective.Id)">
                     <div class="goal-card-header">
-                        <span class="goal-type-badge"><MaterialIcon Icon="flag" Size="MaterialIconSize.Sm" /> Objective</span>
+                        <span class="goal-type-badge">
+                            <MaterialIcon Icon="flag" Size="MaterialIconSize.Sm" /> Objective
+                        </span>
                         <span class="goal-status-badge" style="background: @statusColor">@FormatStatus(objective.Status)</span>
                     </div>
                     <div class="goal-card-title">@objective.Title</div>
@@ -39,7 +41,8 @@
                     }
                     <div class="goal-card-progress">
                         <div class="goal-progress-bar">
-                            <div class="goal-progress-fill" style="width: @(objective.ProgressPercent.ToString("F0"))%; background: @progressColor"></div>
+                            <div class="goal-progress-fill"
+                                 style="width: @(objective.ProgressPercent.ToString("F0"))%; background: @progressColor"></div>
                         </div>
                         <span class="goal-progress-text">@objective.ProgressPercent.ToString("F0")%</span>
                     </div>
@@ -51,8 +54,7 @@
                             @foreach (var kr in keyResults)
                             {
                                 var krColor = GetProgressColor(kr.ProgressPercent);
-                                <div class="goal-kr-row" @onclick:stopPropagation
-                                     @onclick="() => OnGoalSelected.InvokeAsync(kr.Id)">
+                                <div class="goal-kr-row" @onclick:stopPropagation @onclick="() => OnGoalSelected.InvokeAsync(kr.Id)">
                                     <span class="goal-kr-dot" style="background: @krColor"></span>
                                     <span class="goal-kr-title">@kr.Title</span>
                                     <span class="goal-kr-progress">@kr.ProgressPercent.ToString("F0")%</span>
@@ -75,7 +77,8 @@
                     @if (objective.LinkedWorkItemCount > 0)
                     {
                         <div class="goal-linked-items">
-                            <MaterialIcon Icon="attach_file" Size="MaterialIconSize.Sm" /> @objective.CompletedLinkedWorkItemCount / @objective.LinkedWorkItemCount work items
+                            <MaterialIcon Icon="attach_file" Size="MaterialIconSize.Sm" /> @objective.CompletedLinkedWorkItemCount /
+                            @objective.LinkedWorkItemCount work items
                         </div>
                     }
 

@@ -4,10 +4,14 @@
     <div class="tracks-wizard tracks-wizard--wide" @onclick:stopPropagation>
         @* ── Header ── *@
         <div class="tracks-wizard-header">
-            <h2><MaterialIcon Icon="inventory_2" Size="MaterialIconSize.Sm" /> New Product</h2>
+            <h2>
+                <MaterialIcon Icon="inventory_2" Size="MaterialIconSize.Sm" /> New Product
+            </h2>
             <p class="tracks-wizard-subtitle">Create a product to organize your work into epics, features, and items.
             </p>
-            <button class="tracks-close-btn" @onclick="HandleCancel" title="Close"><MaterialIcon Icon="close" /></button>
+            <button class="tracks-close-btn" @onclick="HandleCancel" title="Close">
+                <MaterialIcon Icon="close" />
+            </button>
         </div>
 
         @* ── Progress Steps ── *@
@@ -160,7 +164,10 @@
                                                     @if (_selectedMembers.Count > 0)
                                                     {
                                                         <div class="tracks-wizard-section">
-                                                            <h4><MaterialIcon Icon="person" Size="MaterialIconSize.Sm" /> Added Members (@_selectedMembers.Count)</h4>
+                                                            <h4>
+                                                                <MaterialIcon Icon="person" Size="MaterialIconSize.Sm" /> Added Members
+                                                                (@_selectedMembers.Count)
+                                                            </h4>
                                                             <div class="tracks-wizard-chip-grid">
                                                                 @foreach (var member in _selectedMembers)
                                                                 {
@@ -168,7 +175,9 @@
                                                                             title="Click to remove">
                                                                         <span class="tracks-wizard-chip-avatar">@member.DisplayName[..1].ToUpperInvariant()</span>
                                                                         <span>@member.DisplayName</span>
-                                                                        <span class="tracks-wizard-chip-remove"><MaterialIcon Icon="close" Size="MaterialIconSize.Sm" /></span>
+                                                                        <span class="tracks-wizard-chip-remove">
+                                                                            <MaterialIcon Icon="close" Size="MaterialIconSize.Sm" />
+                                                                        </span>
                                                                     </button>
                                                                 }
                                                             </div>
@@ -220,7 +229,9 @@
 
                                                         <div class="tracks-wizard-review">
                                                             <div class="tracks-wizard-review-section">
-                                                                <h4><MaterialIcon Icon="inventory_2" Size="MaterialIconSize.Sm" /> Product Details</h4>
+                                                                <h4>
+                                                                    <MaterialIcon Icon="inventory_2" Size="MaterialIconSize.Sm" /> Product Details
+                                                                </h4>
                                                                 <div class="tracks-wizard-review-grid">
                                                                     <div class="tracks-wizard-review-item">
                                                                         <span class="tracks-wizard-review-label">Name</span>
@@ -246,7 +257,7 @@
                                                                     <div class="tracks-wizard-review-item">
                                                                         <span class="tracks-wizard-review-label">Sub-Items</span>
                                                                         <span class="tracks-wizard-review-value">@(_subItemsEnabled ? "Enabled" :
-                                                                                                                "Disabled")</span>
+                                                                                                                                                                                            "Disabled")</span>
                                                                         </div>
                                                                     </div>
                                                                 </div>
@@ -254,7 +265,9 @@
                                                                 @if (_showSwimlaneSetup && _defaultSwimlanes.Any(s => !string.IsNullOrWhiteSpace(s.Title)))
                                                                 {
                                                                     <div class="tracks-wizard-review-section">
-                                                                        <h4><MaterialIcon Icon="view_list" Size="MaterialIconSize.Sm" /> Default Swimlanes (@_defaultSwimlanes.Count(s => !string.IsNullOrWhiteSpace(s.Title)))
+                                                                        <h4>
+                                                                            <MaterialIcon Icon="view_list" Size="MaterialIconSize.Sm" /> Default Swimlanes
+                                                                            (@_defaultSwimlanes.Count(s => !string.IsNullOrWhiteSpace(s.Title)))
                                                                         </h4>
                                                                         <div class="tracks-wizard-review-chips">
                                                                             @foreach (var sw in _defaultSwimlanes.Where(s => !string.IsNullOrWhiteSpace(s.Title)))
@@ -274,7 +287,10 @@
                                                                 @if (_selectedMembers.Count > 0)
                                                                 {
                                                                     <div class="tracks-wizard-review-section">
-                                                                        <h4><MaterialIcon Icon="person" Size="MaterialIconSize.Sm" /> Team Members (@_selectedMembers.Count)</h4>
+                                                                        <h4>
+                                                                            <MaterialIcon Icon="person" Size="MaterialIconSize.Sm" /> Team Members
+                                                                            (@_selectedMembers.Count)
+                                                                        </h4>
                                                                         <div class="tracks-wizard-review-chips">
                                                                             @foreach (var member in _selectedMembers)
                                                                             {

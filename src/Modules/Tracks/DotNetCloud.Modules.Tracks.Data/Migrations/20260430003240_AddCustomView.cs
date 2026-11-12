@@ -11,12 +11,10 @@ namespace DotNetCloud.Modules.Tracks.Data.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.EnsureSchema(
-                name: "tracks");
-
+            // No EnsureSchema: a sandboxed module owns its schema (the provisioned connection
+            // string pins search_path) and is not allowed to run CREATE SCHEMA.
             migrationBuilder.CreateTable(
                 name: "CustomViews",
-                schema: "tracks",
                 columns: table => new
                 {
                     Id = table.Column<Guid>(type: "uuid", nullable: false),
@@ -44,7 +42,6 @@ namespace DotNetCloud.Modules.Tracks.Data.Migrations
 
             migrationBuilder.CreateTable(
                 name: "WorkItemWatchers",
-                schema: "tracks",
                 columns: table => new
                 {
                     WorkItemId = table.Column<Guid>(type: "uuid", nullable: false),
@@ -64,13 +61,11 @@ namespace DotNetCloud.Modules.Tracks.Data.Migrations
 
             migrationBuilder.CreateIndex(
                 name: "IX_CustomViews_ProductId",
-                schema: "tracks",
                 table: "CustomViews",
                 column: "ProductId");
 
             migrationBuilder.CreateIndex(
                 name: "IX_CustomViews_ProductId_UserId_Name",
-                schema: "tracks",
                 table: "CustomViews",
                 columns: new[] { "ProductId", "UserId", "Name" },
                 unique: true);
@@ -80,12 +75,10 @@ namespace DotNetCloud.Modules.Tracks.Data.Migrations
         protected override void Down(MigrationBuilder migrationBuilder)
         {
             migrationBuilder.DropTable(
-                name: "CustomViews",
-                schema: "tracks");
+                name: "CustomViews");
 
             migrationBuilder.DropTable(
-                name: "WorkItemWatchers",
-                schema: "tracks");
+                name: "WorkItemWatchers");
         }
     }
 }

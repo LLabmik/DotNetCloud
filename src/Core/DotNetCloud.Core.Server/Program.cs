@@ -26,9 +26,6 @@ using DotNetCloud.Core.Events;
 using DotNetCloud.Core.Services;
 using DotNetCloud.Modules.Files.Services;
 using DotNetCloud.Modules.Notes.Data;
-using DotNetCloud.Modules.Tracks.Data;
-using DotNetCloud.Modules.Tracks.Data.Services;
-using DotNetCloud.Modules.Tracks.Services;
 using DotNetCloud.Modules.Music.Data;
 using DotNetCloud.Modules.Video.Data;
 using DotNetCloud.Modules.Chat.Data;
@@ -336,11 +333,6 @@ public class Program
         // Each module's .Data project owns its Add*UiServices registration, including
         // the DbContext configuration.
         builder.Services.AddNotesUiServices(builder.Configuration!, provider, connectionString);
-        // Tracks module in-process UI services (SignalR real-time, command palette, CSV import).
-        // All other Tracks API calls go through the gRPC ITracksApiClient (registered below).
-        // Uses the module's dedicated UI registration so the full dependency graph
-        // (e.g. CsvImportService behind ICsvImportUiService) is present.
-        builder.Services.AddTracksUiServices(builder.Configuration!, provider, connectionString);
         builder.Services.AddMusicUiServices(builder.Configuration!, provider, connectionString);
         builder.Services.AddVideoUiServices(builder.Configuration!, provider, connectionString);
         // NOTE: Photos is process-isolated — its UI is served by the module host through the
@@ -695,7 +687,6 @@ public class Program
         // gRPC clients — Tracks and Email modules are process-isolated with full proto support
         builder.Services.AddScoped<DotNetCloud.Core.Services.ModuleApis.ITracksApiClient, DotNetCloud.Core.Server.Grpc.Clients.TracksGrpcApiClient>();
         builder.Services.AddScoped<DotNetCloud.Core.Services.ModuleApis.IEmailApiClient, DotNetCloud.Core.Server.Grpc.Clients.EmailGrpcApiClient>();
-        builder.Services.AddScoped<DotNetCloud.Modules.Tracks.Services.IOnboardingStateService, DotNetCloud.Modules.Tracks.Services.OnboardingStateService>();
 
         // Typed HttpClient for server prerendering of client components (NotificationBell, etc.).
         // During static SSR, HttpClient from the .Client project has no BaseAddress.
@@ -1104,7 +1095,6 @@ public class Program
                 typeof(DotNetCloud.Modules.Notes.UI.NotesPage).Assembly,
                 typeof(DotNetCloud.Modules.Calendar.UI.CalendarPage).Assembly,
                 typeof(DotNetCloud.Modules.Contacts.UI.ContactsPage).Assembly,
-                typeof(DotNetCloud.Modules.Tracks.UI.TracksPage).Assembly,
                 typeof(DotNetCloud.Modules.Files.UI.FileBrowser).Assembly,
                 typeof(DotNetCloud.Modules.About.UI.AboutPage).Assembly);
     }

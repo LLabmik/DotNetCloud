@@ -5,8 +5,8 @@
         <h2>Products</h2>
         <div class="tracks-board-list-actions">
             <div class="tracks-filter-group">
-                <input type="text" class="tracks-search-input" placeholder="Search products..."
-                       @bind="_searchQuery" @bind:event="oninput" />
+                <input type="text" class="tracks-search-input" placeholder="Search products..." @bind="_searchQuery"
+                       @bind:event="oninput" />
             </div>
             <button class="btn btn-primary" @onclick="OpenCreateWizard">
                 + New Product
@@ -17,7 +17,9 @@
     @if (FilteredProducts.Count == 0)
     {
         <div class="tracks-empty-state">
-            <div class="tracks-empty-icon"><MaterialIcon Icon="inventory_2" Size="MaterialIconSize.Xl" /></div>
+            <div class="tracks-empty-icon">
+                <MaterialIcon Icon="inventory_2" Size="MaterialIconSize.Xl" />
+            </div>
             <h3>No products yet</h3>
             <p>Create your first product to start tracking work.</p>
             <button class="btn btn-primary" @onclick="OpenCreateWizard">Create Product</button>
@@ -30,8 +32,7 @@
             {
                 <div class="tracks-board-card @(product.IsArchived ? "tracks-board-card--archived" : "")"
                      @onclick="() => OnProductSelected.InvokeAsync(product.Id)">
-                    <div class="tracks-board-card-color"
-                         style="background: @(product.Color ?? "#3b82f6");"></div>
+                    <div class="tracks-board-card-color" style="background: @(product.Color ?? "#3b82f6");"></div>
                     <div class="tracks-board-card-body">
                         <div class="tracks-board-card-header">
                             <h3>@product.Name</h3>
@@ -40,8 +41,7 @@
                                 {
                                     <span class="tracks-badge tracks-badge--muted">Archived</span>
                                 }
-                                <button class="tracks-board-card-delete-btn"
-                                        @onclick="() => ConfirmDelete(product)"
+                                <button class="tracks-board-card-delete-btn" @onclick="() => ConfirmDelete(product)"
                                         title="Delete product">
                                     <MaterialIcon Icon="delete" Size="MaterialIconSize.Sm" />
                                 </button>
@@ -73,8 +73,12 @@
     {
         <div class="tracks-deleted-section">
             <button class="tracks-deleted-toggle" @onclick="() => _showDeleted = !_showDeleted">
-                <span class="tracks-deleted-toggle-icon"><MaterialIcon Icon="@(_showDeleted ? "expand_more" : "chevron_right")" Size="MaterialIconSize.Sm" /></span>
-                <span><MaterialIcon Icon="delete" Size="MaterialIconSize.Sm" /> Trash (@_deletedProducts.Count)</span>
+                <span class="tracks-deleted-toggle-icon">
+                    <MaterialIcon Icon="@(_showDeleted ? "expand_more" : "chevron_right")" Size="MaterialIconSize.Sm" />
+                </span>
+                <span>
+                    <MaterialIcon Icon="delete" Size="MaterialIconSize.Sm" /> Trash (@_deletedProducts.Count)
+                </span>
                 <span class="tracks-deleted-toggle-hint">Restorable within 30 days</span>
             </button>
 
@@ -84,8 +88,8 @@
                     @foreach (var product in _deletedProducts)
                     {
                         <div class="tracks-board-card tracks-board-card--deleted">
-                            <div class="tracks-board-card-color"
-                                 style="background: @(product.Color ?? "#6b7280"); opacity: 0.5;"></div>
+                            <div class="tracks-board-card-color" style="background: @(product.Color ?? "#6b7280"); opacity: 0.5;">
+                            </div>
                             <div class="tracks-board-card-body">
                                 <div class="tracks-board-card-header">
                                     <h3>@product.Name</h3>
@@ -93,14 +97,13 @@
                                         @if (product.DeletedAt.HasValue)
                                         {
                                             var daysLeft = 30 - (int)(DateTime.UtcNow - product.DeletedAt.Value).TotalDays;
-                                            <span class="tracks-badge @(daysLeft <= 7 ? "tracks-badge--warning" : "tracks-badge--muted")">
+                                            <span
+                                                class="tracks-badge @(daysLeft <= 7 ? "tracks-badge--warning" : "tracks-badge--muted")">
                                                 @daysLeft day@(daysLeft != 1 ? "s" : "") left
                                             </span>
                                         }
-                                        <button class="tracks-deleted-restore-btn"
-                                                @onclick="() => RestoreProductAsync(product)"
-                                                disabled="@(_isRestoring == product.Id)"
-                                                title="Restore product">
+                                        <button class="tracks-deleted-restore-btn" @onclick="() => RestoreProductAsync(product)"
+                                                disabled="@(_isRestoring == product.Id)" title="Restore product">
                                             @(_isRestoring == product.Id ? "Restoring..." : "Restore")
                                         </button>
                                         <button class="tracks-deleted-permanent-btn"
@@ -140,8 +143,7 @@
 @* ── Create Product Wizard ── *@
 @if (_showCreateWizard && OrganizationId.HasValue)
 {
-    <ProductCreationWizard OrganizationId="OrganizationId.Value"
-                           OnClose="CloseCreateWizard"
+    <ProductCreationWizard OrganizationId="OrganizationId.Value" OnClose="CloseCreateWizard"
                            OnCreated="HandleProductCreatedFromWizard" />
 }
 
@@ -150,19 +152,22 @@
 {
     <div class="tracks-wizard-overlay" @onclick="CancelDelete">
         <div class="tracks-confirm-dialog" @onclick:stopPropagation>
-            <div class="tracks-confirm-icon"><MaterialIcon Icon="warning" Size="MaterialIconSize.Xl" /></div>
-            <h3>@($"Delete \"{_deleteTarget.Name}\"?")</h3>
-            <p>This will mark the product for deletion. It can be restored within 30 days by an admin. <strong>After 30 days it will be permanently removed.</strong></p>
-            <div class="tracks-confirm-actions">
-                <button class="btn btn-danger" @onclick="DeleteProductAsync" disabled="@_isDeleting">
-                    @(_isDeleting ? "Deleting..." : "Delete Product")
-                </button>
-                <button class="btn btn-secondary" @onclick="CancelDelete">Cancel</button>
+            <div class="tracks-confirm-icon">
+                <MaterialIcon Icon="warning" Size="MaterialIconSize.Xl" />
             </div>
-            @if (_deleteError is not null)
-            {
-                <DncErrorDisplay Message="@_deleteError" />
-            }
+            <h3>@($"Delete \"{_deleteTarget.Name}\"?")</h3>
+            <p>This will mark the product for deletion. It can be restored within 30 days by an admin. <strong>After 30 days
+                it will be permanently removed.</strong></p>
+                <div class="tracks-confirm-actions">
+                    <button class="btn btn-danger" @onclick="DeleteProductAsync" disabled="@_isDeleting">
+                        @(_isDeleting ? "Deleting..." : "Delete Product")
+                    </button>
+                    <button class="btn btn-secondary" @onclick="CancelDelete">Cancel</button>
+                </div>
+                @if (_deleteError is not null)
+                {
+                    <DncErrorDisplay Message="@_deleteError" />
+                }
+            </div>
         </div>
-    </div>
-}
+    }

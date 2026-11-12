@@ -5,16 +5,15 @@ using Microsoft.EntityFrameworkCore;
 namespace DotNetCloud.Modules.Tracks.Tests.Data;
 
 /// <summary>
-/// Drift guard for the Tracks module's EF model.
+/// Drift and schema-neutrality guard for the Tracks module's EF model, which became schema-neutral
+/// in Track C (see <c>docs/THIRD_PARTY_MODULE_SANDBOX_AND_STORE_PLAN.md</c> §7).
 /// </summary>
 /// <remarks>
 /// <para>
-/// The module is being converted to a sandboxed module that owns its own schema (Track C, see
-/// <c>docs/THIRD_PARTY_MODULE_SANDBOX_AND_STORE_PLAN.md</c> §7). Before that flip the model still
-/// names the legacy <c>tracks</c> schema and the core still applies the migrations, so this test
-/// asserts only that the model and the checked-in snapshot agree — the schema-neutrality assertions
-/// (<c>no CREATE SCHEMA</c>, no schema-qualified tables, on both providers) are added together with
-/// the data-plane flip, when the migrations are re-stamped.
+/// A sandboxed module owns the schema the core provisioned for it, so neither the model nor the
+/// migrations may name a schema: the unqualified DDL lands wherever the connection's
+/// <c>search_path</c> (PostgreSQL) or default schema (SQL Server) points. Naming one would also need
+/// <c>CREATE</c> on the database, which the module principal deliberately does not have (42501).
 /// </para>
 /// <para>
 /// Drift here means an entity or configuration changed without a matching migration, which would make
@@ -25,6 +24,8 @@ namespace DotNetCloud.Modules.Tracks.Tests.Data;
 public class TracksDbContextModelTests
 {
     private const string PostgreSqlConnection = "Host=localhost;Database=dotnetcloud;Username=dotnetcloud";
+    private const string SqlServerConnection =
+        "Server=localhost;Database=dotnetcloud;User Id=sa;Password=not-a-real-password;TrustServerCertificate=True";
 
     /// <summary>
     /// The model and the checked-in snapshot must agree.
@@ -41,5 +42,55 @@ public class TracksDbContextModelTests
         Assert.IsFalse(
             context.Database.HasPendingModelChanges(),
             "The Tracks model and TracksDbContextModelSnapshot have drifted; add an EF migration before shipping.");
+    }
+
+    /// <summary>
+    /// The generated PostgreSQL script must not create or name a schema, and must still create the
+    /// Tracks tables.
+    /// </summary>
+    [TestMethod]
+    public void MigrationScript_IsSchemaNeutral()
+    {
+        var options = new DbContextOptionsBuilder<TracksDbContext>()
+            .UseNpgsql(PostgreSqlConnection)
+            .Options;
+
+        using var context = new TracksDbContext(options, new PostgreSqlNamingStrategy());
+        var script = context.Database.GenerateCreateScript();
+
+        Assert.IsFalse(
+            script.Contains("CREATE SCHEMA", StringComparison.OrdinalIgnoreCase),
+            "The migration must not create a schema; the store provisions it and the module principal cannot (42501).");
+        Assert.IsFalse(
+            script.Contains("\"tracks\".", StringComparison.Ordinal),
+            "The migration must not schema-qualify its tables; the connection's search_path decides where they land.");
+
+        StringAssert.Contains(script, "\"Products\"", "the Products table must still be created");
+        StringAssert.Contains(script, "\"WorkItems\"", "the WorkItems table must still be created");
+        StringAssert.Contains(script, "\"SprintDiscussions\"", "the SprintDiscussions table must still be created");
+    }
+
+    /// <summary>
+    /// SQL Server migrations are checked the same way, since the module must run on both engines.
+    /// </summary>
+    [TestMethod]
+    public void SqlServerMigrationScript_IsSchemaNeutral()
+    {
+        var options = new DbContextOptionsBuilder<TracksDbContext>()
+            .UseSqlServer(SqlServerConnection, sql =>
+                sql.MigrationsAssembly("DotNetCloud.Modules.Tracks.Data.SqlServer"))
+            .Options;
+
+        using var context = new TracksDbContext(options, new SqlServerNamingStrategy());
+        var script = context.Database.GenerateCreateScript();
+
+        Assert.IsFalse(
+            script.Contains("CREATE SCHEMA", StringComparison.OrdinalIgnoreCase),
+            "The SQL Server migration must not create a schema either.");
+        Assert.IsFalse(
+            script.Contains("[tracks].", StringComparison.Ordinal),
+            "The SQL Server migration must not schema-qualify its tables.");
+        StringAssert.Contains(script, "[Products]", "the Products table must still be created");
+        StringAssert.Contains(script, "[WorkItems]", "the WorkItems table must still be created");
     }
 }

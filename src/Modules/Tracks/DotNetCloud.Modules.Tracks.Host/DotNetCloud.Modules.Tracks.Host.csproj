@@ -28,6 +28,15 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- A plain `dotnet publish` must ship the v2 manifest, or the supervisor falls back to a v1
+         default, withholds the module directories and the host dies on the read-only /opt tree. -->
+    <Content Include="..\manifest.json"
+             Link="manifest.json"
+             CopyToOutputDirectory="PreserveNewest"
+             CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\DotNetCloud.Modules.Tracks\DotNetCloud.Modules.Tracks.csproj" />
     <ProjectReference Include="..\DotNetCloud.Modules.Tracks.Data\DotNetCloud.Modules.Tracks.Data.csproj" />
     <ProjectReference Include="..\DotNetCloud.Modules.Tracks.Data.SqlServer\DotNetCloud.Modules.Tracks.Data.SqlServer.csproj" />

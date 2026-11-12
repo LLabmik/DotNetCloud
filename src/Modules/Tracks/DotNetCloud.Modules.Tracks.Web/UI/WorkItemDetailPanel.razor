@@ -40,8 +40,12 @@
                         }
                     </button>
                     <a href="/apps/tracks/item/@Product.Id/@WorkItem.ItemNumber" target="_blank"
-                       class="tracks-open-newtab-btn panel" title="Open in new tab"><MaterialIcon Icon="open_in_new" Size="MaterialIconSize.Sm" /></a>
-                    <button class="tracks-close-btn" @onclick="OnClose" title="Close"><MaterialIcon Icon="close" /></button>
+                       class="tracks-open-newtab-btn panel" title="Open in new tab">
+                        <MaterialIcon Icon="open_in_new" Size="MaterialIconSize.Sm" />
+                    </a>
+                    <button class="tracks-close-btn" @onclick="OnClose" title="Close">
+                        <MaterialIcon Icon="close" />
+                    </button>
                 </div>
             </div>
 
@@ -99,7 +103,8 @@
                         <div class="tracks-card-section">
                             <div class="tracks-section-header">
                                 <h4>Features (@_childWorkItems.Count)</h4>
-                                <button class="btn btn-sm btn-primary" @onclick="() => OnOpenKanban.InvokeAsync(WorkItem.Id)"><MaterialIcon Icon="checklist" Size="MaterialIconSize.Sm" />
+                                <button class="btn btn-sm btn-primary" @onclick="() => OnOpenKanban.InvokeAsync(WorkItem.Id)">
+                                    <MaterialIcon Icon="checklist" Size="MaterialIconSize.Sm" />
                                     Open Kanban</button>
                                 </div>
                                 @foreach (var feature in _childWorkItems)
@@ -120,7 +125,8 @@
                                     <div class="tracks-sprint-row">
                                         <span
                                             class="tracks-sprint-status @(sprint.Status == SprintStatus.Active ? "active" : sprint.Status == SprintStatus.Completed ? "completed" : "planning")">
-                                            <MaterialIcon Icon="@(sprint.Status == SprintStatus.Active ? "directions_run" : sprint.Status == SprintStatus.Completed ? "check_circle" : "checklist")" Size="MaterialIconSize.Sm" />
+                                            <MaterialIcon Icon="@(sprint.Status == SprintStatus.Active ? "directions_run" : sprint.Status == SprintStatus.Completed ? "check_circle" : "checklist")"
+                                                          Size="MaterialIconSize.Sm" />
                                         </span>
                                         <span>@sprint.Title</span>
                                         <span class="tracks-sprint-dates">
@@ -137,7 +143,8 @@
                             <div class="tracks-card-section">
                                 <div class="tracks-section-header">
                                     <h4>Items (@_childWorkItems.Count)</h4>
-                                    <button class="btn btn-sm btn-primary" @onclick="() => OnOpenKanban.InvokeAsync(WorkItem.Id)"><MaterialIcon Icon="checklist" Size="MaterialIconSize.Sm" />
+                                    <button class="btn btn-sm btn-primary" @onclick="() => OnOpenKanban.InvokeAsync(WorkItem.Id)">
+                                        <MaterialIcon Icon="checklist" Size="MaterialIconSize.Sm" />
                                         Open Kanban</button>
                                     </div>
                                     @foreach (var item in _childWorkItems)
@@ -165,457 +172,467 @@
                                             <div class="tracks-checklist-header">
                                                 <h4><MaterialIcon Icon="task_alt" Size="MaterialIconSize.Sm" /> @checklist.Title</h4>
                                                 <button class="tracks-icon-btn" title="Delete checklist"
-                                                        @onclick="() => DeleteChecklistAsync(checklist.Id)"><MaterialIcon Icon="close" Size="MaterialIconSize.Sm" /></button>
-                                            </div>
-                                            @if (total > 0)
-                                            {
-                                                <div class="tracks-progress-bar">
-                                                    <div class="tracks-progress-fill" style="width: @(total > 0 ? (done * 100 / total) : 0)%"></div>
+                                                        @onclick="() => DeleteChecklistAsync(checklist.Id)">
+                                                    <MaterialIcon Icon="close" Size="MaterialIconSize.Sm" /></button>
                                                 </div>
-                                            }
-                                            @foreach (var item in checklist.Items.OrderBy(i => i.Position))
-                                            {
-                                                <label class="tracks-checklist-item">
-                                                    <input type="checkbox" checked="@item.IsCompleted"
-                                                           @onchange="() => ToggleChecklistItemAsync(checklist.Id, item.Id)" />
-                                                    <span class="@(item.IsCompleted ? "completed" : "")">@item.Title</span>
-                                                </label>
-                                            }
-                                            <div class="tracks-checklist-add">
-                                                @if (_addingItemToChecklist == checklist.Id)
+                                                @if (total > 0)
                                                 {
-                                                    <input type="text" class="form-control form-control-sm" placeholder="Item title..."
-                                                           @bind="_newChecklistItemTitle" @onkeydown="HandleChecklistItemKeyDown" />
-                                                    <button class="btn btn-sm btn-primary"
-                                                            @onclick="() => AddChecklistItemAsync(checklist.Id)">Add</button>
-                                                }
-                                                else
-                                                {
-                                                    <button class="btn btn-sm btn-outline"
-                                                            @onclick="() => { _addingItemToChecklist = checklist.Id; _newChecklistItemTitle = string.Empty; }">
-                                                        + Add item
-                                                    </button>
-                                                }
-                                            </div>
-                                        </div>
-                                    }
-                                }
-                                else
-                                {
-                                    @* SubItems (when SubItems enabled) *@
-                                    <div class="tracks-card-section">
-                                        <h4>Sub Items (@_childWorkItems.Count)</h4>
-                                        @foreach (var sub in _childWorkItems)
-                                        {
-                                            <div class="tracks-child-item-row">
-                                                <span>#@sub.ItemNumber</span>
-                                                <span>@sub.Title</span>
-                                                <span class="tracks-child-item-meta @GetPriorityClass(sub.Priority)">@sub.Priority</span>
-                                            </div>
-                                        }
-                                    </div>
-                                }
-                            }
-
-                            @* Comments *@
-                            <div class="tracks-card-section">
-                                <h4>Comments</h4>
-                                @if (_showCommentComposer)
-                                {
-                                    <div class="tracks-comment-add">
-                                        <div class="tracks-comment-input-wrapper">
-                                            <textarea class="form-control tracks-comment-textarea"
-                                                      placeholder="Write a comment... Use @@ to mention someone" rows="3"
-                                                      @bind="_newCommentContent" @bind:event="oninput" @onkeydown="HandleCommentKeyDown"
-                                                      @onkeyup="HandleCommentKeyUp" @ref="_commentTextarea"></textarea>
-                                            <MentionTypeahead @ref="_mentionTypeahead" OnUserSelected="HandleMentionSelected"
-                                                              OnDismiss="HandleMentionDismissed" />
-                                        </div>
-                                        <div class="tracks-card-section-actions">
-                                            <button class="btn btn-sm btn-primary"
-                                                    disabled="@string.IsNullOrWhiteSpace(_newCommentContent)"
-                                                    @onclick="AddCommentAsync">Comment</button>
-                                            <button class="btn btn-sm btn-secondary" @onclick="CancelComment">Cancel</button>
-                                        </div>
-                                    </div>
-                                }
-                                else
-                                {
-                                    <button class="btn btn-sm btn-primary" @onclick="() => _showCommentComposer = true">+ Add
-                                        Comment</button>
-                                    }
-                                    <div class="tracks-comment-list">
-                                        @foreach (var comment in _comments.OrderByDescending(c => c.CreatedAt))
-                                        {
-                                            <div class="tracks-comment">
-                                                <div class="tracks-comment-header">
-                                                    <strong>@(comment.DisplayName ?? "User")</strong>
-                                                    <span class="tracks-comment-date">@TimeProvider.FormatDateTime(TimeProvider.ToLocal(comment.CreatedAt), "MMM d")</span>
-                                                </div>
-                                                <div class="tracks-comment-body markdown-body">
-                                                    @((MarkupString)RenderCommentContent(comment.Content))</div>
-                                                    <div class="tracks-comment-actions">
-                                                        <button class="tracks-link-btn"
-                                                                @onclick="() => DeleteCommentAsync(comment.Id)">Delete</button>
-                                                    </div>
-                                                </div>
-                                            }
-                                        </div>
-
-                                        @* Deleted comments toggle *@
-                                        @if (_deletedComments.Count > 0)
-                                        {
-                                            <button class="tracks-link-btn tracks-deleted-comments-toggle"
-                                                    @onclick="() => _showDeletedComments = !_showDeletedComments">
-                                                <MaterialIcon Icon="@(_showDeletedComments ? "expand_more" : "chevron_right")" Size="MaterialIconSize.Sm" /> Show @_deletedComments.Count deleted comment@(_deletedComments.Count != 1 ? "s" : "")
-                                            </button>
-
-                                            @if (_showDeletedComments)
-                                            {
-                                                @foreach (var comment in _deletedComments.OrderByDescending(c => c.DeletedAt))
-                                                {
-                                                    <div class="tracks-comment tracks-comment--deleted">
-                                                        <div class="tracks-comment-header">
-                                                            <strong>@(comment.DisplayName ?? "User")</strong>
-                                                            <span class="tracks-comment-date">Deleted @TimeProvider.FormatDateTime(comment.DeletedAt, "MMM d")</span>
-                                                        </div>
-                                                        <div class="tracks-comment-body markdown-body tracks-comment-body--deleted">
-                                                            @((MarkupString)RenderCommentContent(comment.Content))
-                                                        </div>
-                                                        <div class="tracks-comment-actions">
-                                                            <button class="tracks-link-btn"
-                                                                    @onclick="() => RestoreCommentAsync(comment.Id)"
-                                                                    disabled="@(_restoringCommentId == comment.Id)">
-                                                                @(_restoringCommentId == comment.Id ? "Restoring..." : "Restore")
-                                                            </button>
-                                                            <button class="tracks-link-btn tracks-link-btn--danger"
-                                                                    @onclick="() => PermanentDeleteCommentAsync(comment.Id)"
-                                                                    disabled="@(_deletingCommentId == comment.Id)">
-                                                                @(_deletingCommentId == comment.Id ? "Deleting..." : "Permanent Delete")
-                                                            </button>
-                                                        </div>
+                                                    <div class="tracks-progress-bar">
+                                                        <div class="tracks-progress-fill" style="width: @(total > 0 ? (done * 100 / total) : 0)%"></div>
                                                     </div>
                                                 }
-                                            }
-                                        }
-                                    </div>
-
-                                    @* Activity Log *@
-                                    <div class="tracks-card-section">
-                                        <h4>Activity</h4>
-                                        @if (_activities.Count == 0)
-                                        {
-                                            <p class="tracks-muted">No activity yet.</p>
-                                        }
-                                        @foreach (var activity in _activities)
-                                        {
-                                            <div class="tracks-activity-item">
-                                                <span>@FormatActivityAction(activity)</span>
-                                                <span class="tracks-activity-date">@TimeProvider.FormatDateTime(TimeProvider.ToLocal(activity.CreatedAt), "MMM d")</span>
-                                            </div>
-                                        }
-                                    </div>
-                                </div>
-
-                                @* ── Sidebar ── *@
-                                <div class="tracks-card-panel-sidebar">
-                                    @* Sprint (Item only) *@
-                                    @if (WorkItem.Type == WorkItemType.Item && Sprints is not null)
-                                    {
-                                        <div class="tracks-card-sidebar-section">
-                                            <label>Sprint</label>
-                                            <select class="form-control form-control-sm" value="@(_selectedSprintId ?? "")"
-                                                    @onchange="SaveSprintAsync">
-                                                <option value="">None</option>
-                                                @foreach (var sprint in Sprints.Where(s => s.Status != SprintStatus.Completed))
+                                                @foreach (var item in checklist.Items.OrderBy(i => i.Position))
                                                 {
-                                                    <option value="@sprint.Id">
-                                                        @sprint.Title (@sprint.Status)
-                                                    </option>
-                                                }
-                                            </select>
-                                            @if (WorkItem.SprintId.HasValue)
-                                            {
-                                                <button class="btn btn-sm btn-outline tracks-sprint-remove-btn"
-                                                        @onclick="RemoveFromSprintAsync">Remove from sprint</button>
-                                            }
-                                        </div>
-                                    }
-
-                                    @* Priority *@
-                                    <div class="tracks-card-sidebar-section">
-                                        <label>Priority</label>
-                                        <select class="form-control form-control-sm" @bind="_selectedPriority"
-                                                @bind:after="SavePriorityAsync">
-                                            <option value="None">None</option>
-                                            <option value="Low">Low</option>
-                                            <option value="Medium">Medium</option>
-                                            <option value="High">High</option>
-                                            <option value="Urgent">Urgent</option>
-                                        </select>
-                                    </div>
-
-                                    @* Due Date *@
-                                    <div class="tracks-card-sidebar-section">
-                                        <label>Due Date</label>
-                                        <input type="date" class="form-control form-control-sm" value="@_dueDate"
-                                               @onchange="SaveDueDateAsync" />
-                                    </div>
-
-                                    @* Story Points *@
-                                    <div class="tracks-card-sidebar-section">
-                                        <label>Story Points</label>
-                                        <select class="form-control form-control-sm" value="@_storyPoints" @onchange="SaveStoryPointsAsync">
-                                            <option value="">—</option>
-                                            @foreach (var sp in _fibonacciValues)
-                                            {
-                                                <option value="@sp" selected="@(_storyPoints == sp.ToString())">@sp</option>
-                                            }
-                                        </select>
-                                    </div>
-
-                                    @* Assignees *@
-                                    <div class="tracks-card-sidebar-section">
-                                        <label>Assigned</label>
-                                        @foreach (var assign in WorkItem.Assignments)
-                                        {
-                                            <div class="tracks-assignee-row">
-                                                <span class="tracks-avatar-sm">@GetInitials(assign.DisplayName)</span>
-                                                <span>@(assign.DisplayName ?? "User")</span>
-                                                <button class="tracks-icon-btn" @onclick="() => UnassignUserAsync(assign.UserId)">×</button>
-                                            </div>
-                                        }
-                                        @if (_showAssignInput)
-                                        {
-                                            <div class="tracks-assign-input">
-                                                <select class="form-control form-control-sm" @bind="_assignUserId">
-                                                    <option value="">Select member...</option>
-                                                    @foreach (var member in Members ?? [])
-                                                    {
-                                                        if (WorkItem.Assignments.Any(a => a.UserId == member.UserId)) continue;
-                                                        <option value="@member.UserId">@(member.DisplayName ?? member.UserId.ToString())</option>
-                                                    }
-                                                </select>
-                                                <button class="btn btn-sm btn-primary" @onclick="AssignUserAsync">Add</button>
-                                            </div>
-                                        }
-                                        else
-                                        {
-                                            <button class="btn btn-sm btn-outline" @onclick="() => _showAssignInput = true">+ Assign</button>
-                                        }
-                                    </div>
-
-                                    @* Labels *@
-                                    <div class="tracks-card-sidebar-section">
-                                        <label>Labels</label>
-                                        @if (_showLabelPicker)
-                                        {
-                                            <div class="tracks-label-picker">
-                                                @{
-                                                    var availableLabels = (ProductLabels ?? []).Where(l => !WorkItem.Labels.Any(cl => cl.Id ==
-                                                l.Id)).ToList();
-                                                }
-                                                @if (availableLabels.Count > 0)
-                                                {
-                                                    @foreach (var label in availableLabels)
-                                                    {
-                                                        <button class="tracks-label-option" style="background: @label.Color;"
-                                                                @onclick="() => AddLabelAsync(label.Id)">
-                                                            @label.Title
-                                                        </button>
-                                                    }
-                                                }
-                                                else if (!_showCreateLabel)
-                                                {
-                                                    <span class="tracks-muted">All product labels applied</span>
-                                                }
-                                                @if (_showCreateLabel)
-                                                {
-                                                    <div class="tracks-create-label">
-                                                        <input type="text" class="form-control form-control-sm" placeholder="Label name..."
-                                                               @bind="_newLabelTitle" />
-                                                        <div class="tracks-color-presets">
-                                                            @foreach (var color in _labelColors)
-                                                            {
-                                                                <button class="tracks-color-swatch @(color == _newLabelColor ? "active" : "")"
-                                                                        style="background: @color;" @onclick="() => _newLabelColor = color"></button>
-                                                            }
-                                                        </div>
-                                                        <div class="tracks-create-label-actions">
-                                                            <button class="btn btn-sm btn-primary"
-                                                                    disabled="@string.IsNullOrWhiteSpace(_newLabelTitle)"
-                                                                    @onclick="CreateAndApplyLabelAsync">Create</button>
-                                                            <button class="btn btn-sm btn-secondary"
-                                                                    @onclick="() => _showCreateLabel = false">Cancel</button>
-                                                        </div>
-                                                    </div>
-                                                }
-                                                else
-                                                {
-                                                    <button class="tracks-link-btn" @onclick="() => _showCreateLabel = true">+ New Label</button>
-                                                }
-                                                <button class="tracks-link-btn"
-                                                        @onclick="() => { _showLabelPicker = false; _showCreateLabel = false; }">Close</button>
-                                            </div>
-                                        }
-                                        else
-                                        {
-                                            <button class="btn btn-sm btn-outline" @onclick="() => _showLabelPicker = true">+ Label</button>
-                                        }
-                                    </div>
-
-                                    @* Attachments *@
-                                    <div class="tracks-card-sidebar-section">
-                                        <label>Attachments (@_attachments.Count)</label>
-                                        @foreach (var att in _attachments)
-                                        {
-                                            <div class="tracks-attachment-row">
-                                                <span><MaterialIcon Icon="attach_file" Size="MaterialIconSize.Sm" /> @att.FileName</span>
-                                                <button class="tracks-icon-btn" @onclick="() => RemoveAttachmentAsync(att.Id)" title="Remove attachment"><MaterialIcon Icon="close" Size="MaterialIconSize.Sm" /></button>
-                                            </div>
-                                        }
-                                        @if (_showAttachmentInput)
-                                        {
-                                            <div class="tracks-attachment-add">
-                                                <div class="tracks-file-upload">
-                                                    <InputFile OnChange="HandleFileSelectedAsync" multiple class="tracks-file-input"
-                                                               id="item-file-upload" />
-                                                    <label for="item-file-upload" class="btn btn-sm btn-outline tracks-file-label">
-                                                        @(_isUploadingFile ? "Uploading…" : "Browse Files")
+                                                    <label class="tracks-checklist-item">
+                                                        <input type="checkbox" checked="@item.IsCompleted"
+                                                               @onchange="() => ToggleChecklistItemAsync(checklist.Id, item.Id)" />
+                                                        <span class="@(item.IsCompleted ? "completed" : "")">@item.Title</span>
                                                     </label>
-                                                </div>
-                                                <div class="tracks-attachment-divider">
-                                                    <span>or add URL</span>
-                                                </div>
-                                                <input type="text" class="form-control form-control-sm" placeholder="File name"
-                                                       @bind="_attachFileName" />
-                                                <input type="url" class="form-control form-control-sm" placeholder="URL (optional)"
-                                                       @bind="_attachUrl" />
-                                                <div class="tracks-attachment-actions">
-                                                    <button class="btn btn-sm btn-primary"
-                                                            disabled="@string.IsNullOrWhiteSpace(_attachFileName)" @onclick="AddAttachmentAsync">Add
-                                                        Link</button>
-                                                        <button class="btn btn-sm btn-secondary"
-                                                                @onclick="() => _showAttachmentInput = false">Cancel</button>
-                                                    </div>
-                                                </div>
-                                            }
-                    else
-                                            {
-                                                <button class="btn btn-sm btn-outline" @onclick="() => _showAttachmentInput = true">+
-                                                    Attach</button>
                                                 }
-                                            </div>
-
-                                            @* Dependencies *@
-                                            <div class="tracks-card-sidebar-section">
-                                                <label>Dependencies</label>
-                                                @foreach (var dep in _dependencies)
-                                                {
-                                                    <div class="tracks-dependency-row">
-                                                        <span class="tracks-dep-type"><MaterialIcon Icon="@(dep.Type == DependencyType.BlockedBy ? "block" : "link")" Size="MaterialIconSize.Sm" /> @(dep.Type == DependencyType.BlockedBy ? "Blocked by" : "Relates to")</span>
-                                                        <div class="tracks-dep-target">
-                                                            <span>@(dep.DependsOnTitle ?? dep.DependsOnWorkItemId.ToString()[..8])</span>
-                                                            <button class="tracks-icon-btn" @onclick="() => RemoveDependencyAsync(dep.Id)" title="Remove dependency"><MaterialIcon Icon="close" Size="MaterialIconSize.Sm" /></button>
-                                                        </div>
-                                                    </div>
-                                                }
-                                                @if (_showDependencyPicker)
-                                                {
-                                                    <div class="tracks-dependency-add">
-                                                        <select class="form-control form-control-sm" @bind="_depType">
-                                                            <option value="BlockedBy">Blocked by</option>
-                                                            <option value="RelatesTo">Relates to</option>
-                                                        </select>
-                                                        <select class="form-control form-control-sm" @bind="_depTargetItemId">
-                                                            <option value="">Select item...</option>
-                                                            @foreach (var item in _swimlaneItems.Where(c =>
-                                                                c.Id != WorkItem.Id && !_dependencies.Any(d => d.DependsOnWorkItemId == c.Id)))
-                                                            {
-                                                                <option value="@item.Id">#@item.ItemNumber @item.Title</option>
-                                                            }
-                                                        </select>
-                                                        <div class="tracks-dep-actions">
-                                                            <button class="btn btn-sm btn-primary" @onclick="AddDependencyAsync">Add</button>
-                                                            <button class="btn btn-sm btn-secondary"
-                                                                    @onclick="() => _showDependencyPicker = false">Cancel</button>
-                                                        </div>
-                                                    </div>
-                                                }
-                                                else
-                                                {
-                                                    <button class="btn btn-sm btn-outline" @onclick="OpenDependencyPickerAsync">+ Dependency</button>
-                                                }
-                                            </div>
-
-                                            @* Time Tracking (Item only) *@
-                                            @if (WorkItem.Type == WorkItemType.Item)
-                                            {
-                                                <div class="tracks-card-sidebar-section">
-                                                    <label>Time Tracked</label>
-                                                    <span class="tracks-time-total">@FormatMinutes(_liveTrackedMinutes)</span>
-                                                    @if (_timeEntries.Any(e => e.EndTime is null))
+                                                <div class="tracks-checklist-add">
+                                                    @if (_addingItemToChecklist == checklist.Id)
                                                     {
-                                                        <button class="btn btn-sm btn-danger" @onclick="StopTimerAsync">⏹ Stop Timer</button>
+                                                        <input type="text" class="form-control form-control-sm" placeholder="Item title..."
+                                                               @bind="_newChecklistItemTitle" @onkeydown="HandleChecklistItemKeyDown" />
+                                                        <button class="btn btn-sm btn-primary"
+                                                                @onclick="() => AddChecklistItemAsync(checklist.Id)">Add</button>
                                                     }
                                                     else
                                                     {
-                                                        <button class="btn btn-sm btn-outline" @onclick="StartTimerAsync">⏱ Start Timer</button>
-                                                    }
-                                                </div>
-                                            }
-
-                                            @* Actions *@
-                                            @if (WorkItem.Type == WorkItemType.Item && !Product.SubItemsEnabled)
-                                            {
-                                                <div class="tracks-card-sidebar-section">
-                                                    <label>Actions</label>
-                                                    <button class="btn btn-sm btn-outline" @onclick="AddChecklistAsync">+ Checklist</button>
-                                                </div>
-                                            }
-
-                                            <div class="tracks-card-sidebar-section">
-                                                <label>Manage</label>
-                                                <button class="btn btn-sm btn-outline" @onclick="ShowArchiveConfirm">
-                                                    @(WorkItem.IsArchived ? "Unarchive" : "Archive")
-                                                </button>
-                                                <button class="btn btn-sm btn-danger" @onclick="ShowDeleteConfirm">Delete</button>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            @* ── Confirmation Modal ── *@
-                            @if (_showConfirmModal && _confirmAction is not null)
-                            {
-                                <div class="tracks-modal-overlay" @onclick="CancelConfirm">
-                                    <div class="tracks-modal" @onclick:stopPropagation>
-                                        <div class="tracks-modal-header">
-                                            <h3>@(_confirmAction == "delete" ? "Delete Item" : (_confirmAction == "archive" ? "Archive Item" :
-                                                               "Unarchive Item"))</h3>
-                                                <button class="tracks-close-btn" @onclick="CancelConfirm">×</button>
-                                            </div>
-                                            <div class="tracks-modal-body">
-                                                @if (_confirmAction == "delete")
-                                                {
-                                                    <p>Are you sure you want to <strong>permanently delete</strong> item <strong>#@WorkItem.ItemNumber
-                                                        @WorkItem.Title</strong>?</p>
-                                                        <p class="tracks-modal-warning">This action cannot be undone.</p>
-                                                    }
-                else
-                                                    {
-                                                        <p>Are you sure you want to <strong>@_confirmAction</strong> item <strong>#@WorkItem.ItemNumber
-                                                            @WorkItem.Title</strong>?</p>
-                                                        }
-                                                    </div>
-                                                    <div class="tracks-modal-footer">
-                                                        <button class="btn btn-sm @(_confirmAction == "delete" ? "btn-danger" : "btn-primary")"
-                                                                @onclick="ConfirmActionAsync">
-                                                            @(_confirmAction == "delete" ? "Delete" : (_confirmAction == "archive" ? "Archive" : "Unarchive"))
+                                                        <button class="btn btn-sm btn-outline"
+                                                                @onclick="() => { _addingItemToChecklist = checklist.Id; _newChecklistItemTitle = string.Empty; }">
+                                                            + Add item
                                                         </button>
-                                                        <button class="btn btn-sm btn-secondary" @onclick="CancelConfirm">Cancel</button>
-                                                    </div>
+                                                    }
                                                 </div>
                                             </div>
                                         }
+                                    }
+                                else
+                                    {
+                                        @* SubItems (when SubItems enabled) *@
+                                        <div class="tracks-card-section">
+                                            <h4>Sub Items (@_childWorkItems.Count)</h4>
+                                            @foreach (var sub in _childWorkItems)
+                                            {
+                                                <div class="tracks-child-item-row">
+                                                    <span>#@sub.ItemNumber</span>
+                                                    <span>@sub.Title</span>
+                                                    <span class="tracks-child-item-meta @GetPriorityClass(sub.Priority)">@sub.Priority</span>
+                                                </div>
+                                            }
+                                        </div>
+                                    }
+                                }
+
+                                @* Comments *@
+                                <div class="tracks-card-section">
+                                    <h4>Comments</h4>
+                                    @if (_showCommentComposer)
+                                    {
+                                        <div class="tracks-comment-add">
+                                            <div class="tracks-comment-input-wrapper">
+                                                <textarea class="form-control tracks-comment-textarea"
+                                                          placeholder="Write a comment... Use @@ to mention someone" rows="3"
+                                                          @bind="_newCommentContent" @bind:event="oninput" @onkeydown="HandleCommentKeyDown"
+                                                          @onkeyup="HandleCommentKeyUp" @ref="_commentTextarea"></textarea>
+                                                <MentionTypeahead @ref="_mentionTypeahead" OnUserSelected="HandleMentionSelected"
+                                                                  OnDismiss="HandleMentionDismissed" />
+                                            </div>
+                                            <div class="tracks-card-section-actions">
+                                                <button class="btn btn-sm btn-primary"
+                                                        disabled="@string.IsNullOrWhiteSpace(_newCommentContent)"
+                                                        @onclick="AddCommentAsync">Comment</button>
+                                                <button class="btn btn-sm btn-secondary" @onclick="CancelComment">Cancel</button>
+                                            </div>
+                                        </div>
+                                    }
+                                    else
+                                    {
+                                        <button class="btn btn-sm btn-primary" @onclick="() => _showCommentComposer = true">+ Add
+                                            Comment</button>
+                                        }
+                                        <div class="tracks-comment-list">
+                                            @foreach (var comment in _comments.OrderByDescending(c => c.CreatedAt))
+                                            {
+                                                <div class="tracks-comment">
+                                                    <div class="tracks-comment-header">
+                                                        <strong>@(comment.DisplayName ?? "User")</strong>
+                                                        <span class="tracks-comment-date">@TimeProvider.FormatDateTime(TimeProvider.ToLocal(comment.CreatedAt), "MMM d")</span>
+                                                    </div>
+                                                    <div class="tracks-comment-body markdown-body">
+                                                        @((MarkupString)RenderCommentContent(comment.Content))</div>
+                                                        <div class="tracks-comment-actions">
+                                                            <button class="tracks-link-btn"
+                                                                    @onclick="() => DeleteCommentAsync(comment.Id)">Delete</button>
+                                                        </div>
+                                                    </div>
+                                                }
+                                            </div>
+
+                                            @* Deleted comments toggle *@
+                                            @if (_deletedComments.Count > 0)
+                                            {
+                                                <button class="tracks-link-btn tracks-deleted-comments-toggle"
+                                                        @onclick="() => _showDeletedComments = !_showDeletedComments">
+                                                    <MaterialIcon Icon="@(_showDeletedComments ? "expand_more" : "chevron_right")"
+                                                                  Size="MaterialIconSize.Sm" /> Show @_deletedComments.Count deleted
+                                                    comment@(_deletedComments.Count != 1 ? "s" : "")
+                                                </button>
+
+                                                @if (_showDeletedComments)
+                                                {
+                                                    @foreach (var comment in _deletedComments.OrderByDescending(c => c.DeletedAt))
+                                                    {
+                                                        <div class="tracks-comment tracks-comment--deleted">
+                                                            <div class="tracks-comment-header">
+                                                                <strong>@(comment.DisplayName ?? "User")</strong>
+                                                                <span class="tracks-comment-date">Deleted @TimeProvider.FormatDateTime(comment.DeletedAt,
+                                                                     "MMM d")</span>
+                                                                </div>
+                                                                <div class="tracks-comment-body markdown-body tracks-comment-body--deleted">
+                                                                    @((MarkupString)RenderCommentContent(comment.Content))
+                                                                </div>
+                                                                <div class="tracks-comment-actions">
+                                                                    <button class="tracks-link-btn" @onclick="() => RestoreCommentAsync(comment.Id)"
+                                                                            disabled="@(_restoringCommentId == comment.Id)">
+                                                                        @(_restoringCommentId == comment.Id ? "Restoring..." : "Restore")
+                                                                    </button>
+                                                                    <button class="tracks-link-btn tracks-link-btn--danger"
+                                                                            @onclick="() => PermanentDeleteCommentAsync(comment.Id)"
+                                                                            disabled="@(_deletingCommentId == comment.Id)">
+                                                                        @(_deletingCommentId == comment.Id ? "Deleting..." : "Permanent Delete")
+                                                                    </button>
+                                                                </div>
+                                                            </div>
+                                                        }
+                                                    }
+                                                }
+                                            </div>
+
+                                            @* Activity Log *@
+                                            <div class="tracks-card-section">
+                                                <h4>Activity</h4>
+                                                @if (_activities.Count == 0)
+                                                {
+                                                    <p class="tracks-muted">No activity yet.</p>
+                                                }
+                                                @foreach (var activity in _activities)
+                                                {
+                                                    <div class="tracks-activity-item">
+                                                        <span>@FormatActivityAction(activity)</span>
+                                                        <span class="tracks-activity-date">@TimeProvider.FormatDateTime(TimeProvider.ToLocal(activity.CreatedAt), "MMM d")</span>
+                                                    </div>
+                                                }
+                                            </div>
+                                        </div>
+
+                                        @* ── Sidebar ── *@
+                                        <div class="tracks-card-panel-sidebar">
+                                            @* Sprint (Item only) *@
+                                            @if (WorkItem.Type == WorkItemType.Item && Sprints is not null)
+                                            {
+                                                <div class="tracks-card-sidebar-section">
+                                                    <label>Sprint</label>
+                                                    <select class="form-control form-control-sm" value="@(_selectedSprintId ?? "")"
+                                                            @onchange="SaveSprintAsync">
+                                                        <option value="">None</option>
+                                                        @foreach (var sprint in Sprints.Where(s => s.Status != SprintStatus.Completed))
+                                                        {
+                                                            <option value="@sprint.Id">
+                                                                @sprint.Title (@sprint.Status)
+                                                            </option>
+                                                        }
+                                                    </select>
+                                                    @if (WorkItem.SprintId.HasValue)
+                                                    {
+                                                        <button class="btn btn-sm btn-outline tracks-sprint-remove-btn"
+                                                                @onclick="RemoveFromSprintAsync">Remove from sprint</button>
+                                                    }
+                                                </div>
+                                            }
+
+                                            @* Priority *@
+                                            <div class="tracks-card-sidebar-section">
+                                                <label>Priority</label>
+                                                <select class="form-control form-control-sm" @bind="_selectedPriority"
+                                                        @bind:after="SavePriorityAsync">
+                                                    <option value="None">None</option>
+                                                    <option value="Low">Low</option>
+                                                    <option value="Medium">Medium</option>
+                                                    <option value="High">High</option>
+                                                    <option value="Urgent">Urgent</option>
+                                                </select>
+                                            </div>
+
+                                            @* Due Date *@
+                                            <div class="tracks-card-sidebar-section">
+                                                <label>Due Date</label>
+                                                <input type="date" class="form-control form-control-sm" value="@_dueDate"
+                                                       @onchange="SaveDueDateAsync" />
+                                            </div>
+
+                                            @* Story Points *@
+                                            <div class="tracks-card-sidebar-section">
+                                                <label>Story Points</label>
+                                                <select class="form-control form-control-sm" value="@_storyPoints" @onchange="SaveStoryPointsAsync">
+                                                    <option value="">—</option>
+                                                    @foreach (var sp in _fibonacciValues)
+                                                    {
+                                                        <option value="@sp" selected="@(_storyPoints == sp.ToString())">@sp</option>
+                                                    }
+                                                </select>
+                                            </div>
+
+                                            @* Assignees *@
+                                            <div class="tracks-card-sidebar-section">
+                                                <label>Assigned</label>
+                                                @foreach (var assign in WorkItem.Assignments)
+                                                {
+                                                    <div class="tracks-assignee-row">
+                                                        <span class="tracks-avatar-sm">@GetInitials(assign.DisplayName)</span>
+                                                        <span>@(assign.DisplayName ?? "User")</span>
+                                                        <button class="tracks-icon-btn" @onclick="() => UnassignUserAsync(assign.UserId)">×</button>
+                                                    </div>
+                                                }
+                                                @if (_showAssignInput)
+                                                {
+                                                    <div class="tracks-assign-input">
+                                                        <select class="form-control form-control-sm" @bind="_assignUserId">
+                                                            <option value="">Select member...</option>
+                                                            @foreach (var member in Members ?? [])
+                                                            {
+                                                                if (WorkItem.Assignments.Any(a => a.UserId == member.UserId)) continue;
+                                                                <option value="@member.UserId">@(member.DisplayName ?? member.UserId.ToString())</option>
+                                                            }
+                                                        </select>
+                                                        <button class="btn btn-sm btn-primary" @onclick="AssignUserAsync">Add</button>
+                                                    </div>
+                                                }
+                                                else
+                                                {
+                                                    <button class="btn btn-sm btn-outline" @onclick="() => _showAssignInput = true">+ Assign</button>
+                                                }
+                                            </div>
+
+                                            @* Labels *@
+                                            <div class="tracks-card-sidebar-section">
+                                                <label>Labels</label>
+                                                @if (_showLabelPicker)
+                                                {
+                                                    <div class="tracks-label-picker">
+                                                        @{
+                                                            var availableLabels = (ProductLabels ?? []).Where(l => !WorkItem.Labels.Any(cl => cl.Id ==
+                                                        l.Id)).ToList();
+                                                        }
+                                                        @if (availableLabels.Count > 0)
+                                                        {
+                                                            @foreach (var label in availableLabels)
+                                                            {
+                                                                <button class="tracks-label-option" style="background: @label.Color;"
+                                                                        @onclick="() => AddLabelAsync(label.Id)">
+                                                                    @label.Title
+                                                                </button>
+                                                            }
+                                                        }
+                                                        else if (!_showCreateLabel)
+                                                        {
+                                                            <span class="tracks-muted">All product labels applied</span>
+                                                        }
+                                                        @if (_showCreateLabel)
+                                                        {
+                                                            <div class="tracks-create-label">
+                                                                <input type="text" class="form-control form-control-sm" placeholder="Label name..."
+                                                                       @bind="_newLabelTitle" />
+                                                                <div class="tracks-color-presets">
+                                                                    @foreach (var color in _labelColors)
+                                                                    {
+                                                                        <button class="tracks-color-swatch @(color == _newLabelColor ? "active" : "")"
+                                                                                style="background: @color;" @onclick="() => _newLabelColor = color"></button>
+                                                                    }
+                                                                </div>
+                                                                <div class="tracks-create-label-actions">
+                                                                    <button class="btn btn-sm btn-primary"
+                                                                            disabled="@string.IsNullOrWhiteSpace(_newLabelTitle)"
+                                                                            @onclick="CreateAndApplyLabelAsync">Create</button>
+                                                                    <button class="btn btn-sm btn-secondary"
+                                                                            @onclick="() => _showCreateLabel = false">Cancel</button>
+                                                                </div>
+                                                            </div>
+                                                        }
+                                                        else
+                                                        {
+                                                            <button class="tracks-link-btn" @onclick="() => _showCreateLabel = true">+ New Label</button>
+                                                        }
+                                                        <button class="tracks-link-btn"
+                                                                @onclick="() => { _showLabelPicker = false; _showCreateLabel = false; }">Close</button>
+                                                    </div>
+                                                }
+                                                else
+                                                {
+                                                    <button class="btn btn-sm btn-outline" @onclick="() => _showLabelPicker = true">+ Label</button>
+                                                }
+                                            </div>
+
+                                            @* Attachments *@
+                                            <div class="tracks-card-sidebar-section">
+                                                <label>Attachments (@_attachments.Count)</label>
+                                                @foreach (var att in _attachments)
+                                                {
+                                                    <div class="tracks-attachment-row">
+                                                        <span><MaterialIcon Icon="attach_file" Size="MaterialIconSize.Sm" /> @att.FileName</span>
+                                                        <button class="tracks-icon-btn" @onclick="() => RemoveAttachmentAsync(att.Id)"
+                                                                title="Remove attachment">
+                                                            <MaterialIcon Icon="close" Size="MaterialIconSize.Sm" /></button>
+                                                        </div>
+                                                    }
+                                                    @if (_showAttachmentInput)
+                                                    {
+                                                        <div class="tracks-attachment-add">
+                                                            <div class="tracks-file-upload">
+                                                                <InputFile OnChange="HandleFileSelectedAsync" multiple class="tracks-file-input"
+                                                                           id="item-file-upload" />
+                                                                <label for="item-file-upload" class="btn btn-sm btn-outline tracks-file-label">
+                                                                    @(_isUploadingFile ? "Uploading…" : "Browse Files")
+                                                                </label>
+                                                            </div>
+                                                            <div class="tracks-attachment-divider">
+                                                                <span>or add URL</span>
+                                                            </div>
+                                                            <input type="text" class="form-control form-control-sm" placeholder="File name"
+                                                                   @bind="_attachFileName" />
+                                                            <input type="url" class="form-control form-control-sm" placeholder="URL (optional)"
+                                                                   @bind="_attachUrl" />
+                                                            <div class="tracks-attachment-actions">
+                                                                <button class="btn btn-sm btn-primary"
+                                                                        disabled="@string.IsNullOrWhiteSpace(_attachFileName)" @onclick="AddAttachmentAsync">Add
+                                                                    Link</button>
+                                                                    <button class="btn btn-sm btn-secondary"
+                                                                            @onclick="() => _showAttachmentInput = false">Cancel</button>
+                                                                </div>
+                                                            </div>
+                                                        }
+                    else
+                                                        {
+                                                            <button class="btn btn-sm btn-outline" @onclick="() => _showAttachmentInput = true">+
+                                                                Attach</button>
+                                                            }
+                                                        </div>
+
+                                                        @* Dependencies *@
+                                                        <div class="tracks-card-sidebar-section">
+                                                            <label>Dependencies</label>
+                                                            @foreach (var dep in _dependencies)
+                                                            {
+                                                                <div class="tracks-dependency-row">
+                                                                    <span class="tracks-dep-type">
+                                                                        <MaterialIcon Icon="@(dep.Type == DependencyType.BlockedBy ? "block" : "link")"
+                                                                                      Size="MaterialIconSize.Sm" /> @(dep.Type == DependencyType.BlockedBy ? "Blocked by" :
+                                                                                      "Relates to")</span>
+                                                                        <div class="tracks-dep-target">
+                                                                            <span>@(dep.DependsOnTitle ?? dep.DependsOnWorkItemId.ToString()[..8])</span>
+                                                                            <button class="tracks-icon-btn" @onclick="() => RemoveDependencyAsync(dep.Id)"
+                                                                                    title="Remove dependency">
+                                                                                <MaterialIcon Icon="close" Size="MaterialIconSize.Sm" /></button>
+                                                                            </div>
+                                                                        </div>
+                                                                    }
+                                                                    @if (_showDependencyPicker)
+                                                                    {
+                                                                        <div class="tracks-dependency-add">
+                                                                            <select class="form-control form-control-sm" @bind="_depType">
+                                                                                <option value="BlockedBy">Blocked by</option>
+                                                                                <option value="RelatesTo">Relates to</option>
+                                                                            </select>
+                                                                            <select class="form-control form-control-sm" @bind="_depTargetItemId">
+                                                                                <option value="">Select item...</option>
+                                                                                @foreach (var item in _swimlaneItems.Where(c =>
+                                                                                    c.Id != WorkItem.Id && !_dependencies.Any(d => d.DependsOnWorkItemId == c.Id)))
+                                                                                {
+                                                                                    <option value="@item.Id">#@item.ItemNumber @item.Title</option>
+                                                                                }
+                                                                            </select>
+                                                                            <div class="tracks-dep-actions">
+                                                                                <button class="btn btn-sm btn-primary" @onclick="AddDependencyAsync">Add</button>
+                                                                                <button class="btn btn-sm btn-secondary"
+                                                                                        @onclick="() => _showDependencyPicker = false">Cancel</button>
+                                                                            </div>
+                                                                        </div>
+                                                                    }
+                                                                    else
+                                                                    {
+                                                                        <button class="btn btn-sm btn-outline" @onclick="OpenDependencyPickerAsync">+ Dependency</button>
+                                                                    }
+                                                                </div>
+
+                                                                @* Time Tracking (Item only) *@
+                                                                @if (WorkItem.Type == WorkItemType.Item)
+                                                                {
+                                                                    <div class="tracks-card-sidebar-section">
+                                                                        <label>Time Tracked</label>
+                                                                        <span class="tracks-time-total">@FormatMinutes(_liveTrackedMinutes)</span>
+                                                                        @if (_timeEntries.Any(e => e.EndTime is null))
+                                                                        {
+                                                                            <button class="btn btn-sm btn-danger" @onclick="StopTimerAsync">⏹ Stop Timer</button>
+                                                                        }
+                                                                        else
+                                                                        {
+                                                                            <button class="btn btn-sm btn-outline" @onclick="StartTimerAsync">⏱ Start Timer</button>
+                                                                        }
+                                                                    </div>
+                                                                }
+
+                                                                @* Actions *@
+                                                                @if (WorkItem.Type == WorkItemType.Item && !Product.SubItemsEnabled)
+                                                                {
+                                                                    <div class="tracks-card-sidebar-section">
+                                                                        <label>Actions</label>
+                                                                        <button class="btn btn-sm btn-outline" @onclick="AddChecklistAsync">+ Checklist</button>
+                                                                    </div>
+                                                                }
+
+                                                                <div class="tracks-card-sidebar-section">
+                                                                    <label>Manage</label>
+                                                                    <button class="btn btn-sm btn-outline" @onclick="ShowArchiveConfirm">
+                                                                        @(WorkItem.IsArchived ? "Unarchive" : "Archive")
+                                                                    </button>
+                                                                    <button class="btn btn-sm btn-danger" @onclick="ShowDeleteConfirm">Delete</button>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                @* ── Confirmation Modal ── *@
+                                                @if (_showConfirmModal && _confirmAction is not null)
+                                                {
+                                                    <div class="tracks-modal-overlay" @onclick="CancelConfirm">
+                                                        <div class="tracks-modal" @onclick:stopPropagation>
+                                                            <div class="tracks-modal-header">
+                                                                <h3>@(_confirmAction == "delete" ? "Delete Item" : (_confirmAction == "archive" ? "Archive Item" :
+                                                                                                                                   "Unarchive Item"))</h3>
+                                                                    <button class="tracks-close-btn" @onclick="CancelConfirm">×</button>
+                                                                </div>
+                                                                <div class="tracks-modal-body">
+                                                                    @if (_confirmAction == "delete")
+                                                                    {
+                                                                        <p>Are you sure you want to <strong>permanently delete</strong> item <strong>#@WorkItem.ItemNumber
+                                                                            @WorkItem.Title</strong>?</p>
+                                                                            <p class="tracks-modal-warning">This action cannot be undone.</p>
+                                                                        }
+                else
+                                                                        {
+                                                                            <p>Are you sure you want to <strong>@_confirmAction</strong> item <strong>#@WorkItem.ItemNumber
+                                                                                @WorkItem.Title</strong>?</p>
+                                                                            }
+                                                                        </div>
+                                                                        <div class="tracks-modal-footer">
+                                                                            <button class="btn btn-sm @(_confirmAction == "delete" ? "btn-danger" : "btn-primary")"
+                                                                                    @onclick="ConfirmActionAsync">
+                                                                                @(_confirmAction == "delete" ? "Delete" : (_confirmAction == "archive" ? "Archive" : "Unarchive"))
+                                                                            </button>
+                                                                            <button class="btn btn-sm btn-secondary" @onclick="CancelConfirm">Cancel</button>
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+                                                            }

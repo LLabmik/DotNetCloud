@@ -21,7 +21,6 @@ internal sealed class WidgetUiRegistrationHostedService : BackgroundService
         Widget("dotnetcloud.contacts", "Contacts", "/apps/contacts", typeof(DotNetCloud.Modules.Contacts.Widget.ContactsWidget), 30),
         Widget("dotnetcloud.calendar", "Calendar", "/apps/calendar", typeof(DotNetCloud.Modules.Calendar.Widget.CalendarWidget), 40),
         Widget("dotnetcloud.notes", "Notes", "/apps/notes", typeof(DotNetCloud.Modules.Notes.Widget.NotesWidget), 50),
-        Widget("dotnetcloud.tracks", "Tracks", "/apps/tracks", typeof(DotNetCloud.Modules.Tracks.Widget.TracksWidget), 60),
         Widget("dotnetcloud.music", "Music", "/apps/music", typeof(DotNetCloud.Modules.Music.Widget.MusicWidget), 80),
         Widget("dotnetcloud.video", "Video", "/apps/video", typeof(DotNetCloud.Modules.Video.Widget.VideoWidget), 90),
     ];

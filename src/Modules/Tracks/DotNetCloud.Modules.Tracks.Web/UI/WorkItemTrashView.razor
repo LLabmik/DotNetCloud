@@ -5,8 +5,12 @@
     {
         <div class="tracks-deleted-section">
             <button class="tracks-deleted-toggle" @onclick="() => _showDeleted = !_showDeleted">
-                <span class="tracks-deleted-toggle-icon"><MaterialIcon Icon="@(_showDeleted ? "expand_more" : "chevron_right")" Size="MaterialIconSize.Sm" /></span>
-                <span><MaterialIcon Icon="delete" Size="MaterialIconSize.Sm" /> Trash (@_deletedItems.Count)</span>
+                <span class="tracks-deleted-toggle-icon">
+                    <MaterialIcon Icon="@(_showDeleted ? "expand_more" : "chevron_right")" Size="MaterialIconSize.Sm" />
+                </span>
+                <span>
+                    <MaterialIcon Icon="delete" Size="MaterialIconSize.Sm" /> Trash (@_deletedItems.Count)
+                </span>
                 <span class="tracks-deleted-toggle-hint">Restorable within 30 days</span>
             </button>
 
@@ -26,7 +30,9 @@
                     {
                         <div class="tracks-wizard-overlay" @onclick="() => _showEmptyConfirm = false">
                             <div class="tracks-confirm-dialog" @onclick:stopPropagation>
-                                <div class="tracks-confirm-icon"><MaterialIcon Icon="warning" Size="MaterialIconSize.Xl" /></div>
+                                <div class="tracks-confirm-icon">
+                                    <MaterialIcon Icon="warning" Size="MaterialIconSize.Xl" />
+                                </div>
                                 <h3>Empty Trash?</h3>
                                 <p>This will <strong>permanently delete</strong> all @_deletedItems.Count trashed items. This cannot be
                                     undone.</p>
@@ -49,7 +55,8 @@
                                 <div class="tracks-board-card-body">
                                     <div class="tracks-board-card-header">
                                         <h3>
-                                            <MaterialIcon Icon="@GetTypeIcon(item.Type)" Size="MaterialIconSize.Sm" /> #@item.ItemNumber @item.Title
+                                            <MaterialIcon Icon="@GetTypeIcon(item.Type)" Size="MaterialIconSize.Sm" /> #@item.ItemNumber
+                                            @item.Title
                                         </h3>
                                         <div class="tracks-board-card-header-actions">
                                             @if (item.DeletedAt.HasValue)

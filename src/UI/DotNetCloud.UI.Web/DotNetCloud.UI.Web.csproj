@@ -32,7 +32,6 @@
 
     <ProjectReference Include="..\..\Modules\Video\DotNetCloud.Modules.Video\DotNetCloud.Modules.Video.csproj" />
     <ProjectReference Include="..\..\Modules\About\DotNetCloud.Modules.About\DotNetCloud.Modules.About.csproj" />
-    <ProjectReference Include="..\..\Modules\Tracks\DotNetCloud.Modules.Tracks\DotNetCloud.Modules.Tracks.csproj" />
     <ProjectReference Include="..\DotNetCloud.UI.Web.Client\DotNetCloud.UI.Web.Client.csproj" />
     <ProjectReference Include="..\DotNetCloud.UI.Shared\DotNetCloud.UI.Shared.csproj" />
   </ItemGroup>

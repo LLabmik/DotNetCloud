@@ -4,7 +4,9 @@
     @* ── Session Header ── *@
     <div class="review-header">
         <div class="review-header-left">
-            <h2><MaterialIcon Icon="visibility" Size="MaterialIconSize.Sm" /> Live Review Session</h2>
+            <h2>
+                <MaterialIcon Icon="visibility" Size="MaterialIconSize.Sm" /> Live Review Session
+            </h2>
             <span class="review-status-badge @GetStatusClass()">@Session.Status</span>
         </div>
         <div class="review-header-right">
@@ -82,7 +84,8 @@
                     @if (_currentItem.DueDate.HasValue)
                     {
                         <div class="review-card-due">
-                            <MaterialIcon Icon="calendar_today" Size="MaterialIconSize.Sm" /> Due: @_currentItem.DueDate.Value.ToString("MMM d, yyyy")
+                            <MaterialIcon Icon="calendar_today" Size="MaterialIconSize.Sm" /> Due:
+                            @_currentItem.DueDate.Value.ToString("MMM d, yyyy")
                         </div>
                     }
                 </div>
@@ -227,7 +230,9 @@
 
             @* Discussion Panel *@
             <div class="review-discussion">
-                <h4><MaterialIcon Icon="chat" Size="MaterialIconSize.Sm" /> Discussion</h4>
+                <h4>
+                    <MaterialIcon Icon="chat" Size="MaterialIconSize.Sm" /> Discussion
+                </h4>
                 <div class="tracks-discussion-messages">
                     @if (_discussionMessages.Count == 0)
                     {

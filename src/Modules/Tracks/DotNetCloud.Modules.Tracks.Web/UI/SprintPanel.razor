@@ -2,8 +2,12 @@
 
 <div class="tracks-sprint-panel">
     <div class="tracks-sprint-header">
-        <h3><MaterialIcon Icon="directions_run" Size="MaterialIconSize.Sm" /> Sprints</h3>
-        <button class="btn btn-sm btn-primary" @onclick="OpenCreateDialog"><MaterialIcon Icon="add" Size="MaterialIconSize.Sm" /> New Sprint</button>
+        <h3>
+            <MaterialIcon Icon="directions_run" Size="MaterialIconSize.Sm" /> Sprints
+        </h3>
+        <button class="btn btn-sm btn-primary" @onclick="OpenCreateDialog">
+            <MaterialIcon Icon="add" Size="MaterialIconSize.Sm" /> New Sprint
+        </button>
     </div>
 
     @if (Sprints.Count == 0)
@@ -30,261 +34,270 @@
                 <div class="tracks-sprint-meta">
                     @if (sprint.StartDate.HasValue && sprint.EndDate.HasValue)
                     {
-                        <span><MaterialIcon Icon="calendar_today" Size="MaterialIconSize.Sm" /> @TimeProvider.ToLocal(sprint.StartDate.Value).ToString("MMM d") – @TimeProvider.ToLocal(sprint.EndDate.Value).ToString("MMM d")</span>
-                    }
-                    <span><MaterialIcon Icon="checklist" Size="MaterialIconSize.Sm" /> @sprint.ItemCount items</span>
+                        <span>
+                            <MaterialIcon Icon="calendar_today" Size="MaterialIconSize.Sm" />
+                            @TimeProvider.ToLocal(sprint.StartDate.Value).ToString("MMM d") –
+                            @TimeProvider.ToLocal(sprint.EndDate.Value).ToString("MMM d")</span>
+                        }
+                        <span>
+                            <MaterialIcon Icon="checklist" Size="MaterialIconSize.Sm" /> @sprint.ItemCount items
+                        </span>
+                        @if (sprint.TotalStoryPoints > 0)
+                        {
+                            var pct = sprint.TotalStoryPoints > 0
+                                ? (sprint.CompletedStoryPoints * 100 / sprint.TotalStoryPoints)
+                                : 0;
+                            <span>
+                                <MaterialIcon Icon="bar_chart" Size="MaterialIconSize.Sm" />
+                                @sprint.CompletedStoryPoints/@sprint.TotalStoryPoints SP (@pct%)
+                            </span>
+                        }
+                    </div>
                     @if (sprint.TotalStoryPoints > 0)
                     {
-                        var pct = sprint.TotalStoryPoints > 0
-                            ? (sprint.CompletedStoryPoints * 100 / sprint.TotalStoryPoints)
-                            : 0;
-                        <span><MaterialIcon Icon="bar_chart" Size="MaterialIconSize.Sm" /> @sprint.CompletedStoryPoints/@sprint.TotalStoryPoints SP (@pct%)</span>
-                    }
-                </div>
-                @if (sprint.TotalStoryPoints > 0)
-                {
-                    <div class="tracks-progress-bar">
-                        <div class="tracks-progress-fill"
-                             style="width: @(sprint.TotalStoryPoints > 0 ? (sprint.CompletedStoryPoints * 100 / sprint.TotalStoryPoints) : 0)%">
-                        </div>
-                    </div>
-                }
-                <div class="tracks-sprint-actions">
-                    <button class="btn btn-sm btn-outline" @onclick="() => OpenEditDialog(sprint)"
-                            title="Edit sprint details"><MaterialIcon Icon="edit" Size="MaterialIconSize.Sm" /> Edit</button>
-                    @if (sprint.Status == SprintStatus.Planning)
-                    {
-                        <button class="btn btn-sm btn-primary" @onclick="() => StartSprintAsync(sprint.Id)">
-                            <MaterialIcon Icon="play_arrow" Size="MaterialIconSize.Sm" /> Start
-                        </button>
-                    }
-                    @if (sprint.Status == SprintStatus.Active)
-                    {
-                        <button class="btn btn-sm btn-outline" @onclick="() => OpenCompletionDialog(sprint)">
-                            <MaterialIcon Icon="check_circle" Size="MaterialIconSize.Sm" /> Complete
-                        </button>
-                    }
-                    @if (sprint.Status != SprintStatus.Active)
-                    {
-                        <button class="btn btn-sm btn-danger" @onclick="() => DeleteSprintAsync(sprint.Id)">
-                            Delete
-                        </button>
-                    }
-                    <button class="btn btn-sm btn-outline" @onclick="() => ToggleSprintItems(sprint.Id)">
-                        <MaterialIcon Icon="@(_expandedSprintId == sprint.Id ? "expand_less" : "expand_more")" Size="MaterialIconSize.Sm" /> @(_expandedSprintId == sprint.Id ? "Hide" : "Items")
-                    </button>
-                    @if (sprint.Status is SprintStatus.Planning or SprintStatus.Active)
-                    {
-                        <button class="btn btn-sm btn-outline" @onclick="() => OnPlanSprint.InvokeAsync(sprint)">
-                            <MaterialIcon Icon="tune" Size="MaterialIconSize.Sm" /> Plan
-                        </button>
-                    }
-                </div>
-
-                @* ── Sprint Items (Expanded) ── *@
-                @if (_expandedSprintId == sprint.Id)
-                {
-                    <div class="tracks-sprint-backlog">
-                        @if (_isLoadingItems)
-                        {
-                            <p class="tracks-muted">Loading items...</p>
-                        }
-                        else if (_sprintItems.Count == 0)
-                        {
-                            <p class="tracks-muted">No items in this sprint yet.</p>
-                        }
-                        else
-                        {
-                            @foreach (var item in _sprintItems)
-                            {
-                                <div class="tracks-sprint-card-item">
-                                    <span class="tracks-sprint-card-status"><MaterialIcon Icon="check_box_outline_blank" Size="MaterialIconSize.Sm" /></span>
-                                    <span class="tracks-sprint-card-title" @onclick="() => OnWorkItemSelected.InvokeAsync(item.Id)">
-                                        <span class="tracks-card-number">#@item.ItemNumber</span> @item.Title
-                                    </span>
-                                    @if (item.StoryPoints.HasValue)
-                                    {
-                                        <span class="tracks-sprint-card-sp">@item.StoryPoints SP</span>
-                                    }
-                                    else
-                                    {
-                                        <span class="tracks-sprint-card-sp no-estimate">?</span>
-                                    }
-                                    <button class="tracks-icon-btn" title="Remove from sprint"
-                                            @onclick="() => RemoveItemFromSprintAsync(sprint.Id, item.Id)"><MaterialIcon Icon="close" Size="MaterialIconSize.Sm" /></button>
-                                </div>
-                            }
-
-                            var totalSp = _sprintItems.Where(c => c.StoryPoints.HasValue).Sum(c => c.StoryPoints!.Value);
-                            var doneSp = _sprintItems.Where(c => c.SwimlaneTitle is not null && c.IsArchived).Sum(c => c.StoryPoints ?? 0);
-                            <div class="tracks-sprint-backlog-summary">
-                                Total: @totalSp SP
+                        <div class="tracks-progress-bar">
+                            <div class="tracks-progress-fill"
+                                 style="width: @(sprint.TotalStoryPoints > 0 ? (sprint.CompletedStoryPoints * 100 / sprint.TotalStoryPoints) : 0)%">
                             </div>
+                        </div>
+                    }
+                    <div class="tracks-sprint-actions">
+                        <button class="btn btn-sm btn-outline" @onclick="() => OpenEditDialog(sprint)" title="Edit sprint details">
+                            <MaterialIcon Icon="edit" Size="MaterialIconSize.Sm" /> Edit
+                        </button>
+                        @if (sprint.Status == SprintStatus.Planning)
+                        {
+                            <button class="btn btn-sm btn-primary" @onclick="() => StartSprintAsync(sprint.Id)">
+                                <MaterialIcon Icon="play_arrow" Size="MaterialIconSize.Sm" /> Start
+                            </button>
                         }
-                        <button class="btn btn-sm btn-primary" @onclick="() => OpenItemPicker(sprint.Id)">+ Add items...</button>
+                        @if (sprint.Status == SprintStatus.Active)
+                        {
+                            <button class="btn btn-sm btn-outline" @onclick="() => OpenCompletionDialog(sprint)">
+                                <MaterialIcon Icon="check_circle" Size="MaterialIconSize.Sm" /> Complete
+                            </button>
+                        }
+                        @if (sprint.Status != SprintStatus.Active)
+                        {
+                            <button class="btn btn-sm btn-danger" @onclick="() => DeleteSprintAsync(sprint.Id)">
+                                Delete
+                            </button>
+                        }
+                        <button class="btn btn-sm btn-outline" @onclick="() => ToggleSprintItems(sprint.Id)">
+                            <MaterialIcon Icon="@(_expandedSprintId == sprint.Id ? "expand_less" : "expand_more")"
+                                          Size="MaterialIconSize.Sm" /> @(_expandedSprintId == sprint.Id ? "Hide" : "Items")
+                        </button>
+                        @if (sprint.Status is SprintStatus.Planning or SprintStatus.Active)
+                        {
+                            <button class="btn btn-sm btn-outline" @onclick="() => OnPlanSprint.InvokeAsync(sprint)">
+                                <MaterialIcon Icon="tune" Size="MaterialIconSize.Sm" /> Plan
+                            </button>
+                        }
                     </div>
-                }
-            </div>
-        }
-    }
-</div>
 
-@* ── Item Picker Dialog ── *@
-@if (_showItemPicker)
-{
-    <DncModal Title="@($"Add Items to {_pickerSprintTitle}")" StartVisible OnClose="CloseItemPicker">
-        <div class="tracks-card-picker">
-            <input type="text" class="form-control" placeholder="Search items..."
-                   @bind="_pickerSearch" @bind:event="oninput" />
-
-            @{
-                var filteredBacklog = GetFilteredBacklogItems();
-            }
-            @if (filteredBacklog.Count == 0)
-            {
-                <p class="tracks-muted">No unassigned items found.</p>
-            }
-            else
-            {
-                <div class="tracks-card-picker-list">
-                    @foreach (var item in filteredBacklog)
+                    @* ── Sprint Items (Expanded) ── *@
+                    @if (_expandedSprintId == sprint.Id)
                     {
-                        var isSelected = _pickerSelectedItemIds.Contains(item.Id);
-                        <label class="tracks-card-picker-item @(isSelected ? "selected" : "")">
-                            <input type="checkbox" checked="@isSelected"
-                                   @onchange="() => TogglePickerItem(item.Id)" />
-                            <span class="tracks-card-number">#@item.ItemNumber</span>
-                            <span class="tracks-card-picker-title">@item.Title</span>
-                            @if (item.StoryPoints.HasValue)
+                        <div class="tracks-sprint-backlog">
+                            @if (_isLoadingItems)
                             {
-                                <span class="tracks-sprint-card-sp">@item.StoryPoints SP</span>
+                                <p class="tracks-muted">Loading items...</p>
+                            }
+                            else if (_sprintItems.Count == 0)
+                            {
+                                <p class="tracks-muted">No items in this sprint yet.</p>
                             }
                             else
                             {
-                                <span class="tracks-sprint-card-sp no-estimate">?</span>
+                                @foreach (var item in _sprintItems)
+                                {
+                                    <div class="tracks-sprint-card-item">
+                                        <span class="tracks-sprint-card-status">
+                                            <MaterialIcon Icon="check_box_outline_blank" Size="MaterialIconSize.Sm" />
+                                        </span>
+                                        <span class="tracks-sprint-card-title" @onclick="() => OnWorkItemSelected.InvokeAsync(item.Id)">
+                                            <span class="tracks-card-number">#@item.ItemNumber</span> @item.Title
+                                        </span>
+                                        @if (item.StoryPoints.HasValue)
+                                        {
+                                            <span class="tracks-sprint-card-sp">@item.StoryPoints SP</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="tracks-sprint-card-sp no-estimate">?</span>
+                                        }
+                                        <button class="tracks-icon-btn" title="Remove from sprint"
+                                                @onclick="() => RemoveItemFromSprintAsync(sprint.Id, item.Id)">
+                                            <MaterialIcon Icon="close" Size="MaterialIconSize.Sm" />
+                                        </button>
+                                    </div>
+                                }
+
+                                var totalSp = _sprintItems.Where(c => c.StoryPoints.HasValue).Sum(c => c.StoryPoints!.Value);
+                                var doneSp = _sprintItems.Where(c => c.SwimlaneTitle is not null && c.IsArchived).Sum(c => c.StoryPoints ??
+                0);
+                                <div class="tracks-sprint-backlog-summary">
+                                    Total: @totalSp SP
+                                </div>
                             }
-                        </label>
+                            <button class="btn btn-sm btn-primary" @onclick="() => OpenItemPicker(sprint.Id)">+ Add items...</button>
+                        </div>
                     }
                 </div>
             }
+        }
+    </div>
 
-            @if (_pickerSelectedItemIds.Count > 0)
-            {
-                var selectedSp = _backlogItems.Where(c => _pickerSelectedItemIds.Contains(c.Id) && c.StoryPoints.HasValue)
-                    .Sum(c => c.StoryPoints!.Value);
-                var currentSp = Sprints.FirstOrDefault(s => s.Id == _pickerSprintId)?.TotalStoryPoints ?? 0;
-                <div class="tracks-card-picker-summary">
-                    Selected: @_pickerSelectedItemIds.Count items (@selectedSp SP)
-                    • Sprint total after: @(currentSp + selectedSp) SP
+    @* ── Item Picker Dialog ── *@
+    @if (_showItemPicker)
+    {
+        <DncModal Title="@($"Add Items to {_pickerSprintTitle}")" StartVisible OnClose="CloseItemPicker">
+            <div class="tracks-card-picker">
+                <input type="text" class="form-control" placeholder="Search items..." @bind="_pickerSearch"
+                       @bind:event="oninput" />
+
+                @{
+                    var filteredBacklog = GetFilteredBacklogItems();
+                }
+                @if (filteredBacklog.Count == 0)
+                {
+                    <p class="tracks-muted">No unassigned items found.</p>
+                }
+                else
+                {
+                    <div class="tracks-card-picker-list">
+                        @foreach (var item in filteredBacklog)
+                        {
+                            var isSelected = _pickerSelectedItemIds.Contains(item.Id);
+                            <label class="tracks-card-picker-item @(isSelected ? "selected" : "")">
+                                <input type="checkbox" checked="@isSelected" @onchange="() => TogglePickerItem(item.Id)" />
+                                <span class="tracks-card-number">#@item.ItemNumber</span>
+                                <span class="tracks-card-picker-title">@item.Title</span>
+                                @if (item.StoryPoints.HasValue)
+                                {
+                                    <span class="tracks-sprint-card-sp">@item.StoryPoints SP</span>
+                                }
+                                else
+                                {
+                                    <span class="tracks-sprint-card-sp no-estimate">?</span>
+                                }
+                            </label>
+                        }
+                    </div>
+                }
+
+                @if (_pickerSelectedItemIds.Count > 0)
+                {
+                    var selectedSp = _backlogItems.Where(c => _pickerSelectedItemIds.Contains(c.Id) && c.StoryPoints.HasValue)
+                        .Sum(c => c.StoryPoints!.Value);
+                    var currentSp = Sprints.FirstOrDefault(s => s.Id == _pickerSprintId)?.TotalStoryPoints ?? 0;
+                    <div class="tracks-card-picker-summary">
+                        Selected: @_pickerSelectedItemIds.Count items (@selectedSp SP)
+                        • Sprint total after: @(currentSp + selectedSp) SP
+                    </div>
+                }
+
+                <div class="form-actions">
+                    <button class="btn btn-primary" disabled="@(_pickerSelectedItemIds.Count == 0 || _isAddingItems)"
+                            @onclick="AddSelectedItemsAsync">
+                        @(_isAddingItems ? "Adding..." : $"Add {_pickerSelectedItemIds.Count} Item(s)")
+                    </button>
+                    <button class="btn btn-secondary" @onclick="CloseItemPicker">Cancel</button>
                 </div>
-            }
+            </div>
+        </DncModal>
+    }
 
-            <div class="form-actions">
-                <button class="btn btn-primary" disabled="@(_pickerSelectedItemIds.Count == 0 || _isAddingItems)"
-                        @onclick="AddSelectedItemsAsync">
-                    @(_isAddingItems ? "Adding..." : $"Add {_pickerSelectedItemIds.Count} Item(s)")
-                </button>
-                <button class="btn btn-secondary" @onclick="CloseItemPicker">Cancel</button>
-            </div>
-        </div>
-    </DncModal>
-}
-
-@* ── Create Sprint Dialog ── *@
-@if (_showCreateDialog)
-{
-    <DncModal Title="Create Sprint" StartVisible OnClose="() => _showCreateDialog = false">
-        <EditForm Model="_createModel" OnValidSubmit="CreateSprintAsync">
-            <DataAnnotationsValidator />
-            <div class="form-group">
-                <label>Title</label>
-                <InputText class="form-control" @bind-Value="_createModel.Title" placeholder="Sprint 1" />
-                <ValidationMessage For="() => _createModel.Title" />
-            </div>
-            <div class="form-group">
-                <label>Goal (optional)</label>
-                <InputTextArea class="form-control" @bind-Value="_createModel.Goal" rows="2"
-                               placeholder="What should this sprint achieve?" />
-            </div>
-            <div class="form-row">
+    @* ── Create Sprint Dialog ── *@
+    @if (_showCreateDialog)
+    {
+        <DncModal Title="Create Sprint" StartVisible OnClose="() => _showCreateDialog = false">
+            <EditForm Model="_createModel" OnValidSubmit="CreateSprintAsync">
+                <DataAnnotationsValidator />
                 <div class="form-group">
-                    <label>Start Date</label>
-                    <InputDate class="form-control" @bind-Value="_createModel.StartDate" />
-                </div>
-                <div class="form-group">
-                    <label>End Date</label>
-                    <InputDate class="form-control" @bind-Value="_createModel.EndDate" />
-                    <ValidationMessage For="() => _createModel.EndDate" />
-                </div>
-            </div>
-            @if (!string.IsNullOrEmpty(_createError))
-            {
-                <div class="alert alert-danger">@_createError</div>
-            }
-            <div class="form-actions">
-                <button type="submit" class="btn btn-primary" disabled="@_isCreating">
-                    @(_isCreating ? "Creating..." : "Create Sprint")
-                </button>
-                <button type="button" class="btn btn-secondary"
-                        @onclick="() => _showCreateDialog = false">Cancel</button>
-            </div>
-        </EditForm>
-    </DncModal>
-}
-
-@* ── Edit Sprint Dialog ── *@
-@if (_showEditDialog)
-{
-    <DncModal Title="Edit Sprint" StartVisible OnClose="() => _showEditDialog = false">
-        <EditForm Model="_editModel" OnValidSubmit="SaveSprintEditAsync">
-            <DataAnnotationsValidator />
-            <div class="form-group">
-                <label>Title</label>
-                <InputText class="form-control" @bind-Value="_editModel.Title" />
-                <ValidationMessage For="() => _editModel.Title" />
-            </div>
-            <div class="form-group">
-                <label>Goal / Description</label>
-                <InputTextArea class="form-control" @bind-Value="_editModel.Goal" rows="3"
-                               placeholder="What should this sprint achieve?" />
-            </div>
-            <div class="form-row">
-                <div class="form-group">
-                    <label>Start Date</label>
-                    <InputDate class="form-control" @bind-Value="_editModel.StartDate" />
+                    <label>Title</label>
+                    <InputText class="form-control" @bind-Value="_createModel.Title" placeholder="Sprint 1" />
+                    <ValidationMessage For="() => _createModel.Title" />
                 </div>
                 <div class="form-group">
-                    <label>End Date</label>
-                    <InputDate class="form-control" @bind-Value="_editModel.EndDate" />
-                    <ValidationMessage For="() => _editModel.EndDate" />
+                    <label>Goal (optional)</label>
+                    <InputTextArea class="form-control" @bind-Value="_createModel.Goal" rows="2"
+                                   placeholder="What should this sprint achieve?" />
                 </div>
-            </div>
-            <div class="form-group">
-                <label>Target Story Points</label>
-                <InputNumber class="form-control" @bind-Value="_editModel.TargetStoryPoints"
-                             placeholder="Optional capacity target" />
-            </div>
-            @if (!string.IsNullOrEmpty(_editError))
-            {
-                <div class="alert alert-danger">@_editError</div>
-            }
-            <div class="form-actions">
-                <button type="submit" class="btn btn-primary" disabled="@_isSavingEdit">
-                    @(_isSavingEdit ? "Saving..." : "Save Changes")
-                </button>
-                <button type="button" class="btn btn-secondary"
-                        @onclick="() => _showEditDialog = false">Cancel</button>
-            </div>
-        </EditForm>
-    </DncModal>
-}
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Start Date</label>
+                        <InputDate class="form-control" @bind-Value="_createModel.StartDate" />
+                    </div>
+                    <div class="form-group">
+                        <label>End Date</label>
+                        <InputDate class="form-control" @bind-Value="_createModel.EndDate" />
+                        <ValidationMessage For="() => _createModel.EndDate" />
+                    </div>
+                </div>
+                @if (!string.IsNullOrEmpty(_createError))
+                {
+                    <div class="alert alert-danger">@_createError</div>
+                }
+                <div class="form-actions">
+                    <button type="submit" class="btn btn-primary" disabled="@_isCreating">
+                        @(_isCreating ? "Creating..." : "Create Sprint")
+                    </button>
+                    <button type="button" class="btn btn-secondary" @onclick="() => _showCreateDialog = false">Cancel</button>
+                </div>
+            </EditForm>
+        </DncModal>
+    }
 
-@* ── Sprint Completion Dialog ── *@
-@if (_showCompletionDialog && _completionSprint is not null)
-{
-    <SprintCompletionDialog EpicId="EpicId"
-                            Sprint="_completionSprint"
-                            AvailableSprints="Sprints"
-                            OnCompleted="HandleSprintCompleted"
-                            OnCancel="CloseCompletionDialog" />
-}
+    @* ── Edit Sprint Dialog ── *@
+    @if (_showEditDialog)
+    {
+        <DncModal Title="Edit Sprint" StartVisible OnClose="() => _showEditDialog = false">
+            <EditForm Model="_editModel" OnValidSubmit="SaveSprintEditAsync">
+                <DataAnnotationsValidator />
+                <div class="form-group">
+                    <label>Title</label>
+                    <InputText class="form-control" @bind-Value="_editModel.Title" />
+                    <ValidationMessage For="() => _editModel.Title" />
+                </div>
+                <div class="form-group">
+                    <label>Goal / Description</label>
+                    <InputTextArea class="form-control" @bind-Value="_editModel.Goal" rows="3"
+                                   placeholder="What should this sprint achieve?" />
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Start Date</label>
+                        <InputDate class="form-control" @bind-Value="_editModel.StartDate" />
+                    </div>
+                    <div class="form-group">
+                        <label>End Date</label>
+                        <InputDate class="form-control" @bind-Value="_editModel.EndDate" />
+                        <ValidationMessage For="() => _editModel.EndDate" />
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Target Story Points</label>
+                    <InputNumber class="form-control" @bind-Value="_editModel.TargetStoryPoints"
+                                 placeholder="Optional capacity target" />
+                </div>
+                @if (!string.IsNullOrEmpty(_editError))
+                {
+                    <div class="alert alert-danger">@_editError</div>
+                }
+                <div class="form-actions">
+                    <button type="submit" class="btn btn-primary" disabled="@_isSavingEdit">
+                        @(_isSavingEdit ? "Saving..." : "Save Changes")
+                    </button>
+                    <button type="button" class="btn btn-secondary" @onclick="() => _showEditDialog = false">Cancel</button>
+                </div>
+            </EditForm>
+        </DncModal>
+    }
+
+    @* ── Sprint Completion Dialog ── *@
+    @if (_showCompletionDialog && _completionSprint is not null)
+    {
+        <SprintCompletionDialog EpicId="EpicId" Sprint="_completionSprint" AvailableSprints="Sprints"
+                                OnCompleted="HandleSprintCompleted" OnCancel="CloseCompletionDialog" />
+    }

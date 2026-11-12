@@ -3,8 +3,12 @@
 <div class="tracks-dialog-overlay" @onclick="OnCancel">
     <div class="tracks-dialog tracks-sprint-completion" @onclick:stopPropagation>
         <div class="tracks-dialog-header">
-            <h3><MaterialIcon Icon="task_alt" Size="MaterialIconSize.Sm" /> Complete Sprint: @Sprint.Title</h3>
-            <button class="tracks-dialog-close" @onclick="OnCancel" title="Cancel"><MaterialIcon Icon="close" /></button>
+            <h3>
+                <MaterialIcon Icon="task_alt" Size="MaterialIconSize.Sm" /> Complete Sprint: @Sprint.Title
+            </h3>
+            <button class="tracks-dialog-close" @onclick="OnCancel" title="Cancel">
+                <MaterialIcon Icon="close" />
+            </button>
         </div>
 
         @if (_isLoading)
@@ -22,14 +26,16 @@
                         <span class="tracks-completion-label">Items Completed</span>
                         <span class="tracks-completion-value">
                             @_report.CompletedItems / @(_report.CompletedItems + _report.IncompleteItems)
-                            (@((_report.CompletedItems + _report.IncompleteItems) > 0 ? _report.CompletedItems * 100 / (_report.CompletedItems + _report.IncompleteItems) : 0)%)
+                            (@((_report.CompletedItems + _report.IncompleteItems) > 0 ? _report.CompletedItems * 100 /
+                                                    (_report.CompletedItems + _report.IncompleteItems) : 0)%)
                         </span>
                     </div>
                     <div class="tracks-completion-stat">
                         <span class="tracks-completion-label">Story Points</span>
                         <span class="tracks-completion-value">
                             @_report.CompletedStoryPoints / @_report.TotalStoryPoints SP
-                            (@(_report.TotalStoryPoints > 0 ? _report.CompletedStoryPoints * 100 / _report.TotalStoryPoints : 0)%)
+                            (@(_report.TotalStoryPoints > 0 ? _report.CompletedStoryPoints * 100 / _report.TotalStoryPoints
+                                                    : 0)%)
                         </span>
                     </div>
                 </div>
@@ -66,8 +72,7 @@
                         <div class="tracks-completion-move-options">
                             <h4>Move incomplete items to:</h4>
                             <label class="tracks-radio">
-                                <input type="radio" name="moveTarget" value="backlog"
-                                       checked="@(_moveTarget == "backlog")"
+                                <input type="radio" name="moveTarget" value="backlog" checked="@(_moveTarget == "backlog")"
                                        @onchange="@(() => _moveTarget = "backlog")" />
                                 Product Backlog
                             </label>

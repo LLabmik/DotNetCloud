@@ -86,7 +86,6 @@
       "src\\Modules\\Files\\DotNetCloud.Modules.Files.Widget\\DotNetCloud.Modules.Files.Widget.csproj",
       "src\\Modules\\Music\\DotNetCloud.Modules.Music.Widget\\DotNetCloud.Modules.Music.Widget.csproj",
       "src\\Modules\\Notes\\DotNetCloud.Modules.Notes.Widget\\DotNetCloud.Modules.Notes.Widget.csproj",
-      "src\\Modules\\Tracks\\DotNetCloud.Modules.Tracks.Widget\\DotNetCloud.Modules.Tracks.Widget.csproj",
       "src\\Modules\\Video\\DotNetCloud.Modules.Video.Widget\\DotNetCloud.Modules.Video.Widget.csproj",
       "tests\\DotNetCloud.CLI.Tests\\DotNetCloud.CLI.Tests.csproj",
       "tests\\DotNetCloud.ModulePackaging.Tests\\DotNetCloud.ModulePackaging.Tests.csproj",

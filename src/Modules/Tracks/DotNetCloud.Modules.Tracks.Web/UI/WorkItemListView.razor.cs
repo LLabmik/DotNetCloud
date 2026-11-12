@@ -477,9 +477,16 @@ public partial class WorkItemListView : ComponentBase, IDisposable
 
     private string GetColumnHeader(string col) => col switch
     {
-        "ItemNumber" => "#", "Title" => "Title", "Type" => "Type",
-        "Priority" => "Priority", "Swimlane" => "Status", "Assignee" => "Assignee",
-        "StoryPoints" => "SP", "DueDate" => "Due", "Labels" => "Labels", "Sprint" => "Sprint",
+        "ItemNumber" => "#",
+        "Title" => "Title",
+        "Type" => "Type",
+        "Priority" => "Priority",
+        "Swimlane" => "Status",
+        "Assignee" => "Assignee",
+        "StoryPoints" => "SP",
+        "DueDate" => "Due",
+        "Labels" => "Labels",
+        "Sprint" => "Sprint",
         _ => col
     };
 
@@ -505,7 +512,8 @@ public partial class WorkItemListView : ComponentBase, IDisposable
         var column = _editingCellColumn;
         _editingCellItemId = null;
         _editingCellColumn = null;
-        if (!itemId.HasValue || string.IsNullOrWhiteSpace(_editValue) || column is null) return;
+        if (!itemId.HasValue || string.IsNullOrWhiteSpace(_editValue) || column is null)
+            return;
         try
         {
             UpdateWorkItemDto dto = column switch
@@ -515,13 +523,16 @@ public partial class WorkItemListView : ComponentBase, IDisposable
                 "StoryPoints" when int.TryParse(_editValue, out var sp) => new UpdateWorkItemDto { StoryPoints = sp },
                 _ => new UpdateWorkItemDto()
             };
-            if (column is "Priority" && !Enum.TryParse<Priority>(_editValue, out _)) return;
-            if (column is "StoryPoints" && !int.TryParse(_editValue, out _)) return;
+            if (column is "Priority" && !Enum.TryParse<Priority>(_editValue, out _))
+                return;
+            if (column is "StoryPoints" && !int.TryParse(_editValue, out _))
+                return;
             var updated = await ApiClient.UpdateWorkItemAsync(itemId.Value, dto);
             if (updated is not null)
             {
                 var index = _allItems.FindIndex(i => i.Id == itemId.Value);
-                if (index >= 0) _allItems[index] = updated;
+                if (index >= 0)
+                    _allItems[index] = updated;
                 ApplyFiltersAndSort();
                 await OnItemsChanged.InvokeAsync();
             }
@@ -533,7 +544,9 @@ public partial class WorkItemListView : ComponentBase, IDisposable
 
     private async Task OnInlineEditKeyDown(Guid itemId, KeyboardEventArgs e)
     {
-        if (e.Key == "Enter") await CommitInlineEditAsync();
-        else if (e.Key == "Escape") CancelInlineEdit();
+        if (e.Key == "Enter")
+            await CommitInlineEditAsync();
+        else if (e.Key == "Escape")
+            CancelInlineEdit();
     }
 }

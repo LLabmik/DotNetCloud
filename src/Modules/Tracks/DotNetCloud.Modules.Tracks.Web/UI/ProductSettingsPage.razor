@@ -329,21 +329,24 @@
                         <DncModal Title="Delete Product" StartVisible OnClose="CancelDeleteConfirm" CloseOnOverlayClick="false">
                             <ChildContent>
                                 <p>Are you sure you want to <strong>permanently delete</strong> @Product.Name?</p>
-                                <p class="tracks-modal-warning"><MaterialIcon Icon="warning" Size="MaterialIconSize.Sm" /> This will permanently delete all work items, comments, and data. This
-                                    action cannot be undone.</p>
-                                    <div style="margin-top: 1rem;">
-                                        <input type="text" class="form-control form-control-sm" placeholder="Type product name to confirm"
-                                               @bind="_deleteConfirmName" />
-                                    </div>
-                                </ChildContent>
-                                <Footer>
-                                    <button class="btn btn-danger" @onclick="PermanentDeleteAsync"
-                                            disabled="@(_deleteConfirmName != Product.Name || _isSaving)">
-                                        @(_isSaving ? "Deleting..." : "Yes, Delete Forever")
-                                    </button>
-                                    <button class="btn btn-secondary" @onclick="CancelDeleteConfirm">Cancel</button>
-                                </Footer>
-                            </DncModal>
-                        }
-                    </div>
+                                <p class="tracks-modal-warning">
+                                    <MaterialIcon Icon="warning" Size="MaterialIconSize.Sm" /> This will permanently delete all work
+                                    items, comments, and data. This
+                                    action cannot be undone.
+                                </p>
+                                <div style="margin-top: 1rem;">
+                                    <input type="text" class="form-control form-control-sm" placeholder="Type product name to confirm"
+                                           @bind="_deleteConfirmName" />
+                                </div>
+                            </ChildContent>
+                            <Footer>
+                                <button class="btn btn-danger" @onclick="PermanentDeleteAsync"
+                                        disabled="@(_deleteConfirmName != Product.Name || _isSaving)">
+                                    @(_isSaving ? "Deleting..." : "Yes, Delete Forever")
+                                </button>
+                                <button class="btn btn-secondary" @onclick="CancelDeleteConfirm">Cancel</button>
+                            </Footer>
+                        </DncModal>
+                    }
                 </div>
+            </div>

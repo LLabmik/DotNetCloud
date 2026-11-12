@@ -21,6 +21,6 @@ public sealed class WorkItemWatcherConfiguration : IEntityTypeConfiguration<Work
             .HasForeignKey(w => w.WorkItemId)
             .OnDelete(DeleteBehavior.Cascade);
 
-        builder.ToTable("WorkItemWatchers", "tracks");
+        builder.ToTable("WorkItemWatchers");
     }
 }

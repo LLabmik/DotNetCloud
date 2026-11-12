@@ -20,7 +20,8 @@
                     <MaterialIcon Icon="check" Size="MaterialIconSize.Sm" /> When moved to Done, add "Done" label
                 </button>
                 <button class="btn btn-outline btn-sm" @onclick='() => CreatePreset("urgent_notify")'>
-                    <MaterialIcon Icon="notifications" Size="MaterialIconSize.Sm" /> When urgent item created, notify product members
+                    <MaterialIcon Icon="notifications" Size="MaterialIconSize.Sm" /> When urgent item created, notify
+                    product members
                 </button>
                 <button class="btn btn-outline btn-sm" @onclick='() => CreatePreset("due_reminder")'>
                     <MaterialIcon Icon="schedule" Size="MaterialIconSize.Sm" /> When due date is tomorrow, notify assignee
@@ -150,7 +151,9 @@
                                            placeholder="@(action.Type == "set_field" ? "Field ID" : "Comment text")"
                                            @bind="action.FieldOrCommentValue" />
                                 }
-                                <button class="btn btn-sm btn-danger" @onclick="() => RemoveAction(i)" title="Remove action"><MaterialIcon Icon="close" Size="MaterialIconSize.Sm" /></button>
+                                <button class="btn btn-sm btn-danger" @onclick="() => RemoveAction(i)" title="Remove action">
+                                    <MaterialIcon Icon="close" Size="MaterialIconSize.Sm" />
+                                </button>
                             </div>
                         }
                     </div>

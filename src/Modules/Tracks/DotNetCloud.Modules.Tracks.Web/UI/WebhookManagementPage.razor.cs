@@ -169,7 +169,8 @@ public partial class WebhookManagementPage : ComponentBase
 
     private static string TruncateUrl(string url)
     {
-        if (url.Length <= 60) return url;
+        if (url.Length <= 60)
+            return url;
         return url[..30] + "..." + url[^27..];
     }
 

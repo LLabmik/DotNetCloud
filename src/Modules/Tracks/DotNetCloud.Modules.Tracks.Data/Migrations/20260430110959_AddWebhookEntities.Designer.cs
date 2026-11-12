@@ -276,7 +276,7 @@ namespace DotNetCloud.Modules.Tracks.Data.Migrations
                     b.HasIndex("ProductId", "UserId", "Name")
                         .IsUnique();
 
-                    b.ToTable("CustomViews", "tracks");
+                    b.ToTable("CustomViews");
                 });
 
             modelBuilder.Entity("DotNetCloud.Modules.Tracks.Models.GuestPermission", b =>
@@ -1661,7 +1661,7 @@ namespace DotNetCloud.Modules.Tracks.Data.Migrations
 
                     b.HasKey("WorkItemId", "UserId");
 
-                    b.ToTable("WorkItemWatchers", "tracks");
+                    b.ToTable("WorkItemWatchers");
                 });
 
             modelBuilder.Entity("DotNetCloud.Modules.Tracks.Models.Activity", b =>

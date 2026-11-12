@@ -16,14 +16,13 @@ public sealed class TracksModuleManifest : IModuleManifest
     public string Name => "Tracks";
 
     /// <inheritdoc />
-    public string Version => "1.0.0";
+    public string Version => "2.0.0";
 
     /// <inheritdoc />
     public IReadOnlyCollection<string> RequiredCapabilities => new[]
     {
         nameof(Core.Capabilities.INotificationService),
         nameof(Core.Capabilities.IUserDirectory),
-        nameof(Core.Capabilities.ICurrentUserContext),
         nameof(Core.Capabilities.IAuditLogger),
         nameof(Core.Capabilities.IRealtimeBroadcaster),
 

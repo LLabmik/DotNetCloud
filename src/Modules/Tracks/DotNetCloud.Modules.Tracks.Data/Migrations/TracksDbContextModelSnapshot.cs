@@ -17,7 +17,6 @@ namespace DotNetCloud.Modules.Tracks.Data.Migrations
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasDefaultSchema("tracks")
                 .HasAnnotation("ProductVersion", "10.0.10")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
@@ -67,7 +66,7 @@ namespace DotNetCloud.Modules.Tracks.Data.Migrations
                     b.HasIndex("ProductId", "CreatedAt")
                         .HasDatabaseName("ix_activities_product_created");
 
-                    b.ToTable("Activities", "tracks");
+                    b.ToTable("Activities");
                 });
 
             modelBuilder.Entity("DotNetCloud.Modules.Tracks.Models.AutomationRule", b =>
@@ -119,7 +118,7 @@ namespace DotNetCloud.Modules.Tracks.Data.Migrations
                     b.HasIndex("ProductId")
                         .HasDatabaseName("ix_automation_rules_product_id");
 
-                    b.ToTable("AutomationRules", "tracks");
+                    b.ToTable("AutomationRules");
                 });
 
             modelBuilder.Entity("DotNetCloud.Modules.Tracks.Models.Checklist", b =>
@@ -149,7 +148,7 @@ namespace DotNetCloud.Modules.Tracks.Data.Migrations
                     b.HasIndex("ItemId", "Position")
                         .HasDatabaseName("ix_checklists_item_position");
 
-                    b.ToTable("Checklists", "tracks");
+                    b.ToTable("Checklists");
                 });
 
             modelBuilder.Entity("DotNetCloud.Modules.Tracks.Models.ChecklistItem", b =>
@@ -194,7 +193,7 @@ namespace DotNetCloud.Modules.Tracks.Data.Migrations
                     b.HasIndex("ChecklistId", "Position")
                         .HasDatabaseName("ix_checklist_items_checklist_position");
 
-                    b.ToTable("ChecklistItems", "tracks");
+                    b.ToTable("ChecklistItems");
                 });
 
             modelBuilder.Entity("DotNetCloud.Modules.Tracks.Models.CommentReaction", b =>
@@ -219,7 +218,7 @@ namespace DotNetCloud.Modules.Tracks.Data.Migrations
                     b.HasIndex("CommentId")
                         .HasDatabaseName("ix_comment_reactions_comment");
 
-                    b.ToTable("CommentReactions", "tracks");
+                    b.ToTable("CommentReactions");
                 });
 
             modelBuilder.Entity("DotNetCloud.Modules.Tracks.Models.CustomField", b =>
@@ -271,7 +270,7 @@ namespace DotNetCloud.Modules.Tracks.Data.Migrations
                         .IsUnique()
                         .HasDatabaseName("uq_custom_fields_product_name");
 
-                    b.ToTable("CustomFields", "tracks");
+                    b.ToTable("CustomFields");
                 });
 
             modelBuilder.Entity("DotNetCloud.Modules.Tracks.Models.CustomView", b =>
@@ -326,7 +325,7 @@ namespace DotNetCloud.Modules.Tracks.Data.Migrations
                     b.HasIndex("ProductId", "UserId", "Name")
                         .IsUnique();
 
-                    b.ToTable("CustomViews", "tracks");
+                    b.ToTable("CustomViews");
                 });
 
             modelBuilder.Entity("DotNetCloud.Modules.Tracks.Models.Goal", b =>
@@ -392,7 +391,7 @@ namespace DotNetCloud.Modules.Tracks.Data.Migrations
                     b.HasIndex("ProductId")
                         .HasDatabaseName("ix_goals_product_id");
 
-                    b.ToTable("Goals", "tracks");
+                    b.ToTable("Goals");
                 });
 
             modelBuilder.Entity("DotNetCloud.Modules.Tracks.Models.GoalWorkItem", b =>
@@ -418,7 +417,7 @@ namespace DotNetCloud.Modules.Tracks.Data.Migrations
                         .IsUnique()
                         .HasDatabaseName("uq_goal_workitem");
 
-                    b.ToTable("GoalWorkItems", "tracks");
+                    b.ToTable("GoalWorkItems");
                 });
 
             modelBuilder.Entity("DotNetCloud.Modules.Tracks.Models.GuestPermission", b =>
@@ -449,7 +448,7 @@ namespace DotNetCloud.Modules.Tracks.Data.Migrations
                         .IsUnique()
                         .HasDatabaseName("ix_guest_permissions_guest_work_item");
 
-                    b.ToTable("GuestPermissions", "tracks");
+                    b.ToTable("GuestPermissions");
                 });
 
             modelBuilder.Entity("DotNetCloud.Modules.Tracks.Models.GuestUser", b =>
@@ -503,7 +502,7 @@ namespace DotNetCloud.Modules.Tracks.Data.Migrations
                     b.HasIndex("ProductId")
                         .HasDatabaseName("ix_guest_users_product");
 
-                    b.ToTable("GuestUsers", "tracks");
+                    b.ToTable("GuestUsers");
                 });
 
             modelBuilder.Entity("DotNetCloud.Modules.Tracks.Models.ItemTemplate", b =>
@@ -556,7 +555,7 @@ namespace DotNetCloud.Modules.Tracks.Data.Migrations
                     b.HasIndex("ProductId")
                         .HasDatabaseName("ix_item_templates_product_id");
 
-                    b.ToTable("ItemTemplates", "tracks");
+                    b.ToTable("ItemTemplates");
                 });
 
             modelBuilder.Entity("DotNetCloud.Modules.Tracks.Models.Label", b =>
@@ -589,7 +588,7 @@ namespace DotNetCloud.Modules.Tracks.Data.Migrations
                         .IsUnique()
                         .HasDatabaseName("uq_labels_product_title");
 
-                    b.ToTable("Labels", "tracks");
+                    b.ToTable("Labels");
                 });
 
             modelBuilder.Entity("DotNetCloud.Modules.Tracks.Models.Milestone", b =>
@@ -640,7 +639,7 @@ namespace DotNetCloud.Modules.Tracks.Data.Migrations
                         .IsUnique()
                         .HasDatabaseName("uq_milestones_product_title");
 
-                    b.ToTable("Milestones", "tracks");
+                    b.ToTable("Milestones");
                 });
 
             modelBuilder.Entity("DotNetCloud.Modules.Tracks.Models.PokerSession", b =>
@@ -708,7 +707,7 @@ namespace DotNetCloud.Modules.Tracks.Data.Migrations
                     b.HasIndex("ItemId", "Status")
                         .HasDatabaseName("ix_poker_sessions_item_status");
 
-                    b.ToTable("PokerSessions", "tracks");
+                    b.ToTable("PokerSessions");
                 });
 
             modelBuilder.Entity("DotNetCloud.Modules.Tracks.Models.PokerVote", b =>
@@ -745,7 +744,7 @@ namespace DotNetCloud.Modules.Tracks.Data.Migrations
                         .IsUnique()
                         .HasDatabaseName("ix_poker_votes_session_user_round");
 
-                    b.ToTable("PokerVotes", "tracks");
+                    b.ToTable("PokerVotes");
                 });
 
             modelBuilder.Entity("DotNetCloud.Modules.Tracks.Models.Product", b =>
@@ -819,7 +818,7 @@ namespace DotNetCloud.Modules.Tracks.Data.Migrations
                     b.HasIndex("OwnerId")
                         .HasDatabaseName("ix_products_owner_id");
 
-                    b.ToTable("Products", "tracks");
+                    b.ToTable("Products");
                 });
 
             modelBuilder.Entity("DotNetCloud.Modules.Tracks.Models.ProductMember", b =>
@@ -848,7 +847,7 @@ namespace DotNetCloud.Modules.Tracks.Data.Migrations
                     b.HasIndex("ProductId", "Role")
                         .HasDatabaseName("ix_product_members_product_role");
 
-                    b.ToTable("ProductMembers", "tracks");
+                    b.ToTable("ProductMembers");
                 });
 
             modelBuilder.Entity("DotNetCloud.Modules.Tracks.Models.ProductTemplate", b =>
@@ -897,7 +896,7 @@ namespace DotNetCloud.Modules.Tracks.Data.Migrations
                     b.HasIndex("IsBuiltIn")
                         .HasDatabaseName("ix_product_templates_is_built_in");
 
-                    b.ToTable("ProductTemplates", "tracks");
+                    b.ToTable("ProductTemplates");
                 });
 
             modelBuilder.Entity("DotNetCloud.Modules.Tracks.Models.RecurringRule", b =>
@@ -960,7 +959,7 @@ namespace DotNetCloud.Modules.Tracks.Data.Migrations
 
                     b.HasIndex("SwimlaneId");
 
-                    b.ToTable("RecurringRules", "tracks");
+                    b.ToTable("RecurringRules");
                 });
 
             modelBuilder.Entity("DotNetCloud.Modules.Tracks.Models.ReviewSession", b =>
@@ -1003,7 +1002,7 @@ namespace DotNetCloud.Modules.Tracks.Data.Migrations
                     b.HasIndex("EpicId", "Status")
                         .HasDatabaseName("ix_review_sessions_epic_status");
 
-                    b.ToTable("ReviewSessions", "tracks");
+                    b.ToTable("ReviewSessions");
                 });
 
             modelBuilder.Entity("DotNetCloud.Modules.Tracks.Models.ReviewSessionParticipant", b =>
@@ -1035,7 +1034,7 @@ namespace DotNetCloud.Modules.Tracks.Data.Migrations
                         .IsUnique()
                         .HasDatabaseName("ix_review_session_participants_session_user");
 
-                    b.ToTable("ReviewSessionParticipants", "tracks");
+                    b.ToTable("ReviewSessionParticipants");
                 });
 
             modelBuilder.Entity("DotNetCloud.Modules.Tracks.Models.Sprint", b =>
@@ -1094,7 +1093,7 @@ namespace DotNetCloud.Modules.Tracks.Data.Migrations
                     b.HasIndex("EpicId", "Status")
                         .HasDatabaseName("ix_sprints_epic_status");
 
-                    b.ToTable("Sprints", "tracks");
+                    b.ToTable("Sprints");
                 });
 
             modelBuilder.Entity("DotNetCloud.Modules.Tracks.Models.SprintDiscussion", b =>
@@ -1135,7 +1134,7 @@ namespace DotNetCloud.Modules.Tracks.Data.Migrations
                     b.HasIndex("SprintId", "CreatedAt")
                         .HasDatabaseName("ix_sprint_discussions_sprint_created");
 
-                    b.ToTable("SprintDiscussions", "tracks");
+                    b.ToTable("SprintDiscussions");
                 });
 
             modelBuilder.Entity("DotNetCloud.Modules.Tracks.Models.SprintItem", b =>
@@ -1156,7 +1155,7 @@ namespace DotNetCloud.Modules.Tracks.Data.Migrations
                     b.HasIndex("ItemId")
                         .HasDatabaseName("ix_sprint_items_item_id");
 
-                    b.ToTable("SprintItems", "tracks");
+                    b.ToTable("SprintItems");
                 });
 
             modelBuilder.Entity("DotNetCloud.Modules.Tracks.Models.Swimlane", b =>
@@ -1219,7 +1218,7 @@ namespace DotNetCloud.Modules.Tracks.Data.Migrations
                     b.HasIndex("ContainerType", "ContainerId", "Position")
                         .HasDatabaseName("ix_swimlanes_container_position");
 
-                    b.ToTable("Swimlanes", "tracks");
+                    b.ToTable("Swimlanes");
                 });
 
             modelBuilder.Entity("DotNetCloud.Modules.Tracks.Models.SwimlaneTransitionRule", b =>
@@ -1258,7 +1257,7 @@ namespace DotNetCloud.Modules.Tracks.Data.Migrations
                         .IsUnique()
                         .HasDatabaseName("ix_swimlane_transition_rules_product_from_to");
 
-                    b.ToTable("SwimlaneTransitionRules", "tracks");
+                    b.ToTable("SwimlaneTransitionRules");
                 });
 
             modelBuilder.Entity("DotNetCloud.Modules.Tracks.Models.Team", b =>
@@ -1289,7 +1288,7 @@ namespace DotNetCloud.Modules.Tracks.Data.Migrations
                     b.HasIndex("Name")
                         .HasDatabaseName("ix_tracks_teams_name");
 
-                    b.ToTable("TracksTeams", "tracks");
+                    b.ToTable("TracksTeams");
                 });
 
             modelBuilder.Entity("DotNetCloud.Modules.Tracks.Models.TeamRole", b =>
@@ -1326,7 +1325,7 @@ namespace DotNetCloud.Modules.Tracks.Data.Migrations
                         .IsUnique()
                         .HasDatabaseName("uq_team_roles_team_user");
 
-                    b.ToTable("TeamRoles", "tracks");
+                    b.ToTable("TeamRoles");
                 });
 
             modelBuilder.Entity("DotNetCloud.Modules.Tracks.Models.TimeEntry", b =>
@@ -1379,7 +1378,7 @@ namespace DotNetCloud.Modules.Tracks.Data.Migrations
                     b.HasIndex("WorkItemId", "UserId")
                         .HasDatabaseName("ix_time_entries_work_item_user");
 
-                    b.ToTable("TimeEntries", "tracks");
+                    b.ToTable("TimeEntries");
                 });
 
             modelBuilder.Entity("DotNetCloud.Modules.Tracks.Models.WebhookDelivery", b =>
@@ -1432,7 +1431,7 @@ namespace DotNetCloud.Modules.Tracks.Data.Migrations
                     b.HasIndex("SubscriptionId")
                         .HasDatabaseName("ix_webhook_deliveries_subscription");
 
-                    b.ToTable("WebhookDeliveries", "tracks");
+                    b.ToTable("WebhookDeliveries");
                 });
 
             modelBuilder.Entity("DotNetCloud.Modules.Tracks.Models.WebhookSubscription", b =>
@@ -1490,7 +1489,7 @@ namespace DotNetCloud.Modules.Tracks.Data.Migrations
                     b.HasIndex("ProductId")
                         .HasDatabaseName("ix_webhook_subscriptions_product");
 
-                    b.ToTable("WebhookSubscriptions", "tracks");
+                    b.ToTable("WebhookSubscriptions");
                 });
 
             modelBuilder.Entity("DotNetCloud.Modules.Tracks.Models.WorkItem", b =>
@@ -1619,7 +1618,7 @@ namespace DotNetCloud.Modules.Tracks.Data.Migrations
                     b.HasIndex("SwimlaneId", "Position")
                         .HasDatabaseName("ix_work_items_swimlane_position");
 
-                    b.ToTable("WorkItems", "tracks");
+                    b.ToTable("WorkItems");
                 });
 
             modelBuilder.Entity("DotNetCloud.Modules.Tracks.Models.WorkItemAssignment", b =>
@@ -1648,7 +1647,7 @@ namespace DotNetCloud.Modules.Tracks.Data.Migrations
                         .IsUnique()
                         .HasDatabaseName("uq_work_item_assignments_item_user");
 
-                    b.ToTable("WorkItemAssignments", "tracks");
+                    b.ToTable("WorkItemAssignments");
                 });
 
             modelBuilder.Entity("DotNetCloud.Modules.Tracks.Models.WorkItemAttachment", b =>
@@ -1696,7 +1695,7 @@ namespace DotNetCloud.Modules.Tracks.Data.Migrations
                     b.HasIndex("WorkItemId")
                         .HasDatabaseName("ix_work_item_attachments_work_item");
 
-                    b.ToTable("WorkItemAttachments", "tracks");
+                    b.ToTable("WorkItemAttachments");
                 });
 
             modelBuilder.Entity("DotNetCloud.Modules.Tracks.Models.WorkItemComment", b =>
@@ -1748,7 +1747,7 @@ namespace DotNetCloud.Modules.Tracks.Data.Migrations
                     b.HasIndex("WorkItemId")
                         .HasDatabaseName("ix_work_item_comments_work_item");
 
-                    b.ToTable("WorkItemComments", "tracks");
+                    b.ToTable("WorkItemComments");
                 });
 
             modelBuilder.Entity("DotNetCloud.Modules.Tracks.Models.WorkItemDependency", b =>
@@ -1782,7 +1781,7 @@ namespace DotNetCloud.Modules.Tracks.Data.Migrations
                         .IsUnique()
                         .HasDatabaseName("uq_work_item_dependencies_item_depends_type");
 
-                    b.ToTable("WorkItemDependencies", "tracks");
+                    b.ToTable("WorkItemDependencies");
                 });
 
             modelBuilder.Entity("DotNetCloud.Modules.Tracks.Models.WorkItemFieldValue", b =>
@@ -1814,7 +1813,7 @@ namespace DotNetCloud.Modules.Tracks.Data.Migrations
                         .IsUnique()
                         .HasDatabaseName("uq_workitem_fieldvalue_item_field");
 
-                    b.ToTable("WorkItemFieldValues", "tracks");
+                    b.ToTable("WorkItemFieldValues");
                 });
 
             modelBuilder.Entity("DotNetCloud.Modules.Tracks.Models.WorkItemLabel", b =>
@@ -1834,7 +1833,7 @@ namespace DotNetCloud.Modules.Tracks.Data.Migrations
 
                     b.HasIndex("LabelId");
 
-                    b.ToTable("WorkItemLabels", "tracks");
+                    b.ToTable("WorkItemLabels");
                 });
 
             modelBuilder.Entity("DotNetCloud.Modules.Tracks.Models.WorkItemShareLink", b =>
@@ -1880,7 +1879,7 @@ namespace DotNetCloud.Modules.Tracks.Data.Migrations
                     b.HasIndex("WorkItemId")
                         .HasDatabaseName("ix_work_item_share_links_work_item");
 
-                    b.ToTable("WorkItemShareLinks", "tracks");
+                    b.ToTable("WorkItemShareLinks");
                 });
 
             modelBuilder.Entity("DotNetCloud.Modules.Tracks.Models.WorkItemWatcher", b =>
@@ -1896,7 +1895,7 @@ namespace DotNetCloud.Modules.Tracks.Data.Migrations
 
                     b.HasKey("WorkItemId", "UserId");
 
-                    b.ToTable("WorkItemWatchers", "tracks");
+                    b.ToTable("WorkItemWatchers");
                 });
 
             modelBuilder.Entity("DotNetCloud.Modules.Tracks.Models.Activity", b =>

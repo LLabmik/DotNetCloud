@@ -20,7 +20,9 @@
                 <span class="tracks-nav-text">@view.Name</span>
                 @if (view.IsShared)
                 {
-                    <span class="tracks-shared-icon" title="Shared with team"><MaterialIcon Icon="group" Size="MaterialIconSize.Sm" /></span>
+                    <span class="tracks-shared-icon" title="Shared with team">
+                        <MaterialIcon Icon="group" Size="MaterialIconSize.Sm" />
+                    </span>
                 }
             }
         </button>
@@ -28,7 +30,9 @@
     @if (!Collapsed)
     {
         <button class="tracks-nav-item tracks-save-view-btn" @onclick="OnSaveCurrentView" title="Save current view">
-            <span class="tracks-nav-icon"><MaterialIcon Icon="save" Size="MaterialIconSize.Sm" /></span>
+            <span class="tracks-nav-icon">
+                <MaterialIcon Icon="save" Size="MaterialIconSize.Sm" />
+            </span>
             <span class="tracks-nav-text">Save Current View</span>
         </button>
     }

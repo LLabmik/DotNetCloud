@@ -1,34 +1,57 @@
 {
+  "manifestVersion": 2,
   "id": "dotnetcloud.tracks",
   "name": "Tracks",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "description": "Project management with products, work items, sprints, and team collaboration.",
-  "author": "DotNetCloud",
-  "requiredCapabilities": [
-    "INotificationService",
-    "IUserDirectory",
-    "ICurrentUserContext",
+  "publisher": {
+    "id": "dotnetcloud",
+    "name": "DotNetCloud",
+    "url": "https://dotnetcloud.net"
+  },
+  "moduleApiVersion": 1,
+  "minCoreVersion": "0.7.0",
+  "dataStore": "isolated",
+  "handlesUserErasure": true,
+  "capabilities": [
     "IAuditLogger",
+    "IUserDirectory",
+    "INotificationService",
     "IOrganizationDirectory",
     "IRealtimeBroadcaster"
   ],
-  "publishedEvents": ["WorkItemCreatedEvent"],
-  "realtimeEvents": [
-    "TracksWorkItemAction",
-    "TracksSwimlaneAction",
-    "TracksCommentAction",
-    "TracksSprintAction",
-    "TracksActivity",
-    "TracksProductMemberAction",
-    "TracksTeamAction",
-    "TracksReviewItemChanged",
-    "TracksReviewSessionState",
-    "TracksPokerVoteStatus",
-    "TracksReviewPokerState",
-    "TracksReviewParticipantChanged",
-    "TracksSprintDiscussionMessage",
-    "TracksReviewDiscussionMessage"
-  ],
-  "subscribedEvents": [],
-  "minCoreVersion": "0.7.0"
+  "userConsentScopes": ["profile", "notifications:send"],
+  "events": {
+    "publishes": [
+      "ProductCreatedEvent",
+      "ProductDeletedEvent",
+      "WorkItemCreatedEvent",
+      "WorkItemMovedEvent",
+      "WorkItemUpdatedEvent",
+      "WorkItemDeletedEvent",
+      "WorkItemAssignedEvent",
+      "WorkItemCommentAddedEvent",
+      "SprintStartedEvent",
+      "SprintCompletedEvent",
+      "PokerSessionStartedEvent",
+      "PokerSessionRevealedEvent",
+      "PokerSessionCompletedEvent"
+    ],
+    "subscribes": []
+  },
+  "ui": {
+    "type": "iframe",
+    "entryPath": "/",
+    "navItems": [
+      {
+        "id": "tracks",
+        "label": "Tracks",
+        "icon": "assignment",
+        "path": "/"
+      }
+    ],
+    "widget": {
+      "path": "/widget/index.html"
+    }
+  }
 }

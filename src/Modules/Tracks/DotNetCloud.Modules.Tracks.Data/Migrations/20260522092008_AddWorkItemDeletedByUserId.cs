@@ -13,14 +13,12 @@ namespace DotNetCloud.Modules.Tracks.Data.Migrations
         {
             migrationBuilder.AddColumn<Guid>(
                 name: "DeletedByUserId",
-                schema: "tracks",
                 table: "WorkItems",
                 type: "uuid",
                 nullable: true);
 
             migrationBuilder.AddColumn<Guid>(
                 name: "DeletedByUserId",
-                schema: "tracks",
                 table: "WorkItemComments",
                 type: "uuid",
                 nullable: true);
@@ -31,12 +29,10 @@ namespace DotNetCloud.Modules.Tracks.Data.Migrations
         {
             migrationBuilder.DropColumn(
                 name: "DeletedByUserId",
-                schema: "tracks",
                 table: "WorkItems");
 
             migrationBuilder.DropColumn(
                 name: "DeletedByUserId",
-                schema: "tracks",
                 table: "WorkItemComments");
         }
     }

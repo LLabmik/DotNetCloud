@@ -35,4 +35,15 @@
     <Using Include="Microsoft.VisualStudio.TestTools.UnitTesting" />
   </ItemGroup>
 
+  <!-- The shipped files are the ones under test: the manifest, the module UI's widget document and
+       the SDK bridge. The Blazor WebAssembly app itself is exercised in a browser; these copies let
+       the asset guard fail the build instead. -->
+  <ItemGroup>
+    <None Include="..\..\src\Modules\Tracks\manifest.json" Link="ui\manifest.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\src\Modules\Tracks\DotNetCloud.Modules.Tracks.Host\wwwroot\widget\index.html" Link="ui\widget\index.html" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\src\Modules\Tracks\DotNetCloud.Modules.Tracks.Host\wwwroot\widget\widget.js" Link="ui\widget\widget.js" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\src\Modules\Tracks\DotNetCloud.Modules.Tracks.Host\wwwroot\widget\widget.css" Link="ui\widget\widget.css" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\src\SDK\DotNetCloud.Modules.Sdk\wwwroot\dncModuleBridge.js" Link="ui\dncModuleBridge.js" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
 </Project>

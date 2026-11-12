@@ -58,15 +58,6 @@ internal sealed class ModuleUiRegistrationHostedService : BackgroundService
             RouteKey: "notes.page",
             ComponentType: typeof(DotNetCloud.Modules.Notes.UI.NotesPage)),
         new(
-            ModuleId: "dotnetcloud.tracks",
-            Label: "Tracks",
-            Href: "/apps/tracks",
-            Icon: ModuleIconProvider.GetIcon("dotnetcloud.tracks"),
-            SortOrder: 60,
-            RouteKey: "tracks.page",
-            ComponentType: typeof(DotNetCloud.Modules.Tracks.UI.TracksPage),
-            AdditionalPages: [("tracks.item", typeof(DotNetCloud.Modules.Tracks.UI.WorkItemFullscreenPage))]),
-        new(
             ModuleId: "dotnetcloud.music",
             Label: "Music",
             Href: "/apps/music",

@@ -33,8 +33,12 @@
             @if (_errorMessage is not null)
             {
                 <div class="csv-error-banner">
-                    <span><MaterialIcon Icon="warning" Size="MaterialIconSize.Sm" /> @_errorMessage</span>
-                    <button class="csv-error-dismiss" @onclick="() => _errorMessage = null" title="Dismiss"><MaterialIcon Icon="close" Size="MaterialIconSize.Sm" /></button>
+                    <span>
+                        <MaterialIcon Icon="warning" Size="MaterialIconSize.Sm" /> @_errorMessage
+                    </span>
+                    <button class="csv-error-dismiss" @onclick="() => _errorMessage = null" title="Dismiss">
+                        <MaterialIcon Icon="close" Size="MaterialIconSize.Sm" />
+                    </button>
                 </div>
             }
 
@@ -44,14 +48,9 @@
                 {
                     case 0:
                         @* Step 1: File Upload *@
-                        <div class="csv-upload-zone"
-                             @ondrop="HandleDrop"
-                             @ondragover="HandleDragOver"
-                             @ondragleave="() => _isDragOver = false"
-                             @onclick="OpenFilePicker">
-                            <InputFile OnChange="HandleFileSelected"
-                                       accept=".csv"
-                                       style="display:none"
+                        <div class="csv-upload-zone" @ondrop="HandleDrop" @ondragover="HandleDragOver"
+                             @ondragleave="() => _isDragOver = false" @onclick="OpenFilePicker">
+                            <InputFile OnChange="HandleFileSelected" accept=".csv" style="display:none"
                                        @ref="_fileInputComponent" />
                             <div class="csv-upload-icon">
                                 <MaterialIcon Icon="file_upload" Size="MaterialIconSize.Xl" />
@@ -65,7 +64,10 @@
                             </button>
                             @if (_selectedFile is not null)
                             {
-                                <p class="csv-file-name"><MaterialIcon Icon="description" Size="MaterialIconSize.Sm" /> @_selectedFile.Name (@FormatFileSize(_selectedFile.Size))</p>
+                                <p class="csv-file-name">
+                                    <MaterialIcon Icon="description" Size="MaterialIconSize.Sm" /> @_selectedFile.Name
+                                    (@FormatFileSize(_selectedFile.Size))
+                                </p>
                             }
                         </div>
                         break;
@@ -133,8 +135,14 @@
                         @if (_validationResult is not null)
                         {
                             <div class="csv-validation-summary">
-                                <div class="csv-validation-stat csv-stat-ok"><MaterialIcon Icon="check_circle" Size="MaterialIconSize.Sm" /> @_validationResult.ValidRowCount valid rows</div>
-                                <div class="csv-validation-stat csv-stat-err"><MaterialIcon Icon="error" Size="MaterialIconSize.Sm" /> @_validationResult.Errors.Count rows with errors</div>
+                                <div class="csv-validation-stat csv-stat-ok">
+                                    <MaterialIcon Icon="check_circle" Size="MaterialIconSize.Sm" /> @_validationResult.ValidRowCount
+                                    valid rows
+                                </div>
+                                <div class="csv-validation-stat csv-stat-err">
+                                    <MaterialIcon Icon="error" Size="MaterialIconSize.Sm" /> @_validationResult.Errors.Count rows with
+                                    errors
+                                </div>
                             </div>
                             @if (_validationResult.Errors.Count > 0)
                             {
@@ -154,7 +162,9 @@
                                                     <td>
                                                         @foreach (var msg in err.Errors)
                                                         {
-                                                            <div class="csv-error-msg"><MaterialIcon Icon="warning" Size="MaterialIconSize.Sm" /> @msg</div>
+                                                            <div class="csv-error-msg">
+                                                                <MaterialIcon Icon="warning" Size="MaterialIconSize.Sm" /> @msg
+                                                            </div>
                                                         }
                                                     </td>
                                                 </tr>
@@ -171,14 +181,20 @@
                         @if (_importResult is not null)
                         {
                             <div class="csv-import-summary">
-                                <div class="csv-import-stat"><MaterialIcon Icon="check_circle" Size="MaterialIconSize.Sm" /> @_importResult.Created items created</div>
+                                <div class="csv-import-stat">
+                                    <MaterialIcon Icon="check_circle" Size="MaterialIconSize.Sm" /> @_importResult.Created items created
+                                </div>
                                 @if (_importResult.Skipped > 0)
                                 {
-                                    <div class="csv-import-stat csv-stat-warn"><MaterialIcon Icon="skip_next" Size="MaterialIconSize.Sm" /> @_importResult.Skipped items skipped</div>
+                                    <div class="csv-import-stat csv-stat-warn">
+                                        <MaterialIcon Icon="skip_next" Size="MaterialIconSize.Sm" /> @_importResult.Skipped items skipped
+                                    </div>
                                 }
                                 @if (_importResult.Failed > 0)
                                 {
-                                    <div class="csv-import-stat csv-stat-err"><MaterialIcon Icon="error" Size="MaterialIconSize.Sm" /> @_importResult.Failed items failed</div>
+                                    <div class="csv-import-stat csv-stat-err">
+                                        <MaterialIcon Icon="error" Size="MaterialIconSize.Sm" /> @_importResult.Failed items failed
+                                    </div>
                                 }
                             </div>
                             @if (_importResult.Errors.Count > 0)
@@ -187,7 +203,9 @@
                                     <h4>Import Errors</h4>
                                     @foreach (var err in _importResult.Errors)
                                     {
-                                        <div class="csv-error-msg"><MaterialIcon Icon="warning" Size="MaterialIconSize.Sm" /> @err</div>
+                                        <div class="csv-error-msg">
+                                            <MaterialIcon Icon="warning" Size="MaterialIconSize.Sm" /> @err
+                                        </div>
                                     }
                                 </div>
                             }
@@ -216,8 +234,7 @@
                 }
                 @if (_currentStep < 4)
                 {
-                    <button type="button" class="csv-btn csv-btn-primary" @onclick="GoNext"
-                            disabled="@(!CanGoNext)">
+                    <button type="button" class="csv-btn csv-btn-primary" @onclick="GoNext" disabled="@(!CanGoNext)">
                         @(_currentStep == 3 ? "Start Import" : "Next →")
                     </button>
                 }

@@ -18,7 +18,8 @@
         <div class="goal-detail-card @(_goal.Status == "completed" ? "completed" : "")">
             <div class="goal-detail-top">
                 <span class="goal-detail-type">
-                    <MaterialIcon Icon="@(_goal.Type == "objective" ? "flag" : "bar_chart")" Size="MaterialIconSize.Sm" /> @(_goal.Type == "objective" ? "Objective" : "Key Result")
+                    <MaterialIcon Icon="@(_goal.Type == "objective" ? "flag" : "bar_chart")" Size="MaterialIconSize.Sm" />
+                    @(_goal.Type == "objective" ? "Objective" : "Key Result")
                 </span>
                 <span class="goal-detail-status">@FormatStatus(_goal.Status)</span>
             </div>
@@ -37,7 +38,8 @@
                 </div>
                 <div class="goal-detail-progress-bar">
                     <div class="goal-detail-progress-fill"
-                         style="width: @(_goal.ProgressPercent.ToString("F0"))%; background: @GetProgressColor(_goal.ProgressPercent)"></div>
+                         style="width: @(_goal.ProgressPercent.ToString("F0"))%; background: @GetProgressColor(_goal.ProgressPercent)">
+                    </div>
                 </div>
 
                 @if (_goal.TargetValue.HasValue)
@@ -75,8 +77,7 @@
                     <div class="goal-detail-update-row">
                         <input type="number" class="form-control form-control-sm" @bind="_newCurrentValue"
                                placeholder="Current value" />
-                        <button class="btn btn-primary btn-sm" @onclick="UpdateProgress"
-                                disabled="@_isUpdating">
+                        <button class="btn btn-primary btn-sm" @onclick="UpdateProgress" disabled="@_isUpdating">
                             Update
                         </button>
                     </div>
@@ -106,7 +107,8 @@
                         </div>
                         <div class="goal-detail-kr-bar">
                             <div class="goal-detail-kr-fill"
-                                 style="width: @(kr.ProgressPercent.ToString("F0"))%; background: @GetProgressColor(kr.ProgressPercent)"></div>
+                                 style="width: @(kr.ProgressPercent.ToString("F0"))%; background: @GetProgressColor(kr.ProgressPercent)">
+                            </div>
                         </div>
                     </div>
                 }
