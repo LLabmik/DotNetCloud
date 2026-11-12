@@ -17,7 +17,9 @@ and no dependency on the core's Blazor component library.
 - **Models** — accounts, mailboxes, threads, messages, attachments, rules (conditions and actions)
 - **Service contracts** — accounts, send, sync, rules, providers (`IEmailProvider`), attachment storage
 - **Events** — account added/removed, thread created, message received, sent, rule triggered
-- **HTTP client** — `EmailApiClient` for the module's REST surface
+
+> There is no module-side HTTP client: the host owns the REST surface (its UI is JavaScript) and the
+> core reaches the module over gRPC through `IEmailApiClient` in `DotNetCloud.Core`.
 
 ## Projects This Interacts With
 

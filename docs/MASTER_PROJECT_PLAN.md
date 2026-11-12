@@ -103,6 +103,21 @@
 > store schemas now accept the core's bare `profile` consent scope, with `StoreSchemaTests` guarding
 > policy/schema drift. Track C's module conversions are complete.
 >
+> **Install-from-store verified (2026-11-11).** `dotnetcloud module install dotnetcloud.tracks
+> --from-store --version 2.0.0 --yes` reviewed the package (hash + trusted signature), replaced the
+> bundled copy, provisioned the isolated data store and reported `module info` **Trust tier: Store**,
+> **Sandbox: Active**, receipt `verified`. Two capability grants returned to Pending under store-tier
+> policy (`IUserDirectory`, `INotificationService`) and were re-approved; the frame and API then worked
+> unchanged (`displayName: "Ben Kimball"`), `/health/ready` 200.
+>
+> **Bug-class audit (2026-11-11).** The two click-through defects were checked against every module:
+> the `params`-array interop spread existed only in `ModuleBridge` (now pinned by `ModuleBridgeTests`);
+> each UI/host pair agrees on enums (Photos/Tracks use `AddModuleJsonOptions` and name-aware clients,
+> the Email UI sends and compares integers, Bookmarks normalises both); the unreferenced Email
+> `EmailApiClient` — the last self-configured JSON-options copy — is deleted; and six UI asset guards
+> that asserted a quote style rather than behaviour were made quote-agnostic (Email 63/63, Bookmarks
+> 37/37). No lazy-`_client` guard remains in `Core.Grpc`.
+>
 > **Assignee names (2026-11-11, follow-up).** An assignment row carries only the user id and no path
 > consulted the core directory, so every payload shipped `displayName: null` and the assignee chip
 > rendered "?" (the product list was worse — it used the raw GUID *as* the name). New

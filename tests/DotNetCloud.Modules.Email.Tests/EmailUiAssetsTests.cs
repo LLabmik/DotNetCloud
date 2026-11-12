@@ -79,7 +79,7 @@ public class EmailUiAssetsTests
         // A message body is HTML produced by a third party. It is rendered in a nested frame with no
         // privileges at all (sandbox=""), which is what keeps injected handlers from running in this
         // document's origin.
-        StringAssert.Contains(script, "frame.setAttribute('sandbox', '')");
+        StringAssert.Contains(NormaliseQuotes(script), "frame.setAttribute('sandbox', '')");
         StringAssert.Contains(script, "frame.srcdoc");
     }
 
@@ -92,9 +92,9 @@ public class EmailUiAssetsTests
         {
             var script = ReadUiFile(file);
 
-            StringAssert.Contains(script, "credentials: 'include'");
+            StringAssert.Contains(NormaliseQuotes(script), "credentials: 'include'");
             Assert.IsFalse(
-                script.Contains("credentials: 'same-origin'", StringComparison.Ordinal),
+                NormaliseQuotes(script).Contains("credentials: 'same-origin'", StringComparison.Ordinal),
                 $"{file} would send no credentials from an opaque-origin frame");
         }
     }
@@ -107,10 +107,10 @@ public class EmailUiAssetsTests
         Assert.IsFalse(
             script.Contains("'/api/", StringComparison.Ordinal),
             "API calls must be relative so they stay inside /apps/<moduleId>/");
-        StringAssert.Contains(script, "var API = 'api/v1/email'");
+        StringAssert.Contains(NormaliseQuotes(script), "var API = 'api/v1/email'");
 
         var widgetScript = ReadUiFile("widget/widget.js");
-        StringAssert.Contains(widgetScript, "var API = 'api/v1/email'");
+        StringAssert.Contains(NormaliseQuotes(widgetScript), "var API = 'api/v1/email'");
         Assert.IsFalse(
             widgetScript.Contains("'/api/", StringComparison.Ordinal),
             "the widget frame must call the API relatively as well");
@@ -136,7 +136,7 @@ public class EmailUiAssetsTests
     {
         var script = ReadUiFile("widget/widget.js");
 
-        StringAssert.Contains(script, "role: 'widget'");
+        StringAssert.Contains(NormaliseQuotes(script), "role: 'widget'");
         StringAssert.Contains(script, "reportHeight");
     }
 
@@ -157,9 +157,10 @@ public class EmailUiAssetsTests
 
         // Browse and save are core capabilities brokered by the module's backend. The frame must never
         // learn about the Files module (a direct sibling call is forbidden and does not authenticate).
-        StringAssert.Contains(script, "API + '/files'");
-        StringAssert.Contains(script, "'/attachments/from-file'");
-        StringAssert.Contains(script, "'/save-to-files'");
+        var normalised = NormaliseQuotes(script);
+        StringAssert.Contains(normalised, "API + '/files'");
+        StringAssert.Contains(normalised, "'/attachments/from-file'");
+        StringAssert.Contains(normalised, "'/save-to-files'");
 
         Assert.IsFalse(
             script.Contains("dotnetcloud.files", StringComparison.Ordinal),
@@ -194,4 +195,14 @@ public class EmailUiAssetsTests
         Assert.IsTrue(File.Exists(path), $"Expected UI asset was not copied to the test output: {path}");
         return File.ReadAllText(path);
     }
+
+    /// <summary>
+    /// Maps double-quoted JavaScript string literals onto single quotes.
+    /// </summary>
+    /// <remarks>
+    /// These guards assert what the module UI <i>does</i> — credentials are included, the message frame
+    /// is sandboxed, calls are relative — not which quote character the script happens to use. Five of
+    /// them were failing purely because the UI switched to double quotes.
+    /// </remarks>
+    private static string NormaliseQuotes(string script) => script.Replace("\"", "'", StringComparison.Ordinal);
 }

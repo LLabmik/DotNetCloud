@@ -79,10 +79,10 @@ public class BookmarksUiAssetsTests
         Assert.IsFalse(
             script.Contains("'/api/", StringComparison.Ordinal),
             "API calls must be relative so they stay inside /apps/<moduleId>/");
-        StringAssert.Contains(script, "var API = 'api/v1/bookmarks'");
+        StringAssert.Contains(NormaliseQuotes(script), "var API = 'api/v1/bookmarks'");
 
         var widgetScript = ReadUiFile("widget/widget.js");
-        StringAssert.Contains(widgetScript, "'../api/v1/bookmarks");
+        StringAssert.Contains(NormaliseQuotes(widgetScript), "'../api/v1/bookmarks");
         Assert.IsFalse(
             widgetScript.Contains("'/api/", StringComparison.Ordinal),
             "the widget frame must call the API relatively as well");
@@ -119,4 +119,13 @@ public class BookmarksUiAssetsTests
         Assert.IsTrue(File.Exists(path), $"Expected UI asset was not copied to the test output: {path}");
         return File.ReadAllText(path);
     }
+
+    /// <summary>
+    /// Maps double-quoted JavaScript string literals onto single quotes.
+    /// </summary>
+    /// <remarks>
+    /// The guards assert what the module UI does — calls stay relative, credentials are included —
+    /// not which quote character the script uses.
+    /// </remarks>
+    private static string NormaliseQuotes(string script) => script.Replace("\"", "'", StringComparison.Ordinal);
 }
