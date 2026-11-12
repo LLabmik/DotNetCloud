@@ -96,7 +96,12 @@
 > `object` cast. (8) `TracksHttpApiClient` deserialised with `JsonSerializerDefaults.Web` while the host emits enum names,
 > so creating a product threw `DeserializeUnableToConvertValue` on `containerType`; the client now shares
 > `TracksApi.JsonOptions`. Tests: Tracks **277/277**, Core.Server **1693 passed / 2 skipped**, Blazor standards gate green.
-> ☐ Next: Stage D (pack the `.dncpkg` and publish `dotnetcloud.tracks` to the store — browser verification ✓ done).
+> ✓ Stage D (2026-11-11): `dotnetcloud.tracks` 2.0.0 is packaged, published and live — 69,307,503 B,
+> sha256 `e96eb5f7…`, signed `dotnetcloud-official-2026`; store commit `1827af7`, catalogue **6 packages /
+> 8 versions** signed with `store-2026`, live site + `current` release + box clone byte-identical, and
+> the core's store listing now shows 8 entries. Publishing also fixed a catalogue-wide defect: both
+> store schemas now accept the core's bare `profile` consent scope, with `StoreSchemaTests` guarding
+> policy/schema drift. Track C's module conversions are complete.
 >
 > **Assignee names (2026-11-11, follow-up).** An assignment row carries only the user id and no path
 > consulted the core directory, so every payload shipped `displayName: null` and the assignee chip
