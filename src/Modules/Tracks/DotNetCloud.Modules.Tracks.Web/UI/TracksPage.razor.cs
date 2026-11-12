@@ -40,6 +40,7 @@ public partial class TracksPage : ComponentBase, IDisposable
     [Inject] private IOnboardingStateService OnboardingState { get; set; } = default!;
     [Inject] private IJSRuntime JS { get; set; } = default!;
     [Inject] private BrowserPreferenceStore Preferences { get; set; } = default!;
+    [Inject] private ModuleBridge Bridge { get; set; } = default!;
 
     private enum TracksView { ProductList, ProductKanban, EpicKanban, FeatureKanban, Teams, Planning, Wizard, Backlog, Timeline, Review, Settings, Calendar, List, Dashboard, Roadmap }
 
@@ -175,6 +176,13 @@ public partial class TracksPage : ComponentBase, IDisposable
             var teamsTask = ApiClient.ListTeamsAsync();
             _teams.Clear();
             _teams.AddRange(await teamsTask);
+        }
+        catch (ConsentRequiredException ex)
+        {
+            // The shell owns the consent prompt; asking it here makes the prompt appear instead of
+            // leaving an empty product list with no explanation.
+            _errorMessage = ex.Message;
+            await Bridge.RequestConsentAsync([.. ex.Scopes]);
         }
         catch (Exception ex)
         {

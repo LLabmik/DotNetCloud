@@ -32,6 +32,9 @@
     <script src="js/tracks-ui.js"></script>
     <script src="js/dncModuleBridge.js"></script>
     <script src="js/tracks-bridge.js"></script>
-    <script src="_framework/blazor.webassembly.js"></script>
+    <!-- autostart is off on purpose: an opaque-origin frame cannot resolve the loader's relative
+         `import("./dotnet.js")`, so js/tracks-boot.js starts Blazor with absolute boot URLs. -->
+    <script src="_framework/blazor.webassembly.js" autostart="false"></script>
+    <script src="js/tracks-boot.js"></script>
   </body>
 </html>

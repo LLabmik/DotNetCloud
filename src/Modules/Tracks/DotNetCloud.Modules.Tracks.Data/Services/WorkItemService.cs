@@ -3,6 +3,7 @@ using DotNetCloud.Core.DTOs;
 using DotNetCloud.Core.Events;
 using DotNetCloud.Modules.Tracks.Models;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using IAuditLogger = DotNetCloud.Core.Capabilities.IAuditLogger;
 using AuditEntry = DotNetCloud.Core.Capabilities.AuditEntry;
 using AuditAction = DotNetCloud.Core.Capabilities.AuditAction;
@@ -16,14 +17,25 @@ public sealed class WorkItemService
     private readonly IEventBus _eventBus;
     private readonly ActivityService _activityService;
     private readonly IAuditLogger _auditLogger;
+    private readonly DotNetCloud.Core.Capabilities.IUserDirectory? _userDirectory;
 
-    public WorkItemService(TracksDbContext db, SwimlaneTransitionService transitionService, IEventBus eventBus, ActivityService activityService, IAuditLogger auditLogger)
+    public WorkItemService(
+        TracksDbContext db,
+        SwimlaneTransitionService transitionService,
+        IEventBus eventBus,
+        ActivityService activityService,
+        IAuditLogger auditLogger,
+        IServiceProvider? serviceProvider = null)
     {
         _db = db;
         _transitionService = transitionService;
         _eventBus = eventBus;
         _activityService = activityService;
         _auditLogger = auditLogger;
+
+        // Optional capability, resolved with GetService so a test or minimal host container that
+        // has no user directory still resolves work items (the name then stays blank).
+        _userDirectory = serviceProvider?.GetService<DotNetCloud.Core.Capabilities.IUserDirectory>();
     }
 
     public async Task<WorkItemDto> CreateWorkItemAsync(
@@ -272,6 +284,9 @@ public sealed class WorkItemService
                 UserId = a.UserId,
                 AssignedAt = a.AssignedAt
             }).ToList();
+
+        // The assignment row holds only the user id; the name comes from the core user directory.
+        assignments = await UserDisplayNames.ResolveAssignmentsAsync(assignments, _userDirectory, ct);
 
         var labels = workItem.WorkItemLabels
             .Select(wl => new LabelDto
@@ -656,16 +671,23 @@ public sealed class WorkItemService
         var workItems = await _db.WorkItems
             .Where(wi => wi.SwimlaneId == swimlaneId && !wi.IsArchived)
             .Include(wi => wi.Swimlane)
+            .Include(wi => wi.Assignments)
             .OrderBy(wi => wi.Position)
             .ToListAsync(ct);
 
-        return workItems.Select(wi => MapToDto(
+        var dtos = workItems.Select(wi => MapToDto(
             wi,
             wi.Swimlane?.Title,
-            new List<WorkItemAssignmentDto>(),
+            wi.Assignments.Select(a => new WorkItemAssignmentDto
+            {
+                UserId = a.UserId,
+                AssignedAt = a.AssignedAt
+            }).ToList(),
             new List<LabelDto>(),
             commentCount: 0,
             attachmentCount: 0)).ToList();
+
+        return await UserDisplayNames.ResolveWorkItemsAsync(dtos, _userDirectory, ct);
     }
 
     /// <summary>
@@ -679,6 +701,7 @@ public sealed class WorkItemService
         var horizon = now.Date.AddDays(daysAhead);
         var items = await _db.WorkItems
             .Include(wi => wi.Swimlane)
+            .Include(wi => wi.Assignments)
             .Where(wi => !wi.IsArchived && !wi.IsDeleted
                 && wi.DueDate.HasValue
                 && wi.DueDate.Value >= now
@@ -689,13 +712,19 @@ public sealed class WorkItemService
             .Take(count)
             .ToListAsync(ct);
 
-        return items.Select(wi => MapToDto(
+        var dtos = items.Select(wi => MapToDto(
             wi,
             wi.Swimlane?.Title,
-            new List<WorkItemAssignmentDto>(),
+            wi.Assignments.Select(a => new WorkItemAssignmentDto
+            {
+                UserId = a.UserId,
+                AssignedAt = a.AssignedAt
+            }).ToList(),
             new List<LabelDto>(),
             commentCount: 0,
             attachmentCount: 0)).ToList();
+
+        return await UserDisplayNames.ResolveWorkItemsAsync(dtos, _userDirectory, ct);
     }
 
     public async Task<List<WorkItemDto>> GetChildWorkItemsAsync(Guid parentWorkItemId, CancellationToken ct)
@@ -731,11 +760,13 @@ public sealed class WorkItemService
 
         await _db.SaveChangesAsync(ct);
 
-        return new WorkItemAssignmentDto
+        var dto = new WorkItemAssignmentDto
         {
             UserId = assignment.UserId,
             AssignedAt = assignment.AssignedAt
         };
+
+        return (await UserDisplayNames.ResolveAssignmentsAsync([dto], _userDirectory, ct))[0];
     }
 
     public async Task RemoveAssignmentAsync(Guid workItemId, Guid userId, CancellationToken ct)

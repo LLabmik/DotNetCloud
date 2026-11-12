@@ -43,6 +43,9 @@
     <None Include="..\..\src\Modules\Tracks\DotNetCloud.Modules.Tracks.Host\wwwroot\widget\index.html" Link="ui\widget\index.html" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\src\Modules\Tracks\DotNetCloud.Modules.Tracks.Host\wwwroot\widget\widget.js" Link="ui\widget\widget.js" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\src\Modules\Tracks\DotNetCloud.Modules.Tracks.Host\wwwroot\widget\widget.css" Link="ui\widget\widget.css" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\src\Modules\Tracks\DotNetCloud.Modules.Tracks.Web\wwwroot\index.html" Link="ui\index.html" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\src\Modules\Tracks\DotNetCloud.Modules.Tracks.Web\wwwroot\css\app.css" Link="ui\css\app.css" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\src\Modules\Tracks\DotNetCloud.Modules.Tracks.Web\wwwroot\js\tracks-boot.js" Link="ui\js\tracks-boot.js" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\src\SDK\DotNetCloud.Modules.Sdk\wwwroot\dncModuleBridge.js" Link="ui\dncModuleBridge.js" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 

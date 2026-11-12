@@ -74,8 +74,46 @@
 > `createdb=false`, `superuser=false` with `schema_usage=true` / `create_on_db=false`. Routes: `/apps/dotnetcloud.tracks/`
 > **401**, the widget and its API **401**, `/apps/tracks` **404**, `/modules/dotnetcloud.tracks` **302**, and the published
 > WASM bundle serves (`blazor.webassembly.js` 60,682 B, scoped CSS 264,159 B, widget script/CSS, bridge).
-> ☐ Next: Stage D (pack the `.dncpkg`, publish `dotnetcloud.tracks` to the store, signed-in browser click-through of the
-> framed app + widget).
+>
+> **Browser click-through (2026-11-11) — the framed app and widget work end to end, and eight defects no unit test could
+> see are fixed.** Signed in through the shell, the frame boots Blazor WebAssembly, the consent band requests `profile`
+> and approving it makes `api/v1/organizations` return both organizations, a product is created with its three default
+> swimlanes, a work item is added with a due date and an assignee, and the Home card renders *"Widget smoke item /
+> Nov 13"*. Fixes: (1) `ModuleAppResponsePolicy` sent `base-uri 'none'`, which blocks the app's `<base href>` — a frame is
+> an opaque origin, so the document base stayed `about:blank` and Blazor's `import("./dotnet.js")` resolved nowhere; it now
+> emits `base-uri *` (`frame-ancestors 'self'` still constrains framing). (2) Relative dynamic imports still failed, so
+> `wwwroot/js/tracks-boot.js` starts Blazor with `autostart="false"` and `loadBootResource` returning absolute URLs from
+> `new URL("./", window.location.href)`. (3) Modules cannot see the shell's CSS, so `.btn`, `.alert`, `.badge`,
+> `form-group` and the `help-*` classes were unstyled — the design tokens and component classes are now ported into the
+> module's `app.css` (mapped onto the `--tracks-*` variables with `[data-theme]` blocks). (4) `MainLayout` wrote a second
+> `data-theme` (`light`) onto `.tracks-root` while `<html>` was already dark, so the first-run tour was white-on-white;
+> `<html>` is the single theme source again. (5) `GrpcOrganizationDirectory`/`GrpcTeamDirectory` guarded on the lazy
+> `_client` rather than `_coreEndpoint`, so the first call always threw *"DOTNETCLOUD_CORE_ENDPOINT is not set"* and the
+> org picker stayed empty. (6) A missing `profile` consent was swallowed into `[]`; the refusal now travels intact
+> (`IsConsentRequired` on the `MODULE_CONSENT_REQUIRED` trailer) and the host answers **403 `PROFILE_CONSENT_REQUIRED`**
+> with the `consent-scopes` trailer, which the frame turns into `bridge.requestConsent`. (7) `RequestConsentAsync(params
+> string[] scopes)` spread the array across `InvokeVoidAsync` arguments, silently dropping the request — fixed with an
+> `object` cast. (8) `TracksHttpApiClient` deserialised with `JsonSerializerDefaults.Web` while the host emits enum names,
+> so creating a product threw `DeserializeUnableToConvertValue` on `containerType`; the client now shares
+> `TracksApi.JsonOptions`. Tests: Tracks **277/277**, Core.Server **1693 passed / 2 skipped**, Blazor standards gate green.
+> ☐ Next: Stage D (pack the `.dncpkg` and publish `dotnetcloud.tracks` to the store — browser verification ✓ done).
+>
+> **Assignee names (2026-11-11, follow-up).** An assignment row carries only the user id and no path
+> consulted the core directory, so every payload shipped `displayName: null` and the assignee chip
+> rendered "?" (the product list was worse — it used the raw GUID *as* the name). New
+> `UserDisplayNames` helper resolves names with one batched `IUserDirectory.GetDisplayNamesAsync`
+> call per payload, only for ids without a name, and degrades to a blank name when the capability is
+> absent or the directory fails. Wired into `WorkItemService` (`GetWorkItemAsync`, `AssignUserAsync`,
+> the swimlane and upcoming-due lists — which now include their assignments instead of an empty list),
+> `SprintService`'s backlog, and the controller's product list + CSV export. The same helper fixed the
+> last two id-only spots: `ReviewSessionService` (participants were mapped with `DisplayName = null`)
+> and `AnalyticsService` (workload, roadmap assignee and member capacity put the GUID in the name
+> field), so the dashboard workload chart, the roadmap assignee grouping and the participant list all
+> render names — and the gRPC messages carry them too. Verified live: `displayName: "Ben Kimball"` on
+> the work item, the roadmap (`assigneeDisplayName`) and the dashboard workload. Tests: Tracks
+> **297/297**, Core.Server **1693 passed / 2 skipped**, Core.Tests **606**, CI build clean.
+> ☐ Still open: both bug classes above (JS `params` marshalling, module-side JSON options) are
+> copy-pasteable into the other module bridges.
 
 ---
 

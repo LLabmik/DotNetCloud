@@ -49,6 +49,27 @@ public sealed class ModuleDirectoryTests
         Assert.AreEqual(0, organizations.Count);
     }
 
+    /// <summary>
+    /// A missing profile consent must reach the page so it can ask the shell for it.
+    /// </summary>
+    /// <remarks>
+    /// Found live: the endpoint answered 200 with an empty list while the core was returning
+    /// <c>MODULE_CONSENT_REQUIRED</c>, so the product picker stayed empty with nothing to click and no
+    /// way for the user to approve the scope.
+    /// </remarks>
+    [TestMethod]
+    public async Task GetUserOrganizationsAsync_MissingProfileConsent_AsksForConsent()
+    {
+        var handler = StubHttpMessageHandler.Json(
+            """{"success":false,"error":{"code":"PROFILE_CONSENT_REQUIRED","message":"Tracks needs your consent"}}""",
+            HttpStatusCode.Forbidden);
+
+        var exception = await Assert.ThrowsExactlyAsync<ConsentRequiredException>(
+            () => CreateOrganizations(handler).GetUserOrganizationsAsync(UserId));
+
+        CollectionAssert.AreEqual(new[] { "profile" }, exception.Scopes.ToArray());
+    }
+
     [TestMethod]
     public async Task IsOrganizationMemberAsync_MembershipInListing_ReturnsTrue()
     {

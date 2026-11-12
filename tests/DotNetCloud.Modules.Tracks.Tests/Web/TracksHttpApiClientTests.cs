@@ -32,6 +32,26 @@ public sealed class TracksHttpApiClientTests
         Assert.AreEqual(HttpMethod.Get, handler.Requests.Single().Method);
     }
 
+    /// <summary>
+    /// The host emits enum <b>names</b> (<c>AddModuleJsonOptions</c>), so the browser client must read
+    /// them back — a Web-default options instance without the string-enum converter failed with
+    /// "DeserializeUnableToConvertValue ... containerType" the first time a product with default
+    /// swimlanes was created in a real browser.
+    /// </summary>
+    [TestMethod]
+    public async Task GetSwimlanesAsync_EnumNamesFromTheHost_Deserialise()
+    {
+        const string json =
+            """{"success":true,"data":[{"id":"6a2e3d4c-1b5a-4c3e-8a2f-2e3d4c5b6a71","containerType":"Product","containerId":"5f1d2c3b-0a49-4c2e-9a1e-1d2c3b4a5f60","title":"To Do","position":1000,"cardLimit":null,"isDone":false,"isArchived":false,"cardCount":0,"createdAt":"2026-01-01T00:00:00Z","updatedAt":"2026-01-01T00:00:00Z"}]}""";
+        var handler = StubHttpMessageHandler.Json(json);
+
+        var swimlanes = await CreateClient(handler).ListProductSwimlanesAsync(ProductId);
+
+        Assert.AreEqual(1, swimlanes.Count);
+        Assert.AreEqual(SwimlaneContainerType.Product, swimlanes[0].ContainerType);
+        Assert.AreEqual("To Do", swimlanes[0].Title);
+    }
+
     [TestMethod]
     public async Task GetProductAsync_NoDataProperty_ReturnsNull()
     {

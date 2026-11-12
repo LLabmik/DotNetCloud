@@ -2,14 +2,23 @@ using DotNetCloud.Core.DTOs;
 using DotNetCloud.Core.Errors;
 using DotNetCloud.Modules.Tracks.Models;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace DotNetCloud.Modules.Tracks.Data.Services;
 
 public sealed class ReviewSessionService
 {
     private readonly TracksDbContext _db;
+    private readonly DotNetCloud.Core.Capabilities.IUserDirectory? _userDirectory;
 
-    public ReviewSessionService(TracksDbContext db) => _db = db;
+    public ReviewSessionService(TracksDbContext db, IServiceProvider? serviceProvider = null)
+    {
+        _db = db;
+
+        // Optional capability, resolved with GetService so a test or minimal host container that
+        // has no user directory still resolves sessions (participant names then stay blank).
+        _userDirectory = serviceProvider?.GetService<DotNetCloud.Core.Capabilities.IUserDirectory>();
+    }
 
     public async Task<ReviewSessionDto> StartReviewSessionAsync(Guid epicId, Guid hostUserId, CancellationToken ct)
     {
@@ -57,7 +66,10 @@ public sealed class ReviewSessionService
             .OrderBy(rsp => rsp.JoinedAt)
             .ToListAsync(ct);
 
-        return participants.Select(MapParticipantToDto).ToList();
+        var names = await UserDisplayNames.LookupAsync(
+            participants.Select(p => p.UserId), _userDirectory, ct);
+
+        return participants.Select(p => MapParticipantToDto(p, names)).ToList();
     }
 
     public async Task<ReviewSessionParticipantDto> JoinSessionAsync(Guid sessionId, Guid userId, CancellationToken ct)
@@ -75,7 +87,7 @@ public sealed class ReviewSessionService
         {
             existing.IsConnected = true;
             await _db.SaveChangesAsync(ct);
-            return MapParticipantToDto(existing);
+            return await ResolveParticipantAsync(existing, ct);
         }
 
         var participant = new ReviewSessionParticipant
@@ -89,7 +101,7 @@ public sealed class ReviewSessionService
         _db.ReviewSessionParticipants.Add(participant);
         await _db.SaveChangesAsync(ct);
 
-        return MapParticipantToDto(participant);
+        return await ResolveParticipantAsync(participant, ct);
     }
 
     public async Task LeaveSessionAsync(Guid sessionId, Guid userId, CancellationToken ct)
@@ -154,14 +166,23 @@ public sealed class ReviewSessionService
         };
     }
 
-    private static ReviewSessionParticipantDto MapParticipantToDto(ReviewSessionParticipant participant)
+    private static ReviewSessionParticipantDto MapParticipantToDto(
+        ReviewSessionParticipant participant,
+        IReadOnlyDictionary<Guid, string>? names = null)
     {
         return new ReviewSessionParticipantDto
         {
             UserId = participant.UserId,
-            DisplayName = null,
+            DisplayName = names is null ? null : names.GetValueOrDefault(participant.UserId),
             IsConnected = participant.IsConnected,
             JoinedAt = participant.JoinedAt
         };
+    }
+
+    private async Task<ReviewSessionParticipantDto> ResolveParticipantAsync(
+        ReviewSessionParticipant participant, CancellationToken ct)
+    {
+        var names = await UserDisplayNames.LookupAsync([participant.UserId], _userDirectory, ct);
+        return MapParticipantToDto(participant, names);
     }
 }

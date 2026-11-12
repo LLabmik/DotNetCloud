@@ -5,6 +5,7 @@ using DotNetCloud.Modules.Tracks.Data;
 using DotNetCloud.Modules.Tracks.Models;
 using DotNetCloud.Modules.Tracks.Services;
 using Microsoft.EntityFrameworkCore;
+using Moq;
 
 namespace DotNetCloud.Modules.Tracks.Tests;
 
@@ -118,5 +119,31 @@ internal static class TestHelpers
     public static async Task<WorkItem> SeedEpicAsync(TracksDbContext db, Guid productId, Guid createdByUserId, string title = "Test Epic")
     {
         return await SeedWorkItemAsync(db, productId, null, createdByUserId, title, WorkItemType.Epic);
+    }
+
+    /// <summary>Assigns a user to a work item.</summary>
+    public static async Task<WorkItemAssignment> SeedAssignmentAsync(TracksDbContext db, Guid workItemId, Guid userId)
+    {
+        var assignment = new WorkItemAssignment
+        {
+            WorkItemId = workItemId,
+            UserId = userId
+        };
+        db.WorkItemAssignments.Add(assignment);
+        await db.SaveChangesAsync();
+        return assignment;
+    }
+
+    /// <summary>
+    /// Builds the <see cref="IServiceProvider"/> the Tracks services probe for the optional
+    /// <see cref="DotNetCloud.Core.Capabilities.IUserDirectory"/> capability.
+    /// </summary>
+    public static IServiceProvider CreateServiceProvider(DotNetCloud.Core.Capabilities.IUserDirectory? userDirectory)
+    {
+        var provider = new Mock<IServiceProvider>();
+        provider
+            .Setup(p => p.GetService(typeof(DotNetCloud.Core.Capabilities.IUserDirectory)))
+            .Returns(userDirectory!);
+        return provider.Object;
     }
 }

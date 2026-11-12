@@ -88,8 +88,14 @@ public sealed class ModuleBridge : IAsyncDisposable
 
     /// <summary>Asks the shell to render its consent prompt for the given scopes.</summary>
     /// <param name="scopes">Consent scopes, e.g. <c>files:read</c>.</param>
+    /// <remarks>
+    /// The array is cast to <see cref="object"/> on purpose: without the cast Blazor treats a
+    /// <c>string[]</c> as the *argument list*, so a single scope arrives in JavaScript as a bare
+    /// string. The SDK bridge only forwards an array (<c>Array.isArray</c>), so the request was
+    /// silently dropped and the shell never showed its permission band.
+    /// </remarks>
     public ValueTask RequestConsentAsync(params string[] scopes) =>
-        _js.InvokeVoidAsync("tracksBridge.requestConsent", scopes);
+        _js.InvokeVoidAsync("tracksBridge.requestConsent", (object)scopes);
 
     /// <inheritdoc />
     public async ValueTask DisposeAsync()

@@ -43,6 +43,14 @@ public sealed class ModuleOrganizationDirectory : IOrganizationDirectory
                 "api/v1/organizations",
                 cancellationToken: cancellationToken) ?? [];
         }
+        catch (TracksApiException ex) when (ex.Code == ConsentRequiredException.ProfileConsentCode)
+        {
+            // The core refused because the user has not approved the profile scope. Returning an
+            // empty list here would leave the product picker permanently empty with nothing to
+            // click, so the caller is told to ask the shell for consent.
+            _logger.LogInformation("The acting user has not consented to the profile scope yet");
+            throw new ConsentRequiredException(ex.Message, "profile");
+        }
         catch (Exception ex) when (ex is TracksApiException or HttpRequestException or NotSupportedException)
         {
             _logger.LogError(ex, "Could not load the acting user's organizations");

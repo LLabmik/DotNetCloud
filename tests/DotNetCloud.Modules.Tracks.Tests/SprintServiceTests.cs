@@ -3,6 +3,7 @@ using DotNetCloud.Modules.Tracks.Data;
 using DotNetCloud.Modules.Tracks.Data.Services;
 using DotNetCloud.Modules.Tracks.Models;
 using Microsoft.EntityFrameworkCore;
+using Moq;
 
 namespace DotNetCloud.Modules.Tracks.Tests;
 
@@ -156,5 +157,34 @@ public class SprintServiceTests
         var result = await _service.GetBacklogItemsAsync(epic.Id, CancellationToken.None);
 
         Assert.IsTrue(result.Any(i => i.Id == item.Id));
+    }
+
+    [TestMethod]
+    public async Task GetBacklogItemsAsync_ReturnsTheAssigneesOfEachItemWithTheirNames()
+    {
+        var epic = await SeedTestEpic();
+        var feature = await TestHelpers.SeedWorkItemAsync(_db, epic.ProductId, null, Guid.CreateVersion7(), "Feature", WorkItemType.Feature);
+        feature.ParentWorkItemId = epic.Id;
+        await _db.SaveChangesAsync();
+        var swimlane = await TestHelpers.SeedSwimlaneAsync(_db, feature.Id, SwimlaneContainerType.WorkItem);
+        var item = await TestHelpers.SeedWorkItemAsync(_db, epic.ProductId, swimlane.Id, Guid.CreateVersion7(), "Child Item", WorkItemType.Item);
+        item.ParentWorkItemId = feature.Id;
+        await _db.SaveChangesAsync();
+
+        var assignee = Guid.Parse("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb");
+        await TestHelpers.SeedAssignmentAsync(_db, item.Id, assignee);
+
+        var directory = new Mock<DotNetCloud.Core.Capabilities.IUserDirectory>();
+        directory
+            .Setup(x => x.GetDisplayNamesAsync(It.IsAny<IEnumerable<Guid>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new Dictionary<Guid, string> { [assignee] = "Ben Kimball" });
+
+        var service = new SprintService(_db, TestHelpers.CreateServiceProvider(directory.Object));
+
+        var result = await service.GetBacklogItemsAsync(epic.Id, CancellationToken.None);
+
+        var backlogItem = result.Single(i => i.Id == item.Id);
+        Assert.AreEqual(1, backlogItem.Assignments.Count);
+        Assert.AreEqual("Ben Kimball", backlogItem.Assignments[0].DisplayName);
     }
 }

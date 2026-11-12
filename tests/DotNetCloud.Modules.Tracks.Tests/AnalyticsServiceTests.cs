@@ -2,6 +2,7 @@ using DotNetCloud.Core.DTOs;
 using DotNetCloud.Modules.Tracks.Data;
 using DotNetCloud.Modules.Tracks.Data.Services;
 using DotNetCloud.Modules.Tracks.Models;
+using Moq;
 
 namespace DotNetCloud.Modules.Tracks.Tests;
 
@@ -363,5 +364,92 @@ public class AnalyticsServiceTests
         var member = result.Members.First();
         Assert.AreEqual(25, member.AssignedStoryPoints);
         Assert.IsTrue(member.CapacityPercent > 100, "Capacity should exceed 100%");
+    }
+
+    [TestMethod]
+    public async Task GetProductDashboardAsync_WorkloadCarriesTheMemberDisplayName()
+    {
+        var product = await TestHelpers.SeedProductAsync(_db, Guid.CreateVersion7(), Guid.CreateVersion7());
+        var swimlane = await TestHelpers.SeedSwimlaneAsync(_db, product.Id);
+        var item = new WorkItem
+        {
+            ProductId = product.Id,
+            SwimlaneId = swimlane.Id,
+            Title = "Sized task",
+            Type = WorkItemType.Item,
+            StoryPoints = 5,
+            CreatedByUserId = Guid.CreateVersion7(),
+            Position = 1000
+        };
+        _db.WorkItems.Add(item);
+        await TestHelpers.SeedAssignmentAsync(_db, item.Id, Assignee);
+
+        var result = await CreateService(DirectoryReturning("Ben Kimball"))
+            .GetProductDashboardAsync(product.Id, CancellationToken.None);
+
+        var workload = result.Workload.Single(w => w.UserId == Assignee);
+        Assert.AreEqual("Ben Kimball", workload.DisplayName);
+    }
+
+    [TestMethod]
+    public async Task GetRoadmapDataAsync_AssigneeCarriesTheDisplayName()
+    {
+        var product = await TestHelpers.SeedProductAsync(_db, Guid.CreateVersion7(), Guid.CreateVersion7());
+        var epic = await TestHelpers.SeedEpicAsync(_db, product.Id, Guid.CreateVersion7(), "Roadmap epic");
+        epic.StartDate = new DateTime(2026, 10, 1, 0, 0, 0, DateTimeKind.Utc);
+        epic.DueDate = new DateTime(2026, 12, 1, 0, 0, 0, DateTimeKind.Utc);
+        await _db.SaveChangesAsync();
+        await TestHelpers.SeedAssignmentAsync(_db, epic.Id, Assignee);
+
+        var result = await CreateService(DirectoryReturning("Ben Kimball"))
+            .GetRoadmapDataAsync(product.Id, CancellationToken.None);
+
+        var roadmapItem = result.Items.Single(i => i.Id == epic.Id);
+        Assert.AreEqual(Assignee, roadmapItem.AssigneeUserId);
+        Assert.AreEqual("Ben Kimball", roadmapItem.AssigneeDisplayName);
+    }
+
+    [TestMethod]
+    public async Task GetMemberCapacityAsync_MembersCarryTheirDisplayName()
+    {
+        var product = await TestHelpers.SeedProductAsync(_db, Guid.CreateVersion7(), Guid.CreateVersion7());
+        var epic = await TestHelpers.SeedEpicAsync(_db, product.Id, Guid.CreateVersion7());
+        var sprint = new Sprint
+        {
+            EpicId = epic.Id,
+            Title = "Sprint 1",
+            Status = SprintStatus.Active,
+            PlannedOrder = 1
+        };
+        _db.Sprints.Add(sprint);
+        await _db.SaveChangesAsync();
+
+        var item = await TestHelpers.SeedWorkItemAsync(_db, product.Id, null, Guid.CreateVersion7(), "Sized task");
+        item.StoryPoints = 8;
+        await _db.SaveChangesAsync();
+        _db.SprintItems.Add(new SprintItem { SprintId = sprint.Id, ItemId = item.Id });
+        await _db.SaveChangesAsync();
+        await TestHelpers.SeedAssignmentAsync(_db, item.Id, Assignee);
+
+        var result = await CreateService(DirectoryReturning("Ben Kimball"))
+            .GetMemberCapacityAsync(product.Id, CancellationToken.None);
+
+        var member = result.Single(m => m.UserId == Assignee);
+        Assert.AreEqual("Ben Kimball", member.DisplayName);
+        Assert.AreEqual(8, member.AssignedStoryPoints);
+    }
+
+    private static readonly Guid Assignee = Guid.Parse("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb");
+
+    private AnalyticsService CreateService(DotNetCloud.Core.Capabilities.IUserDirectory? userDirectory)
+        => new(_db, TestHelpers.CreateServiceProvider(userDirectory));
+
+    private static DotNetCloud.Core.Capabilities.IUserDirectory DirectoryReturning(string displayName)
+    {
+        var directory = new Mock<DotNetCloud.Core.Capabilities.IUserDirectory>();
+        directory
+            .Setup(x => x.GetDisplayNamesAsync(It.IsAny<IEnumerable<Guid>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new Dictionary<Guid, string> { [Assignee] = displayName });
+        return directory.Object;
     }
 }

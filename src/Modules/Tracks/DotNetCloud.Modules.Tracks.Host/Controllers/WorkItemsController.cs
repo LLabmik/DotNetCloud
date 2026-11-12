@@ -1,3 +1,4 @@
+using DotNetCloud.Core.Capabilities;
 using DotNetCloud.Core.DTOs;
 using DotNetCloud.Core.Errors;
 using DotNetCloud.Core.Security;
@@ -23,6 +24,7 @@ public class WorkItemsController : TracksControllerBase
     private readonly IFileValidationService _fileValidation;
     private readonly TracksDbContext _db;
     private readonly ILogger<WorkItemsController> _logger;
+    private readonly IUserDirectory? _userDirectory;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="WorkItemsController"/> class.
@@ -33,7 +35,8 @@ public class WorkItemsController : TracksControllerBase
         ActivityService activityService,
         IFileValidationService fileValidation,
         TracksDbContext db,
-        ILogger<WorkItemsController> logger)
+        ILogger<WorkItemsController> logger,
+        IServiceProvider? serviceProvider = null)
     {
         _workItemService = workItemService;
         _productService = productService;
@@ -41,6 +44,10 @@ public class WorkItemsController : TracksControllerBase
         _fileValidation = fileValidation;
         _db = db;
         _logger = logger;
+
+        // Optional capability, resolved with GetService so a host or test container without a
+        // user directory still serves work items (assignee names then stay blank).
+        _userDirectory = serviceProvider?.GetService<IUserDirectory>();
     }
 
     // ─── Work Item CRUD ────────────────────────────────────────────────
@@ -589,7 +596,7 @@ public class WorkItemsController : TracksControllerBase
                 Assignments = wi.Assignments?.Select(a => new WorkItemAssignmentDto
                 {
                     UserId = a.UserId,
-                    DisplayName = a.UserId.ToString(),
+                    DisplayName = null,
                     AssignedAt = a.AssignedAt
                 }).ToList() ?? [],
                 Labels = wi.WorkItemLabels?.Select(wl => new LabelDto
@@ -607,6 +614,8 @@ public class WorkItemsController : TracksControllerBase
                 CreatedAt = wi.CreatedAt,
                 UpdatedAt = wi.UpdatedAt
             }).ToList();
+
+            dtos = await UserDisplayNames.ResolveWorkItemsAsync(dtos, _userDirectory, ct);
 
             return Ok(Envelope(dtos));
         }
@@ -789,7 +798,7 @@ public class WorkItemsController : TracksControllerBase
                 Assignments = wi.Assignments?.Select(a => new WorkItemAssignmentDto
                 {
                     UserId = a.UserId,
-                    DisplayName = a.UserId.ToString(),
+                    DisplayName = null,
                     AssignedAt = a.AssignedAt
                 }).ToList() ?? [],
                 Labels = wi.WorkItemLabels?.Select(wl => new LabelDto
@@ -807,6 +816,8 @@ public class WorkItemsController : TracksControllerBase
                 CreatedAt = wi.CreatedAt,
                 UpdatedAt = wi.UpdatedAt
             }).ToList();
+
+            dtos = await UserDisplayNames.ResolveWorkItemsAsync(dtos, _userDirectory, ct);
 
             var csvBytes = WorkItemCsvExporter.ExportToCsv(dtos);
             var productName = await _db.Products

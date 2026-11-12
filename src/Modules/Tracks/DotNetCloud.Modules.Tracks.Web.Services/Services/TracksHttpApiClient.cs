@@ -25,7 +25,11 @@ namespace DotNetCloud.Modules.Tracks.Web.Services;
 public sealed class TracksHttpApiClient : ITracksApiClient
 {
     private readonly HttpClient _httpClient;
-    private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
+    // The host binds and emits enum names (AddModuleJsonOptions). A plain Web-default options
+    // instance has no JsonStringEnumConverter, so reading a SwimlaneDto failed with
+    // "DeserializeUnableToConvertValue ... containerType" the first time a product with
+    // default swimlanes was created. Share the one configured instance.
+    private static readonly JsonSerializerOptions JsonOptions = TracksApi.JsonOptions;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="TracksHttpApiClient"/> class.
@@ -46,14 +50,14 @@ public sealed class TracksHttpApiClient : ITracksApiClient
 
     public async Task<ProductDto?> CreateProductAsync(Guid organizationId, CreateProductDto dto, CancellationToken ct = default)
     {
-        var response = await _httpClient.PostAsJsonAsync($"api/v1/organizations/{organizationId}/products", dto, ct);
+        var response = await _httpClient.PostAsJsonAsync($"api/v1/organizations/{organizationId}/products", dto, JsonOptions, ct);
         await EnsureSuccessOrThrowAsync(response);
         return await ReadDataFromResponseAsync<ProductDto>(response, ct);
     }
 
     public async Task<ProductDto?> UpdateProductAsync(Guid productId, UpdateProductDto dto, CancellationToken ct = default)
     {
-        var response = await _httpClient.PutAsJsonAsync($"api/v1/products/{productId}", dto, ct);
+        var response = await _httpClient.PutAsJsonAsync($"api/v1/products/{productId}", dto, JsonOptions, ct);
         await EnsureSuccessOrThrowAsync(response);
         return await ReadDataFromResponseAsync<ProductDto>(response, ct);
     }
@@ -87,7 +91,7 @@ public sealed class TracksHttpApiClient : ITracksApiClient
 
     public async Task AddProductMemberAsync(Guid productId, AddProductMemberDto dto, CancellationToken ct = default)
     {
-        var response = await _httpClient.PostAsJsonAsync($"api/v1/products/{productId}/members", dto, ct);
+        var response = await _httpClient.PostAsJsonAsync($"api/v1/products/{productId}/members", dto, JsonOptions, ct);
         await EnsureSuccessOrThrowAsync(response);
     }
 
@@ -99,7 +103,7 @@ public sealed class TracksHttpApiClient : ITracksApiClient
 
     public async Task UpdateProductMemberRoleAsync(Guid productId, Guid userId, ProductMemberRole role, CancellationToken ct = default)
     {
-        var response = await _httpClient.PutAsJsonAsync($"api/v1/products/{productId}/members/{userId}/role", new { Role = role }, ct);
+        var response = await _httpClient.PutAsJsonAsync($"api/v1/products/{productId}/members/{userId}/role", new { Role = role }, JsonOptions, ct);
         await EnsureSuccessOrThrowAsync(response);
     }
 
@@ -110,14 +114,14 @@ public sealed class TracksHttpApiClient : ITracksApiClient
 
     public async Task<LabelDto?> CreateLabelAsync(Guid productId, CreateLabelDto dto, CancellationToken ct = default)
     {
-        var response = await _httpClient.PostAsJsonAsync($"api/v1/products/{productId}/labels", dto, ct);
+        var response = await _httpClient.PostAsJsonAsync($"api/v1/products/{productId}/labels", dto, JsonOptions, ct);
         await EnsureSuccessOrThrowAsync(response);
         return await ReadDataFromResponseAsync<LabelDto>(response, ct);
     }
 
     public async Task<LabelDto?> UpdateLabelAsync(Guid productId, Guid labelId, UpdateLabelDto dto, CancellationToken ct = default)
     {
-        var response = await _httpClient.PutAsJsonAsync($"api/v1/products/{productId}/labels/{labelId}", dto, ct);
+        var response = await _httpClient.PutAsJsonAsync($"api/v1/products/{productId}/labels/{labelId}", dto, JsonOptions, ct);
         await EnsureSuccessOrThrowAsync(response);
         return await ReadDataFromResponseAsync<LabelDto>(response, ct);
     }
@@ -135,7 +139,7 @@ public sealed class TracksHttpApiClient : ITracksApiClient
 
     public async Task<SwimlaneDto?> CreateProductSwimlaneAsync(Guid productId, CreateSwimlaneDto dto, CancellationToken ct = default)
     {
-        var response = await _httpClient.PostAsJsonAsync($"api/v1/products/{productId}/swimlanes", dto, ct);
+        var response = await _httpClient.PostAsJsonAsync($"api/v1/products/{productId}/swimlanes", dto, JsonOptions, ct);
         await EnsureSuccessOrThrowAsync(response);
         return await ReadDataFromResponseAsync<SwimlaneDto>(response, ct);
     }
@@ -145,14 +149,14 @@ public sealed class TracksHttpApiClient : ITracksApiClient
 
     public async Task<SwimlaneDto?> CreateWorkItemSwimlaneAsync(Guid workItemId, CreateSwimlaneDto dto, CancellationToken ct = default)
     {
-        var response = await _httpClient.PostAsJsonAsync($"api/v1/workitems/{workItemId}/swimlanes", dto, ct);
+        var response = await _httpClient.PostAsJsonAsync($"api/v1/workitems/{workItemId}/swimlanes", dto, JsonOptions, ct);
         await EnsureSuccessOrThrowAsync(response);
         return await ReadDataFromResponseAsync<SwimlaneDto>(response, ct);
     }
 
     public async Task<SwimlaneDto?> UpdateSwimlaneAsync(Guid swimlaneId, UpdateSwimlaneDto dto, CancellationToken ct = default)
     {
-        var response = await _httpClient.PutAsJsonAsync($"api/v1/swimlanes/{swimlaneId}", dto, ct);
+        var response = await _httpClient.PutAsJsonAsync($"api/v1/swimlanes/{swimlaneId}", dto, JsonOptions, ct);
         await EnsureSuccessOrThrowAsync(response);
         return await ReadDataFromResponseAsync<SwimlaneDto>(response, ct);
     }
@@ -165,7 +169,7 @@ public sealed class TracksHttpApiClient : ITracksApiClient
 
     public async Task ReorderSwimlanesAsync(IReadOnlyList<Guid> swimlaneIds, CancellationToken ct = default)
     {
-        var response = await _httpClient.PutAsJsonAsync("api/v1/swimlanes/reorder", new { OrderedIds = swimlaneIds }, ct);
+        var response = await _httpClient.PutAsJsonAsync("api/v1/swimlanes/reorder", new { OrderedIds = swimlaneIds }, JsonOptions, ct);
         await EnsureSuccessOrThrowAsync(response);
     }
 
@@ -176,7 +180,7 @@ public sealed class TracksHttpApiClient : ITracksApiClient
 
     public async Task<IReadOnlyList<SwimlaneTransitionRuleDto>> SetSwimlaneTransitionMatrixAsync(Guid productId, List<SetTransitionRuleDto> rules, CancellationToken ct = default)
     {
-        var response = await _httpClient.PutAsJsonAsync($"api/v1/products/{productId}/swimlane-transitions", rules, ct);
+        var response = await _httpClient.PutAsJsonAsync($"api/v1/products/{productId}/swimlane-transitions", rules, JsonOptions, ct);
         await EnsureSuccessOrThrowAsync(response);
         return await ReadDataFromResponseAsync<IReadOnlyList<SwimlaneTransitionRuleDto>>(response, ct) ?? [];
     }
@@ -194,35 +198,35 @@ public sealed class TracksHttpApiClient : ITracksApiClient
 
     public async Task<WorkItemDto?> CreateEpicAsync(Guid swimlaneId, CreateWorkItemDto dto, CancellationToken ct = default)
     {
-        var response = await _httpClient.PostAsJsonAsync($"api/v1/swimlanes/{swimlaneId}/epics", dto, ct);
+        var response = await _httpClient.PostAsJsonAsync($"api/v1/swimlanes/{swimlaneId}/epics", dto, JsonOptions, ct);
         await EnsureSuccessOrThrowAsync(response);
         return await ReadDataFromResponseAsync<WorkItemDto>(response, ct);
     }
 
     public async Task<WorkItemDto?> CreateFeatureAsync(Guid swimlaneId, CreateWorkItemDto dto, CancellationToken ct = default)
     {
-        var response = await _httpClient.PostAsJsonAsync($"api/v1/swimlanes/{swimlaneId}/features", dto, ct);
+        var response = await _httpClient.PostAsJsonAsync($"api/v1/swimlanes/{swimlaneId}/features", dto, JsonOptions, ct);
         await EnsureSuccessOrThrowAsync(response);
         return await ReadDataFromResponseAsync<WorkItemDto>(response, ct);
     }
 
     public async Task<WorkItemDto?> CreateItemAsync(Guid swimlaneId, CreateWorkItemDto dto, CancellationToken ct = default)
     {
-        var response = await _httpClient.PostAsJsonAsync($"api/v1/swimlanes/{swimlaneId}/items", dto, ct);
+        var response = await _httpClient.PostAsJsonAsync($"api/v1/swimlanes/{swimlaneId}/items", dto, JsonOptions, ct);
         await EnsureSuccessOrThrowAsync(response);
         return await ReadDataFromResponseAsync<WorkItemDto>(response, ct);
     }
 
     public async Task<WorkItemDto?> CreateSubItemAsync(Guid parentItemId, CreateWorkItemDto dto, CancellationToken ct = default)
     {
-        var response = await _httpClient.PostAsJsonAsync($"api/v1/workitems/{parentItemId}/subitems", dto, ct);
+        var response = await _httpClient.PostAsJsonAsync($"api/v1/workitems/{parentItemId}/subitems", dto, JsonOptions, ct);
         await EnsureSuccessOrThrowAsync(response);
         return await ReadDataFromResponseAsync<WorkItemDto>(response, ct);
     }
 
     public async Task<WorkItemDto?> UpdateWorkItemAsync(Guid workItemId, UpdateWorkItemDto dto, CancellationToken ct = default)
     {
-        var response = await _httpClient.PutAsJsonAsync($"api/v1/workitems/{workItemId}", dto, ct);
+        var response = await _httpClient.PutAsJsonAsync($"api/v1/workitems/{workItemId}", dto, JsonOptions, ct);
         await EnsureSuccessOrThrowAsync(response);
         return await ReadDataFromResponseAsync<WorkItemDto>(response, ct);
     }
@@ -261,7 +265,7 @@ public sealed class TracksHttpApiClient : ITracksApiClient
 
     public async Task<WorkItemDto?> MoveWorkItemAsync(Guid workItemId, MoveWorkItemDto dto, CancellationToken ct = default)
     {
-        var response = await _httpClient.PutAsJsonAsync($"api/v1/workitems/{workItemId}/move", dto, ct);
+        var response = await _httpClient.PutAsJsonAsync($"api/v1/workitems/{workItemId}/move", dto, JsonOptions, ct);
         await EnsureSuccessOrThrowAsync(response);
         return await ReadDataFromResponseAsync<WorkItemDto>(response, ct);
     }
@@ -315,7 +319,7 @@ public sealed class TracksHttpApiClient : ITracksApiClient
 
     public async Task AssignUserAsync(Guid workItemId, Guid userId, CancellationToken ct = default)
     {
-        var response = await _httpClient.PostAsJsonAsync($"api/v1/workitems/{workItemId}/assignments", new { UserId = userId }, ct);
+        var response = await _httpClient.PostAsJsonAsync($"api/v1/workitems/{workItemId}/assignments", new { UserId = userId }, JsonOptions, ct);
         await EnsureSuccessOrThrowAsync(response);
     }
 
@@ -346,14 +350,14 @@ public sealed class TracksHttpApiClient : ITracksApiClient
 
     public async Task<WorkItemCommentDto?> CreateCommentAsync(Guid workItemId, string content, CancellationToken ct = default)
     {
-        var response = await _httpClient.PostAsJsonAsync($"api/v1/workitems/{workItemId}/comments", new { Content = content }, ct);
+        var response = await _httpClient.PostAsJsonAsync($"api/v1/workitems/{workItemId}/comments", new { Content = content }, JsonOptions, ct);
         await EnsureSuccessOrThrowAsync(response);
         return await ReadDataFromResponseAsync<WorkItemCommentDto>(response, ct);
     }
 
     public async Task<WorkItemCommentDto?> UpdateCommentAsync(Guid workItemId, Guid commentId, string content, CancellationToken ct = default)
     {
-        var response = await _httpClient.PutAsJsonAsync($"api/v1/workitems/{workItemId}/comments/{commentId}", new { Content = content }, ct);
+        var response = await _httpClient.PutAsJsonAsync($"api/v1/workitems/{workItemId}/comments/{commentId}", new { Content = content }, JsonOptions, ct);
         await EnsureSuccessOrThrowAsync(response);
         return await ReadDataFromResponseAsync<WorkItemCommentDto>(response, ct);
     }
@@ -388,7 +392,7 @@ public sealed class TracksHttpApiClient : ITracksApiClient
 
     public async Task<ChecklistDto?> CreateChecklistAsync(Guid itemId, string title, CancellationToken ct = default)
     {
-        var response = await _httpClient.PostAsJsonAsync($"api/v1/workitems/{itemId}/checklists", new { Title = title }, ct);
+        var response = await _httpClient.PostAsJsonAsync($"api/v1/workitems/{itemId}/checklists", new { Title = title }, JsonOptions, ct);
         await EnsureSuccessOrThrowAsync(response);
         return await ReadDataFromResponseAsync<ChecklistDto>(response, ct);
     }
@@ -401,7 +405,7 @@ public sealed class TracksHttpApiClient : ITracksApiClient
 
     public async Task<ChecklistItemDto?> AddChecklistItemAsync(Guid itemId, Guid checklistId, string title, CancellationToken ct = default)
     {
-        var response = await _httpClient.PostAsJsonAsync($"api/v1/workitems/{itemId}/checklists/{checklistId}/items", new { Title = title }, ct);
+        var response = await _httpClient.PostAsJsonAsync($"api/v1/workitems/{itemId}/checklists/{checklistId}/items", new { Title = title }, JsonOptions, ct);
         await EnsureSuccessOrThrowAsync(response);
         return await ReadDataFromResponseAsync<ChecklistItemDto>(response, ct);
     }
@@ -445,7 +449,7 @@ public sealed class TracksHttpApiClient : ITracksApiClient
 
     public async Task<WorkItemDependencyDto?> AddDependencyAsync(Guid workItemId, AddWorkItemDependencyDto dto, CancellationToken ct = default)
     {
-        var response = await _httpClient.PostAsJsonAsync($"api/v1/workitems/{workItemId}/dependencies", dto, ct);
+        var response = await _httpClient.PostAsJsonAsync($"api/v1/workitems/{workItemId}/dependencies", dto, JsonOptions, ct);
         await EnsureSuccessOrThrowAsync(response);
         return await ReadDataFromResponseAsync<WorkItemDependencyDto>(response, ct);
     }
@@ -466,14 +470,14 @@ public sealed class TracksHttpApiClient : ITracksApiClient
 
     public async Task<SprintDto?> CreateSprintAsync(Guid epicId, CreateSprintDto dto, CancellationToken ct = default)
     {
-        var response = await _httpClient.PostAsJsonAsync($"api/v1/workitems/{epicId}/sprints", dto, ct);
+        var response = await _httpClient.PostAsJsonAsync($"api/v1/workitems/{epicId}/sprints", dto, JsonOptions, ct);
         await EnsureSuccessOrThrowAsync(response);
         return await ReadDataFromResponseAsync<SprintDto>(response, ct);
     }
 
     public async Task<SprintDto?> UpdateSprintAsync(Guid sprintId, UpdateSprintDto dto, CancellationToken ct = default)
     {
-        var response = await _httpClient.PutAsJsonAsync($"api/v1/sprints/{sprintId}", dto, ct);
+        var response = await _httpClient.PutAsJsonAsync($"api/v1/sprints/{sprintId}", dto, JsonOptions, ct);
         await EnsureSuccessOrThrowAsync(response);
         return await ReadDataFromResponseAsync<SprintDto>(response, ct);
     }
@@ -517,7 +521,7 @@ public sealed class TracksHttpApiClient : ITracksApiClient
 
     public async Task<IReadOnlyList<SprintDto>> CreateSprintPlanAsync(Guid epicId, CreateSprintPlanDto dto, CancellationToken ct = default)
     {
-        var response = await _httpClient.PostAsJsonAsync($"api/v1/workitems/{epicId}/sprint-plan", dto, ct);
+        var response = await _httpClient.PostAsJsonAsync($"api/v1/workitems/{epicId}/sprint-plan", dto, JsonOptions, ct);
         await EnsureSuccessOrThrowAsync(response);
         return await ReadDataAsync<IReadOnlyList<SprintDto>>("", ct) ?? [];
     }
@@ -527,7 +531,7 @@ public sealed class TracksHttpApiClient : ITracksApiClient
 
     public async Task<IReadOnlyList<SprintDto>> AdjustSprintDatesAsync(Guid sprintId, AdjustSprintDto dto, CancellationToken ct = default)
     {
-        var response = await _httpClient.PutAsJsonAsync($"api/v1/sprints/{sprintId}/adjust", dto, ct);
+        var response = await _httpClient.PutAsJsonAsync($"api/v1/sprints/{sprintId}/adjust", dto, JsonOptions, ct);
         await EnsureSuccessOrThrowAsync(response);
         return await ReadDataFromResponseAsync<IReadOnlyList<SprintDto>>(response, ct) ?? [];
     }
@@ -539,7 +543,7 @@ public sealed class TracksHttpApiClient : ITracksApiClient
 
     public async Task<TimeEntryDto?> CreateTimeEntryAsync(Guid workItemId, CreateTimeEntryDto dto, CancellationToken ct = default)
     {
-        var response = await _httpClient.PostAsJsonAsync($"api/v1/workitems/{workItemId}/time-entries", dto, ct);
+        var response = await _httpClient.PostAsJsonAsync($"api/v1/workitems/{workItemId}/time-entries", dto, JsonOptions, ct);
         await EnsureSuccessOrThrowAsync(response);
         return await ReadDataFromResponseAsync<TimeEntryDto>(response, ct);
     }
@@ -596,14 +600,14 @@ public sealed class TracksHttpApiClient : ITracksApiClient
 
     public async Task<TracksTeamDto?> CreateTeamAsync(CreateTracksTeamDto dto, CancellationToken ct = default)
     {
-        var response = await _httpClient.PostAsJsonAsync("api/v1/teams", dto, ct);
+        var response = await _httpClient.PostAsJsonAsync("api/v1/teams", dto, JsonOptions, ct);
         await EnsureSuccessOrThrowAsync(response);
         return await ReadDataFromResponseAsync<TracksTeamDto>(response, ct);
     }
 
     public async Task<TracksTeamDto?> UpdateTeamAsync(Guid teamId, UpdateTracksTeamDto dto, CancellationToken ct = default)
     {
-        var response = await _httpClient.PutAsJsonAsync($"api/v1/teams/{teamId}", dto, ct);
+        var response = await _httpClient.PutAsJsonAsync($"api/v1/teams/{teamId}", dto, JsonOptions, ct);
         await EnsureSuccessOrThrowAsync(response);
         return await ReadDataFromResponseAsync<TracksTeamDto>(response, ct);
     }
@@ -619,7 +623,7 @@ public sealed class TracksHttpApiClient : ITracksApiClient
 
     public async Task AddTeamMemberAsync(Guid teamId, AddTracksTeamMemberDto dto, CancellationToken ct = default)
     {
-        var response = await _httpClient.PostAsJsonAsync($"api/v1/teams/{teamId}/members", dto, ct);
+        var response = await _httpClient.PostAsJsonAsync($"api/v1/teams/{teamId}/members", dto, JsonOptions, ct);
         await EnsureSuccessOrThrowAsync(response);
     }
 
@@ -631,7 +635,7 @@ public sealed class TracksHttpApiClient : ITracksApiClient
 
     public async Task UpdateTeamMemberRoleAsync(Guid teamId, Guid userId, TracksTeamMemberRole role, CancellationToken ct = default)
     {
-        var response = await _httpClient.PutAsJsonAsync($"api/v1/teams/{teamId}/members/{userId}/role", new { Role = role }, ct);
+        var response = await _httpClient.PutAsJsonAsync($"api/v1/teams/{teamId}/members/{userId}/role", new { Role = role }, JsonOptions, ct);
         await EnsureSuccessOrThrowAsync(response);
     }
 
@@ -639,7 +643,7 @@ public sealed class TracksHttpApiClient : ITracksApiClient
 
     public async Task<ReviewSessionDto?> StartReviewSessionAsync(Guid epicId, CancellationToken ct = default)
     {
-        var response = await _httpClient.PostAsJsonAsync($"api/v1/workitems/{epicId}/reviews", new { }, ct);
+        var response = await _httpClient.PostAsJsonAsync($"api/v1/workitems/{epicId}/reviews", new { }, JsonOptions, ct);
         await EnsureSuccessOrThrowAsync(response);
         return await ReadDataFromResponseAsync<ReviewSessionDto>(response, ct);
     }
@@ -662,7 +666,7 @@ public sealed class TracksHttpApiClient : ITracksApiClient
 
     public async Task<ReviewSessionDto?> SetReviewCurrentItemAsync(Guid sessionId, Guid itemId, CancellationToken ct = default)
     {
-        var response = await _httpClient.PutAsJsonAsync($"api/v1/reviews/{sessionId}/current-item", new { ItemId = itemId }, ct);
+        var response = await _httpClient.PutAsJsonAsync($"api/v1/reviews/{sessionId}/current-item", new { ItemId = itemId }, JsonOptions, ct);
         await EnsureSuccessOrThrowAsync(response);
         return await ReadDataFromResponseAsync<ReviewSessionDto>(response, ct);
     }
@@ -677,7 +681,7 @@ public sealed class TracksHttpApiClient : ITracksApiClient
 
     public async Task<PokerSessionDto?> StartPokerSessionAsync(Guid epicId, CreatePokerSessionDto dto, CancellationToken ct = default)
     {
-        var response = await _httpClient.PostAsJsonAsync($"api/v1/workitems/{epicId}/poker", dto, ct);
+        var response = await _httpClient.PostAsJsonAsync($"api/v1/workitems/{epicId}/poker", dto, JsonOptions, ct);
         await EnsureSuccessOrThrowAsync(response);
         return await ReadDataFromResponseAsync<PokerSessionDto>(response, ct);
     }
@@ -690,7 +694,7 @@ public sealed class TracksHttpApiClient : ITracksApiClient
 
     public async Task<PokerSessionDto?> SubmitPokerVoteAsync(Guid sessionId, SubmitPokerVoteDto dto, CancellationToken ct = default)
     {
-        var response = await _httpClient.PostAsJsonAsync($"api/v1/poker/{sessionId}/vote", dto, ct);
+        var response = await _httpClient.PostAsJsonAsync($"api/v1/poker/{sessionId}/vote", dto, JsonOptions, ct);
         await EnsureSuccessOrThrowAsync(response);
         return await ReadDataFromResponseAsync<PokerSessionDto>(response, ct);
     }
@@ -704,7 +708,7 @@ public sealed class TracksHttpApiClient : ITracksApiClient
 
     public async Task<PokerSessionDto?> AcceptPokerEstimateAsync(Guid sessionId, string estimate, CancellationToken ct = default)
     {
-        var response = await _httpClient.PostAsJsonAsync($"api/v1/poker/{sessionId}/accept", new { Estimate = estimate }, ct);
+        var response = await _httpClient.PostAsJsonAsync($"api/v1/poker/{sessionId}/accept", new { Estimate = estimate }, JsonOptions, ct);
         await EnsureSuccessOrThrowAsync(response);
         return await ReadDataFromResponseAsync<PokerSessionDto>(response, ct);
     }
@@ -781,7 +785,7 @@ public sealed class TracksHttpApiClient : ITracksApiClient
 
     public async Task<int> BulkWorkItemActionAsync(Guid productId, BulkWorkItemActionDto dto, CancellationToken ct = default)
     {
-        var response = await _httpClient.PostAsJsonAsync($"api/v1/products/{productId}/work-items/bulk", dto, ct);
+        var response = await _httpClient.PostAsJsonAsync($"api/v1/products/{productId}/work-items/bulk", dto, JsonOptions, ct);
         await EnsureSuccessOrThrowAsync(response);
         var result = await ReadDataFromResponseAsync<BulkActionResultDto>(response, ct);
         return result?.Affected ?? 0;
@@ -794,14 +798,14 @@ public sealed class TracksHttpApiClient : ITracksApiClient
 
     public async Task<WebhookSubscriptionDto?> CreateProductWebhookAsync(Guid productId, string url, List<string> eventTypes, CancellationToken ct = default)
     {
-        var response = await _httpClient.PostAsJsonAsync($"api/v1/products/{productId}/webhooks", new { url, eventTypes }, ct);
+        var response = await _httpClient.PostAsJsonAsync($"api/v1/products/{productId}/webhooks", new { url, eventTypes }, JsonOptions, ct);
         await EnsureSuccessOrThrowAsync(response);
         return await ReadDataFromResponseAsync<WebhookSubscriptionDto>(response, ct);
     }
 
     public async Task<WebhookSubscriptionDto?> UpdateProductWebhookAsync(Guid productId, Guid subscriptionId, string url, List<string> eventTypes, bool isActive, CancellationToken ct = default)
     {
-        var response = await _httpClient.PutAsJsonAsync($"api/v1/products/{productId}/webhooks/{subscriptionId}", new { url, eventTypes, isActive }, ct);
+        var response = await _httpClient.PutAsJsonAsync($"api/v1/products/{productId}/webhooks/{subscriptionId}", new { url, eventTypes, isActive }, JsonOptions, ct);
         await EnsureSuccessOrThrowAsync(response);
         return await ReadDataFromResponseAsync<WebhookSubscriptionDto>(response, ct);
     }
@@ -839,7 +843,7 @@ public sealed class TracksHttpApiClient : ITracksApiClient
 
     public async Task<SprintDiscussionDto?> SendSprintDiscussionAsync(Guid sprintId, string content, CancellationToken ct = default)
     {
-        var response = await _httpClient.PostAsJsonAsync($"api/v1/sprints/{sprintId}/discussions", new SendSprintDiscussionDto(content), ct);
+        var response = await _httpClient.PostAsJsonAsync($"api/v1/sprints/{sprintId}/discussions", new SendSprintDiscussionDto(content), JsonOptions, ct);
         await EnsureSuccessOrThrowAsync(response);
         return await ReadDataFromResponseAsync<SprintDiscussionDto>(response, ct);
     }
@@ -849,7 +853,7 @@ public sealed class TracksHttpApiClient : ITracksApiClient
 
     public async Task<SprintDiscussionDto?> SendReviewDiscussionAsync(Guid reviewSessionId, string content, CancellationToken ct = default)
     {
-        var response = await _httpClient.PostAsJsonAsync($"api/v1/reviews/{reviewSessionId}/discussions", new SendSprintDiscussionDto(content), ct);
+        var response = await _httpClient.PostAsJsonAsync($"api/v1/reviews/{reviewSessionId}/discussions", new SendSprintDiscussionDto(content), JsonOptions, ct);
         await EnsureSuccessOrThrowAsync(response);
         return await ReadDataFromResponseAsync<SprintDiscussionDto>(response, ct);
     }
@@ -869,14 +873,14 @@ public sealed class TracksHttpApiClient : ITracksApiClient
 
     public async Task<AutomationRuleDto?> CreateAutomationRuleAsync(Guid productId, CreateAutomationRuleDto dto, CancellationToken ct = default)
     {
-        var response = await _httpClient.PostAsJsonAsync($"api/v1/products/{productId}/automation-rules", dto, ct);
+        var response = await _httpClient.PostAsJsonAsync($"api/v1/products/{productId}/automation-rules", dto, JsonOptions, ct);
         await EnsureSuccessOrThrowAsync(response);
         return await ReadDataFromResponseAsync<AutomationRuleDto>(response, ct);
     }
 
     public async Task<AutomationRuleDto?> UpdateAutomationRuleAsync(Guid ruleId, UpdateAutomationRuleDto dto, CancellationToken ct = default)
     {
-        var response = await _httpClient.PutAsJsonAsync($"api/v1/automation-rules/{ruleId}", dto, ct);
+        var response = await _httpClient.PutAsJsonAsync($"api/v1/automation-rules/{ruleId}", dto, JsonOptions, ct);
         await EnsureSuccessOrThrowAsync(response);
         return await ReadDataFromResponseAsync<AutomationRuleDto>(response, ct);
     }
@@ -900,14 +904,14 @@ public sealed class TracksHttpApiClient : ITracksApiClient
 
     public async Task<GoalDto?> CreateGoalAsync(Guid productId, CreateGoalDto dto, CancellationToken ct = default)
     {
-        var response = await _httpClient.PostAsJsonAsync($"api/v1/products/{productId}/goals", dto, ct);
+        var response = await _httpClient.PostAsJsonAsync($"api/v1/products/{productId}/goals", dto, JsonOptions, ct);
         await EnsureSuccessOrThrowAsync(response);
         return await ReadDataFromResponseAsync<GoalDto>(response, ct);
     }
 
     public async Task<GoalDto?> UpdateGoalAsync(Guid goalId, UpdateGoalDto dto, CancellationToken ct = default)
     {
-        var response = await _httpClient.PutAsJsonAsync($"api/v1/goals/{goalId}", dto, ct);
+        var response = await _httpClient.PutAsJsonAsync($"api/v1/goals/{goalId}", dto, JsonOptions, ct);
         await EnsureSuccessOrThrowAsync(response);
         return await ReadDataFromResponseAsync<GoalDto>(response, ct);
     }
@@ -920,7 +924,7 @@ public sealed class TracksHttpApiClient : ITracksApiClient
 
     public async Task LinkGoalWorkItemAsync(Guid goalId, LinkGoalWorkItemDto dto, CancellationToken ct = default)
     {
-        var response = await _httpClient.PostAsJsonAsync($"api/v1/goals/{goalId}/work-items", dto, ct);
+        var response = await _httpClient.PostAsJsonAsync($"api/v1/goals/{goalId}/work-items", dto, JsonOptions, ct);
         await EnsureSuccessOrThrowAsync(response);
     }
 

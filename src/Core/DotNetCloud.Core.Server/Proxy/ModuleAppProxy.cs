@@ -546,8 +546,20 @@ internal sealed class ModuleAppProxyTransformer : HttpTransformer
 internal static class ModuleAppResponsePolicy
 {
     /// <summary>The CSP applied to every module UI response.</summary>
+    /// <remarks>
+    /// <para>
+    /// <c>base-uri</c> cannot be <c>'none'</c> (or <c>'self'</c>) here. A frame is served without
+    /// <c>allow-same-origin</c>, so its document has an opaque origin — which matches neither
+    /// <c>'none'</c> nor <c>'self'</c> — and an opaque-origin document reports its base URL as
+    /// <c>about:blank</c>. A Blazor WebAssembly app resolves its own bootstrap
+    /// (<c>import("./dotnet.js")</c>) against that base URL, so blocking <c>&lt;base&gt;</c> leaves the
+    /// app permanently on its "loading" markup. Allowing a base URL adds no capability: the frame is
+    /// already sandboxed, the policy sets no <c>script-src</c>, and the module owns its whole document
+    /// anyway.
+    /// </para>
+    /// </remarks>
     internal const string ContentSecurityPolicy =
-        "frame-ancestors 'self'; base-uri 'none'; object-src 'none'; form-action 'self'";
+        "frame-ancestors 'self'; base-uri *; object-src 'none'; form-action 'self'";
 
     /// <summary>
     /// The origin a sandboxed module frame reports. The frame is served without

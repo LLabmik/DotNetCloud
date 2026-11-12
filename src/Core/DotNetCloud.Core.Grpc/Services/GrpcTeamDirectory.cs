@@ -63,7 +63,7 @@ public sealed class GrpcTeamDirectory : ITeamDirectory, IDisposable
     /// <inheritdoc />
     public async Task<TeamInfo?> GetTeamAsync(Guid teamId, CancellationToken cancellationToken = default)
     {
-        if (_client is null)
+        if (string.IsNullOrWhiteSpace(_coreEndpoint))
         {
             _logger.LogWarning("GetTeam for {TeamId} short-circuited: DOTNETCLOUD_CORE_ENDPOINT is not set.", teamId);
             return null;
@@ -130,7 +130,7 @@ public sealed class GrpcTeamDirectory : ITeamDirectory, IDisposable
     /// <inheritdoc />
     public async Task<IReadOnlyList<TeamInfo>> GetTeamsForUserAsync(Guid userId, CancellationToken cancellationToken = default)
     {
-        if (_client is null)
+        if (string.IsNullOrWhiteSpace(_coreEndpoint))
         {
             _logger.LogWarning(
                 "GetTeamsForUser for {UserId} short-circuited: DOTNETCLOUD_CORE_ENDPOINT is not set, so the module " +

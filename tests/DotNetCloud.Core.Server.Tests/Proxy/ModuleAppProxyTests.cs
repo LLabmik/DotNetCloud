@@ -135,6 +135,36 @@ public class ModuleAppProxyTests
         Assert.IsFalse(csp.Contains("frame-ancestors *", StringComparison.Ordinal));
     }
 
+    /// <summary>
+    /// A module frame must be allowed to set its own base URL.
+    /// </summary>
+    /// <remarks>
+    /// The frame is served without <c>allow-same-origin</c>, so its document has an opaque origin and
+    /// reports <c>about:blank</c> as its base URL. Blazor WebAssembly resolves its bootstrap
+    /// (<c>import("./dotnet.js")</c>) against that base, so a <c>base-uri</c> of <c>'none'</c> (or
+    /// <c>'self'</c>, which never matches an opaque origin) leaves the app stuck on its loading markup.
+    /// Found live: the Tracks frame rendered "Loading the module UI…" forever with
+    /// "Failed to resolve module specifier './dotnet.js'" in the console.
+    /// </remarks>
+    [TestMethod]
+    public void ContentSecurityPolicy_AllowsAModuleToSetItsBaseUrl()
+    {
+        var csp = ModuleAppResponsePolicy.ContentSecurityPolicy;
+
+        Assert.IsTrue(
+            csp.Contains("base-uri *", StringComparison.Ordinal),
+            "a WebAssembly module frame cannot resolve its own bootstrap without a base URL");
+        Assert.IsFalse(csp.Contains("base-uri 'none'", StringComparison.Ordinal));
+        Assert.IsFalse(
+            csp.Contains("base-uri 'self'", StringComparison.Ordinal),
+            "'self' never matches the opaque origin a sandboxed frame is given");
+
+        // The rest of the sandbox boundary stays as strict as it was.
+        Assert.IsTrue(csp.Contains("object-src 'none'", StringComparison.Ordinal));
+        Assert.IsTrue(csp.Contains("frame-ancestors 'self'", StringComparison.Ordinal));
+        Assert.IsTrue(csp.Contains("form-action 'self'", StringComparison.Ordinal));
+    }
+
     [TestMethod]
     public void ApplyForHtml_SetsNoStore()
     {

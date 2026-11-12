@@ -1,5 +1,6 @@
 using DotNetCloud.Core.Capabilities;
 using DotNetCloud.Core.DTOs;
+using DotNetCloud.Core.Grpc.Services;
 using DotNetCloud.Modules.Tracks.Data.Services;
 using Microsoft.AspNetCore.Mvc;
 
@@ -73,6 +74,19 @@ public class OrganizationsController : TracksControllerBase
             }
 
             return Ok(Envelope(items));
+        }
+        catch (Grpc.Core.RpcException ex) when (GrpcOrganizationDirectory.IsConsentRequired(ex))
+        {
+            // The user has not approved the profile scope the organization listing needs. Answering
+            // 200 with an empty list made the product picker silently unusable, so the framed UI is
+            // told exactly what to ask for: it calls bridge.requestConsent with these scopes, the
+            // shell prompts, and approving reloads the frame.
+            var scopes = ex.Trailers?.GetValue("consent-scopes") ?? "profile";
+            _logger.LogInformation("Organization listing needs the user's consent for scopes {Scopes}", scopes);
+
+            return StatusCode(403, ErrorEnvelope(
+                "PROFILE_CONSENT_REQUIRED",
+                $"Tracks needs your consent to read your profile ({scopes}) before it can list your organizations."));
         }
         catch (Exception ex)
         {

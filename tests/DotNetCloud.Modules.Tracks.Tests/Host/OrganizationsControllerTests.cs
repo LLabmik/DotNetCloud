@@ -3,6 +3,7 @@ using DotNetCloud.Core.Capabilities;
 using DotNetCloud.Core.DTOs;
 using DotNetCloud.Modules.Tracks.Data.Services;
 using DotNetCloud.Modules.Tracks.Host.Controllers;
+using Grpc.Core;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -142,6 +143,35 @@ public class OrganizationsControllerTests
 
         await Assert.ThrowsExactlyAsync<UnauthorizedAccessException>(
             () => controller.ListMyOrganizationsAsync(CancellationToken.None));
+    }
+
+    [TestMethod]
+    public async Task ListMyOrganizations_MissingProfileConsent_Answers403WithACodeTheUiCanActOn()
+    {
+        var metadata = new Metadata
+        {
+            { "error-code", "MODULE_CONSENT_REQUIRED" },
+            { "consent-scopes", "profile" },
+        };
+
+        var directory = new Mock<IOrganizationDirectory>();
+        directory
+            .Setup(x => x.GetUserOrganizationsAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new RpcException(
+                new Status(StatusCode.PermissionDenied, "[MODULE_CONSENT_REQUIRED] consent needed"),
+                metadata));
+
+        await using var db = TestHelpers.CreateDb();
+        var controller = CreateController(directory.Object, new ProductService(db));
+
+        var result = await controller.ListMyOrganizationsAsync(CancellationToken.None);
+
+        var objectResult = result as ObjectResult;
+        Assert.IsNotNull(objectResult);
+        Assert.AreEqual(403, objectResult.StatusCode, "a missing consent is not an empty listing: the UI must be able to prompt");
+
+        var error = objectResult.Value!.GetType().GetProperty("error")!.GetValue(objectResult.Value)!;
+        Assert.AreEqual("PROFILE_CONSENT_REQUIRED", error.GetType().GetProperty("code")!.GetValue(error));
     }
 
     /// <summary>

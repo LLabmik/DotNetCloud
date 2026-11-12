@@ -67,7 +67,7 @@ public sealed class GrpcOrganizationDirectory : IOrganizationDirectory, IDisposa
         Guid userId,
         CancellationToken cancellationToken = default)
     {
-        if (_client is null)
+        if (string.IsNullOrWhiteSpace(_coreEndpoint))
         {
             _logger.LogWarning(
                 "GetUserOrganizations for {UserId} short-circuited: DOTNETCLOUD_CORE_ENDPOINT is not set, " +
@@ -87,6 +87,12 @@ public sealed class GrpcOrganizationDirectory : IOrganizationDirectory, IDisposa
                 userId, response.Organizations.Count);
 
             return response.Organizations.Select(MapOrganization).ToList();
+        }
+        catch (RpcException ex) when (IsConsentRequired(ex))
+        {
+            // A missing consent is not "no organizations": the caller has to ask the user, so an
+            // empty list here would hide the prompt forever. Surface it (Email/Music precedent).
+            throw;
         }
         catch (RpcException ex) when (ex.StatusCode == StatusCode.Unimplemented)
         {
@@ -123,6 +129,29 @@ public sealed class GrpcOrganizationDirectory : IOrganizationDirectory, IDisposa
             _logger.LogError(ex, "Unexpected error calling GetUserOrganizations for {UserId}", userId);
             return [];
         }
+    }
+
+    /// <summary>
+    /// Whether the core refused the call because the acting user has not consented to a scope.
+    /// </summary>
+    /// <remarks>
+    /// The core answers <c>PermissionDenied</c> with the <c>error-code: MODULE_CONSENT_REQUIRED</c>
+    /// trailer and lists the missing scopes in <c>consent-scopes</c>. That failure must reach the
+    /// caller so it can prompt the user — degrading it to an empty list, the way this client handles
+    /// an unreachable core, would leave the module permanently without organizations and with no way
+    /// to ask for consent. Found live (Tracks, 2026-11-11).
+    /// </remarks>
+    /// <param name="exception">The failed core call.</param>
+    /// <returns><see langword="true"/> when the call needs the user's consent.</returns>
+    public static bool IsConsentRequired(RpcException exception)
+    {
+        ArgumentNullException.ThrowIfNull(exception);
+
+        return exception.StatusCode == StatusCode.PermissionDenied
+            && string.Equals(
+                exception.Trailers?.GetValue("error-code"),
+                "MODULE_CONSENT_REQUIRED",
+                StringComparison.Ordinal);
     }
 
     /// <inheritdoc />

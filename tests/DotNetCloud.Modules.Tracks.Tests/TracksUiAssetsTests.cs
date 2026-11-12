@@ -120,6 +120,71 @@ public class TracksUiAssetsTests
         StringAssert.Contains(script, "openExternal");
     }
 
+    /// <summary>
+    /// The module stylesheet must define the shared component classes the ported markup uses.
+    /// </summary>
+    /// <remarks>
+    /// The pages were written against the core shell's global stylesheet, which a framed module does
+    /// not inherit. Found live: every button fell back to the user agent default and `.btn-ghost`
+    /// rendered white-on-white in dark mode. Porting a class here means adding it to
+    /// <c>wwwroot/css/app.css</c> too.
+    /// </remarks>
+    [TestMethod]
+    public void AppStylesheet_DefinesTheSharedComponentClassesTheMarkupUses()
+    {
+        var css = ReadUiFile("css/app.css");
+
+        string[] required =
+        [
+            "btn", "btn-primary", "btn-secondary", "btn-outline", "btn-ghost", "btn-accent", "btn-sm",
+            "alert", "alert-danger", "badge",
+            "form-group", "form-row", "form-actions", "form-control-sm",
+            "help-content", "help-section", "help-section-title", "help-tips",
+            "markdown-body",
+        ];
+
+        foreach (var className in required)
+        {
+            Assert.IsTrue(
+                Regex.IsMatch(css, "\\." + Regex.Escape(className) + "(?![A-Za-z0-9_-])[^{]*\\{"),
+                $"wwwroot/css/app.css must define .{className}: the framed module cannot inherit the core shell's stylesheet");
+        }
+    }
+
+    /// <summary>
+    /// The module app must not let the Blazor loader resolve its own bootstrap relatively.
+    /// </summary>
+    /// <remarks>
+    /// Found live: the frame rendered "Loading the module UI…" forever with
+    /// <c>Failed to resolve module specifier './dotnet.js'. The base URL is about:blank…</c> — an
+    /// opaque-origin document cannot resolve a relative dynamic import, and <c>blazor.webassembly.js</c>
+    /// does exactly that while starting. The app therefore disables autostart and starts Blazor with
+    /// absolute boot URLs derived from the frame's own document URL.
+    /// </remarks>
+    [TestMethod]
+    public void AppEntry_StartsBlazorWithAbsoluteBootUrls()
+    {
+        var html = ReadUiFile("index.html");
+
+        StringAssert.Contains(
+            html,
+            "autostart=\"false\"",
+            "the loader must not import ./dotnet.js itself: that relative import cannot resolve in an opaque-origin frame");
+        StringAssert.Contains(html, "js/tracks-boot.js");
+
+        var boot = ReadUiFile("js/tracks-boot.js");
+
+        StringAssert.Contains(boot, "loadBootResource");
+        StringAssert.Contains(
+            boot,
+            "new URL(\"./\", window.location.href)",
+            "absolute boot URLs must come from the frame's own document URL, never a hard-coded /apps/ prefix");
+        Assert.IsFalse(
+            boot.Contains("\"/apps/", StringComparison.OrdinalIgnoreCase)
+            || boot.Contains("'/apps/", StringComparison.OrdinalIgnoreCase),
+            "the module must not know the proxy prefix it is served under");
+    }
+
     private static string ReadUiFile(string relativePath)
     {
         var path = Path.Combine(AppContext.BaseDirectory, UiDirectory, relativePath.Replace('/', Path.DirectorySeparatorChar));
