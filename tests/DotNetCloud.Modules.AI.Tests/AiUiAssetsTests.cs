@@ -3,13 +3,13 @@ using System.Text.RegularExpressions;
 namespace DotNetCloud.Modules.AI.Tests;
 
 /// <summary>
-/// Guards the module's own web UI assets (phase A5 UI plane, Track C).
+/// Guards the AI module's own web UI assets (phase A5 UI plane, Blazor WebAssembly shape).
 /// </summary>
 /// <remarks>
 /// The core frames <c>/apps/dotnetcloud.ai/</c> and strips that prefix before forwarding, so every
-/// asset and API reference in the framed documents must be <b>relative</b>. An absolute
-/// <c>/assets/ai-ui.js</c> would leave the module and hit a core route — a 404 at best, a core script
-/// at worst. These tests fail the build rather than the browser.
+/// asset reference in the framed document must be <b>relative</b>. The chat stream is a Server-Sent
+/// Events response, pumped by the shared frame script because <c>HttpClient</c> cannot stream a body
+/// in WebAssembly.
 /// </remarks>
 [TestClass]
 public class AiUiAssetsTests
@@ -25,7 +25,7 @@ public class AiUiAssetsTests
             .Select(match => match.Groups[1].Value)
             .ToList();
 
-        Assert.IsTrue(references.Count >= 3, "index.html must load the bridge, its script and its stylesheet");
+        Assert.IsTrue(references.Count >= 3, "index.html must load the bridge, its scripts and its stylesheet");
 
         foreach (var reference in references)
         {
@@ -42,64 +42,71 @@ public class AiUiAssetsTests
     }
 
     [TestMethod]
-    public void IndexHtml_LoadsTheBridgeAndTheModuleAssets()
+    public void IndexHtml_LoadsTheBridgeBeforeTheBlazorBootstrap()
     {
         var html = ReadUiFile("index.html");
 
-        StringAssert.Contains(html, "dncModuleBridge.js");
-        StringAssert.Contains(html, "assets/ai-ui.js");
-        StringAssert.Contains(html, "assets/ai-ui.css");
+        StringAssert.Contains(html, "js/dncModuleBridge.js");
+        StringAssert.Contains(html, "js/dncModuleFrame.js");
+        StringAssert.Contains(html, "js/dncModuleBoot.js");
+
+        var bridgeIndex = html.IndexOf("js/dncModuleBridge.js", StringComparison.Ordinal);
+        var bootIndex = html.IndexOf("js/dncModuleBoot.js", StringComparison.Ordinal);
+
+        Assert.IsTrue(bridgeIndex >= 0 && bridgeIndex < bootIndex, "the SDK bridge must load before Blazor starts");
     }
 
     [TestMethod]
-    public void ModuleScripts_DoNotInjectHtml()
+    public void AppEntry_StartsBlazorWithAbsoluteBootUrls()
     {
-        // Model output, conversation titles and messages are untrusted. Building DOM with innerHTML
-        // would make them a stored-XSS sink inside the core's origin — the markdown renderer builds
-        // text nodes and elements instead.
-        string[] sinks = [".innerHTML", ".outerHTML", "insertAdjacentHTML", "document.write"];
+        var html = ReadUiFile("index.html");
 
-        foreach (var file in new[] { "assets/ai-ui.js", "widget/widget.js" })
+        StringAssert.Contains(html, "autostart=\"false\"");
+
+        var boot = ReadUiFile("js/dncModuleBoot.js");
+        StringAssert.Contains(boot, "loadBootResource");
+        StringAssert.Contains(boot, "new URL(\"./\", window.location.href)");
+        Assert.IsFalse(
+            boot.Contains("\"/apps/", StringComparison.OrdinalIgnoreCase)
+            || boot.Contains("'/apps/", StringComparison.OrdinalIgnoreCase),
+            "the module must not know the proxy prefix it is served under");
+    }
+
+    [TestMethod]
+    public void FrameScript_PumpsServerSentEventsAndForwardsEachPayload()
+    {
+        var frame = ReadUiFile("js/dncModuleFrame.js");
+
+        StringAssert.Contains(frame, "stream: function (url, body, dotNetRef)");
+        StringAssert.Contains(frame, "text/event-stream");
+        StringAssert.Contains(frame, "OnStreamEvent");
+        StringAssert.Contains(frame, "OnStreamCompleted");
+        StringAssert.Contains(frame, "OnStreamFailed");
+        StringAssert.Contains(frame, "stopStream");
+    }
+
+    [TestMethod]
+    public void AppStylesheet_DefinesTheSharedComponentClassesTheMarkupUses()
+    {
+        var css = ReadUiFile("css/app.css");
+
+        string[] required =
+        [
+            "ai-layout", "ai-sidebar", "ai-main", "ai-conversation", "ai-conversation-btn",
+            "ai-conversation-title", "ai-rename-input", "ai-model-label", "ai-empty-hint",
+            "ai-welcome", "ai-chat", "ai-help", "ai-messages", "ai-msg", "ai-avatar", "ai-msg-body",
+            "ai-msg-role", "ai-msg-text", "ai-markdown", "ai-copy-actions", "ai-copy-btn",
+            "ai-stream-actions", "ai-abort-btn", "ai-thinking", "ai-thinking-block", "ai-error",
+            "ai-composer", "ai-input", "ai-send", "hidden",
+            "material-icon", "material-icon--sm",
+        ];
+
+        foreach (var className in required)
         {
-            var script = ReadUiFile(file);
-
-            foreach (var sink in sinks)
-            {
-                Assert.IsFalse(
-                    script.Contains(sink, StringComparison.Ordinal),
-                    $"{file} must build DOM with textContent/createElement, never {sink}");
-            }
+            Assert.IsTrue(
+                Regex.IsMatch(css, "\\." + Regex.Escape(className) + "(?![A-Za-z0-9_-])[^{]*\\{"),
+                $"wwwroot/css/app.css must define .{className}: the framed module cannot inherit the core shell's stylesheet");
         }
-    }
-
-    [TestMethod]
-    public void MarkdownRenderer_EscapesRawHtmlAndRestrictsLinkSchemes()
-    {
-        var script = ReadUiFile("assets/ai-ui.js");
-
-        // The renderer only emits text nodes and a fixed element set, and links are limited to http(s).
-        StringAssert.Contains(script, "document.createTextNode");
-        StringAssert.Contains(script, "\\(https?:\\/\\/", "links must be restricted to http(s) URLs");
-        Assert.IsFalse(
-            script.Contains("eval(", StringComparison.Ordinal),
-            "the UI must never evaluate model output");
-    }
-
-    [TestMethod]
-    public void ModuleScripts_UseOnlyRelativeApiPaths()
-    {
-        var script = ReadUiFile("assets/ai-ui.js");
-
-        Assert.IsFalse(
-            script.Contains("'/api/", StringComparison.Ordinal),
-            "API calls must be relative so they stay inside /apps/<moduleId>/");
-        StringAssert.Contains(script, "var API = \"api/v1/ai\"");
-
-        var widgetScript = ReadUiFile("widget/widget.js");
-        StringAssert.Contains(widgetScript, "\"../api/v1/ai");
-        Assert.IsFalse(
-            widgetScript.Contains("'/api/", StringComparison.Ordinal),
-            "the widget frame must call the API relatively as well");
     }
 
     [TestMethod]
@@ -107,11 +114,7 @@ public class AiUiAssetsTests
     {
         var manifest = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "manifest.json"));
 
-        StringAssert.Contains(
-            manifest,
-            "\"widget\"",
-            "the module declares a home-page widget, so the shell renders a sandboxed card for it");
-
+        StringAssert.Contains(manifest, "\"widget\"");
         Assert.IsTrue(
             File.Exists(Path.Combine(AppContext.BaseDirectory, UiDirectory, "widget", "index.html")),
             "the widget document declared by ui.widget.path must ship with the module");
@@ -120,16 +123,19 @@ public class AiUiAssetsTests
     [TestMethod]
     public void Bridge_IsShippedAsAStaticAsset()
     {
-        var bridge = ReadUiFile("dncModuleBridge.js");
+        var bridge = ReadUiFile("js/dncModuleBridge.js");
 
-        // The bridge is the SDK's single copy; this proves the host copies the real thing and not a stub.
         StringAssert.Contains(bridge, "window.dncModuleBridge = bridge");
         StringAssert.Contains(bridge, "dnc:ready");
     }
 
     private static string ReadUiFile(string relativePath)
     {
-        var path = Path.Combine(AppContext.BaseDirectory, UiDirectory, relativePath);
+        var path = Path.Combine(
+            AppContext.BaseDirectory,
+            UiDirectory,
+            relativePath.Replace('/', Path.DirectorySeparatorChar));
+
         Assert.IsTrue(File.Exists(path), $"Expected UI asset was not copied to the test output: {path}");
         return File.ReadAllText(path);
     }

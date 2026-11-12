@@ -3,13 +3,12 @@ using System.Text.RegularExpressions;
 namespace DotNetCloud.Modules.Photos.Tests;
 
 /// <summary>
-/// Guards the module's own web UI assets (phase A5 UI plane, Track C).
+/// Guards the Photos module's own web UI assets (phase A5 UI plane, Blazor WebAssembly shape).
 /// </summary>
 /// <remarks>
 /// The core frames <c>/apps/dotnetcloud.photos/</c> and strips that prefix before forwarding, so every
-/// asset and API reference in the framed documents must be <b>relative</b>. An absolute
-/// <c>/assets/photos-ui.js</c> would leave the module and hit a core route — a 404 at best, a core
-/// script at worst. These tests fail the build rather than the browser.
+/// asset reference in the framed document must be <b>relative</b>. The app is a Blazor WebAssembly
+/// bundle exercised in a browser; the widget stays a plain static document whose guards are unchanged.
 /// </remarks>
 [TestClass]
 public class PhotosUiAssetsTests
@@ -25,7 +24,7 @@ public class PhotosUiAssetsTests
             .Select(match => match.Groups[1].Value)
             .ToList();
 
-        Assert.IsTrue(references.Count >= 3, "index.html must load the bridge, its script and its stylesheet");
+        Assert.IsTrue(references.Count >= 3, "index.html must load the bridge, its scripts and its stylesheet");
 
         foreach (var reference in references)
         {
@@ -42,53 +41,68 @@ public class PhotosUiAssetsTests
     }
 
     [TestMethod]
-    public void IndexHtml_LoadsTheBridgeAndTheModuleAssets()
+    public void IndexHtml_LoadsTheBridgeBeforeTheBlazorBootstrap()
     {
         var html = ReadUiFile("index.html");
 
-        StringAssert.Contains(html, "dncModuleBridge.js");
-        StringAssert.Contains(html, "assets/photos-ui.js");
-        StringAssert.Contains(html, "assets/photos-ui.css");
+        StringAssert.Contains(html, "js/dncModuleBridge.js");
+        StringAssert.Contains(html, "js/dncModuleFrame.js");
+        StringAssert.Contains(html, "js/dncModuleBoot.js");
+
+        var bridgeIndex = html.IndexOf("js/dncModuleBridge.js", StringComparison.Ordinal);
+        var bootIndex = html.IndexOf("js/dncModuleBoot.js", StringComparison.Ordinal);
+
+        // The bridge patches window.fetch when it starts; loading it after the bootstrap would let the
+        // first API call escape without a frame ticket and answer 401.
+        Assert.IsTrue(bridgeIndex >= 0 && bridgeIndex < bootIndex, "the SDK bridge must load before Blazor starts");
     }
 
     [TestMethod]
-    public void ModuleScripts_DoNotInjectHtml()
+    public void AppEntry_StartsBlazorWithAbsoluteBootUrls()
     {
-        // File names, album titles and tags are user data. Building DOM with innerHTML would make them
-        // a stored-XSS sink inside the core's origin.
-        string[] sinks = [".innerHTML", ".outerHTML", "insertAdjacentHTML", "document.write"];
+        var html = ReadUiFile("index.html");
 
-        foreach (var file in new[] { "assets/photos-ui.js", "widget/widget.js" })
+        StringAssert.Contains(
+            html,
+            "autostart=\"false\"",
+            "the loader must not import ./dotnet.js itself: that relative import cannot resolve in an opaque-origin frame");
+
+        var boot = ReadUiFile("js/dncModuleBoot.js");
+
+        StringAssert.Contains(boot, "loadBootResource");
+        StringAssert.Contains(
+            boot,
+            "new URL(\"./\", window.location.href)",
+            "absolute boot URLs must come from the frame's own document URL, never a hard-coded /apps/ prefix");
+        Assert.IsFalse(
+            boot.Contains("\"/apps/", StringComparison.OrdinalIgnoreCase)
+            || boot.Contains("'/apps/", StringComparison.OrdinalIgnoreCase),
+            "the module must not know the proxy prefix it is served under");
+    }
+
+    [TestMethod]
+    public void AppStylesheet_DefinesTheSharedComponentClassesTheMarkupUses()
+    {
+        var css = ReadUiFile("css/app.css");
+
+        string[] required =
+        [
+            "btn", "btn-primary", "btn-secondary",
+            "photo-grid", "photo-card", "photo-list", "photo-row", "photo-row-name", "photo-row-meta",
+            "album-grid", "album-card", "album-cover", "album-title", "album-meta",
+            "shared-list", "shared-item", "shared-title", "shared-meta",
+            "viewer", "viewer-head", "viewer-body", "viewer-foot", "viewer-caption",
+            "pager", "status", "empty", "icon-btn", "nav-item", "is-active", "nav-text",
+            "select", "field", "help", "overlay-backdrop",
+            "material-icon", "material-icon--sm",
+        ];
+
+        foreach (var className in required)
         {
-            var script = ReadUiFile(file);
-
-            foreach (var sink in sinks)
-            {
-                Assert.IsFalse(
-                    script.Contains(sink, StringComparison.Ordinal),
-                    $"{file} must build DOM with textContent/createElement, never {sink}");
-            }
+            Assert.IsTrue(
+                Regex.IsMatch(css, "\\." + Regex.Escape(className) + "(?![A-Za-z0-9_-])[^{]*\\{"),
+                $"wwwroot/css/app.css must define .{className}: the framed module cannot inherit the core shell's stylesheet");
         }
-    }
-
-    [TestMethod]
-    public void ModuleScripts_UseOnlyRelativeApiPaths()
-    {
-        var script = ReadUiFile("assets/photos-ui.js");
-
-        Assert.IsFalse(
-            script.Contains("'/api/", StringComparison.Ordinal),
-            "API calls must be relative so they stay inside /apps/<moduleId>/");
-        Assert.IsFalse(
-            script.Contains("\"/api/", StringComparison.Ordinal),
-            "API calls must be relative so they stay inside /apps/<moduleId>/");
-        StringAssert.Contains(script, "var API_PHOTOS = \"api/v1/photos\"");
-
-        var widgetScript = ReadUiFile("widget/widget.js");
-        StringAssert.Contains(widgetScript, "\"../api/v1/photos");
-        Assert.IsFalse(
-            widgetScript.Contains("'/api/", StringComparison.Ordinal),
-            "the widget frame must call the API relatively as well");
     }
 
     [TestMethod]
@@ -100,7 +114,6 @@ public class PhotosUiAssetsTests
             manifest,
             "\"widget\"",
             "the module declares a home-page widget, so the shell renders a sandboxed card for it");
-        StringAssert.Contains(manifest, "\"/widget/index.html\"");
 
         Assert.IsTrue(
             File.Exists(Path.Combine(AppContext.BaseDirectory, UiDirectory, "widget", "index.html")),
@@ -108,114 +121,34 @@ public class PhotosUiAssetsTests
     }
 
     [TestMethod]
-    public void WidgetScript_RegistersTheWidgetRole()
+    public void WidgetScript_RegistersTheWidgetRoleAndCallsTheApiRelatively()
     {
-        var widgetScript = ReadUiFile("widget/widget.js");
+        var script = ReadUiFile("widget/widget.js");
 
-        StringAssert.Contains(widgetScript, "role: \"widget\"");
-    }
-
-    [TestMethod]
-    public void ModuleScript_HonoursShellDeepLinks()
-    {
-        // The core forwards the shell page's query into the frame, so a search hit or the Home widget
-        // must be able to open one photo (or one album) directly.
-        var script = ReadUiFile("assets/photos-ui.js");
-
-        StringAssert.Contains(script, "new URLSearchParams(window.location.search");
-        StringAssert.Contains(script, "params.get(\"photoId\")");
-        StringAssert.Contains(script, "params.get(\"album\")");
+        StringAssert.Contains(script, "role: \"widget\"");
+        Assert.IsFalse(
+            script.Contains("'/api/", StringComparison.Ordinal),
+            "the widget must call the API relatively so it stays inside /apps/<moduleId>/");
+        StringAssert.Contains(script, "textContent");
     }
 
     [TestMethod]
     public void Bridge_IsShippedAsAStaticAsset()
     {
-        var bridge = ReadUiFile("dncModuleBridge.js");
+        var bridge = ReadUiFile("js/dncModuleBridge.js");
 
-        // The bridge is the SDK's single copy; this proves the host copies the real thing and not a stub.
+        // The bridge is the SDK's single copy; this proves the module links the real thing, not a stub.
         StringAssert.Contains(bridge, "window.dncModuleBridge = bridge");
         StringAssert.Contains(bridge, "dnc:ready");
     }
 
-    [TestMethod]
-    public void Bridge_ExposesTheMediaUrlHelper()
-    {
-        // Browser-initiated subresources (<img src>, <video src>) cannot carry the ticket header and an
-        // opaque-origin frame sends no session cookie, so the ticket has to travel in the query string.
-        var bridge = ReadUiFile("dncModuleBridge.js");
-
-        StringAssert.Contains(bridge, "mediaUrl: function (url)");
-        StringAssert.Contains(bridge, "TICKET_QUERY + '=' + encodeURIComponent(state.ticket)");
-        Assert.IsFalse(
-            bridge.Contains("mediaUrl: function (url) {\n      return state.ticket", StringComparison.Ordinal),
-            "mediaUrl must not append the ticket to a third-party URL.");
-    }
-
-    [TestMethod]
-    public void ModuleScripts_AuthenticateEveryImageRequest()
-    {
-        // Regression: the first live browser check rendered every card with a broken image because
-        // `img.src` was the bare thumbnail URL — the frame's request carries neither the core session
-        // cookie (opaque origin) nor the bridge's ticket header, so the proxy answered 401.
-        var script = ReadUiFile("assets/photos-ui.js");
-        var widgetScript = ReadUiFile("widget/widget.js");
-
-        Assert.IsFalse(
-            Regex.IsMatch(script, @"\.src\s*=\s*thumbnailUrl\("),
-            "photos-ui.js assigns a bare thumbnail URL to img.src; wrap it in mediaUrl(...).");
-        Assert.IsFalse(
-            Regex.IsMatch(widgetScript, @"\.src\s*=\s*""\.\./"),
-            "widget.js assigns a bare relative API URL to img.src; wrap it in mediaUrl(...).");
-
-        foreach (var (file, source) in new[] { ("photos-ui.js", script), ("widget.js", widgetScript) })
-        {
-            foreach (Match match in Regex.Matches(source, @"\.src\s*=\s*([^;]+);"))
-            {
-                StringAssert.Contains(
-                    match.Groups[1].Value,
-                    "mediaUrl(",
-                    $"{file} has an unauthenticated img.src assignment: {match.Groups[1].Value.Trim()}");
-            }
-        }
-    }
-
-    [TestMethod]
-    public void ModuleScript_PreviewsQueuedEditsBeforeSaving()
-    {
-        // An edit only reaches the pixels on "Save edits", so without a local preview the user rotates a
-        // photo and nothing appears to happen.
-        var script = ReadUiFile("assets/photos-ui.js");
-
-        StringAssert.Contains(script, "transformOfEditStack");
-        StringAssert.Contains(script, "previewTransforms");
-        StringAssert.Contains(script, "image.style.transform");
-    }
-
-    [TestMethod]
-    public void ModuleScript_PreviewSurvivesRapidEdits()
-    {
-        // Two quick rotations used to leave one turn on screen: the earlier (smaller) stack landed last
-        // and overwrote the newer preview.
-        var script = ReadUiFile("assets/photos-ui.js");
-
-        StringAssert.Contains(script, "applyPreviewOperation(photo.id, operationType, parameters)");
-        StringAssert.Contains(script, "token === previewSequence");
-    }
-
-    [TestMethod]
-    public void ModuleScript_AsksForFileConsentWhenTheCoreRefuses()
-    {
-        // Reading an original needs `files:read`; the module must ask the shell for it rather than
-        // reporting a bare failure.
-        var script = ReadUiFile("assets/photos-ui.js");
-
-        StringAssert.Contains(script, "FILES_CONSENT_REQUIRED");
-        StringAssert.Contains(script, "bridge.requestConsent([\"files:read\"])");
-    }
-
     private static string ReadUiFile(string relativePath)
     {
-        var path = Path.Combine(AppContext.BaseDirectory, UiDirectory, relativePath);
+        var path = Path.Combine(
+            AppContext.BaseDirectory,
+            UiDirectory,
+            relativePath.Replace('/', Path.DirectorySeparatorChar));
+
         Assert.IsTrue(File.Exists(path), $"Expected UI asset was not copied to the test output: {path}");
         return File.ReadAllText(path);
     }

@@ -8801,3 +8801,41 @@ block buttons replaced the highlighted block with a canned template.
   from `edge://extensions`, or Chrome Web Store via "Allow extensions from other stores")
 - ✓ `MaterialSvgIconsTests` covers `extension`, `smartphone`, `chat`, `description` and `lock`
 - ✓ `dotnet build src/UI/DotNetCloud.UI.Web` clean (0 warnings / 0 errors); `MaterialSvgIconsTests` 85/85 pass
+
+
+### Module WASM UI parity — Example, Bookmarks, Photos, AI, Email (2026-11-11)
+
+Every sandboxed module UI except Tracks was still a plain JavaScript document. All five are now Blazor
+WebAssembly apps served by their own module host, matching the Tracks shape.
+
+- ✓ **Shared browser SDK** — new `src/SDK/DotNetCloud.Modules.Sdk.Web` (plain `net10.0`, references only
+  `DotNetCloud.Core`): `ModuleFrameBridge` (theme/locale, media URLs, navigate, title, toast, open-external,
+  consent, clipboard, scroll, SSE pump), `ModuleApiClient` (envelope unwrapping, consent-refusal → exception,
+  enum names *and* numbers on read), `ModuleFrameAuthenticationStateProvider` (`GET api/v1/me`), and the shared
+  `wwwroot/dncModuleFrame.js` + `dncModuleBoot.js` (bridge started before Blazor; absolute boot URLs).
+- ✓ **Per module** — `DotNetCloud.Modules.<X>.Web` (`Microsoft.NET.Sdk.BlazorWebAssembly`, hosting the ported
+  Razor UI) plus `DotNetCloud.Modules.<X>.Web.Services` (plain library: typed API client, and for Email the whole
+  `EmailState`). The host references the Web project, so `dotnet publish` emits the UI into its `wwwroot`
+  (Example **21 MB**, Email **22 MB** with `_framework`); the old `wwwroot/index.html` + `assets/*` are deleted,
+  every manifest-declared widget is untouched, and each host gained `GET api/v1/me`.
+- ✓ **Example** — notes list/create/delete plus the help panel, one page with a `?view=` switch.
+- ✓ **Bookmarks** — sidebar (views, folders, tools), grid/list library with search and pager-free 200-row page,
+  detail view with preview metadata, bookmark and folder forms, import, export through a shell tab.
+- ✓ **Photos** — paged gallery (grid/list), favorites, timeline, search, albums, shared-with-me, viewer with
+  non-destructive edit stack previewed through a CSS transform, add/remove album, album dialog. Thumbnail and
+  download URLs are minted with the frame ticket (`bridge.mediaUrl`), and a refused `files:read` opens the
+  shell's consent band.
+- ✓ **AI Assistant** — conversation sidebar (create/rename/delete with an inline confirm), streaming chat over
+  Server-Sent Events pumped by `dncModuleFrame.stream`, thinking block, queue position, abort, watchdog,
+  Markdown rendering through the shared sanitising renderer, copy-as-Markdown / copy-as-formatted.
+- ✓ **Email** — accounts (IMAP form + Gmail OAuth through a shell tab), mailboxes, thread list, thread detail
+  with each message body in a nested `sandbox=""` frame, staged attachments (browser upload **and** the user's
+  cloud files), compose/send, rules list + full editor, `?threadId=` / `?gmail=` deep links, inline confirm
+  dialog and file browser overlays. Enum-valued payloads stay **numeric**, because this host binds MVC enums as
+  numbers.
+- ✓ **Tests** — `DotNetCloud.Modules.Sdk.Tests` **51** (8 new: envelope/consent/enum JSON, `params` consent
+  array), Example **90**, Bookmarks **47**, Photos **213**, AI **63**, Email **69** (new API-client and state
+  helper suites, rewritten WASM asset guards), `Core.Server.Tests` **1693 passed / 2 skipped**, Blazor standards
+  gate green, `DotNetCloud.CI.slnf` builds with 0 warnings / 0 errors.
+- ☐ **Next** — browser click-through of each frame against a deployed host (the Tracks click-through found eight
+  defects unit tests could not see), then re-pack/re-publish the five modules.

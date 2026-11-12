@@ -35,17 +35,10 @@
     <ProjectReference Include="..\..\..\Core\DotNetCloud.Core.Grpc\DotNetCloud.Core.Grpc.csproj" />
     <!-- Canonical module API client (audit, settings plane) and the in-memory test harness. -->
     <ProjectReference Include="..\..\..\SDK\DotNetCloud.Modules.Sdk\DotNetCloud.Modules.Sdk.csproj" />
-  </ItemGroup>
-
-  <!--
-    The module-side half of the core's iframe UI plane, taken from the SDK so there is exactly one
-    copy of the protocol in the repository. It is served as a static asset of this host's wwwroot.
-  -->
-  <ItemGroup>
-    <Content Include="..\..\..\SDK\DotNetCloud.Modules.Sdk\wwwroot\dncModuleBridge.js"
-             Link="wwwroot\dncModuleBridge.js"
-             CopyToOutputDirectory="PreserveNewest"
-             CopyToPublishDirectory="PreserveNewest" />
+    <!-- The module UI. This is the standard hosted-Blazor-WebAssembly shape: referencing the
+         WebAssembly project contributes its published files as this host's static web assets, so
+         the frame the core loads at /apps/dotnetcloud.ai/ is served by the module process itself. -->
+    <ProjectReference Include="..\DotNetCloud.Modules.AI.Web\DotNetCloud.Modules.AI.Web.csproj" />
   </ItemGroup>
 
   <!--

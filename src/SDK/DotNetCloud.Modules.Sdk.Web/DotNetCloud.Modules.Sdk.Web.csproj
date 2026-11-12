@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>DotNetCloud.Modules.Sdk.Web</RootNamespace>
+    <AssemblyName>DotNetCloud.Modules.Sdk.Web</AssemblyName>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!--
+      Packages, not FrameworkReference: this library is consumed by Blazor WebAssembly projects, and a
+      FrameworkReference would require an ASP.NET Core runtime pack for the browser-wasm RID. These give
+      AuthenticationStateProvider, IJSRuntime, ILogger<T> and HttpClient/Json.
+    -->
+    <PackageReference Include="Microsoft.AspNetCore.Components.Authorization" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+    <PackageReference Include="Microsoft.JSInterop" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Browser-safe by design: DotNetCloud.Core only references Microsoft.AspNetCore.Http.Abstractions. -->
+    <ProjectReference Include="..\..\Core\DotNetCloud.Core\DotNetCloud.Core.csproj" />
+  </ItemGroup>
+
+</Project>

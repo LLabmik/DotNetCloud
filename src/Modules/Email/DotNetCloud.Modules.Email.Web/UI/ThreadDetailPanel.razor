@@ -1,0 +1,71 @@
+@inherits EmailPanelBase
+
+@if (State.SelectedThread is not { } thread)
+{
+    <p class="hint">Loading messages…</p>
+}
+else
+{
+    <div class="thread-header">
+        <button type="button" class="btn btn-ghost" @onclick="Back">
+            <MaterialIcon Icon="arrow_back" />
+            <span>Back</span>
+        </button>
+
+        <h3>@(string.IsNullOrWhiteSpace(thread.Subject) ? "(No subject)" : thread.Subject)</h3>
+
+        <button type="button" class="btn btn-primary" @onclick='() => State.BeginCompose(thread, "Re: ")'>Reply</button>
+        <button type="button" class="btn btn-secondary" @onclick='() => State.BeginCompose(thread, "Fwd: ")'>Forward</button>
+    </div>
+
+    @if (State.Messages.Count == 0)
+    {
+        <p class="hint">Loading messages…</p>
+    }
+    else
+    {
+        @foreach (var entry in State.Messages)
+        {
+            <div class="message" @key="entry.Message.Id">
+                <div class="message-header">
+                    <span class="message-from">@EmailState.FormatFrom(entry.Message.FromJson)</span>
+                    <span class="message-date">@FormatDate(entry.Message.DateReceived ?? entry.Message.CreatedAt)</span>
+                </div>
+
+                @* The message's own HTML is untrusted: it renders inside a nested frame with sandbox=""
+                   (no scripts, no forms, no same-origin), which is the sanitizer. *@
+                <iframe class="message-body-frame"
+                        sandbox=""
+                        title="Message content"
+                        srcdoc="@BuildBodyDocument(entry)"></iframe>
+
+                @if (entry.Message.Attachments.Count > 0)
+                {
+                    <div class="attachments">
+                        @foreach (var attachment in entry.Message.Attachments)
+                        {
+                            <div class="attachment-row" @key="attachment.Id">
+                                <button type="button"
+                                        class="attachment"
+                                        title="@($"{attachment.FileName} ({FormatSize(attachment.Size)})")"
+                                        @onclick="() => State.OpenAttachmentAsync(attachment)">
+                                    <MaterialIcon Icon="@FileTypeIcon(attachment.ContentType)" />
+                                    <span>@attachment.FileName</span>
+                                    <span class="attachment-size">@FormatSize(attachment.Size)</span>
+                                </button>
+
+                                <button type="button"
+                                        class="icon-btn attachment-save"
+                                        title="Save to your files"
+                                        aria-label="Save to your files"
+                                        @onclick="() => State.SaveAttachmentToFilesAsync(attachment)">
+                                    <MaterialIcon Icon="save_alt" />
+                                </button>
+                            </div>
+                        }
+                    </div>
+                }
+            </div>
+        }
+    }
+}

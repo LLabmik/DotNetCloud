@@ -19,6 +19,9 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\SDK\DotNetCloud.Modules.Sdk\DotNetCloud.Modules.Sdk.csproj" />
+    <!-- The browser-side helpers live in a separate assembly so a module UI can reference them without
+         dragging ASP.NET Core in; they are plain C# and testable here. -->
+    <ProjectReference Include="..\..\src\SDK\DotNetCloud.Modules.Sdk.Web\DotNetCloud.Modules.Sdk.Web.csproj" />
   </ItemGroup>
 
   <ItemGroup>

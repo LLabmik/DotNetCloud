@@ -25,18 +25,6 @@
   </ItemGroup>
 
   <!--
-    The module-side half of the core's iframe UI plane, taken from the SDK so there is exactly one
-    copy of the protocol in the repository. It is served as a static asset of this host's wwwroot,
-    which is what an SDK consumer gets from the package's contentFiles.
-  -->
-  <ItemGroup>
-    <Content Include="..\..\..\SDK\DotNetCloud.Modules.Sdk\wwwroot\dncModuleBridge.js"
-             Link="wwwroot\dncModuleBridge.js"
-             CopyToOutputDirectory="PreserveNewest"
-             CopyToPublishDirectory="PreserveNewest" />
-  </ItemGroup>
-
-  <!--
     The supervisor reads <modules>/<id>/manifest.json to decide how a module runs: a v2 manifest
     makes it sandboxed (private data dir + isolated data store) and gives it consent scopes. A
     bundled deploy publishes this host straight into that directory, so the file must travel with
@@ -55,6 +43,11 @@
     <ProjectReference Include="..\DotNetCloud.Modules.Bookmarks.Data\DotNetCloud.Modules.Bookmarks.Data.csproj" />
     <ProjectReference Include="..\DotNetCloud.Modules.Bookmarks.Data.SqlServer\DotNetCloud.Modules.Bookmarks.Data.SqlServer.csproj" />
     <ProjectReference Include="..\..\..\Core\DotNetCloud.Core.Grpc\DotNetCloud.Core.Grpc.csproj" />
+    <!-- The module UI. This is the standard hosted-Blazor-WebAssembly shape: referencing the
+         WebAssembly project contributes its published files as this host's static web assets, so
+         the frame the core loads at /apps/dotnetcloud.bookmarks/ is served by the module process
+         itself. No copy step, no duplicated output. -->
+    <ProjectReference Include="..\DotNetCloud.Modules.Bookmarks.Web\DotNetCloud.Modules.Bookmarks.Web.csproj" />
   </ItemGroup>
 
 </Project>

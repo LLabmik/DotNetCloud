@@ -46,6 +46,13 @@ internal static class ExampleNotesApi
         app.MapGet("/api/notes", ListAsync).WithNoStore();
         app.MapPost("/api/notes", CreateAsync).WithNoStore();
         app.MapDelete("/api/notes/{noteId:guid}", DeleteAsync).WithNoStore();
+
+        // The module UI is a sandboxed frame with no cookie of its own, so it asks its host who it is
+        // acting as. Only the id is available: this module declares no IUserDirectory capability.
+        app.MapGet("/api/v1/me", (IModuleUserAssertionAccessor userAssertion) =>
+            ResolveUserId(userAssertion) is { } userId
+                ? Results.Ok(new { userId, displayName = (string?)null, email = (string?)null })
+                : Results.Unauthorized()).WithNoStore();
     }
 
     internal static async Task<IResult> ListAsync(

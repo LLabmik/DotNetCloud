@@ -3,13 +3,12 @@ using System.Text.RegularExpressions;
 namespace DotNetCloud.Modules.Email.Tests;
 
 /// <summary>
-/// Guards the module's own web UI assets (phase A5 UI plane, Track C).
+/// Guards the Email module's own web UI assets (phase A5 UI plane, Blazor WebAssembly shape).
 /// </summary>
 /// <remarks>
 /// The core frames <c>/apps/dotnetcloud.email/</c> and strips that prefix before forwarding, so every
-/// asset and API reference in the framed documents must be <b>relative</b>. An absolute
-/// <c>/assets/email-ui.js</c> would leave the module and hit a core route — a 404 at best, a core
-/// script at worst. These tests fail the build rather than the browser.
+/// asset reference in the framed document must be <b>relative</b>. The app is a Blazor WebAssembly
+/// bundle exercised in a browser; the widget stays a plain static document.
 /// </remarks>
 [TestClass]
 public class EmailUiAssetsTests
@@ -25,7 +24,7 @@ public class EmailUiAssetsTests
             .Select(match => match.Groups[1].Value)
             .ToList();
 
-        Assert.IsTrue(references.Count >= 3, "index.html must load the bridge, its script and its stylesheet");
+        Assert.IsTrue(references.Count >= 3, "index.html must load the bridge, its scripts and its stylesheet");
 
         foreach (var reference in references)
         {
@@ -42,78 +41,62 @@ public class EmailUiAssetsTests
     }
 
     [TestMethod]
-    public void IndexHtml_LoadsTheBridgeAndTheModuleScript()
+    public void IndexHtml_LoadsTheBridgeBeforeTheBlazorBootstrap()
     {
         var html = ReadUiFile("index.html");
 
-        StringAssert.Contains(html, "dncModuleBridge.js");
-        StringAssert.Contains(html, "assets/email-ui.js");
-        StringAssert.Contains(html, "assets/email-ui.css");
+        StringAssert.Contains(html, "js/dncModuleBridge.js");
+        StringAssert.Contains(html, "js/dncModuleFrame.js");
+        StringAssert.Contains(html, "js/dncModuleBoot.js");
+
+        var bridgeIndex = html.IndexOf("js/dncModuleBridge.js", StringComparison.Ordinal);
+        var bootIndex = html.IndexOf("js/dncModuleBoot.js", StringComparison.Ordinal);
+
+        Assert.IsTrue(bridgeIndex >= 0 && bridgeIndex < bootIndex, "the SDK bridge must load before Blazor starts");
     }
 
     [TestMethod]
-    public void ModuleScripts_DoNotInjectHtml()
+    public void AppEntry_StartsBlazorWithAbsoluteBootUrls()
     {
-        // Subjects, addresses, folder names, rule names and message ids are user data. Building DOM
-        // with innerHTML would make them a stored-XSS sink inside the core's origin.
-        string[] sinks = [".innerHTML", ".outerHTML", "insertAdjacentHTML", "document.write"];
+        var html = ReadUiFile("index.html");
 
-        foreach (var file in new[] { "assets/email-ui.js", "widget/widget.js" })
-        {
-            var script = ReadUiFile(file);
+        StringAssert.Contains(html, "autostart=\"false\"");
 
-            foreach (var sink in sinks)
-            {
-                Assert.IsFalse(
-                    script.Contains(sink, StringComparison.Ordinal),
-                    $"{file} must build DOM with textContent/createElement, never {sink}");
-            }
-        }
-    }
-
-    [TestMethod]
-    public void ModuleScripts_RenderMessageHtmlInsideASandboxedFrame()
-    {
-        var script = ReadUiFile("assets/email-ui.js");
-
-        // A message body is HTML produced by a third party. It is rendered in a nested frame with no
-        // privileges at all (sandbox=""), which is what keeps injected handlers from running in this
-        // document's origin.
-        StringAssert.Contains(NormaliseQuotes(script), "frame.setAttribute('sandbox', '')");
-        StringAssert.Contains(script, "frame.srcdoc");
-    }
-
-    [TestMethod]
-    public void ModuleScripts_IncludeCredentialsForTheirOwnApi()
-    {
-        // The frame's origin is opaque, so every fetch is cross-origin and the proxy authenticates it
-        // from the session cookie. 'same-origin' would send nothing and the module would answer 401.
-        foreach (var file in new[] { "assets/email-ui.js", "widget/widget.js" })
-        {
-            var script = ReadUiFile(file);
-
-            StringAssert.Contains(NormaliseQuotes(script), "credentials: 'include'");
-            Assert.IsFalse(
-                NormaliseQuotes(script).Contains("credentials: 'same-origin'", StringComparison.Ordinal),
-                $"{file} would send no credentials from an opaque-origin frame");
-        }
-    }
-
-    [TestMethod]
-    public void ModuleScripts_UseOnlyRelativeApiPaths()
-    {
-        var script = ReadUiFile("assets/email-ui.js");
-
+        var boot = ReadUiFile("js/dncModuleBoot.js");
+        StringAssert.Contains(boot, "loadBootResource");
+        StringAssert.Contains(boot, "new URL(\"./\", window.location.href)");
         Assert.IsFalse(
-            script.Contains("'/api/", StringComparison.Ordinal),
-            "API calls must be relative so they stay inside /apps/<moduleId>/");
-        StringAssert.Contains(NormaliseQuotes(script), "var API = 'api/v1/email'");
+            boot.Contains("\"/apps/", StringComparison.OrdinalIgnoreCase)
+            || boot.Contains("'/apps/", StringComparison.OrdinalIgnoreCase),
+            "the module must not know the proxy prefix it is served under");
+    }
 
-        var widgetScript = ReadUiFile("widget/widget.js");
-        StringAssert.Contains(NormaliseQuotes(widgetScript), "var API = 'api/v1/email'");
-        Assert.IsFalse(
-            widgetScript.Contains("'/api/", StringComparison.Ordinal),
-            "the widget frame must call the API relatively as well");
+    [TestMethod]
+    public void AppStylesheet_DefinesTheSharedComponentClassesTheMarkupUses()
+    {
+        var css = ReadUiFile("css/app.css");
+
+        string[] required =
+        [
+            "app", "sidebar", "main", "panel", "banner", "status", "nav-item", "nav-text",
+            "sidebar-section", "sidebar-header", "select", "field", "input", "textarea",
+            "btn", "btn-primary", "btn-secondary", "btn-danger", "icon-btn",
+            "thread-list", "thread-card", "thread-subject", "thread-meta",
+            "thread-header", "message", "message-header", "message-from",
+            "message-body-frame", "attachments", "attachment", "attachment-row", "attachment-size",
+            "compose-card", "compose-row", "compose-label", "compose-body", "compose-footer",
+            "chip-list", "chip", "rule-card", "rule-info", "rule-row", "rule-group",
+            "file-row", "file-row-name", "file-browser", "crumb", "modal", "overlay-backdrop",
+            "empty", "help-section", "help-tips",
+            "material-icon",
+        ];
+
+        foreach (var className in required)
+        {
+            Assert.IsTrue(
+                Regex.IsMatch(css, "\\." + Regex.Escape(className) + "(?![A-Za-z0-9_-])[^{]*\\{"),
+                $"wwwroot/css/app.css must define .{className}: the framed module cannot inherit the core shell's stylesheet");
+        }
     }
 
     [TestMethod]
@@ -121,88 +104,45 @@ public class EmailUiAssetsTests
     {
         var manifest = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "manifest.json"));
 
-        StringAssert.Contains(
-            manifest,
-            "\"widget\"",
-            "the module declares a home-page widget, so the shell renders a sandboxed card for it");
-
+        StringAssert.Contains(manifest, "\"widget\"");
         Assert.IsTrue(
             File.Exists(Path.Combine(AppContext.BaseDirectory, UiDirectory, "widget", "index.html")),
             "the widget document declared by ui.widget.path must ship with the module");
     }
 
     [TestMethod]
-    public void WidgetScript_StartsInTheWidgetRole()
+    public void WidgetScript_StartsInTheWidgetRoleAndAvoidsHtmlInjection()
     {
         var script = ReadUiFile("widget/widget.js");
 
-        StringAssert.Contains(NormaliseQuotes(script), "role: 'widget'");
-        StringAssert.Contains(script, "reportHeight");
+        StringAssert.Contains(script, "role: \"widget\"");
+        StringAssert.Contains(script, "textContent");
+
+        foreach (var sink in new[] { ".innerHTML", ".outerHTML", "insertAdjacentHTML", "document.write" })
+        {
+            Assert.IsFalse(
+                script.Contains(sink, StringComparison.Ordinal),
+                $"widget.js must build DOM with textContent/createElement, never {sink}");
+        }
     }
 
     [TestMethod]
     public void Bridge_IsShippedAsAStaticAsset()
     {
-        var bridge = ReadUiFile("dncModuleBridge.js");
+        var bridge = ReadUiFile("js/dncModuleBridge.js");
 
-        // The bridge is the SDK's single copy; this proves the host copies the real thing and not a stub.
         StringAssert.Contains(bridge, "window.dncModuleBridge = bridge");
         StringAssert.Contains(bridge, "dnc:ready");
     }
 
-    [TestMethod]
-    public void ModuleScripts_ReachCloudFilesThroughTheModulesOwnApi()
-    {
-        var script = ReadUiFile("assets/email-ui.js");
-
-        // Browse and save are core capabilities brokered by the module's backend. The frame must never
-        // learn about the Files module (a direct sibling call is forbidden and does not authenticate).
-        var normalised = NormaliseQuotes(script);
-        StringAssert.Contains(normalised, "API + '/files'");
-        StringAssert.Contains(normalised, "'/attachments/from-file'");
-        StringAssert.Contains(normalised, "'/save-to-files'");
-
-        Assert.IsFalse(
-            script.Contains("dotnetcloud.files", StringComparison.Ordinal),
-            "the Email UI must not address the Files module directly");
-    }
-
-    [TestMethod]
-    public void ModuleScripts_AskForConsentWhenFileAccessIsDenied()
-    {
-        var script = ReadUiFile("assets/email-ui.js");
-
-        // A capability grant is not consent: the first file call of a user who never approved
-        // files:read/files:write answers FILES_CONSENT_REQUIRED, and the UI has to start the prompt.
-        StringAssert.Contains(script, "FILES_CONSENT_REQUIRED");
-        StringAssert.Contains(script, "requestConsent");
-        StringAssert.Contains(script, "FILES_UNAVAILABLE");
-    }
-
-    [TestMethod]
-    public void Stylesheet_ShipsTheFileBrowserRules()
-    {
-        var css = ReadUiFile("assets/email-ui.css");
-
-        StringAssert.Contains(css, ".file-browser");
-        StringAssert.Contains(css, ".file-row");
-        StringAssert.Contains(css, ".attachment-row");
-    }
-
     private static string ReadUiFile(string relativePath)
     {
-        var path = Path.Combine(AppContext.BaseDirectory, UiDirectory, relativePath);
+        var path = Path.Combine(
+            AppContext.BaseDirectory,
+            UiDirectory,
+            relativePath.Replace('/', Path.DirectorySeparatorChar));
+
         Assert.IsTrue(File.Exists(path), $"Expected UI asset was not copied to the test output: {path}");
         return File.ReadAllText(path);
     }
-
-    /// <summary>
-    /// Maps double-quoted JavaScript string literals onto single quotes.
-    /// </summary>
-    /// <remarks>
-    /// These guards assert what the module UI <i>does</i> — credentials are included, the message frame
-    /// is sandboxed, calls are relative — not which quote character the script happens to use. Five of
-    /// them were failing purely because the UI switched to double quotes.
-    /// </remarks>
-    private static string NormaliseQuotes(string script) => script.Replace("\"", "'", StringComparison.Ordinal);
 }

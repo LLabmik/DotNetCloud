@@ -50,55 +50,120 @@ public class ExampleUiAssetsTests
     }
 
     [TestMethod]
-    public void IndexHtml_LoadsTheBridgeAndTheModuleScript()
+    public void IndexHtml_LoadsTheBridgeBeforeTheBlazorBootstrap()
     {
         var html = ReadUiFile("index.html");
 
-        StringAssert.Contains(html, "dncModuleBridge.js");
-        StringAssert.Contains(html, "assets/example-ui.js");
-        StringAssert.Contains(html, "assets/example-ui.css");
+        StringAssert.Contains(html, "js/dncModuleBridge.js");
+        StringAssert.Contains(html, "js/dncModuleFrame.js");
+        StringAssert.Contains(html, "js/dncModuleBoot.js");
+
+        var bridgeIndex = html.IndexOf("js/dncModuleBridge.js", StringComparison.Ordinal);
+        var bootIndex = html.IndexOf("js/dncModuleBoot.js", StringComparison.Ordinal);
+
+        // The bridge patches window.fetch when it starts; loading it after the bootstrap would let the
+        // first API call escape without a frame ticket and answer 401.
+        Assert.IsTrue(bridgeIndex >= 0 && bridgeIndex < bootIndex, "the SDK bridge must load before Blazor starts");
     }
 
     [TestMethod]
-    public void ModuleScript_DoesNotInjectHtml()
+    public void AppEntry_StartsBlazorWithAbsoluteBootUrls()
     {
-        // Note text is user data. Building DOM with innerHTML would make it a stored-XSS sink inside
-        // the core's origin (the frame is opaque-origin, but the URL it is served from is not).
-        var script = ReadUiFile("assets/example-ui.js");
+        var html = ReadUiFile("index.html");
 
-        string[] sinks = [".innerHTML", ".outerHTML", "insertAdjacentHTML", "document.write"];
+        StringAssert.Contains(
+            html,
+            "autostart=\"false\"",
+            "the loader must not import ./dotnet.js itself: that relative import cannot resolve in an opaque-origin frame");
 
-        foreach (var sink in sinks)
-        {
-            Assert.IsFalse(
-                script.Contains(sink, StringComparison.Ordinal),
-                $"the module UI must build DOM with textContent/createElement, never {sink}");
-        }
-    }
+        var boot = ReadUiFile("js/dncModuleBoot.js");
 
-    [TestMethod]
-    public void ModuleScript_UsesOnlyRelativeApiPaths()
-    {
-        var script = ReadUiFile("assets/example-ui.js");
-
+        StringAssert.Contains(boot, "loadBootResource");
+        StringAssert.Contains(
+            boot,
+            "new URL(\"./\", window.location.href)",
+            "absolute boot URLs must come from the frame's own document URL, never a hard-coded /apps/ prefix");
         Assert.IsFalse(
-            script.Contains("'/api/", StringComparison.Ordinal),
-            "API calls must be relative so they stay inside /apps/<moduleId>/");
+            boot.Contains("\"/apps/", StringComparison.OrdinalIgnoreCase)
+            || boot.Contains("'/apps/", StringComparison.OrdinalIgnoreCase),
+            "the module must not know the proxy prefix it is served under");
+    }
+
+    [TestMethod]
+    public void FrameScript_StartsTheBridgeAndForwardsConsentAsAnArray()
+    {
+        var frame = ReadUiFile("js/dncModuleFrame.js");
+
+        StringAssert.Contains(
+            frame,
+            "api.start({ title: document.title, role: \"app\" });",
+            "the bridge must be started at script load, before Blazor can issue a request");
+
+        // The SDK bridge only forwards an array; a spread `params` argument arriving as a bare string
+        // made the consent prompt vanish silently.
+        StringAssert.Contains(frame, "bridge().requestConsent(scopes || []);");
     }
 
     [TestMethod]
     public void Bridge_IsShippedAsAStaticAsset()
     {
-        var bridge = ReadUiFile("dncModuleBridge.js");
+        var bridge = ReadUiFile("js/dncModuleBridge.js");
 
-        // The bridge is the SDK's single copy; this proves the host copies the real thing and not a stub.
+        // The bridge is the SDK's single copy; this proves the module links the real thing, not a stub.
         StringAssert.Contains(bridge, "window.dncModuleBridge = bridge");
         StringAssert.Contains(bridge, "dnc:ready");
     }
 
+    /// <summary>
+    /// The module stylesheet must define the classes the ported markup uses.
+    /// </summary>
+    /// <remarks>
+    /// A framed module does not inherit the core shell's global stylesheet, so a missing rule means an
+    /// unstyled control rather than a slightly different one.
+    /// </remarks>
+    [TestMethod]
+    public void AppStylesheet_DefinesTheSharedComponentClassesTheMarkupUses()
+    {
+        var css = ReadUiFile("css/app.css");
+
+        string[] required =
+        [
+            "btn", "btn-primary", "btn-secondary", "btn-small", "btn-danger",
+            "alert", "alert-danger",
+            "form-group", "form-actions",
+            "note-card", "note-content", "note-meta", "note-actions",
+            "empty-state", "status",
+            "help-section", "help-steps", "help-tips", "help-faq",
+            "nav-link", "is-active", "sidebar-footnote",
+            "material-icon", "material-icon--sm",
+        ];
+
+        foreach (var className in required)
+        {
+            Assert.IsTrue(
+                Regex.IsMatch(css, "\\." + Regex.Escape(className) + "(?![A-Za-z0-9_-])[^{]*\\{"),
+                $"wwwroot/css/app.css must define .{className}: the framed module cannot inherit the core shell's stylesheet");
+        }
+    }
+
+    [TestMethod]
+    public void Manifest_DeclaresTheIframeUiServedFromTheRootPath()
+    {
+        var manifestPath = Path.Combine(AppContext.BaseDirectory, "manifest.json");
+        Assert.IsTrue(File.Exists(manifestPath), $"Expected the packaged manifest at {manifestPath}");
+        var manifest = File.ReadAllText(manifestPath);
+
+        StringAssert.Contains(manifest, "\"type\": \"iframe\"");
+        StringAssert.Contains(manifest, "\"entryPath\": \"/\"");
+    }
+
     private static string ReadUiFile(string relativePath)
     {
-        var path = Path.Combine(AppContext.BaseDirectory, UiDirectory, relativePath);
+        var path = Path.Combine(
+            AppContext.BaseDirectory,
+            UiDirectory,
+            relativePath.Replace('/', Path.DirectorySeparatorChar));
+
         Assert.IsTrue(File.Exists(path), $"Expected UI asset was not copied to the test output: {path}");
         return File.ReadAllText(path);
     }

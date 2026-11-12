@@ -1,0 +1,408 @@
+@page "/"
+
+<PageTitle>Photos</PageTitle>
+
+<nav class="sidebar @(_collapsed ? "is-collapsed" : null)" aria-label="Photos navigation">
+    <div class="sidebar-header">
+        <span class="sidebar-title">Photos</span>
+        <button type="button"
+                class="icon-btn"
+                aria-label="@(_collapsed ? "Expand sidebar" : "Collapse sidebar")"
+                title="@(_collapsed ? "Expand sidebar" : "Collapse sidebar")"
+                @onclick="ToggleSidebar">
+            <MaterialIcon Icon="@(_collapsed ? "chevron_right" : "chevron_left")" />
+        </button>
+    </div>
+
+    <div class="sidebar-section">
+        <p class="sidebar-section-header">Library</p>
+        <button type="button" class="nav-item @(IsNavActive("nav-all") ? "is-active" : null)" @onclick="ShowAllAsync">
+            <MaterialIcon Icon="photo_library" Size="MaterialIconSize.Sm" />
+            <span class="nav-text">All photos</span>
+        </button>
+        <button type="button" class="nav-item @(IsNavActive("nav-favorites") ? "is-active" : null)" @onclick="ShowFavoritesAsync">
+            <MaterialIcon Icon="star" Size="MaterialIconSize.Sm" />
+            <span class="nav-text">Favorites</span>
+        </button>
+        <button type="button" class="nav-item @(IsNavActive("nav-timeline") ? "is-active" : null)" @onclick="ShowTimelineAsync">
+            <MaterialIcon Icon="timeline" Size="MaterialIconSize.Sm" />
+            <span class="nav-text">Timeline</span>
+        </button>
+        <button type="button" class="nav-item @(IsNavActive("nav-shared") ? "is-active" : null)" @onclick="ShowSharedAsync">
+            <MaterialIcon Icon="people" Size="MaterialIconSize.Sm" />
+            <span class="nav-text">Shared with me</span>
+        </button>
+    </div>
+
+    <div class="sidebar-section">
+        <p class="sidebar-section-header">Albums</p>
+
+        @foreach (var album in _albums)
+        {
+            <button type="button"
+                    class="nav-item @(_selectedAlbumId == album.Id ? "is-active" : null)"
+                    @key="album.Id"
+                    @onclick="() => OpenAlbumAsync(album.Id, album.Title)">
+                <MaterialIcon Icon="photo_library" Size="MaterialIconSize.Sm" />
+                <span class="nav-text">@album.Title</span>
+                <span class="nav-count">@album.PhotoCount</span>
+            </button>
+        }
+
+        @if (_albums.Count == 0)
+        {
+            <p class="sidebar-empty">No albums yet</p>
+        }
+
+        <button type="button" class="nav-item" @onclick="OpenAlbumDialog">
+            <MaterialIcon Icon="add" Size="MaterialIconSize.Sm" />
+            <span class="nav-text">New album</span>
+        </button>
+    </div>
+
+    <div class="sidebar-section sidebar-section-tools">
+        <p class="sidebar-section-header">Tools</p>
+        <button type="button" class="nav-item" @onclick="RefreshAsync">
+            <MaterialIcon Icon="refresh" Size="MaterialIconSize.Sm" />
+            <span class="nav-text">Refresh</span>
+        </button>
+        <button type="button" class="nav-item @(IsNavActive("nav-help") ? "is-active" : null)" @onclick="ShowHelpAsync">
+            <MaterialIcon Icon="help" Size="MaterialIconSize.Sm" />
+            <span class="nav-text">Help</span>
+        </button>
+    </div>
+</nav>
+
+<main class="main">
+    <div class="toolbar">
+        <h1 class="toolbar-title">@_viewTitle</h1>
+
+        <form class="search-bar" role="search" @onsubmit="RunSearchAsync" @onsubmit:preventDefault>
+            <input class="search-input"
+                   type="search"
+                   autocomplete="off"
+                   placeholder="Search photos…"
+                   aria-label="Search photos"
+                   @bind="_searchInput"
+                   @bind:event="oninput" />
+            <button type="submit" class="icon-btn" aria-label="Search" title="Search">
+                <MaterialIcon Icon="search" Size="MaterialIconSize.Sm" />
+            </button>
+        </form>
+
+        <div class="toolbar-actions">
+            <button type="button"
+                    class="icon-btn"
+                    aria-label="@(_listView ? "Switch to grid view" : "Switch to list view")"
+                    title="Switch view"
+                    @onclick="ToggleViewMode">
+                <MaterialIcon Icon="@(_listView ? "view_list" : "grid_view")" Size="MaterialIconSize.Sm" />
+            </button>
+        </div>
+    </div>
+
+    @if (!string.IsNullOrEmpty(_status))
+    {
+        <p class="status @(_statusIsError ? "is-error" : null)" role="status" aria-live="polite">@_status</p>
+    }
+
+    @if (_view is PhotoView.Albums)
+    {
+        <section class="panel">
+            @if (_albums.Count == 0)
+            {
+                <p class="empty">No albums yet. Create one from the sidebar.</p>
+            }
+
+            <div class="album-grid" role="list">
+                @foreach (var album in _albums)
+                {
+                    <button type="button"
+                            class="album-card"
+                            role="listitem"
+                            @key="album.Id"
+                            @onclick="() => OpenAlbumAsync(album.Id, album.Title)">
+                        @if (album.CoverPhotoId is { } coverId && GridUrl(coverId) is { } coverUrl)
+                        {
+                            <img class="album-cover" loading="lazy" alt="" src="@coverUrl" />
+                        }
+                        <span class="album-title">@album.Title</span>
+                        <span class="album-meta">
+                            @album.PhotoCount @(album.PhotoCount == 1 ? "photo" : "photos")@(album.IsShared ? " · shared" : string.Empty)
+                        </span>
+                    </button>
+                }
+            </div>
+        </section>
+    }
+    else if (_view is PhotoView.Shared)
+    {
+        <section class="panel">
+            @if (_shares.Count == 0)
+            {
+                <p class="empty">Nothing has been shared with you.</p>
+            }
+
+            <div class="shared-list">
+                @foreach (var share in _shares)
+                {
+                    <div class="shared-item" @key="share.Id">
+                        <div class="shared-main">
+                            <div class="shared-title">@(share.AlbumId is not null ? "Album" : "Photo")</div>
+                            <div class="shared-meta">@share.Permission.ToString() · shared @FormatDate(share.CreatedAt)</div>
+                        </div>
+
+                        @if (share.AlbumId is { } sharedAlbumId)
+                        {
+                            <button type="button" class="btn btn-secondary" @onclick='() => OpenAlbumAsync(sharedAlbumId, "Shared album")'>
+                                Open album
+                            </button>
+                        }
+                        else if (share.PhotoId is { } sharedPhotoId)
+                        {
+                            <button type="button" class="btn btn-secondary" @onclick="() => OpenSharedPhotoAsync(sharedPhotoId)">
+                                View photo
+                            </button>
+                        }
+                    </div>
+                }
+            </div>
+        </section>
+    }
+    else if (_view is PhotoView.Help)
+    {
+        <section class="panel">
+            <article class="help">
+                <h2>Photos</h2>
+                <p>
+                    The Photos module keeps a library of the images in your cloud files. It stores its own
+                    catalogue — favourites, albums, tags and edit history — and never copies your originals.
+                </p>
+
+                <h3>Library</h3>
+                <ul>
+                    <li><strong>All photos</strong> lists your library newest first, paged in the browser.</li>
+                    <li><strong>Favorites</strong> and <strong>Timeline</strong> are different views of it.</li>
+                    <li>
+                        <strong>Shared with me</strong> lists photos and albums other people shared with you.
+                        Thumbnails come from the owner's cache; the original file stays in the owner's library.
+                    </li>
+                </ul>
+
+                <h3>Albums</h3>
+                <p>Create an album in the sidebar, open it, then add photos from the viewer's <em>Album</em> row.</p>
+
+                <h3>Editing</h3>
+                <p>
+                    Edits are non-destructive: the module records rotate, flip and colour adjustments as a
+                    stack beside the photo. <em>Save edits</em> regenerates the cached previews with the stack
+                    applied; the original file is untouched.
+                </p>
+
+                <h3>Permissions</h3>
+                <p>
+                    The module reads your image files through DotNetCloud with your consent
+                    (<code>files:read</code>). Without that consent it can still list the library metadata and
+                    cached previews, but it cannot read an image to build a missing preview.
+                </p>
+            </article>
+        </section>
+    }
+    else
+    {
+        <section class="panel">
+            @if (_photos.Count == 0)
+            {
+                <p class="empty">
+                    No photos yet. Photos appear here once the media library scan indexes images from your
+                    files, or once an administrator imports a media folder.
+                </p>
+            }
+            else if (_listView)
+            {
+                <div class="photo-list" role="list">
+                    @for (var index = 0; index < _photos.Count; index++)
+                    {
+                        var position = index;
+                        var photo = _photos[index];
+                        <button type="button"
+                                class="photo-row"
+                                role="listitem"
+                                @key="photo.Id"
+                                @onclick="() => OpenViewer(position)">
+                            @if (GridUrl(photo.Id) is { } rowUrl)
+                            {
+                                <img loading="lazy" alt="" src="@rowUrl" />
+                            }
+                            <span class="photo-row-main">
+                                <span class="photo-row-name">@photo.FileName</span>
+                                <span class="photo-row-meta">@DescribePhoto(photo)</span>
+                            </span>
+                            @if (photo.IsFavorite)
+                            {
+                                <MaterialIcon Icon="star" Size="MaterialIconSize.Sm" />
+                            }
+                        </button>
+                    }
+                </div>
+            }
+            else
+            {
+                <div class="photo-grid" role="list">
+                    @for (var index = 0; index < _photos.Count; index++)
+                    {
+                        var position = index;
+                        var photo = _photos[index];
+                        <button type="button"
+                                class="photo-card"
+                                role="listitem"
+                                title="@photo.FileName"
+                                @key="photo.Id"
+                                @onclick="() => OpenViewer(position)">
+                            @if (GridUrl(photo.Id) is { } gridUrl)
+                            {
+                                <img loading="lazy" alt="@photo.FileName" src="@gridUrl" />
+                            }
+                            @if (photo.IsFavorite)
+                            {
+                                <span class="photo-badge">
+                                    <MaterialIcon Icon="star" Size="MaterialIconSize.Sm" />
+                                </span>
+                            }
+                        </button>
+                    }
+                </div>
+            }
+
+            @if (ShowPager)
+            {
+                <div class="pager">
+                    <button type="button" class="btn btn-secondary" disabled="@(_page == 0)" @onclick="PreviousPageAsync">
+                        <MaterialIcon Icon="chevron_left" Size="MaterialIconSize.Sm" />
+                        <span>Previous</span>
+                    </button>
+                    <span class="pager-text">Page @(_page + 1)</span>
+                    <button type="button" class="btn btn-secondary" disabled="@(!_hasMore)" @onclick="NextPageAsync">
+                        <span>Next</span>
+                        <MaterialIcon Icon="chevron_right" Size="MaterialIconSize.Sm" />
+                    </button>
+                </div>
+            }
+        </section>
+    }
+</main>
+
+@if (_viewerPhoto is { } current)
+{
+    <div class="overlay-backdrop">
+        <section class="viewer" aria-label="Photo viewer">
+            <div class="viewer-head">
+                <div class="viewer-titles">
+                    <h2>@current.FileName</h2>
+                    <p class="viewer-subtitle">@DescribePhoto(current)</p>
+                </div>
+                <div class="viewer-actions">
+                    <button type="button"
+                            class="icon-btn @(current.IsFavorite ? "is-active" : null)"
+                            aria-label="@(current.IsFavorite ? "Remove from favorites" : "Add to favorites")"
+                            title="@(current.IsFavorite ? "Remove from favorites" : "Add to favorites")"
+                            @onclick="ToggleFavoriteAsync">
+                        <MaterialIcon Icon="@(current.IsFavorite ? "star" : "star_border")" />
+                    </button>
+                    <button type="button" class="icon-btn" aria-label="Download original" title="Download original" @onclick="DownloadCurrentPhotoAsync">
+                        <MaterialIcon Icon="download" />
+                    </button>
+                    <button type="button" class="icon-btn" aria-label="Remove from library" title="Remove from library" @onclick="() => _confirmDelete = true">
+                        <MaterialIcon Icon="delete" />
+                    </button>
+                    <button type="button" class="icon-btn" aria-label="Close" title="Close" @onclick="CloseViewer">
+                        <MaterialIcon Icon="close" />
+                    </button>
+                </div>
+            </div>
+
+            @if (_confirmDelete)
+            {
+                <div class="viewer-foot">
+                    <div class="viewer-group">
+                        <span class="viewer-label">Remove?</span>
+                        <span class="viewer-subtitle">
+                            “@current.FileName” leaves your photo library; the file itself stays in your cloud files.
+                        </span>
+                        <button type="button" class="btn btn-danger" disabled="@_deleting" @onclick="DeleteCurrentPhotoAsync">Remove</button>
+                        <button type="button" class="btn btn-secondary" @onclick="() => _confirmDelete = false">Cancel</button>
+                    </div>
+                </div>
+            }
+
+            <div class="viewer-body">
+                <button type="button" class="icon-btn viewer-nav" aria-label="Previous photo" title="Previous photo" disabled="@(_viewerIndex == 0)" @onclick="() => StepViewer(-1)">
+                    <MaterialIcon Icon="chevron_left" />
+                </button>
+
+                <figure class="viewer-figure">
+                    @if (_detailUrl is { } detailUrl)
+                    {
+                        <img id="viewer-image"
+                             class="viewer-image @(IsQuarterTurn ? "is-quarter-turn" : null)"
+                             alt="@current.FileName"
+                             src="@detailUrl"
+                             style="@TransformStyle" />
+                    }
+                    <figcaption class="viewer-caption">@Caption(current)</figcaption>
+                </figure>
+
+                <button type="button" class="icon-btn viewer-nav" aria-label="Next photo" title="Next photo" disabled="@(_viewerIndex >= _photos.Count - 1)" @onclick="() => StepViewer(1)">
+                    <MaterialIcon Icon="chevron_right" />
+                </button>
+            </div>
+
+            <div class="viewer-foot">
+                <div class="viewer-group">
+                    <span class="viewer-label">Edit</span>
+                    <button type="button" class="btn btn-secondary" @onclick='() => ApplyEditAsync(PhotoEditType.Rotate, "270")'>Rotate left</button>
+                    <button type="button" class="btn btn-secondary" @onclick='() => ApplyEditAsync(PhotoEditType.Rotate, "90")'>Rotate right</button>
+                    <button type="button" class="btn btn-secondary" @onclick='() => ApplyEditAsync(PhotoEditType.Flip, "0")'>Flip</button>
+                    <button type="button" class="btn btn-secondary" @onclick="UndoEditAsync">Undo</button>
+                    <button type="button" class="btn btn-primary" @onclick="SaveEditsAsync">Save edits</button>
+                </div>
+
+                <div class="viewer-group">
+                    <span class="viewer-label">Album</span>
+                    <select class="select" aria-label="Album" @bind="_albumSelectId">
+                        <option value="">@(_albums.Count == 0 ? "No albums yet" : "Choose an album…")</option>
+                        @foreach (var album in _albums)
+                        {
+                            <option value="@album.Id" @key="album.Id">@album.Title</option>
+                        }
+                    </select>
+                    <button type="button" class="btn btn-secondary" @onclick="AddToAlbumAsync">Add</button>
+                    <button type="button" class="btn btn-secondary" @onclick="RemoveFromAlbumAsync">Remove</button>
+                </div>
+            </div>
+        </section>
+    </div>
+}
+
+@if (_albumDialogOpen)
+{
+    <div class="overlay-backdrop">
+        <section class="dialog" aria-label="New album">
+            <form @onsubmit="CreateAlbumAsync" @onsubmit:preventDefault>
+                <h2>New album</h2>
+                <label class="field">
+                    <span>Title</span>
+                    <input type="text" maxlength="200" required @bind="_albumTitle" />
+                </label>
+                <label class="field">
+                    <span>Description</span>
+                    <textarea rows="3" maxlength="2000" @bind="_albumDescription"></textarea>
+                </label>
+                <div class="dialog-actions">
+                    <button type="button" class="btn btn-secondary" @onclick="CloseAlbumDialog">Cancel</button>
+                    <button type="submit" class="btn btn-primary" disabled="@_creatingAlbum">Create</button>
+                </div>
+            </form>
+        </section>
+    </div>
+}

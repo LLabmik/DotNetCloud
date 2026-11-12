@@ -1,0 +1,730 @@
+/*
+ * Photos module UI — styling.
+ *
+ * Scoped to this document: it is rendered inside a sandboxed frame, so nothing here can leak into
+ * the host page. Colours come from CSS custom properties defined by the shell when it posts
+ * `dnc:theme`; the fallbacks below keep a standalone `dotnet run` readable.
+ */
+:root {
+  color-scheme: light;
+  --bg: #f6f7f9;
+  --surface: #ffffff;
+  --surface-alt: #eceff3;
+  --border: #d7dce3;
+  --text: #1c2024;
+  --text-muted: #5d6673;
+  --accent: #2f6feb;
+  --accent-contrast: #ffffff;
+  --danger: #c62828;
+  --star: #f4b400;
+  --radius: 10px;
+  --shadow: 0 1px 2px rgba(16, 24, 40, 0.08), 0 8px 24px rgba(16, 24, 40, 0.06);
+}
+
+html[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #121417;
+  --surface: #1a1d21;
+  --surface-alt: #23272c;
+  --border: #343a41;
+  --text: #e9edf1;
+  --text-muted: #9aa4b0;
+  --accent: #6ea0ff;
+  --accent-contrast: #0b1220;
+  --danger: #ff7168;
+  --star: #ffcc33;
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.5), 0 8px 24px rgba(0, 0, 0, 0.35);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: var(--bg);
+  color: var(--text);
+  font: 14px/1.5 "Segoe UI", system-ui, -apple-system, sans-serif;
+}
+
+/* The layout wrapper the router renders into: sidebar plus main, filling the frame. */
+.photos-root {
+  display: flex;
+  min-height: 100vh;
+}
+
+/* Kept hidden: blazor.webassembly.js sets display inline when the app fails to start. */
+#blazor-error-ui {
+  display: none;
+  position: fixed;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 1000;
+  padding: 10px 14px;
+  background: var(--surface);
+  color: var(--danger);
+  border-top: 1px solid var(--border);
+  font-size: 13px;
+}
+
+/* Material icons ----------------------------------------------------------- */
+
+.material-icon {
+  display: inline-block;
+  fill: currentColor;
+  vertical-align: middle;
+  flex: 0 0 auto;
+}
+
+.material-icon--sm {
+  width: 16px;
+  height: 16px;
+}
+
+.material-icon--md {
+  width: 18px;
+  height: 18px;
+}
+
+.material-icon--lg {
+  width: 32px;
+  height: 32px;
+}
+
+.material-icon--xl {
+  width: 48px;
+  height: 48px;
+}
+
+/* The viewer and the album dialog are <section> overlays here rather than <dialog> elements, so the
+   backdrop the user agent drew is part of the wrapper instead. */
+.overlay-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 900;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(8, 10, 14, 0.62);
+}
+
+.icon {
+  width: 18px;
+  height: 18px;
+  fill: currentColor;
+  flex: 0 0 auto;
+}
+
+/* ── sidebar ────────────────────────────────────────────────────────────── */
+
+.sidebar {
+  width: 240px;
+  flex: 0 0 240px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 10px;
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  overflow-y: auto;
+}
+
+.sidebar.is-collapsed {
+  width: 64px;
+  flex-basis: 64px;
+}
+
+.sidebar.is-collapsed .nav-text,
+.sidebar.is-collapsed .sidebar-section-header,
+.sidebar.is-collapsed .sidebar-title,
+.sidebar.is-collapsed .sidebar-empty {
+  display: none;
+}
+
+.sidebar-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 6px 10px;
+}
+
+.sidebar-title {
+  font-size: 16px;
+  font-weight: 600;
+  flex: 1 1 auto;
+}
+
+.sidebar-section {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.sidebar-section-header {
+  margin: 8px 0 2px;
+  padding: 0 8px;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.sidebar-empty {
+  margin: 2px 8px;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.sidebar-section-tools {
+  margin-top: auto;
+}
+
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: var(--radius);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.nav-item:hover {
+  background: var(--surface-alt);
+}
+
+.nav-item.is-active {
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.nav-item .nav-count {
+  margin-left: auto;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+/* ── main ───────────────────────────────────────────────────────────────── */
+
+.main {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 16px 20px 32px;
+}
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+
+.toolbar-title {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 600;
+  flex: 1 1 auto;
+}
+
+.toolbar-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.search-bar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 2px 4px 2px 12px;
+}
+
+.search-input {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  min-width: 180px;
+  padding: 6px 0;
+  outline: none;
+}
+
+.status {
+  margin: 0 0 12px;
+  padding: 8px 12px;
+  border-radius: var(--radius);
+  background: var(--surface-alt);
+  color: var(--text-muted);
+}
+
+.status.is-error {
+  background: color-mix(in srgb, var(--danger) 16%, transparent);
+  color: var(--danger);
+}
+
+.panel {
+  flex: 1 1 auto;
+}
+
+.empty {
+  margin: 40px auto;
+  max-width: 520px;
+  text-align: center;
+  color: var(--text-muted);
+}
+
+/* ── buttons ────────────────────────────────────────────────────────────── */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  border-radius: var(--radius);
+  border: 1px solid transparent;
+  font: inherit;
+  cursor: pointer;
+}
+
+.btn-primary {
+  background: var(--accent);
+  color: var(--accent-contrast);
+}
+
+.btn-secondary {
+  background: var(--surface);
+  border-color: var(--border);
+  color: inherit;
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+
+.icon-btn:hover {
+  background: var(--surface-alt);
+}
+
+.icon-btn.is-active {
+  color: var(--star);
+}
+
+.icon-btn.is-danger {
+  color: var(--danger);
+}
+
+/* ── gallery ────────────────────────────────────────────────────────────── */
+
+.photo-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+  gap: 10px;
+}
+
+.photo-card {
+  position: relative;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-alt);
+  overflow: hidden;
+  aspect-ratio: 1 / 1;
+  cursor: pointer;
+}
+
+.photo-card img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.photo-card .photo-badge {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  color: var(--star);
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.45));
+}
+
+.photo-card .photo-badge .icon {
+  width: 16px;
+  height: 16px;
+}
+
+.photo-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.photo-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  cursor: pointer;
+  text-align: left;
+  color: inherit;
+  font: inherit;
+}
+
+.photo-row img {
+  width: 44px;
+  height: 44px;
+  object-fit: cover;
+  border-radius: 6px;
+  background: var(--surface-alt);
+}
+
+.photo-row .photo-row-main {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.photo-row .photo-row-name {
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.photo-row .photo-row-meta {
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+/* ── albums ─────────────────────────────────────────────────────────────── */
+
+.album-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 12px;
+}
+
+.album-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  cursor: pointer;
+  text-align: left;
+  color: inherit;
+  font: inherit;
+}
+
+.album-cover {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  border-radius: 8px;
+  object-fit: cover;
+  background: var(--surface-alt);
+}
+
+.album-title {
+  font-weight: 600;
+}
+
+.album-meta {
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.shared-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.shared-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.shared-item .shared-main {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.shared-item .shared-title {
+  font-weight: 600;
+}
+
+.shared-item .shared-meta {
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+/* ── pager ──────────────────────────────────────────────────────────────── */
+
+.pager {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.pager-text {
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+/* ── dialogs ────────────────────────────────────────────────────────────── */
+
+.viewer,
+.dialog {
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--surface);
+  color: inherit;
+  box-shadow: var(--shadow);
+  padding: 0;
+}
+
+.viewer {
+  width: min(1100px, 94vw);
+  max-height: 92vh;
+  overflow: auto;
+}
+
+.dialog {
+  width: min(480px, 94vw);
+  max-height: 92vh;
+  overflow: auto;
+  padding: 20px;
+}
+
+.viewer::backdrop,
+.dialog::backdrop {
+  background: rgba(8, 10, 14, 0.62);
+}
+
+.viewer-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.viewer-titles {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.viewer-titles h2 {
+  margin: 0;
+  font-size: 16px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.viewer-subtitle {
+  margin: 2px 0 0;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.viewer-actions {
+  display: flex;
+  gap: 2px;
+}
+
+.viewer-body {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px;
+  min-height: 240px;
+}
+
+.viewer-figure {
+  flex: 1 1 auto;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  max-height: 60vh;
+  overflow: auto;
+}
+
+.viewer-figure img {
+  max-width: 100%;
+  max-height: 56vh;
+  border-radius: 8px;
+  background: var(--surface-alt);
+
+  /* A queued (unsaved) edit is previewed with a transform; animate it so the turn is visible. */
+  transform-origin: center center;
+  transition: transform 180ms ease-out;
+}
+
+/* A quarter turn swaps the image's visual width and height, so give it room to fit. */
+.viewer-figure img.is-quarter-turn {
+  max-width: 56vh;
+  max-height: 56vh;
+}
+
+.viewer-caption {
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.viewer-nav {
+  flex: 0 0 auto;
+}
+
+.viewer-foot {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  padding: 12px 16px 16px;
+  border-top: 1px solid var(--border);
+}
+
+.viewer-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.viewer-label {
+  color: var(--text-muted);
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.select {
+  padding: 6px 8px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: inherit;
+  font: inherit;
+  max-width: 200px;
+}
+
+.dialog form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 18px 20px 20px;
+  min-width: min(420px, 86vw);
+}
+
+.dialog h2 {
+  margin: 0;
+  font-size: 17px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.field input,
+.field textarea {
+  padding: 8px 10px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  resize: vertical;
+}
+
+.dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+/* ── help ───────────────────────────────────────────────────────────────── */
+
+.help {
+  max-width: 760px;
+}
+
+.help h2 {
+  margin: 0 0 8px;
+  font-size: 18px;
+}
+
+.help h3 {
+  margin: 18px 0 6px;
+  font-size: 14px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+}
+
+.help p,
+.help li {
+  color: var(--text-muted);
+}
+
+.help code {
+  padding: 1px 4px;
+  border-radius: 4px;
+  background: var(--surface-alt);
+}
+
+@media (max-width: 720px) {
+  .sidebar {
+    width: 64px;
+    flex-basis: 64px;
+  }
+
+  .sidebar .nav-text,
+  .sidebar .sidebar-section-header,
+  .sidebar .sidebar-title,
+  .sidebar .sidebar-empty {
+    display: none;
+  }
+}

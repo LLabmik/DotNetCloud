@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <!--
+      Plain library, not a Blazor WebAssembly project: the browser-side services the module UI runs
+      on have no markup, and a Microsoft.NET.Sdk.BlazorWebAssembly project cannot be referenced by a
+      test project. Keeping them here is what makes them testable.
+    -->
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\Core\DotNetCloud.Core\DotNetCloud.Core.csproj" />
+    <ProjectReference Include="..\..\..\SDK\DotNetCloud.Modules.Sdk.Web\DotNetCloud.Modules.Sdk.Web.csproj" />
+  </ItemGroup>
+
+</Project>

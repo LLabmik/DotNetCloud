@@ -1,0 +1,426 @@
+/*
+ * Example module UI — served by the module host and framed by the core at
+ * /apps/dotnetcloud.example/.
+ *
+ * A sandboxed module UI is a normal web document in its own process, so it needs its own CSS (core
+ * stylesheets are not inherited across the frame) and it must reference its assets relatively.
+ * The theme attribute on <html> is written by the SDK frame bridge.
+ */
+
+:root {
+  --bg: #f7f8fa;
+  --surface: #ffffff;
+  --border: #dfe3e8;
+  --text: #1f2933;
+  --text-muted: #5f6b7a;
+  --primary: #2563eb;
+  --primary-text: #ffffff;
+  --danger-bg: #fdecea;
+  --danger-text: #b3261e;
+  --radius: 10px;
+  --gap: 16px;
+}
+
+html[data-theme="dark"] {
+  --bg: #16181d;
+  --surface: #1f2229;
+  --border: #333844;
+  --text: #e8eaed;
+  --text-muted: #a1a8b3;
+  --primary: #5b8cff;
+  --primary-text: #0b1120;
+  --danger-bg: #3a1d1c;
+  --danger-text: #ffb4ab;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family:
+    "Inter",
+    "Segoe UI",
+    system-ui,
+    -apple-system,
+    sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+/* The layout wrapper the router renders into: sidebar plus main. */
+.example-root {
+  display: flex;
+  min-height: 100vh;
+}
+
+/* Sidebar ------------------------------------------------------------------ */
+
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  flex: 0 0 220px;
+  gap: var(--gap);
+  padding: 16px 12px;
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+}
+
+.sidebar-header {
+  padding: 4px 8px;
+}
+
+.sidebar-title {
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
+.sidebar-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.nav-link {
+  width: 100%;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.nav-link:hover {
+  background: color-mix(in srgb, var(--primary) 10%, transparent);
+}
+
+.nav-link.is-active {
+  background: color-mix(in srgb, var(--primary) 16%, transparent);
+  font-weight: 600;
+}
+
+.sidebar-footnote {
+  margin: auto 8px 0;
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+/* Main --------------------------------------------------------------------- */
+
+.main {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 24px;
+}
+
+.page-header h1 {
+  margin: 0 0 4px;
+  font-size: 22px;
+  font-weight: 600;
+}
+
+.text-muted {
+  margin: 0;
+  color: var(--text-muted);
+}
+
+.toolbar {
+  margin: 20px 0;
+}
+
+/* Buttons ------------------------------------------------------------------ */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  font: inherit;
+  cursor: pointer;
+}
+
+.btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.btn-primary {
+  background: var(--primary);
+  color: var(--primary-text);
+}
+
+.btn-secondary {
+  background: transparent;
+  border-color: var(--border);
+  color: var(--text);
+}
+
+.btn-small {
+  padding: 4px 10px;
+  font-size: 12px;
+}
+
+.btn-danger {
+  background: transparent;
+  border-color: var(--border);
+  color: var(--danger-text);
+}
+
+/* Material icons ----------------------------------------------------------- */
+
+.material-icon {
+  display: inline-block;
+  vertical-align: middle;
+}
+
+.material-icon--sm {
+  width: 16px;
+  height: 16px;
+}
+
+.material-icon--md {
+  width: 24px;
+  height: 24px;
+}
+
+.material-icon--lg {
+  width: 32px;
+  height: 32px;
+}
+
+.material-icon--xl {
+  width: 48px;
+  height: 48px;
+}
+
+/* Cards / form ------------------------------------------------------------- */
+
+.card {
+  margin-bottom: 20px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.card-header {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.card-header h2 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.card-body {
+  padding: 16px;
+}
+
+.form-group {
+  margin-bottom: 12px;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 4px;
+  font-weight: 500;
+}
+
+input[type="text"],
+textarea {
+  width: 100%;
+  padding: 8px 10px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  font: inherit;
+}
+
+input[type="text"]:focus,
+textarea:focus {
+  border-color: var(--primary);
+  outline: 2px solid color-mix(in srgb, var(--primary) 35%, transparent);
+  outline-offset: 1px;
+}
+
+textarea {
+  resize: vertical;
+}
+
+.form-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.alert {
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  border-radius: 8px;
+}
+
+.alert-danger {
+  background: var(--danger-bg);
+  color: var(--danger-text);
+}
+
+.status {
+  margin: 0 0 12px;
+  color: var(--text-muted);
+}
+
+/* Notes -------------------------------------------------------------------- */
+
+.notes-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: var(--gap);
+}
+
+.note-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px 16px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.note-card h3 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.note-card .note-content {
+  margin: 0;
+  color: var(--text);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.note-card .note-meta {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.note-card .note-actions {
+  margin-top: auto;
+  padding-top: 4px;
+}
+
+.empty-state {
+  padding: 32px;
+  background: var(--surface);
+  border: 1px dashed var(--border);
+  border-radius: var(--radius);
+  color: var(--text-muted);
+  text-align: center;
+}
+
+/* Help --------------------------------------------------------------------- */
+
+.help-section {
+  max-width: 720px;
+  margin-top: 24px;
+}
+
+.help-section h2 {
+  margin: 0 0 8px;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.help-section p,
+.help-steps,
+.help-tips {
+  margin: 0 0 8px;
+  padding-left: 0;
+}
+
+.help-steps,
+.help-tips {
+  padding-left: 20px;
+}
+
+.help-tips li,
+.help-steps li {
+  margin-bottom: 4px;
+}
+
+.help-faq dt {
+  font-weight: 600;
+}
+
+.help-faq dd {
+  margin: 2px 0 12px;
+  color: var(--text-muted);
+}
+
+code {
+  padding: 1px 4px;
+  background: color-mix(in srgb, var(--text) 8%, transparent);
+  border-radius: 4px;
+  font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
+  font-size: 12px;
+}
+
+/* Error bar ---------------------------------------------------------------- */
+
+/* Kept hidden: blazor.webassembly.js sets display inline when the app fails to start. */
+#blazor-error-ui {
+  display: none;
+  position: fixed;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 1000;
+  padding: 10px 14px;
+  background: var(--danger-bg);
+  color: var(--danger-text);
+  font-size: 13px;
+}
+
+/* Narrow frames ------------------------------------------------------------ */
+
+@media (max-width: 640px) {
+  .example-root {
+    flex-direction: column;
+  }
+
+  .sidebar {
+    flex: 0 0 auto;
+    border-right: 0;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .sidebar-nav {
+    flex-direction: row;
+  }
+
+  .main {
+    padding: 16px;
+  }
+}

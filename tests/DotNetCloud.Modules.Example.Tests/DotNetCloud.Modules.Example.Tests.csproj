@@ -22,18 +22,23 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\Modules\Example\DotNetCloud.Modules.Example\DotNetCloud.Modules.Example.csproj" />
     <ProjectReference Include="..\..\src\Modules\Example\DotNetCloud.Modules.Example.Host\DotNetCloud.Modules.Example.Host.csproj" />
+    <!-- The browser-side API client is a plain library so these tests can drive it with a stub handler. -->
+    <ProjectReference Include="..\..\src\Modules\Example\DotNetCloud.Modules.Example.Web.Services\DotNetCloud.Modules.Example.Web.Services.csproj" />
+    <ProjectReference Include="..\..\src\SDK\DotNetCloud.Modules.Sdk.Web\DotNetCloud.Modules.Sdk.Web.csproj" />
   </ItemGroup>
 
   <ItemGroup>
     <!-- The packaged manifest is asserted directly, so the test reads the file that ships in the .dncpkg. -->
     <None Include="..\..\src\Modules\Example\manifest.json" Link="manifest.json" CopyToOutputDirectory="PreserveNewest" />
 
-    <!-- The module-hosted UI assets (phase A5) are asserted for relative references and safe DOM use. -->
-    <None Include="..\..\src\Modules\Example\DotNetCloud.Modules.Example.Host\wwwroot\index.html" Link="ui\index.html" CopyToOutputDirectory="PreserveNewest" />
-    <None Include="..\..\src\Modules\Example\DotNetCloud.Modules.Example.Host\wwwroot\assets\example-ui.js" Link="ui\assets\example-ui.js" CopyToOutputDirectory="PreserveNewest" />
-    <None Include="..\..\src\Modules\Example\DotNetCloud.Modules.Example.Host\wwwroot\assets\example-ui.css" Link="ui\assets\example-ui.css" CopyToOutputDirectory="PreserveNewest" />
-    <!-- The bridge is the SDK's single copy of the UI protocol; the host copies it at build time. -->
-    <None Include="..\..\src\SDK\DotNetCloud.Modules.Sdk\wwwroot\dncModuleBridge.js" Link="ui\dncModuleBridge.js" CopyToOutputDirectory="PreserveNewest" />
+    <!-- The module UI is a Blazor WebAssembly app served by the host. These are the shipped entry
+         document, stylesheet and bootstrap scripts the asset guards read. -->
+    <None Include="..\..\src\Modules\Example\DotNetCloud.Modules.Example.Web\wwwroot\index.html" Link="ui\index.html" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\src\Modules\Example\DotNetCloud.Modules.Example.Web\wwwroot\css\app.css" Link="ui\css\app.css" CopyToOutputDirectory="PreserveNewest" />
+    <!-- The bridge and the frame bootstrap are the SDK's single copies; each module links them in at build time. -->
+    <None Include="..\..\src\SDK\DotNetCloud.Modules.Sdk\wwwroot\dncModuleBridge.js" Link="ui\js\dncModuleBridge.js" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\src\SDK\DotNetCloud.Modules.Sdk.Web\wwwroot\dncModuleFrame.js" Link="ui\js\dncModuleFrame.js" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\src\SDK\DotNetCloud.Modules.Sdk.Web\wwwroot\dncModuleBoot.js" Link="ui\js\dncModuleBoot.js" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <ItemGroup>

@@ -7464,3 +7464,30 @@ Plan document: `docs/ADMIN_SYSTEM_PAGE_PER_USER_TRAFFIC_PLAN.md`.
 - Both new routes require authentication, matching `/apps/synctray`.
 - Page styles mirror the existing Desktop Sync Client visual language (`ds-*` classes) in page-scoped CSS.
 - No store listing URLs are linked because neither store publication exists yet.
+
+### Module WASM UI parity — Example, Bookmarks, Photos, AI, Email (2026-11-11)
+
+The five sandboxed modules that still served plain JavaScript from their host's `wwwroot` are now Blazor
+WebAssembly apps, the same shape as Tracks. A new shared browser library (`src/SDK/DotNetCloud.Modules.Sdk.Web`)
+removes the duplication Tracks introduced: `ModuleFrameBridge` (theme, title, toast, navigate, open-external,
+consent, clipboard, scroll, SSE), `ModuleApiClient` (success-envelope unwrapping, consent refusal mapped to an
+exception, enum names *and* numbers accepted on read), `ModuleFrameAuthenticationStateProvider` (`GET
+api/v1/me`, anonymous when the host has no such endpoint) and the shared `dncModuleFrame.js`/`dncModuleBoot.js`
+(bridge started before Blazor; absolute boot URLs for an opaque-origin frame).
+
+Each module now has `<X>.Web` (the ported Razor UI, referenced by its host so `publish` emits it into
+`wwwroot`: Example 21 MB, Email 22 MB) and `<X>.Web.Services` (a plain, testable library holding the typed API
+client — and for Email the entire `EmailState`). The old `wwwroot/index.html` and `assets/*` are deleted; every
+manifest-declared widget stays a plain static document. Ported surface: **Example** notes; **Bookmarks**
+library/detail/forms/import/export; **Photos** gallery with viewer and non-destructive edit previews (media URLs
+ticketed through `bridge.mediaUrl`); **AI Assistant** streaming chat over SSE (pumped in JS because WebAssembly's
+`HttpClient` cannot stream a body) with sanitised Markdown and copy actions; **Email** accounts, threads
+(message bodies in nested `sandbox=""` frames), compose with staged attachments from uploads or cloud files,
+rules editor, deep links and inline confirm/file-browser overlays — with numeric enum payloads, because that host
+binds MVC enums as numbers.
+
+Tests: SDK **51**, Example **90**, Bookmarks **47**, Photos **213**, AI **63**, Email **69**, Core.Server **1693
+passed / 2 skipped**; Blazor standards gate green; `DotNetCloud.CI.slnf` builds with 0 warnings / 0 errors. The
+only solution-wide build failure is the Android client's signing keystore, which is environmental and unrelated.
+Remaining: a signed-in browser click-through per module against a deployed host, then re-packing the five
+`.dncpkg` packages.

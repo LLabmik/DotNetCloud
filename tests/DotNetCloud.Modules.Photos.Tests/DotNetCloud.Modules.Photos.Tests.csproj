@@ -26,19 +26,26 @@
     <ProjectReference Include="..\..\src\Modules\Photos\DotNetCloud.Modules.Photos\DotNetCloud.Modules.Photos.csproj" />
     <ProjectReference Include="..\..\src\Modules\Photos\DotNetCloud.Modules.Photos.Data\DotNetCloud.Modules.Photos.Data.csproj" />
     <ProjectReference Include="..\..\src\Modules\Photos\DotNetCloud.Modules.Photos.Host\DotNetCloud.Modules.Photos.Host.csproj" />
+    <!-- The browser-side services are a plain library so these tests can drive them directly. -->
+    <ProjectReference Include="../../src/Modules/Photos/DotNetCloud.Modules.Photos.Web.Services/DotNetCloud.Modules.Photos.Web.Services.csproj" />
+    <ProjectReference Include="../../src/SDK/DotNetCloud.Modules.Sdk.Web/DotNetCloud.Modules.Sdk.Web.csproj" />
     <ProjectReference Include="..\..\src\SDK\DotNetCloud.Modules.Sdk\DotNetCloud.Modules.Sdk.csproj" />
   </ItemGroup>
 
   <!-- The shipped files are the ones under test: the manifest, the framed documents and the SDK bridge. -->
   <ItemGroup>
     <None Include="..\..\src\Modules\Photos\manifest.json" Link="manifest.json" CopyToOutputDirectory="PreserveNewest" />
-    <None Include="..\..\src\Modules\Photos\DotNetCloud.Modules.Photos.Host\wwwroot\index.html" Link="ui\index.html" CopyToOutputDirectory="PreserveNewest" />
-    <None Include="..\..\src\Modules\Photos\DotNetCloud.Modules.Photos.Host\wwwroot\assets\photos-ui.js" Link="ui\assets\photos-ui.js" CopyToOutputDirectory="PreserveNewest" />
-    <None Include="..\..\src\Modules\Photos\DotNetCloud.Modules.Photos.Host\wwwroot\assets\photos-ui.css" Link="ui\assets\photos-ui.css" CopyToOutputDirectory="PreserveNewest" />
+
     <None Include="..\..\src\Modules\Photos\DotNetCloud.Modules.Photos.Host\wwwroot\widget\index.html" Link="ui\widget\index.html" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\src\Modules\Photos\DotNetCloud.Modules.Photos.Host\wwwroot\widget\widget.js" Link="ui\widget\widget.js" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\src\Modules\Photos\DotNetCloud.Modules.Photos.Host\wwwroot\widget\widget.css" Link="ui\widget\widget.css" CopyToOutputDirectory="PreserveNewest" />
-    <None Include="..\..\src\SDK\DotNetCloud.Modules.Sdk\wwwroot\dncModuleBridge.js" Link="ui\dncModuleBridge.js" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\src\SDK\DotNetCloud.Modules.Sdk\wwwroot\dncModuleBridge.js" Link="ui\js\dncModuleBridge.js" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\src\SDK\DotNetCloud.Modules.Sdk.Web\wwwroot\dncModuleFrame.js" Link="ui\js\dncModuleFrame.js" CopyToOutputDirectory="PreserveNewest" />
+    <!-- The module UI is a Blazor WebAssembly app served by the host; these are its entry
+         document and stylesheet. -->
+    <None Include="..\..\src\Modules\Photos\DotNetCloud.Modules.Photos.Web\wwwroot\index.html" Link="ui\index.html" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\src\Modules\Photos\DotNetCloud.Modules.Photos.Web\wwwroot\css\app.css" Link="ui\css\app.css" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\src\SDK\DotNetCloud.Modules.Sdk.Web\wwwroot\dncModuleBoot.js" Link="ui\js\dncModuleBoot.js" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <ItemGroup>

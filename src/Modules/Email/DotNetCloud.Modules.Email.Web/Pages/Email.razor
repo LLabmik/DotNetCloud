@@ -1,0 +1,223 @@
+@page "/"
+@inherits DotNetCloud.Modules.Email.Web.UI.EmailPanelBase
+@using DotNetCloud.Modules.Email.Web.Services
+@using DotNetCloud.Modules.Email.Web.UI
+
+<PageTitle>Email</PageTitle>
+
+<div class="app">
+    <aside class="sidebar @(State.SidebarCollapsed ? "is-collapsed" : null)" aria-label="Email navigation">
+        <div class="sidebar-header">
+            <span class="sidebar-title">Email</span>
+            <button type="button"
+                    class="icon-btn"
+                    aria-label="@(State.SidebarCollapsed ? "Expand sidebar" : "Collapse sidebar")"
+                    title="@(State.SidebarCollapsed ? "Expand sidebar" : "Collapse sidebar")"
+                    @onclick="() => State.ToggleSidebar()">
+                <MaterialIcon Icon="@(State.SidebarCollapsed ? "chevron_right" : "chevron_left")" />
+            </button>
+        </div>
+
+        <div class="sidebar-actions">
+            <button type="button" class="btn btn-primary" @onclick="() => State.BeginCompose()">
+                <MaterialIcon Icon="edit" />
+                <span class="nav-text">Compose</span>
+            </button>
+            <button type="button" class="btn btn-secondary" @onclick="() => State.View = EmailView.AddAccount">
+                <MaterialIcon Icon="person_add" />
+                <span class="nav-text">Account</span>
+            </button>
+        </div>
+
+        @if (State.Accounts.Count > 0)
+        {
+            <div class="sidebar-section">
+                <p class="sidebar-section-header">Accounts</p>
+                <select class="select"
+                        aria-label="Account"
+                        value="@State.SelectedAccountId"
+                        @onchange="OnAccountChanged">
+                    @foreach (var account in State.Accounts)
+                    {
+                        <option value="@account.Id" @key="account.Id">
+                            @(string.IsNullOrWhiteSpace(account.DisplayName) ? account.EmailAddress : account.DisplayName)
+                        </option>
+                    }
+                </select>
+            </div>
+        }
+
+        @if (State.Mailboxes.Count > 0)
+        {
+            <div class="sidebar-section">
+                <p class="sidebar-section-header">Folders</p>
+                @foreach (var mailbox in State.Mailboxes)
+                {
+                    <button type="button"
+                            class="nav-item @(mailbox.Id == State.SelectedMailboxId && State.View is not EmailView.Rules ? "is-active" : null)"
+                            title="@mailbox.DisplayName"
+                            @key="mailbox.Id"
+                            @onclick="() => State.SelectMailboxAsync(mailbox.Id)">
+                        <MaterialIcon Icon="@MailboxIcon(mailbox)" />
+                        <span class="nav-text">@mailbox.DisplayName</span>
+                    </button>
+                }
+            </div>
+        }
+        else if (State.Accounts.Count > 0)
+        {
+            <div class="sidebar-section">
+                <p class="sidebar-section-header">Folders</p>
+                <p class="sidebar-empty">No folders yet</p>
+            </div>
+        }
+
+        <div class="sidebar-section sidebar-section-tools">
+            <p class="sidebar-section-header">Settings</p>
+            <button type="button"
+                    class="nav-item @(State.View is EmailView.Rules or EmailView.Rule ? "is-active" : null)"
+                    disabled="@State.Busy"
+                    @onclick="() => State.OpenRulesAsync()">
+                <MaterialIcon Icon="settings" />
+                <span class="nav-text">Rules</span>
+            </button>
+            <button type="button" class="nav-item" disabled="@(State.Busy || State.SelectedAccount is null)" @onclick="() => State.SyncAccountAsync()">
+                <MaterialIcon Icon="sync" />
+                <span class="nav-text">Sync now</span>
+            </button>
+            <button type="button" class="nav-item nav-item-danger" disabled="@(State.Busy || State.SelectedAccount is null)" @onclick="() => State.RequestDeleteAccount()">
+                <MaterialIcon Icon="delete" />
+                <span class="nav-text">Delete account</span>
+            </button>
+            <button type="button" class="nav-item @(State.View is EmailView.Help ? "is-active" : null)" @onclick="() => State.View = EmailView.Help">
+                <MaterialIcon Icon="help" />
+                <span class="nav-text">Help</span>
+            </button>
+        </div>
+    </aside>
+
+    <main class="main">
+        @if (!string.IsNullOrEmpty(State.BannerText))
+        {
+            <div class="banner @(State.BannerIsSuccess ? "is-success" : null)" role="status">
+                <span>@State.BannerText</span>
+                <button type="button" class="icon-btn" aria-label="Dismiss" @onclick="() => State.DismissBanner()">
+                    <MaterialIcon Icon="close" />
+                </button>
+            </div>
+        }
+
+        @if (State.Busy)
+        {
+            <p class="status is-info" role="status">Working…</p>
+        }
+
+        <div class="panel">
+            @switch (State.View)
+            {
+                case EmailView.AddAccount:
+                    <AddAccountPanel />
+                    break;
+                case EmailView.Rules:
+                    <RulesPanel />
+                    break;
+                case EmailView.Rule:
+                    <RuleEditorPanel />
+                    break;
+                case EmailView.Compose:
+                    <ComposePanel />
+                    break;
+                case EmailView.Thread:
+                    <ThreadDetailPanel />
+                    break;
+                case EmailView.Help:
+                    <HelpPanel />
+                    break;
+                case EmailView.Mailbox:
+                    <ThreadListPanel />
+                    break;
+                default:
+                    <WelcomePanel />
+                    break;
+            }
+        </div>
+    </main>
+</div>
+
+@if (State.Confirm is { } confirm)
+{
+    <div class="overlay-backdrop">
+        <section class="modal" aria-labelledby="email-confirm-title">
+            <h3 class="modal-title" id="email-confirm-title">@confirm.Title</h3>
+            <p class="modal-text">@confirm.Message</p>
+            <div class="modal-actions">
+                <button type="button" class="btn btn-secondary" @onclick="() => State.Confirm = null">Cancel</button>
+                <button type="button" class="btn @(confirm.Danger ? "btn-danger" : "btn-primary")" @onclick="() => State.AcceptConfirmAsync()">
+                    @confirm.ConfirmLabel
+                </button>
+            </div>
+        </section>
+    </div>
+}
+
+@if (State.FileBrowser is { } browser)
+{
+    <div class="overlay-backdrop">
+        <section class="modal file-browser" aria-label="Files">
+            <div class="modal-header">
+                <h3 class="modal-title">@(browser.Mode == FileBrowserMode.File ? "Attach from your files" : "Save to your files")</h3>
+                <button type="button" class="icon-btn" aria-label="Close" title="Close" @onclick="() => State.CancelFileBrowserAsync()">
+                    <MaterialIcon Icon="close" />
+                </button>
+            </div>
+
+            <div class="file-browser-crumbs">
+                <button type="button" class="crumb" @onclick='() => State.NavigateFileBrowserAsync(null, "Files", 0)'>Files</button>
+                @for (var index = 0; index < browser.Trail.Count; index++)
+                {
+                    var depth = index;
+                    var crumb = browser.Trail[index];
+                    <span class="crumb-separator">/</span>
+                    <button type="button" class="crumb" @onclick="() => State.NavigateFileBrowserAsync(crumb.Id, crumb.Name, depth + 1)">@crumb.Name</button>
+                }
+            </div>
+
+            <div class="file-browser-list">
+                @if (browser.Loading)
+                {
+                    <p class="hint">Loading your files…</p>
+                }
+                else if (!string.IsNullOrEmpty(browser.Error))
+                {
+                    <p class="file-browser-error">@browser.Error</p>
+                }
+                else if (browser.Nodes.Count == 0)
+                {
+                    <p class="hint">This folder is empty.</p>
+                }
+                else
+                {
+                    @foreach (var item in browser.Nodes)
+                    {
+                        <button type="button"
+                                class="file-row @(item.NodeType is "Folder" or "SymbolicLink" ? "is-folder" : null) @(browser.Selected?.Id == item.Id ? "is-selected" : null)"
+                                title="@item.Name"
+                                @key="item.Id"
+                                @onclick="() => State.SelectFileNodeAsync(item)">
+                            <MaterialIcon Icon="@(item.NodeType is "Folder" or "SymbolicLink" ? "folder" : "description")" />
+                            <span class="file-row-name">@item.Name</span>
+                            <span class="file-row-size">@(item.NodeType is "Folder" or "SymbolicLink" ? string.Empty : item.Size.ToString(System.Globalization.CultureInfo.CurrentCulture))</span>
+                        </button>
+                    }
+                }
+            </div>
+
+            <div class="modal-actions">
+                <button type="button" class="btn btn-secondary" @onclick="() => State.CancelFileBrowserAsync()">Cancel</button>
+                <button type="button" class="btn btn-primary" disabled="@(!browser.CanConfirm)" @onclick="() => State.ConfirmFileBrowserAsync()">
+                    @(browser.Mode == FileBrowserMode.File ? "Attach selected" : "Save here")
+                </button>
+            </div>
+        </section>
+    </div>
+}
