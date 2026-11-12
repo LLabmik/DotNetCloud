@@ -20,15 +20,28 @@ public sealed class PhotoEditService : IPhotoEditService
     private readonly PhotosDbContext _db;
     private readonly IEventBus _eventBus;
     private readonly ILogger<PhotoEditService> _logger;
+    private readonly IPhotoThumbnailService? _previews;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="PhotoEditService"/> class.
     /// </summary>
-    public PhotoEditService(PhotosDbContext db, IEventBus eventBus, ILogger<PhotoEditService> logger)
+    /// <param name="db">Photos database context.</param>
+    /// <param name="eventBus">Event bus.</param>
+    /// <param name="logger">Logger.</param>
+    /// <param name="previews">
+    /// Preview renderer, used to un-bake edits that were already saved. Optional so a unit test that
+    /// only exercises the stack does not need the whole image pipeline.
+    /// </param>
+    public PhotoEditService(
+        PhotosDbContext db,
+        IEventBus eventBus,
+        ILogger<PhotoEditService> logger,
+        IPhotoThumbnailService? previews = null)
     {
         _db = db;
         _eventBus = eventBus;
         _logger = logger;
+        _previews = previews;
     }
 
     /// <summary>
@@ -126,6 +139,10 @@ public sealed class PhotoEditService : IPhotoEditService
         await _db.SaveChangesAsync(cancellationToken);
 
         _logger.LogInformation("All edits reverted for photo {PhotoId} by user {UserId}", photoId, caller.UserId);
+
+        // The previews may have been baked with the edits that were just dropped, so "revert all" has
+        // to re-render the original or it leaves the edits visible on screen.
+        await RebuildPreviewsAsync(photoId, caller.UserId, cancellationToken);
     }
 
     /// <summary>
@@ -147,6 +164,29 @@ public sealed class PhotoEditService : IPhotoEditService
         _db.PhotoEditRecords.Remove(lastRecord);
         photo.UpdatedAt = DateTime.UtcNow;
         await _db.SaveChangesAsync(cancellationToken);
+
+        // Undo has the same problem as revert: a saved stack is baked into the previews, so dropping
+        // the top operation leaves it visible until the previews are rendered again.
+        await RebuildPreviewsAsync(photoId, caller.UserId, cancellationToken);
+    }
+
+    private async Task RebuildPreviewsAsync(Guid photoId, Guid userId, CancellationToken cancellationToken)
+    {
+        if (_previews is null)
+        {
+            return;
+        }
+
+        try
+        {
+            await _previews.RegeneratePreviewsAsync(photoId, userId, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            // The stack change is committed and is the source of truth; a preview rebuild that fails
+            // (the core could not serve the original, say) must not fail the user's request.
+            _logger.LogWarning(ex, "Could not rebuild previews for photo {PhotoId} after an edit-stack change", photoId);
+        }
     }
 
     private static void ValidateOperation(PhotoEditOperationDto operation)
@@ -167,9 +207,20 @@ public sealed class PhotoEditService : IPhotoEditService
                 var requiredParams = new[] { "x", "y", "width", "height" };
                 foreach (var param in requiredParams)
                 {
-                    if (!operation.Parameters.ContainsKey(param))
-                        throw new BusinessRuleException(ErrorCodes.InvalidPhotoEdit, $"Crop operation requires '{param}' parameter.");
+                    if (!operation.Parameters.TryGetValue(param, out var raw)
+                        || !int.TryParse(raw, System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out var parsed)
+                        || parsed < 0)
+                    {
+                        throw new BusinessRuleException(ErrorCodes.InvalidPhotoEdit, $"Crop operation requires a non-negative integer '{param}' parameter.");
+                    }
                 }
+
+                if (int.Parse(operation.Parameters["width"], System.Globalization.CultureInfo.InvariantCulture) == 0
+                    || int.Parse(operation.Parameters["height"], System.Globalization.CultureInfo.InvariantCulture) == 0)
+                {
+                    throw new BusinessRuleException(ErrorCodes.InvalidPhotoEdit, "Crop width and height must be at least 1 pixel.");
+                }
+
                 break;
 
             case PhotoEditType.Flip:

@@ -77,4 +77,19 @@ public interface IPhotoThumbnailService
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns><c>true</c> if thumbnails were successfully regenerated; <c>false</c> otherwise.</returns>
     Task<bool> SaveEditsAsync(Guid photoId, Guid actingUserId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Re-renders the cached previews from the original, applying whatever is left on the edit stack.
+    /// </summary>
+    /// <remarks>
+    /// Used after an undo or a revert-all, where the stack shrank but the previews were already baked
+    /// by an earlier save. An empty stack renders the unedited original, so "revert all" really does
+    /// look reverted. Same work as <see cref="SaveEditsAsync"/>; the separate name marks the intent at
+    /// the call site.
+    /// </remarks>
+    /// <param name="photoId">The photo record ID.</param>
+    /// <param name="actingUserId">The verified caller; a non-owner is refused.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns><c>true</c> if the previews were rebuilt; <c>false</c> otherwise.</returns>
+    Task<bool> RegeneratePreviewsAsync(Guid photoId, Guid actingUserId, CancellationToken cancellationToken = default);
 }

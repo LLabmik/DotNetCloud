@@ -521,6 +521,18 @@ internal sealed class ModuleAppProxyTransformer : HttpTransformer
         // so editing proxyResponse.Headers afterwards changes nothing the browser ever sees (that
         // ordering is why a frame's API responses carried no Access-Control-Allow-Origin and the
         // module UI reported "Could not reach the module" while the module had already answered 200).
+        // The core-wide security-header middleware writes X-Frame-Options and its own CSP before this
+        // handler runs, and the base transform *adds* headers instead of replacing them, so those
+        // values survived beside the module policy's own. X-Frame-Options: SAMEORIGIN is fatal for a
+        // module frame: it is served without allow-same-origin, so its document has an opaque origin
+        // and the browser aborts the navigation (ERR_ABORTED) - every module app and Home widget
+        // stopped loading, showing "The app did not respond". The module policy owns these headers,
+        // so drop the core's copies first.
+        foreach (var name in ModuleAppResponsePolicy.StrippedResponseHeaders)
+        {
+            httpContext.Response.Headers.Remove(name);
+        }
+
         if (proxyResponse is not null)
         {
             // Applied here rather than in OnStarting: the module's own Set-Cookie / CSP headers must

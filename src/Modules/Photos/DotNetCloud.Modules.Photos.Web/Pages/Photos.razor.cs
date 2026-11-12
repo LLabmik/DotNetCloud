@@ -2,6 +2,8 @@ using DotNetCloud.Core.DTOs;
 using DotNetCloud.Modules.Photos.Web.Services;
 using DotNetCloud.Modules.Sdk.Web;
 using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Components.Web;
+using Microsoft.JSInterop;
 
 namespace DotNetCloud.Modules.Photos.Web.Pages;
 
@@ -55,11 +57,36 @@ public partial class Photos : ComponentBase
     private string _albumDescription = string.Empty;
     private bool _creatingAlbum;
 
+    // Tone and radius sliders. They are previews of the next operation, not the state of the stack:
+    // pressing Apply records the value; the stack stays the source of truth.
+    private int _brightnessInput;
+    private int _contrastInput;
+    private int _saturationInput;
+    private double _sharpenInput;
+    private double _blurInput;
+
+    // Crop selection, normalized 0..1 against the rendered preview so the recorded rectangle is
+    // independent of the viewer's size.
+    private bool _cropActive;
+    private bool _cropSelecting;
+    private double _cropAnchorX;
+    private double _cropAnchorY;
+    private double _cropStartX;
+    private double _cropStartY;
+    private double _cropWidth;
+    private double _cropHeight;
+    private double _cropLayerWidth;
+    private double _cropLayerHeight;
+    private ElementReference _cropLayer;
+
     [Inject]
     private PhotosApi Api { get; set; } = default!;
 
     [Inject]
     private ModuleFrameBridge Bridge { get; set; } = default!;
+
+    [Inject]
+    private IJSRuntime Js { get; set; } = default!;
 
     /// <summary>Gets or sets the photo the shell deep-linked to.</summary>
     [SupplyParameterFromQuery(Name = "photoId")]
@@ -79,6 +106,13 @@ public partial class Photos : ComponentBase
     private bool IsQuarterTurn =>
         _viewerPhoto is { } photo && TransformOf(photo.Id).Rotate % 180 == 90;
 
+    private bool HasCropSelection => _cropWidth > 0.005 && _cropHeight > 0.005;
+
+    private string CropSelectionStyle => string.Create(
+        System.Globalization.CultureInfo.InvariantCulture,
+        $"--crop-x: {_cropStartX * 100:0.###}%; --crop-y: {_cropStartY * 100:0.###}%; " +
+        $"--crop-w: {_cropWidth * 100:0.###}%; --crop-h: {_cropHeight * 100:0.###}%");
+
     private string TransformStyle
     {
         get
@@ -86,7 +120,18 @@ public partial class Photos : ComponentBase
             var transform = _viewerPhoto is { } photo ? TransformOf(photo.Id) : PhotoTransform.Identity;
             var scaleX = transform.FlipX ? -1 : 1;
             var scaleY = transform.FlipY ? -1 : 1;
-            return $"transform: rotate({transform.Rotate}deg) scaleX({scaleX}) scaleY({scaleY})";
+
+            // Rotate/flip are a CSS transform; tone and blur are a filter, so a queued edit is visible
+            // before "Save edits" bakes it into the pixels.
+            var filter = FormattableString.Invariant(
+                $"brightness({transform.Brightness:0.###}) contrast({transform.Contrast:0.###}) saturate({transform.Saturate:0.###})");
+
+            if (transform.Blur > 0)
+            {
+                filter += FormattableString.Invariant($" blur({transform.Blur:0.##}px)");
+            }
+
+            return $"transform: rotate({transform.Rotate}deg) scaleX({scaleX}) scaleY({scaleY}); filter: {filter}";
         }
     }
 
@@ -492,6 +537,11 @@ public partial class Photos : ComponentBase
     // ── Edits ───────────────────────────────────────────────
 
     private async Task ApplyEditAsync(PhotoEditType operationType, string value)
+        => await ApplyOperationAsync(
+            operationType,
+            new Dictionary<string, string> { ["value"] = value });
+
+    private async Task ApplyOperationAsync(PhotoEditType operationType, Dictionary<string, string> parameters)
     {
         if (_viewerPhoto is not { } photo)
         {
@@ -505,7 +555,7 @@ public partial class Photos : ComponentBase
                 new PhotoEditOperationDto
                 {
                     OperationType = operationType,
-                    Parameters = new Dictionary<string, string> { ["value"] = value },
+                    Parameters = parameters,
                 });
 
             await RefreshPreviewTransformAsync(photo.Id);
@@ -515,6 +565,195 @@ public partial class Photos : ComponentBase
         {
             await HandleExceptionAsync(ex);
         }
+    }
+
+    private async Task ApplyRadiusEditAsync(PhotoEditType operationType, double radius)
+    {
+        if (radius <= 0)
+        {
+            SetStatus("Choose a radius above zero first.", isError: true);
+            return;
+        }
+
+        await ApplyOperationAsync(
+            operationType,
+            new Dictionary<string, string>
+            {
+                ["radius"] = radius.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture),
+            });
+    }
+
+    private async Task RevertAllEditsAsync()
+    {
+        if (_viewerPhoto is not { } photo)
+        {
+            return;
+        }
+
+        try
+        {
+            // The host drops the stack and re-renders the previews from the original, so the viewer
+            // must forget its CSS transform and refetch the image.
+            await Api.RevertAllEditsAsync(photo.Id);
+            _previewTransforms.Remove(photo.Id);
+            _cropActive = false;
+            await ReloadPreviewAsync(photo.Id);
+            ReplacePhoto(photo.Id, p => p with { HasEdits = false });
+            SetStatus("All edits reverted.");
+        }
+        catch (Exception ex) when (ex is ModuleApiException or HttpRequestException)
+        {
+            await HandleExceptionAsync(ex);
+        }
+    }
+
+    private void BeginCrop()
+    {
+        if (_viewerPhoto is not { } photo)
+        {
+            return;
+        }
+
+        if (IsQuarterTurn || _previewTransforms.TryGetValue(photo.Id, out var pending) && (pending.FlipX || pending.FlipY))
+        {
+            SetStatus("Save or undo the rotation and flip first — crop is taken in the photo's own orientation.", isError: true);
+            return;
+        }
+
+        _cropActive = true;
+        _cropSelecting = false;
+        _cropWidth = 0;
+        _cropHeight = 0;
+        SetStatus("Drag across the photo to choose the crop area.");
+    }
+
+    private void CancelCrop()
+    {
+        _cropActive = false;
+        _cropSelecting = false;
+        _cropWidth = 0;
+        _cropHeight = 0;
+        SetStatus(null);
+    }
+
+    private async Task CropPointerDownAsync(PointerEventArgs args)
+    {
+        try
+        {
+            if (!_cropActive)
+            {
+                return;
+            }
+
+            var size = await Js.InvokeAsync<CropLayerSize>("dncPhotos.measure", _cropLayer);
+            _cropLayerWidth = size.Width;
+            _cropLayerHeight = size.Height;
+
+            if (_cropLayerWidth <= 0 || _cropLayerHeight <= 0)
+            {
+                return;
+            }
+
+            _cropSelecting = true;
+            _cropAnchorX = Math.Clamp(args.OffsetX / _cropLayerWidth, 0, 1);
+            _cropAnchorY = Math.Clamp(args.OffsetY / _cropLayerHeight, 0, 1);
+            _cropStartX = _cropAnchorX;
+            _cropStartY = _cropAnchorY;
+            _cropWidth = 0;
+            _cropHeight = 0;
+        }
+        catch (JSException)
+        {
+            // The helper script did not load; cropping stays unavailable rather than corrupting state.
+            _cropActive = false;
+        }
+    }
+
+    private void CropPointerMove(PointerEventArgs args)
+    {
+        if (!_cropSelecting || _cropLayerWidth <= 0 || _cropLayerHeight <= 0)
+        {
+            return;
+        }
+
+        var currentX = Math.Clamp(args.OffsetX / _cropLayerWidth, 0, 1);
+        var currentY = Math.Clamp(args.OffsetY / _cropLayerHeight, 0, 1);
+
+        // The anchor is where the drag started; the rectangle is the box between anchor and pointer.
+        _cropStartX = Math.Min(_cropAnchorX, currentX);
+        _cropStartY = Math.Min(_cropAnchorY, currentY);
+        _cropWidth = Math.Abs(currentX - _cropAnchorX);
+        _cropHeight = Math.Abs(currentY - _cropAnchorY);
+    }
+
+    private void CropPointerUp(PointerEventArgs args)
+    {
+        if (!_cropSelecting)
+        {
+            return;
+        }
+
+        CropPointerMove(args);
+        _cropSelecting = false;
+
+        if (!HasCropSelection)
+        {
+            SetStatus("Drag a larger area to crop.", isError: true);
+        }
+    }
+
+    private async Task ApplyCropAsync()
+    {
+        if (_viewerPhoto is not { } photo)
+        {
+            return;
+        }
+
+        if (!HasCropSelection)
+        {
+            SetStatus("Drag across the photo to choose the crop area first.", isError: true);
+            return;
+        }
+
+        if (photo.Width is not { } sourceWidth || photo.Height is not { } sourceHeight
+            || sourceWidth <= 0 || sourceHeight <= 0)
+        {
+            SetStatus("This photo has no recorded pixel size, so it cannot be cropped yet.", isError: true);
+            return;
+        }
+
+        // The selection is a fraction of the preview; the stack records original pixels.
+        var x = (int)Math.Round(_cropStartX * sourceWidth);
+        var y = (int)Math.Round(_cropStartY * sourceHeight);
+        var width = (int)Math.Round(_cropWidth * sourceWidth);
+        var height = (int)Math.Round(_cropHeight * sourceHeight);
+
+        x = Math.Clamp(x, 0, sourceWidth - 1);
+        y = Math.Clamp(y, 0, sourceHeight - 1);
+        width = Math.Clamp(width, 1, sourceWidth - x);
+        height = Math.Clamp(height, 1, sourceHeight - y);
+
+        _cropActive = false;
+        _cropSelecting = false;
+
+        await ApplyOperationAsync(
+            PhotoEditType.Crop,
+            new Dictionary<string, string>
+            {
+                ["x"] = x.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                ["y"] = y.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                ["width"] = width.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                ["height"] = height.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            });
+
+        _cropWidth = 0;
+        _cropHeight = 0;
+    }
+
+    private async Task ReloadPreviewAsync(Guid photoId)
+    {
+        _detailUrl = await Bridge.MediaUrlAsync(
+            PhotosApi.ThumbnailUrl(photoId, "detail") + "&t=" + DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
     }
 
     private async Task UndoEditAsync()
@@ -551,8 +790,7 @@ public partial class Photos : ComponentBase
             // The edits are baked into the served thumbnails now, so drop the CSS preview and refetch
             // the image, or the viewer would show the transform on top of the rotated pixels.
             _previewTransforms.Remove(photo.Id);
-            _detailUrl = await Bridge.MediaUrlAsync(
-                PhotosApi.ThumbnailUrl(photo.Id, "detail") + "&t=" + DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
+            await ReloadPreviewAsync(photo.Id);
             SetStatus("Saved. The photo now shows those edits everywhere.");
         }
         catch (Exception ex) when (ex is ModuleApiException or HttpRequestException)
@@ -582,6 +820,10 @@ public partial class Photos : ComponentBase
         var rotate = 0;
         var flipX = false;
         var flipY = false;
+        var brightness = 1.0;
+        var contrast = 1.0;
+        var saturate = 1.0;
+        var blur = 0.0;
 
         foreach (var operation in stack)
         {
@@ -604,9 +846,38 @@ public partial class Photos : ComponentBase
                     flipX = !flipX;
                 }
             }
+            else if (operation.Parameters.TryGetValue("value", out var raw)
+                && double.TryParse(raw, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var amount))
+            {
+                // A preview only: the stack is authoritative and the pipeline applies the real maths.
+                var factor = 1.0 + (amount / 100.0);
+
+                if (string.Equals(operation.OperationType, "Brightness", StringComparison.OrdinalIgnoreCase))
+                {
+                    brightness *= factor;
+                }
+                else if (string.Equals(operation.OperationType, "Contrast", StringComparison.OrdinalIgnoreCase))
+                {
+                    contrast *= factor;
+                }
+                else if (string.Equals(operation.OperationType, "Saturation", StringComparison.OrdinalIgnoreCase))
+                {
+                    saturate *= factor;
+                }
+            }
+
+            if (string.Equals(operation.OperationType, "Blur", StringComparison.OrdinalIgnoreCase))
+            {
+                var radiusText = operation.Parameters.TryGetValue("radius", out var radius) ? radius : null;
+                if (radiusText is not null
+                    && double.TryParse(radiusText, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var radiusValue))
+                {
+                    blur += radiusValue;
+                }
+            }
         }
 
-        return new PhotoTransform(rotate, flipX, flipY);
+        return new PhotoTransform(rotate, flipX, flipY, brightness, contrast, saturate, blur);
     }
 
     private void ApplyFavorite(Guid photoId, bool isFavorite)
@@ -789,10 +1060,20 @@ public partial class Photos : ComponentBase
         SetStatus(exception.Message, isError: true);
     }
 
-    private readonly record struct PhotoTransform(int Rotate, bool FlipX, bool FlipY)
+    private readonly record struct PhotoTransform(
+        int Rotate,
+        bool FlipX,
+        bool FlipY,
+        double Brightness = 1.0,
+        double Contrast = 1.0,
+        double Saturate = 1.0,
+        double Blur = 0.0)
     {
         public static PhotoTransform Identity { get; } = new(0, false, false);
     }
+
+    /// <summary>On-screen size of the crop layer, as reported by <c>dncPhotos.measure</c>.</summary>
+    private sealed record CropLayerSize(double Width, double Height);
 
     private enum PhotoView
     {

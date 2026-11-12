@@ -341,14 +341,30 @@
                 </button>
 
                 <figure class="viewer-figure">
-                    @if (_detailUrl is { } detailUrl)
-                    {
-                        <img id="viewer-image"
-                             class="viewer-image @(IsQuarterTurn ? "is-quarter-turn" : null)"
-                             alt="@current.FileName"
-                             src="@detailUrl"
-                             style="@TransformStyle" />
-                    }
+                    <div class="viewer-frame">
+                        @if (_detailUrl is { } detailUrl)
+                        {
+                            <img id="viewer-image"
+                                 class="viewer-image @(IsQuarterTurn ? "is-quarter-turn" : null)"
+                                 alt="@current.FileName"
+                                 src="@detailUrl"
+                                 style="@TransformStyle" />
+                        }
+
+                        @if (_cropActive)
+                        {
+                            <div class="crop-layer"
+                                 @ref="_cropLayer"
+                                 @onpointerdown="CropPointerDownAsync"
+                                 @onpointermove="CropPointerMove"
+                                 @onpointerup="CropPointerUp">
+                                @if (HasCropSelection)
+                                {
+                                    <div class="crop-selection" style="@CropSelectionStyle"></div>
+                                }
+                            </div>
+                        }
+                    </div>
                     <figcaption class="viewer-caption">@Caption(current)</figcaption>
                 </figure>
 
@@ -364,6 +380,7 @@
                     <button type="button" class="btn btn-secondary" @onclick='() => ApplyEditAsync(PhotoEditType.Rotate, "90")'>Rotate right</button>
                     <button type="button" class="btn btn-secondary" @onclick='() => ApplyEditAsync(PhotoEditType.Flip, "0")'>Flip</button>
                     <button type="button" class="btn btn-secondary" @onclick="UndoEditAsync">Undo</button>
+                    <button type="button" class="btn btn-secondary" @onclick="RevertAllEditsAsync">Revert all</button>
                     <button type="button" class="btn btn-primary" @onclick="SaveEditsAsync">Save edits</button>
                 </div>
 
@@ -378,6 +395,56 @@
                     </select>
                     <button type="button" class="btn btn-secondary" @onclick="AddToAlbumAsync">Add</button>
                     <button type="button" class="btn btn-secondary" @onclick="RemoveFromAlbumAsync">Remove</button>
+                </div>
+            </div>
+
+            <div class="viewer-adjust">
+                <div class="adjust-row">
+                    <span class="viewer-label">Brightness</span>
+                    <input type="range" min="-100" max="100" aria-label="Brightness" @bind="_brightnessInput" />
+                    <span class="adjust-value">@_brightnessInput</span>
+                    <button type="button" class="btn btn-secondary"
+                            @onclick='() => ApplyEditAsync(PhotoEditType.Brightness, _brightnessInput.ToString(System.Globalization.CultureInfo.InvariantCulture))'>Apply</button>
+                </div>
+                <div class="adjust-row">
+                    <span class="viewer-label">Contrast</span>
+                    <input type="range" min="-100" max="100" aria-label="Contrast" @bind="_contrastInput" />
+                    <span class="adjust-value">@_contrastInput</span>
+                    <button type="button" class="btn btn-secondary"
+                            @onclick='() => ApplyEditAsync(PhotoEditType.Contrast, _contrastInput.ToString(System.Globalization.CultureInfo.InvariantCulture))'>Apply</button>
+                </div>
+                <div class="adjust-row">
+                    <span class="viewer-label">Saturation</span>
+                    <input type="range" min="-100" max="100" aria-label="Saturation" @bind="_saturationInput" />
+                    <span class="adjust-value">@_saturationInput</span>
+                    <button type="button" class="btn btn-secondary"
+                            @onclick='() => ApplyEditAsync(PhotoEditType.Saturation, _saturationInput.ToString(System.Globalization.CultureInfo.InvariantCulture))'>Apply</button>
+                </div>
+                <div class="adjust-row">
+                    <span class="viewer-label">Sharpen</span>
+                    <input type="range" min="0" max="20" step="0.5" aria-label="Sharpen radius" @bind="_sharpenInput" />
+                    <span class="adjust-value">@_sharpenInput.ToString("0.#")</span>
+                    <button type="button" class="btn btn-secondary"
+                            @onclick='() => ApplyRadiusEditAsync(PhotoEditType.Sharpen, _sharpenInput)'>Apply</button>
+                </div>
+                <div class="adjust-row">
+                    <span class="viewer-label">Blur</span>
+                    <input type="range" min="0" max="20" step="0.5" aria-label="Blur radius" @bind="_blurInput" />
+                    <span class="adjust-value">@_blurInput.ToString("0.#")</span>
+                    <button type="button" class="btn btn-secondary"
+                            @onclick='() => ApplyRadiusEditAsync(PhotoEditType.Blur, _blurInput)'>Apply</button>
+                </div>
+                <div class="adjust-row">
+                    <span class="viewer-label">Crop</span>
+                    @if (_cropActive)
+                    {
+                        <button type="button" class="btn btn-primary" @onclick="ApplyCropAsync" disabled="@(!HasCropSelection)">Apply crop</button>
+                        <button type="button" class="btn btn-secondary" @onclick="CancelCrop">Cancel</button>
+                    }
+                    else
+                    {
+                        <button type="button" class="btn btn-secondary" @onclick="BeginCrop">Select area</button>
+                    }
                 </div>
             </div>
         </section>

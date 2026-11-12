@@ -133,6 +133,13 @@ public sealed class PhotosApi
     public Task UndoLastEditAsync(Guid photoId, CancellationToken cancellationToken = default) =>
         _api.SendAsync(HttpMethod.Delete, $"{PhotosPath}/{photoId}/edits/last", cancellationToken: cancellationToken);
 
+    /// <summary>Clears the edit stack and re-renders the previews from the original.</summary>
+    /// <param name="photoId">The photo id.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>A task that completes when the host reverted the edits.</returns>
+    public Task RevertAllEditsAsync(Guid photoId, CancellationToken cancellationToken = default) =>
+        _api.SendAsync(HttpMethod.Delete, $"{PhotosPath}/{photoId}/edits", cancellationToken: cancellationToken);
+
     /// <summary>Bakes the edit stack into the cached thumbnails.</summary>
     /// <param name="photoId">The photo id.</param>
     /// <param name="cancellationToken">Cancellation token.</param>

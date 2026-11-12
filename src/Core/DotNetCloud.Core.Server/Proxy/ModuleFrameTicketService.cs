@@ -1,6 +1,7 @@
 using System.Globalization;
 using DotNetCloud.Core.Modules;
 using Microsoft.AspNetCore.DataProtection;
+using Microsoft.Extensions.Configuration;
 
 namespace DotNetCloud.Core.Server.Proxy;
 
@@ -19,21 +20,59 @@ internal sealed class ModuleFrameTicketService : IModuleFrameTickets
     internal const string Purpose = "DotNetCloud.ModuleUi.FrameTicket";
 
     /// <summary>How long a freshly issued ticket is valid.</summary>
-    internal static readonly TimeSpan Lifetime = TimeSpan.FromMinutes(15);
+    /// <remarks>
+    /// Fifteen minutes was too short for a real session: a viewer left open past it had every API
+    /// call refused (401) with no way to re-mint the ticket except reloading the shell, which threw
+    /// away whatever the frame was in the middle of. A day-length session is the unit users think in;
+    /// <c>Modules:Ui:FrameTicketMinutes</c> overrides it.
+    /// </remarks>
+    internal static readonly TimeSpan Lifetime = TimeSpan.FromHours(8);
+
+    /// <summary>
+    /// How close to expiry a cached ticket may get before a new one is minted.
+    /// </summary>
+    /// <remarks>
+    /// A ticket is a credential, but it is also embedded in an iframe's <c>src</c>. Minting a fresh
+    /// string per call made that <c>src</c> change on every render - and a re-created component
+    /// re-mints even when its own state is cached - so the browser restarted the frame navigation and
+    /// aborted the in-flight load (<c>ERR_ABORTED</c>) before a cold WebAssembly bundle could boot.
+    /// Re-using a ticket while it has time left keeps the frame URL stable.
+    /// </remarks>
+    private static readonly TimeSpan ReuseWindow = TimeSpan.FromMinutes(5);
 
     private readonly IDataProtector _protector;
     private readonly TimeProvider _time;
+    private readonly TimeSpan _lifetime;
+    private readonly object _cacheGate = new();
+    private readonly Dictionary<string, (string Ticket, DateTimeOffset ExpiresAt)> _issued = new(StringComparer.Ordinal);
 
     /// <summary>Initializes a new instance of the <see cref="ModuleFrameTicketService"/> class.</summary>
     /// <param name="protectionProvider">The core DataProtection provider.</param>
     /// <param name="time">Clock (injected so expiry is testable).</param>
-    public ModuleFrameTicketService(IDataProtectionProvider protectionProvider, TimeProvider time)
+    /// <param name="configuration">Optional configuration; reads <c>Modules:Ui:FrameTicketMinutes</c>.</param>
+    public ModuleFrameTicketService(
+        IDataProtectionProvider protectionProvider,
+        TimeProvider time,
+        IConfiguration? configuration = null)
     {
         ArgumentNullException.ThrowIfNull(protectionProvider);
         ArgumentNullException.ThrowIfNull(time);
 
         _protector = protectionProvider.CreateProtector(Purpose);
         _time = time;
+        _lifetime = ReadLifetime(configuration);
+    }
+
+    private static TimeSpan ReadLifetime(IConfiguration? configuration)
+    {
+        if (configuration?["Modules:Ui:FrameTicketMinutes"] is { Length: > 0 } raw
+            && double.TryParse(raw, NumberStyles.Float, CultureInfo.InvariantCulture, out var minutes)
+            && minutes > 0)
+        {
+            return TimeSpan.FromMinutes(minutes);
+        }
+
+        return Lifetime;
     }
 
     /// <inheritdoc />
@@ -46,12 +85,37 @@ internal sealed class ModuleFrameTicketService : IModuleFrameTickets
             throw new ArgumentException("A frame ticket needs a user.", nameof(userId));
         }
 
-        var expires = _time.GetUtcNow().Add(Lifetime).ToUnixTimeSeconds();
-        var payload = string.Create(
-            CultureInfo.InvariantCulture,
-            $"{userId:N}|{moduleId}|{expires}");
+        var now = _time.GetUtcNow();
+        var key = $"{userId:N}|{moduleId}";
 
-        return _protector.Protect(payload);
+        lock (_cacheGate)
+        {
+            if (_issued.TryGetValue(key, out var cached) && cached.ExpiresAt - now > ReuseWindow)
+            {
+                return cached.Ticket;
+            }
+        }
+
+        var expiresAt = now.Add(_lifetime);
+        var ticket = _protector.Protect(string.Create(
+            CultureInfo.InvariantCulture,
+            $"{userId:N}|{moduleId}|{expiresAt.ToUnixTimeSeconds()}"));
+
+        lock (_cacheGate)
+        {
+            // Bounded: drop anything that can no longer be handed out before adding.
+            if (_issued.Count > 512)
+            {
+                foreach (var stale in _issued.Where(entry => entry.Value.ExpiresAt - now <= ReuseWindow).ToList())
+                {
+                    _issued.Remove(stale.Key);
+                }
+            }
+
+            _issued[key] = (ticket, expiresAt);
+        }
+
+        return ticket;
     }
 
     /// <summary>

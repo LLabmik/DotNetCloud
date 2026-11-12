@@ -34,7 +34,12 @@ namespace DotNetCloud.UI.Web.Components.Modules;
 public partial class ModuleAppHost : ComponentBase, IAsyncDisposable
 {
     /// <summary>Default time to wait for the frame's <c>dnc:ready</c> before showing a failure.</summary>
-    private static readonly TimeSpan HandshakeTimeout = TimeSpan.FromSeconds(10);
+    // A framed module boots a full Blazor WebAssembly app. Ten seconds was enough only when the
+    // browser had the bundle cached: after a deploy every _framework file has a new hash, the first
+    // load is cold, and the shell declared a perfectly healthy module dead — "The app did not
+    // respond. It may be stopped or restarting." — and unmounted it. The budget is measured from the
+    // frame's load event (see module-app-host.js), so this only covers the app's own boot.
+    private static readonly TimeSpan HandshakeTimeout = TimeSpan.FromSeconds(60);
 
     private ElementReference _frame;
     private DotNetObjectReference<ModuleAppHost>? _selfRef;
@@ -45,6 +50,12 @@ public partial class ModuleAppHost : ComponentBase, IAsyncDisposable
     private IReadOnlyList<string> _requestedScopes = [];
     private bool _consentBusy;
     private string? _frameTicket;
+
+    /// <summary>True while the mount bridge is being resolved, so a re-render cannot mount twice.</summary>
+    private bool _mounting;
+
+    /// <summary>The module the cached frame ticket was minted for, so a changed id re-mints.</summary>
+    private string? _ticketModuleId;
 
     /// <summary>Gets or sets the module id whose UI is framed.</summary>
     [Parameter, EditorRequired]
@@ -105,7 +116,11 @@ public partial class ModuleAppHost : ComponentBase, IAsyncDisposable
     };
 
     /// <summary>Gets a value indicating whether the iframe should be in the DOM.</summary>
-    private bool ShowFrame => _state is ModuleAppHostState.Starting or ModuleAppHostState.Running;
+    // The iframe's src carries the ticket, so it must not render until the ticket exists: an
+    // unticketed src loads once (401), then the real src loads again, and every extra navigation
+    // aborts the one in flight (ERR_ABORTED) - fatal for a cold WebAssembly boot.
+    private bool ShowFrame => _frameTicket is not null
+        && _state is ModuleAppHostState.Starting or ModuleAppHostState.Running;
 
     /// <summary>Gets the link to the user's own consent manager.</summary>
     private static string ConnectedAppsHref => "/connected-apps";
@@ -177,29 +192,52 @@ public partial class ModuleAppHost : ComponentBase, IAsyncDisposable
     {
         // The frame runs with an opaque origin, so it cannot send the session cookie. The ticket in
         // the URL is its credential; the SDK bridge forwards it on the module's own API calls.
+        //
+        // Mint it ONCE per module: the iframe's src is bound to this value, so issuing a new ticket on
+        // every parameter set changed the attribute on every shell re-render (module health polls,
+        // navigation-registry changes) and restarted the frame's navigation - each restart aborted the
+        // in-flight load with ERR_ABORTED, so a cold WebAssembly boot never finished and the shell
+        // reported "The app did not respond. It may be stopped or restarting."
+        if (_frameTicket is not null && string.Equals(_ticketModuleId, ModuleId, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        _ticketModuleId = ModuleId;
         _frameTicket = await ModuleFrameSource.IssueAsync(AuthenticationState, FrameTickets, ModuleId);
     }
 
     /// <inheritdoc />
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (!firstRender || !ShowFrame || Source.Length == 0)
+        // Mount when the frame element first exists, which is after the ticket resolves - not on the
+        // first render, when ShowFrame is still false.
+        if (!ShowFrame || Source.Length == 0 || _handle is not null || _mounting)
         {
             return;
         }
 
-        _selfRef ??= DotNetObjectReference.Create(this);
-        _handle ??= await JSRuntime.InvokeAsync<IJSObjectReference>(
-            "dotnetcloudModuleApp.mount",
-            _frame,
-            _selfRef,
-            new
-            {
-                moduleId = ModuleId,
-                title = DisplayTitle,
-                role = "app",
-                handshakeTimeoutMs = (int)HandshakeTimeout.TotalMilliseconds,
-            });
+        _mounting = true;
+
+        try
+        {
+            _selfRef ??= DotNetObjectReference.Create(this);
+            _handle = await JSRuntime.InvokeAsync<IJSObjectReference>(
+                "dotnetcloudModuleApp.mount",
+                _frame,
+                _selfRef,
+                new
+                {
+                    moduleId = ModuleId,
+                    title = DisplayTitle,
+                    role = "app",
+                    handshakeTimeoutMs = (int)HandshakeTimeout.TotalMilliseconds,
+                });
+        }
+        finally
+        {
+            _mounting = false;
+        }
     }
 
     /// <summary>Raised by the bridge when the frame has mounted the module UI.</summary>

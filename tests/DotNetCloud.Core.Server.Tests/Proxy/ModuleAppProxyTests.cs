@@ -533,4 +533,31 @@ public class ModuleAppProxyTests
         var identity = new ClaimsIdentity([new Claim(ClaimTypes.NameIdentifier, userId.ToString())], "test");
         return new DefaultHttpContext { User = new ClaimsPrincipal(identity) };
     }
+
+    [TestMethod]
+    public async Task TransformResponseAsync_CoreSecurityHeaders_DoNotSurviveBesideTheModulePolicy()
+    {
+        using var keyRing = new ModuleAssertionKeyRing();
+        var transformer = new ModuleAppProxyTransformer(ModuleId, keyRing);
+
+        // What the core-wide security-header middleware has already written when the proxy runs.
+        var context = new DefaultHttpContext();
+        context.Response.Headers["X-Frame-Options"] = "SAMEORIGIN";
+        context.Response.Headers["Content-Security-Policy"] = "default-src 'self'; frame-src 'self'";
+
+        using var proxyResponse = new HttpResponseMessage(System.Net.HttpStatusCode.OK)
+        {
+            Content = new StringContent("<html></html>", System.Text.Encoding.UTF8, "text/html"),
+        };
+
+        await transformer.TransformResponseAsync(context, proxyResponse, CancellationToken.None);
+
+        Assert.IsFalse(
+            context.Response.Headers.ContainsKey("X-Frame-Options"),
+            "X-Frame-Options: SAMEORIGIN makes the browser abort a sandboxed (opaque-origin) frame, which is every module app and widget.");
+        Assert.AreEqual(
+            ModuleAppResponsePolicy.ContentSecurityPolicy,
+            context.Response.Headers["Content-Security-Policy"].Single(),
+            "the module policy owns the CSP; a second one makes the browser ignore the later directives");
+    }
 }

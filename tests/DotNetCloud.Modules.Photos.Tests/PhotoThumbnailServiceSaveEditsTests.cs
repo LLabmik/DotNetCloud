@@ -32,6 +32,26 @@ public sealed class PhotoThumbnailServiceSaveEditsTests
         return ms.ToArray();
     }
 
+
+    private static byte[] CreatePatternImage(int width = 400, int height = 300)
+    {
+        using var image = new Image<Rgba32>(Configuration.Default, width, height);
+
+        for (var y = 0; y < height; y++)
+        {
+            for (var x = 0; x < width; x++)
+            {
+                image[x, y] = ((x / 4) + (y / 4)) % 2 == 0
+                    ? new Rgba32(255, 255, 255)
+                    : new Rgba32(0, 0, 0);
+            }
+        }
+
+        using var ms = new MemoryStream();
+        image.SaveAsJpeg(ms);
+        return ms.ToArray();
+    }
+
     private PhotoThumbnailService CreateService(FakeFileModuleApi? coreApi) =>
         new(_db, NullLogger<PhotoThumbnailService>.Instance, configuration: null, coreApi: coreApi);
 
@@ -95,8 +115,11 @@ public sealed class PhotoThumbnailServiceSaveEditsTests
     }
 
     [TestMethod]
-    public async Task SaveEditsAsync_NoEditRecords_ReturnsTrueWithoutReadingTheOriginal()
+    public async Task SaveEditsAsync_NoEditRecords_ReRendersTheOriginal()
     {
+        // An empty stack is what revert-all leaves behind, so the previews must be rebuilt from the
+        // untouched original - the old shortcut returned without reading it, which is exactly why a
+        // reverted photo kept showing the edits that had just been dropped.
         var ownerId = Guid.CreateVersion7();
         var photo = await TestHelpers.SeedPhotoAsync(_db, ownerId);
 
@@ -104,7 +127,11 @@ public sealed class PhotoThumbnailServiceSaveEditsTests
         var service = CreateService(coreApi);
 
         Assert.IsTrue(await service.SaveEditsAsync(photo.Id, ownerId));
-        Assert.AreEqual(0, coreApi.DownloadedNodeIds.Count);
+        CollectionAssert.AreEqual(new[] { photo.FileNodeId.ToString() }, coreApi.DownloadedNodeIds);
+
+        var stored = _db.Photos.Single(p => p.Id == photo.Id);
+        Assert.IsTrue(stored.ThumbnailDetail is { Length: > 0 });
+        Assert.IsTrue(stored.ThumbnailGrid is { Length: > 0 });
     }
 
     [TestMethod]
@@ -251,5 +278,88 @@ public sealed class PhotoThumbnailServiceSaveEditsTests
 
         Assert.IsTrue(await service.SaveEditsAsync(photo.Id, ownerId));
         CollectionAssert.AreEqual(new[] { photo.FileNodeId.ToString() }, coreApi.DownloadedNodeIds);
+    }
+
+    [TestMethod]
+    public async Task SaveEditsAsync_CropEdit_BakesTheRectangleIntoThePreview()
+    {
+        var ownerId = Guid.CreateVersion7();
+        var photo = await SeedPhotoWithEditsAsync(
+            ownerId,
+            "image/jpeg",
+            ("Crop", """{"x":"50","y":"40","width":"200","height":"120"}"""));
+
+        var service = CreateService(new FakeFileModuleApi(CreateTestImage(400, 300)));
+
+        Assert.IsTrue(await service.SaveEditsAsync(photo.Id, ownerId));
+
+        using var detail = Image.Load(_db.Photos.Single(p => p.Id == photo.Id).ThumbnailDetail!);
+        Assert.AreEqual(200, detail.Width);
+        Assert.AreEqual(120, detail.Height);
+    }
+
+    [TestMethod]
+    public async Task SaveEditsAsync_CropLargerThanTheImage_IsClampedInsteadOfThrowing()
+    {
+        var ownerId = Guid.CreateVersion7();
+        var photo = await SeedPhotoWithEditsAsync(
+            ownerId,
+            "image/jpeg",
+            ("Crop", """{"x":"300","y":"200","width":"500","height":"500"}"""));
+
+        var service = CreateService(new FakeFileModuleApi(CreateTestImage(400, 300)));
+
+        Assert.IsTrue(await service.SaveEditsAsync(photo.Id, ownerId));
+
+        using var detail = Image.Load(_db.Photos.Single(p => p.Id == photo.Id).ThumbnailDetail!);
+        Assert.AreEqual(100, detail.Width);
+        Assert.AreEqual(100, detail.Height);
+    }
+
+    [TestMethod]
+    public async Task SaveEditsAsync_BlurWithRadiusOnly_ChangesThePreview()
+    {
+        // Same source, same pipeline: if the blur were skipped (the old `value`-only gate), the
+        // encoded preview would be byte-identical to the unedited one.
+        var ownerId = Guid.CreateVersion7();
+        var plain = await SeedPhotoWithEditsAsync(ownerId, "image/jpeg");
+        var blurred = await SeedPhotoWithEditsAsync(ownerId, "image/jpeg", ("Blur", """{"radius":"4"}"""));
+
+        // A uniform image would blur to itself; a checkerboard makes the effect observable.
+        var service = CreateService(new FakeFileModuleApi(CreatePatternImage()));
+
+        Assert.IsTrue(await service.SaveEditsAsync(plain.Id, ownerId));
+        Assert.IsTrue(await service.SaveEditsAsync(blurred.Id, ownerId));
+
+        var plainDetail = _db.Photos.Single(p => p.Id == plain.Id).ThumbnailDetail!;
+        var blurredDetail = _db.Photos.Single(p => p.Id == blurred.Id).ThumbnailDetail!;
+
+        CollectionAssert.AreNotEqual(plainDetail, blurredDetail);
+    }
+
+    [TestMethod]
+    public async Task RegeneratePreviewsAsync_AfterRevert_RestoresTheUneditedOrientation()
+    {
+        var ownerId = Guid.CreateVersion7();
+        var photo = await SeedPhotoWithEditsAsync(ownerId, "image/jpeg", ("Rotate", """{"value":"90"}"""));
+
+        var service = CreateService(new FakeFileModuleApi(CreateTestImage(400, 300)));
+
+        Assert.IsTrue(await service.SaveEditsAsync(photo.Id, ownerId));
+
+        using (var rotated = Image.Load(_db.Photos.Single(p => p.Id == photo.Id).ThumbnailDetail!))
+        {
+            Assert.IsTrue(rotated.Height > rotated.Width, "the rotation should have been baked");
+        }
+
+        // Revert-all: the stack is gone, so the previews have to come back from the original.
+        var records = _db.PhotoEditRecords.Where(r => r.PhotoId == photo.Id).ToList();
+        _db.PhotoEditRecords.RemoveRange(records);
+        await _db.SaveChangesAsync();
+
+        Assert.IsTrue(await service.RegeneratePreviewsAsync(photo.Id, ownerId));
+
+        using var restored = Image.Load(_db.Photos.Single(p => p.Id == photo.Id).ThumbnailDetail!);
+        Assert.IsTrue(restored.Width > restored.Height, "revert should restore the unedited orientation");
     }
 }

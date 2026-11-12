@@ -111,14 +111,22 @@
         }
         sendInit();
 
-        if (!ready && handshakeTimer === null) {
-          handshakeTimer = window.setTimeout(function () {
-            handshakeTimer = null;
-            if (!disposed && !ready) {
-              dotNetRef.invokeMethodAsync('OnHandshakeTimeout');
-            }
-          }, options.handshakeTimeoutMs || 10000);
+        // Start the budget from the load event, not from mount(): a cold WebAssembly bundle can take
+        // far longer than the timeout to fetch, and timing the document fetch as if it were the app's
+        // boot is what made a healthy module look dead after every deploy.
+        if (!ready) {
+          startHandshakeTimer();
         }
+      }
+
+      function startHandshakeTimer() {
+        clearHandshake();
+        handshakeTimer = window.setTimeout(function () {
+          handshakeTimer = null;
+          if (!disposed && !ready) {
+            dotNetRef.invokeMethodAsync('OnHandshakeTimeout');
+          }
+        }, options.handshakeTimeoutMs || 60000);
       }
 
       function onError() {

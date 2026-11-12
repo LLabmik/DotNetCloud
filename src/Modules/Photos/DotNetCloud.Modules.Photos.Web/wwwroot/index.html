@@ -29,6 +29,8 @@
          carries the frame ticket. The last script starts Blazor with absolute boot URLs. -->
     <script src="js/dncModuleBridge.js"></script>
     <script src="js/dncModuleFrame.js"></script>
+    <!-- Crop selection needs the on-screen size of the crop layer; PointerEventArgs carries only the offset. -->
+    <script src="js/photos-edit.js"></script>
     <!-- autostart is off on purpose: an opaque-origin frame cannot resolve the loader's relative
          `import("./dotnet.js")`, so js/dncModuleBoot.js starts Blazor with absolute boot URLs. -->
     <script src="_framework/blazor.webassembly.js" autostart="false"></script>

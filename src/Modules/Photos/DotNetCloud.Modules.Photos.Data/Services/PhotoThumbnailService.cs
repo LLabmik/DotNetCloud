@@ -333,8 +333,10 @@ public sealed class PhotoThumbnailService : IPhotoThumbnailService
 
             if (editRecords.Count == 0)
             {
-                _logger.LogDebug("SaveEdits: No edits to apply for photo {PhotoId}", photoId);
-                return true; // nothing to do
+                // Revert-all and undo arrive here with an empty stack: the previews still have to be
+                // rebuilt, because earlier "save" baked them and the point of the revert is to undo
+                // that. An empty stack therefore renders the untouched original.
+                _logger.LogDebug("SaveEdits: no queued edits for photo {PhotoId}; re-rendering the original", photoId);
             }
 
             // 3. Read the original through the core (the module has no filesystem access to it).
@@ -390,49 +392,128 @@ public sealed class PhotoThumbnailService : IPhotoThumbnailService
         }
     }
 
+    /// <inheritdoc />
+    /// <remarks>
+    /// The same operation as <see cref="SaveEditsAsync"/> - render the current edit stack onto the
+    /// previews, with an empty stack rendering the unedited original. This name exists because "save"
+    /// reads wrong at the undo/revert call sites.
+    /// </remarks>
+    public Task<bool> RegeneratePreviewsAsync(Guid photoId, Guid actingUserId, CancellationToken cancellationToken = default)
+        => SaveEditsAsync(photoId, actingUserId, cancellationToken);
+
     private static void ApplyEditToImage(Image image, PhotoEditType editType, Dictionary<string, string> parameters)
     {
-        if (!parameters.TryGetValue("value", out var valueStr) || !int.TryParse(valueStr, out var value))
-            return;
-
-        image.Mutate(ctx =>
+        switch (editType)
         {
-            switch (editType)
-            {
-                case PhotoEditType.Rotate:
-                    ctx.Rotate(value);
-                    break;
+            case PhotoEditType.Rotate:
+                if (TryReadInt(parameters, "value", out var degrees))
+                {
+                    image.Mutate(ctx => ctx.Rotate(degrees));
+                }
 
-                case PhotoEditType.Flip:
-                    if (value == 0)
-                        ctx.Flip(FlipMode.Horizontal);
-                    else
-                        ctx.Flip(FlipMode.Vertical);
-                    break;
+                break;
 
-                case PhotoEditType.Brightness:
-                    // value is -100 to 100; ImageSharp expects a multiplier where 1.0 = no change
-                    ctx.Brightness(1.0f + (value / 100f));
-                    break;
+            case PhotoEditType.Flip:
+                if (TryReadInt(parameters, "value", out var flip))
+                {
+                    image.Mutate(ctx => ctx.Flip(flip == 0 ? FlipMode.Horizontal : FlipMode.Vertical));
+                }
 
-                case PhotoEditType.Contrast:
-                    ctx.Contrast(1.0f + (value / 100f));
-                    break;
+                break;
 
-                case PhotoEditType.Saturation:
-                    ctx.Saturate(1.0f + (value / 100f));
-                    break;
+            case PhotoEditType.Brightness:
+            case PhotoEditType.Contrast:
+            case PhotoEditType.Saturation:
+                // The API takes -100..100; ImageSharp takes a multiplier where 1.0 is no change.
+                if (TryReadFloat(parameters, "value", out var amount))
+                {
+                    var factor = 1.0f + (amount / 100f);
+                    image.Mutate(ctx =>
+                    {
+                        switch (editType)
+                        {
+                            case PhotoEditType.Brightness:
+                                ctx.Brightness(factor);
+                                break;
+                            case PhotoEditType.Contrast:
+                                ctx.Contrast(factor);
+                                break;
+                            default:
+                                ctx.Saturate(factor);
+                                break;
+                        }
+                    });
+                }
 
-                case PhotoEditType.Blur:
-                    if (value > 0)
-                        ctx.GaussianBlur(value);
-                    break;
+                break;
 
-                case PhotoEditType.Sharpen:
-                    if (value > 0)
-                        ctx.GaussianSharpen(value);
-                    break;
-            }
-        });
+            case PhotoEditType.Blur:
+            case PhotoEditType.Sharpen:
+                // `radius` is what the API validator accepts; `value` is what the first UI sent.
+                if (TryReadRadius(parameters, out var radius) && radius > 0)
+                {
+                    image.Mutate(ctx =>
+                    {
+                        if (editType == PhotoEditType.Blur)
+                        {
+                            ctx.GaussianBlur(radius);
+                        }
+                        else
+                        {
+                            ctx.GaussianSharpen(radius);
+                        }
+                    });
+                }
+
+                break;
+
+            case PhotoEditType.Crop:
+                ApplyCrop(image, parameters);
+                break;
+        }
     }
+
+    /// <summary>
+    /// Crops to the recorded rectangle, clamped to the image it is applied to.
+    /// </summary>
+    /// <remarks>
+    /// The rectangle is recorded in original pixels, but earlier operations in the stack (a rotate, or
+    /// another crop) change the frame it refers to. Clamping turns a stale rectangle into the largest
+    /// legal crop instead of throwing and losing the whole stack - which is why the old pipeline, whose
+    /// single int gate skipped Crop entirely, could never apply one.
+    /// </remarks>
+    private static void ApplyCrop(Image image, Dictionary<string, string> parameters)
+    {
+        if (!TryReadInt(parameters, "x", out var x)
+            || !TryReadInt(parameters, "y", out var y)
+            || !TryReadInt(parameters, "width", out var width)
+            || !TryReadInt(parameters, "height", out var height))
+        {
+            return;
+        }
+
+        x = Math.Clamp(x, 0, image.Width - 1);
+        y = Math.Clamp(y, 0, image.Height - 1);
+        width = Math.Clamp(width, 1, image.Width - x);
+        height = Math.Clamp(height, 1, image.Height - y);
+
+        image.Mutate(ctx => ctx.Crop(new Rectangle(x, y, width, height)));
+    }
+
+    private static bool TryReadInt(Dictionary<string, string> parameters, string key, out int value)
+    {
+        value = 0;
+        return parameters.TryGetValue(key, out var raw)
+            && int.TryParse(raw, System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out value);
+    }
+
+    private static bool TryReadFloat(Dictionary<string, string> parameters, string key, out float value)
+    {
+        value = 0;
+        return parameters.TryGetValue(key, out var raw)
+            && float.TryParse(raw, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out value);
+    }
+
+    private static bool TryReadRadius(Dictionary<string, string> parameters, out float radius)
+        => TryReadFloat(parameters, "radius", out radius) || TryReadFloat(parameters, "value", out radius);
 }
