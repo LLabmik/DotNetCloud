@@ -105,6 +105,26 @@
                             </NavLink>
                         </li>
                         <li class="nav-item">
+                            <NavLink href="/admin/store" Match="NavLinkMatch.Prefix" class="nav-link"
+                                     title="Module Store" aria-label="Module Store">
+                                <MaterialIcon Icon="extension" CssClass="nav-icon" />
+                                @if (!Collapsed)
+                                {
+                                    <span class="nav-text">Module Store</span>
+                                }
+                            </NavLink>
+                        </li>
+                        <li class="nav-item">
+                            <NavLink href="/admin/erasure" Match="NavLinkMatch.Prefix" class="nav-link"
+                                     title="Data Erasure" aria-label="Data Erasure">
+                                <MaterialIcon Icon="delete_sweep" CssClass="nav-icon" />
+                                @if (!Collapsed)
+                                {
+                                    <span class="nav-text">Data Erasure</span>
+                                }
+                            </NavLink>
+                        </li>
+                        <li class="nav-item">
                             <NavLink href="/admin/settings" Match="NavLinkMatch.Prefix" class="nav-link"
                                      title="Settings" aria-label="Settings">
                                 <span class="nav-icon">⚙</span>
@@ -125,8 +145,8 @@
                             </NavLink>
                         </li>
                         <li class="nav-item">
-                            <NavLink href="/admin/system" Match="NavLinkMatch.Prefix" class="nav-link"
-                                     title="System" aria-label="System">
+                            <NavLink href="/admin/system" Match="NavLinkMatch.Prefix" class="nav-link" title="System"
+                                     aria-label="System">
                                 <MaterialIcon Icon="speed" CssClass="nav-icon" />
                                 @if (!Collapsed)
                                 {
@@ -226,7 +246,7 @@
                         <li class="nav-item nav-item-has-external">
                             <NavLink href="@item.Href" Match="NavLinkMatch.Prefix" class="nav-link" title="@item.Label"
                                      aria-label="@item.Label">
-                                <span class="nav-icon">@item.Icon</span>
+                                <MaterialIcon Icon="@item.Icon" CssClass="nav-icon" />
                                 @if (!Collapsed)
                                 {
                                     <span class="nav-text">@item.Label</span>
@@ -280,15 +300,14 @@
                     @if (!Collapsed)
                     {
                         <a href="/apps/browser-extension" target="_blank" rel="noopener" class="nav-external"
-                           title="Open Browser Extension in a new tab"
-                           aria-label="Open Browser Extension in a new tab">
+                           title="Open Browser Extension in a new tab" aria-label="Open Browser Extension in a new tab">
                             <MaterialIcon Icon="open_in_new" Size="MaterialIconSize.Sm" />
                         </a>
                     }
                 </li>
                 <li class="nav-item nav-item-has-external">
-                    <NavLink href="/apps/android" Match="NavLinkMatch.Prefix" class="nav-link"
-                             title="Android Client" aria-label="Android Client">
+                    <NavLink href="/apps/android" Match="NavLinkMatch.Prefix" class="nav-link" title="Android Client"
+                             aria-label="Android Client">
                         <span class="nav-icon">
                             <MaterialIcon Icon="smartphone" />
                         </span>
@@ -300,8 +319,7 @@
                     @if (!Collapsed)
                     {
                         <a href="/apps/android" target="_blank" rel="noopener" class="nav-external"
-                           title="Open Android Client in a new tab"
-                           aria-label="Open Android Client in a new tab">
+                           title="Open Android Client in a new tab" aria-label="Open Android Client in a new tab">
                             <MaterialIcon Icon="open_in_new" Size="MaterialIconSize.Sm" />
                         </a>
                     }
@@ -311,7 +329,7 @@
                     <li class="nav-item nav-item-has-external">
                         <NavLink href="@item.Href" Match="NavLinkMatch.Prefix" class="nav-link" title="@item.Label"
                                  aria-label="@item.Label">
-                            <span class="nav-icon">@item.Icon</span>
+                            <MaterialIcon Icon="@item.Icon" CssClass="nav-icon" />
                             @if (!Collapsed)
                             {
                                 <span class="nav-text">@item.Label</span>

@@ -192,14 +192,26 @@ The `RequestResponseLoggingMiddleware` automatically masks:
 
 ## 9. Module Isolation
 
-Each module runs as a separate OS process. In production:
+Each module runs as a separate OS process, supervised by the core. In production:
 
-- Each module should run under its own Linux user account
-- Unix socket files should have permissions `0600` (owner read/write only)
-- File system access should be restricted per module (use systemd `ReadWritePaths`, `ProtectSystem`, etc.)
-- No module should directly access another module's database
+- **Modules run under the core's service account** (per-module OS accounts are a public-store launch
+  gate, not implemented). The boundary between modules is the API: per-launch credential, capability
+  grants and per-user consent — *not* the OS user.
+- Each module gets its own directory, `<DOTNETCLOUD_DATA_DIR>/modules/<id>/{config,data,run}`, at `0700`,
+  and never receives the core's `config.json` or DataProtection key ring.
+- The core↔module transport is a per-module Unix socket (directory `0700`, socket `0600`) on Linux and
+  a `CurrentUserOnly` Named Pipe on Windows. Loopback TCP is the fallback (`Modules__Transport=Tcp`)
+  and should only be used where a shared filesystem is impossible.
+- A module with `dataStore: "isolated"` gets its own database schema and login principal; that
+  principal is denied `core`, every sibling schema and database-scoped DDL.
+- Sandboxing is on by default. The transitional `ProcessSupervisor:AllowLegacyAccess` override
+  (bundled modules only, never store-tier) exists for migration and should be **off** — it hands the
+  module the shared config/data directories.
+- No module accesses another module's database, files or endpoint.
 
-The auto-generated systemd service files handle most of this automatically.
+In containers, mount the data directory into every module container so the socket path is visible to
+both ends, or set `Modules__Transport=Tcp`; see `docs/modules/MODULE_SECURITY.md` §9.4. The
+auto-generated systemd unit handles the directory layout and `ProtectSystem` hardening.
 
 ---
 

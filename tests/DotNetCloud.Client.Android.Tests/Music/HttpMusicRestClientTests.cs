@@ -40,7 +40,7 @@ public sealed class HttpMusicRestClientTests
     private HttpRequestMessage GetSingleRequest()
         => (HttpRequestMessage)_handler.Invocations
             .Single(invocation => invocation.Method.Name == "SendAsync")
-            .Arguments[0];
+            .Arguments[0]!;
 
     private void SetupGetResponse(string urlPattern, HttpStatusCode statusCode, object? responseData)
     {

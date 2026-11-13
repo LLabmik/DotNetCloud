@@ -9,13 +9,16 @@ namespace DotNetCloud.Modules.Photos.Data.Services;
 
 /// <summary>
 /// Implements the photo indexing callback — bridges the Module → Data layer gap.
-/// Called by FileUploadedPhotoHandler when an image file is uploaded.
 /// </summary>
+/// <remarks>
+/// Indexing only records that an image node belongs to the user's library; it does not decode the
+/// image. Thumbnails are produced on first view, inside a request that carries the owner's
+/// assertion, because a sandboxed module can only read the original through the core on behalf of a
+/// signed-in user.
+/// </remarks>
 public sealed class PhotoIndexingCallback : IPhotoIndexingCallback
 {
     private readonly PhotoService _photoService;
-    private readonly IPhotoThumbnailService _thumbnailService;
-    private readonly IPhotoThumbnailQueue? _thumbnailQueue;
     private readonly PhotosDbContext _db;
     private readonly ILogger<PhotoIndexingCallback> _logger;
 
@@ -23,81 +26,33 @@ public sealed class PhotoIndexingCallback : IPhotoIndexingCallback
     /// Initializes a new instance of the <see cref="PhotoIndexingCallback"/> class.
     /// </summary>
     /// <param name="photoService">Photo CRUD service.</param>
-    /// <param name="thumbnailService">Thumbnail generator (inline fallback when no queue is available).</param>
     /// <param name="db">Photos database context.</param>
     /// <param name="logger">Logger.</param>
-    /// <param name="thumbnailQueue">
-    /// Optional background thumbnail queue. When present, indexing does not block on image
-    /// decoding; when absent (unit tests, hosts without the worker) thumbnails are generated inline.
-    /// </param>
     public PhotoIndexingCallback(
         PhotoService photoService,
-        IPhotoThumbnailService thumbnailService,
         PhotosDbContext db,
-        ILogger<PhotoIndexingCallback> logger,
-        IPhotoThumbnailQueue? thumbnailQueue = null)
+        ILogger<PhotoIndexingCallback> logger)
     {
         _photoService = photoService;
-        _thumbnailService = thumbnailService;
         _db = db;
         _logger = logger;
-        _thumbnailQueue = thumbnailQueue;
     }
 
     /// <inheritdoc />
-    public async Task IndexPhotoAsync(Guid fileNodeId, string fileName, string mimeType, long sizeBytes, Guid ownerId, string? storagePath = null, CancellationToken cancellationToken = default)
+    public async Task IndexPhotoAsync(Guid fileNodeId, string fileName, string mimeType, long sizeBytes, Guid ownerId, CancellationToken cancellationToken = default)
     {
         // Check for existing photo record (idempotent re-scan support)
         var existing = await _photoService.GetByFileNodeIdAsync(fileNodeId, ownerId, cancellationToken);
         if (existing is not null)
         {
             _logger.LogDebug("Photo already exists for FileNode {FileNodeId} (PhotoId {PhotoId}), skipping insert", fileNodeId, existing.Id);
-
-            // Thumbnails are generated in the background (or inline when no queue is registered);
-            // the thumbnail service itself skips photos that already have both sizes.
-            await GenerateOrQueueThumbnailsAsync(existing.Id, storagePath, mimeType, cancellationToken);
-
             return;
         }
 
         var caller = new CallerContext(ownerId, ["user"], CallerType.System);
         var photo = await _photoService.CreatePhotoAsync(fileNodeId, fileName, mimeType, sizeBytes, ownerId, caller, cancellationToken);
 
-        _logger.LogDebug("Photo indexed for FileNode {FileNodeId} by user {OwnerId}", fileNodeId, ownerId);
-
-        // Queue thumbnails so the import/callback returns immediately after the insert.
-        await GenerateOrQueueThumbnailsAsync(photo.Id, storagePath, mimeType, cancellationToken);
-    }
-
-    /// <summary>
-    /// Enqueues thumbnail generation when a queue is available, otherwise generates inline.
-    /// Inline generation is also used when the bounded queue is full, so a burst of imports can
-    /// never silently drop thumbnails.
-    /// </summary>
-    private async Task GenerateOrQueueThumbnailsAsync(
-        Guid photoId,
-        string? storagePath,
-        string mimeType,
-        CancellationToken cancellationToken)
-    {
-        if (_thumbnailQueue is not null &&
-            _thumbnailQueue.TryEnqueue(new PhotoThumbnailWorkItem(photoId, storagePath, mimeType)))
-        {
-            _logger.LogDebug(
-                "Queued thumbnail generation for photo {PhotoId} ({Pending} pending)",
-                photoId, _thumbnailQueue.PendingCount);
-            return;
-        }
-
-        try
-        {
-            await _thumbnailService.GenerateThumbnailsAsync(photoId, storagePath, mimeType, cancellationToken);
-            _logger.LogDebug("Thumbnails generated inline for photo {PhotoId}", photoId);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "Failed to generate thumbnails for photo {PhotoId}", photoId);
-        }
+        _logger.LogDebug("Photo {PhotoId} indexed for FileNode {FileNodeId}", photo.Id, fileNodeId);
     }
 
     /// <inheritdoc />
@@ -154,9 +109,11 @@ public sealed class PhotoIndexingCallback : IPhotoIndexingCallback
         _db.Photos.RemoveRange(photos);
         await _db.SaveChangesAsync(cancellationToken);
 
+        // The owner id is an account identifier: it is deliberately never logged
+        // (cs/exposure-of-sensitive-information).
         _logger.LogInformation(
-            "Hard-deleted {Count} photo records for user {OwnerId} (removed from library)",
-            photos.Count, ownerId);
+            "Hard-deleted {Count} photo records removed from the library",
+            photos.Count);
 
         return photos.Count;
     }
@@ -164,7 +121,7 @@ public sealed class PhotoIndexingCallback : IPhotoIndexingCallback
     /// <inheritdoc />
     public async Task ResetCollectionAsync(Guid ownerId, CancellationToken cancellationToken = default)
     {
-        _logger.LogWarning("RESET: Deleting photo library metadata for owner {OwnerId}", ownerId);
+        _logger.LogWarning("RESET: deleting photo library metadata for an account");
 
         // Get all photo IDs owned by this user
         var ownedPhotoIds = await _db.Photos
@@ -213,7 +170,7 @@ public sealed class PhotoIndexingCallback : IPhotoIndexingCallback
 
         await _db.SaveChangesAsync(cancellationToken);
 
-        _logger.LogWarning("RESET complete for owner {OwnerId}: {PhotoCount} photos, {AlbumCount} albums",
-            ownerId, photos.Count, albums.Count);
+        _logger.LogWarning("RESET complete: {PhotoCount} photos, {AlbumCount} albums removed",
+            photos.Count, albums.Count);
     }
 }

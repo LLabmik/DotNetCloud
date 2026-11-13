@@ -1,28 +1,33 @@
 # DotNetCloud.Modules.Email
 
-> **Purpose:** Email module core library — email client, inbox management, and compose/send Blazor UI
-> **Type:** Library (Razor Class Library)
+> **Purpose:** Email module contracts — models, service interfaces, events, and the HTTP API client
+> **Type:** Library (class library)
 > **Target Framework:** net10.0
 
 ## Overview
 
-The main library for the Email module. Provides Blazor UI components for email inbox browsing, message reading, compose/send with rich text, attachment management, and folder organization. Implements `IModuleLifecycle`.
+The Email module's contract library. It holds the entity models, the service interfaces, the domain
+events and the HTTP client for the module's own REST API. The module's **UI is not here**: since
+Track C it is a static app served by `DotNetCloud.Modules.Email.Host/wwwroot` and framed by the core
+at `/apps/dotnetcloud.email/`, so this project has no Razor SDK, no ASP.NET Core framework reference
+and no dependency on the core's Blazor component library.
 
 ## Key Features
 
-- **Inbox Management** — Browse, search, and filter email messages
-- **Compose & Send** — Rich text email composition with attachments
-- **Folder Organization** — Custom folders, labels, and filtering
-- **Attachment Management** — Upload, download, and preview email attachments
-- **Module Lifecycle** — Implements `IModuleLifecycle`
+- **Models** — accounts, mailboxes, threads, messages, attachments, rules (conditions and actions)
+- **Service contracts** — accounts, send, sync, rules, providers (`IEmailProvider`), attachment storage
+- **Events** — account added/removed, thread created, message received, sent, rule triggered
+
+> There is no module-side HTTP client: the host owns the REST surface (its UI is JavaScript) and the
+> core reaches the module over gRPC through `IEmailApiClient` in `DotNetCloud.Core`.
 
 ## Projects This Interacts With
 
 ### Direct Dependencies
-- `DotNetCloud.Core` — Core interfaces and module contracts
-- `DotNetCloud.UI.Shared` — Shared Blazor components
+
+- `DotNetCloud.Core` — core interfaces and module contracts
 
 ### Dependent Projects
-- `DotNetCloud.Modules.Email.Host` — Hosts this module as a gRPC process
-- `DotNetCloud.Core.Server` — Registers Blazor components
-- `DotNetCloud.UI.Web` — Aggregates Blazor pages
+
+- `DotNetCloud.Modules.Email.Data` — EF Core model and services
+- `DotNetCloud.Modules.Email.Host` — the process that runs the module

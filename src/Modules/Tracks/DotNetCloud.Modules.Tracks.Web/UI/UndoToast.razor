@@ -1,0 +1,28 @@
+@namespace DotNetCloud.Modules.Tracks.Web.UI
+@implements IAsyncDisposable
+
+@* ── Undo Toast Component ──
+   Shows a temporary message with an "Undo" button.
+   Like Gmail's "Message deleted. Undo?" feature.
+   Automatically disappears after the timeout. ── *@
+
+@if (_isVisible)
+{
+    <div class="undo-toast @(_isLeaving ? "undo-toast--leaving" : "")">
+        <div class="undo-toast-content">
+            <span class="undo-toast-icon">
+                <MaterialIcon Icon="check" Size="MaterialIconSize.Sm" />
+            </span>
+            <span class="undo-toast-message">@Message</span>
+            @if (HasUndoAction)
+            {
+                <button class="undo-toast-btn" @onclick="HandleUndo" disabled="@_isUndoing">
+                    @(_isUndoing ? "Undoing..." : "Undo")
+                </button>
+            }
+            <button class="undo-toast-dismiss" @onclick="Dismiss" title="Dismiss">
+                <MaterialIcon Icon="close" Size="MaterialIconSize.Sm" />
+            </button>
+        </div>
+    </div>
+}

@@ -1,0 +1,11 @@
+@page "/"
+@using DotNetCloud.Modules.Tracks.Web.UI
+
+<PageTitle>Tracks</PageTitle>
+
+@* The module UI's entry page. Deep links arrive as query parameters on the frame URL — a path
+   segment would not survive a reload, because the module proxy only serves static files under
+   /apps/{moduleId}/** and the wasm router never sees the request:
+     ?kanban=<workItemId>  opens that work item's board (as the core's page did)
+     ?card=<workItemId>    additionally opens that work item's detail panel *@
+<TracksPage KanbanId="@Kanban" CardId="@Card" />

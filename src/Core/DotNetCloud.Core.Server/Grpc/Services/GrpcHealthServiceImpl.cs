@@ -2,10 +2,14 @@ using System.Text.Json;
 using DotNetCloud.Core.Authorization;
 using DotNetCloud.Core.Capabilities;
 using DotNetCloud.Core.DTOs;
+using DotNetCloud.Core.Errors;
 using DotNetCloud.Core.Events;
 using DotNetCloud.Core.Events.Search;
 using DotNetCloud.Core.Grpc.Capabilities;
+using DotNetCloud.Core.Modules;
 using DotNetCloud.Core.Modules.Supervisor;
+using DotNetCloud.Core.Server.Grpc.ModuleAccess;
+using DotNetCloud.Core.Server.ModuleLoading;
 using DotNetCloud.Core.Server.RealTime;
 using DotNetCloud.Core.Server.Services;
 using DotNetCloud.Modules.Chat.DTOs;
@@ -21,23 +25,26 @@ namespace DotNetCloud.Core.Server.Grpc.Services;
 /// Modules connect to this service to access platform capabilities such as
 /// user directory, notifications, event bus, and settings.
 /// </summary>
-internal sealed class CoreCapabilitiesServiceImpl : CoreCapabilities.CoreCapabilitiesBase
+internal class CoreCapabilitiesServiceImpl : CoreCapabilities.CoreCapabilitiesBase
 {
     private readonly ILogger<CoreCapabilitiesServiceImpl> _logger;
     private readonly IServiceProvider _serviceProvider;
     private readonly SearchIndexingService _indexingService;
     private readonly ModuleEventInbox _eventInbox;
+    private readonly ModuleConsentPolicy _consentPolicy;
 
     public CoreCapabilitiesServiceImpl(
         ILogger<CoreCapabilitiesServiceImpl> logger,
         IServiceProvider serviceProvider,
         SearchIndexingService indexingService,
-        ModuleEventInbox eventInbox)
+        ModuleEventInbox eventInbox,
+        ModuleConsentPolicy consentPolicy)
     {
         _logger = logger;
         _serviceProvider = serviceProvider;
         _indexingService = indexingService;
         _eventInbox = eventInbox;
+        _consentPolicy = consentPolicy;
     }
 
     /// <summary>
@@ -92,32 +99,50 @@ internal sealed class CoreCapabilitiesServiceImpl : CoreCapabilities.CoreCapabil
     /// <summary>
     /// Searches users matching criteria (IUserDirectory capability).
     /// </summary>
+    /// <remarks>
+    /// Email addresses are personal data: a result carries one only when the target user has
+    /// consented to the <c>profile</c> scope for the calling module. Names and avatars stay
+    /// available because a module cannot render a member list without them, and the search itself
+    /// is already gated by the capability grant.
+    /// </remarks>
     public override async Task<SearchUsersResponse> SearchUsers(SearchUsersRequest request, ServerCallContext context)
     {
         _logger.LogDebug("SearchUsers called with query '{Query}' by module {ModuleId}",
-            request.Query, GetModuleId(context));
+            LogSanitizer.Sanitize(request.Query), LogSanitizer.Sanitize(GetModuleId(context)));
 
         try
         {
+            var moduleId = GetModuleId(context);
+
             using var scope = _serviceProvider.CreateScope();
             var userDir = scope.ServiceProvider.GetRequiredService<IUserDirectory>();
 
             var results = await userDir.SearchUsersAsync(request.Query, request.MaxResults > 0 ? request.MaxResults : 20);
 
             var response = new SearchUsersResponse();
-            response.Users.AddRange(results.Select(r => new UserInfo
+            foreach (var result in results)
             {
-                Id = r.Id.ToString(),
-                DisplayName = r.DisplayName,
-                Email = r.Email,
-            }));
+                var maySeeEmail = await _consentPolicy.HasConsentAsync(
+                    moduleId,
+                    result.Id,
+                    ModuleScopes.Profile,
+                    context.CancellationToken);
 
-            _logger.LogDebug("SearchUsers: found {Count} results for query '{Query}'", response.Users.Count, request.Query);
+                response.Users.Add(new UserInfo
+                {
+                    Id = result.Id.ToString(),
+                    DisplayName = result.DisplayName,
+                    Email = maySeeEmail ? result.Email : string.Empty,
+                });
+            }
+
+            _logger.LogDebug("SearchUsers: found {Count} results for query '{Query}'",
+                response.Users.Count, LogSanitizer.Sanitize(request.Query));
             return response;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "SearchUsers failed for query '{Query}'", request.Query);
+            _logger.LogError(ex, "SearchUsers failed for query '{Query}'", LogSanitizer.Sanitize(request.Query));
             return new SearchUsersResponse();
         }
     }
@@ -125,31 +150,116 @@ internal sealed class CoreCapabilitiesServiceImpl : CoreCapabilities.CoreCapabil
     /// <summary>
     /// Gets the current caller's identity (ICurrentUserContext capability).
     /// </summary>
-    public override Task<GetCurrentUserResponse> GetCurrentUser(GetCurrentUserRequest request, ServerCallContext context)
+    /// <remarks>
+    /// The acting identity is read only from the verified <c>CallerContext</c> injected by
+    /// <c>CallerContextInterceptor</c> (core-signed user assertion re-validated per call).
+    /// <c>request.Caller</c> is caller-supplied and is deliberately ignored: trusting it let any
+    /// module read another user's identity.
+    /// </remarks>
+    public override async Task<GetCurrentUserResponse> GetCurrentUser(
+        GetCurrentUserRequest request, ServerCallContext context)
     {
-        _logger.LogDebug("GetCurrentUser called by module {ModuleId}", GetModuleId(context));
+        var moduleId = GetModuleId(context);
+        _logger.LogDebug("GetCurrentUser called by module {ModuleId}", moduleId);
+
+        if (!context.UserState.TryGetValue("CallerContext", out var callerState)
+            || callerState is not CallerContext caller)
+        {
+            // CallerContextInterceptor runs before this service; reaching this point means the
+            // interceptor chain was misconfigured. Fail closed rather than inventing an identity.
+            throw new RpcException(new Status(
+                StatusCode.Unauthenticated,
+                "No verified caller identity is available for this call"));
+        }
+
+        if (caller.Type is not CallerType.User)
+        {
+            // A module acting for itself has no end-user identity to report.
+            return new GetCurrentUserResponse
+            {
+                UserId = string.Empty,
+                DisplayName = string.Empty,
+                Email = string.Empty,
+                Locale = "en-US",
+                Timezone = "UTC",
+            };
+        }
 
         var response = new GetCurrentUserResponse
         {
-            UserId = request.Caller?.UserId ?? string.Empty,
-            DisplayName = string.Empty,
+            UserId = caller.UserId.ToString(),
             Email = string.Empty,
             Locale = "en-US",
-            Timezone = "UTC"
+            Timezone = "UTC",
         };
 
-        return Task.FromResult(response);
+        response.Roles.AddRange(caller.Roles);
+
+        try
+        {
+            using var scope = _serviceProvider.CreateScope();
+            var userDir = scope.ServiceProvider.GetRequiredService<IUserDirectory>();
+            var names = await userDir.GetDisplayNamesAsync([caller.UserId], context.CancellationToken);
+
+            if (names.TryGetValue(caller.UserId, out var displayName))
+            {
+                response.DisplayName = displayName;
+            }
+        }
+        catch (Exception ex)
+        {
+            // The identity fields above are authoritative; a directory hiccup only costs the
+            // display name.
+            _logger.LogWarning(ex, "GetCurrentUser could not resolve the display name for module {ModuleId}", moduleId);
+        }
+
+        return response;
     }
 
     /// <summary>
     /// Sends a notification (INotificationService capability).
     /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Every notification is attributed to the authenticated module (<c>SourceModuleId</c>), never
+    /// to a caller-supplied field, so a module cannot post platform-branded messages as another
+    /// module.
+    /// </para>
+    /// <para>
+    /// Content is untrusted: title and body are length-capped, and the action link must be a
+    /// site-relative path. Core navigates the browser to that link, so an absolute URL would let a
+    /// module turn a notification into a phishing hop out of the platform (F6). Out-of-policy
+    /// content fails the call with <c>MODULE_INVALID_REQUEST</c> rather than being silently
+    /// mangled.
+    /// </para>
+    /// </remarks>
     public override async Task<SendNotificationResponse> SendNotification(SendNotificationRequest request, ServerCallContext context)
     {
         var moduleId = GetModuleId(context);
+
+        if (!ModuleNotificationLimits.IsValidTitle(request.Title)
+            || !ModuleNotificationLimits.IsValidBody(request.Body)
+            || !ModuleNotificationLimits.IsValidLink(request.Link))
+        {
+            _logger.LogWarning(
+                "SendNotification rejected from module {ModuleId}: content is out of policy " +
+                "(title {TitleLength}, body {BodyLength}, link {LinkLength} characters)",
+                LogSanitizer.Sanitize(moduleId),
+                request.Title?.Length ?? 0,
+                request.Body?.Length ?? 0,
+                request.Link?.Length ?? 0);
+
+            throw new RpcException(
+                new Status(
+                    StatusCode.InvalidArgument,
+                    "[MODULE_INVALID_REQUEST] Notification title/body is too long or the action " +
+                    "link is not a site-relative path."),
+                new Metadata { { "error-code", ErrorCodes.ModuleInvalidRequest } });
+        }
+
         _logger.LogInformation(
             "SendNotification: '{Title}' to {Count} recipients from module {ModuleId}",
-            request.Title, request.RecipientUserIds.Count, moduleId);
+            LogSanitizer.Sanitize(request.Title), request.RecipientUserIds.Count, moduleId);
 
         try
         {
@@ -161,13 +271,24 @@ internal sealed class CoreCapabilitiesServiceImpl : CoreCapabilities.CoreCapabil
             // included — was persisted as a generic Info/Normal entry.
             var (type, priority) = MapNotificationCategory(request.Category);
 
+            // Delivery honours per-user consent when the module declared `notifications:send`:
+            // "this module may notify me" is the user's decision, not the admin's.
+            var recipients = await FilterNotificationRecipientsAsync(
+                moduleId, request.RecipientUserIds, context.CancellationToken);
+
+            if (recipients.Count != request.RecipientUserIds.Distinct().Count())
+            {
+                _logger.LogDebug(
+                    "SendNotification from module {ModuleId} filtered recipients by consent: {Delivered} of {Requested}",
+                    LogSanitizer.Sanitize(moduleId),
+                    recipients.Count,
+                    request.RecipientUserIds.Count);
+            }
+
             var deliveredCount = 0;
 
-            foreach (var rawUserId in request.RecipientUserIds)
+            foreach (var userId in recipients)
             {
-                if (!Guid.TryParse(rawUserId, out var userId))
-                    continue;
-
                 var notification = new NotificationDto
                 {
                     Id = Guid.CreateVersion7(),
@@ -199,9 +320,76 @@ internal sealed class CoreCapabilitiesServiceImpl : CoreCapabilities.CoreCapabil
     }
 
     /// <summary>
-    /// Maps a notification category supplied by a calling module onto the notification type and
-    /// priority to store.
+    /// Rejects a user-scoped directory call when the module declared the <c>profile</c> scope and
+    /// the user has not consented to it.
     /// </summary>
+    /// <param name="context">The gRPC call context.</param>
+    /// <param name="userId">The user the call targets (already bound to the caller).</param>
+    /// <param name="rpc">The RPC name, for the audit trail.</param>
+    private async Task EnforceProfileConsentAsync(ServerCallContext context, Guid userId, string rpc)
+    {
+        var moduleId = GetModuleId(context);
+
+        var missing = await _consentPolicy.GetMissingConsentScopesAsync(
+            moduleId,
+            userId,
+            [ModuleScopes.Profile],
+            context.CancellationToken);
+
+        if (missing.Count == 0)
+        {
+            return;
+        }
+
+        _logger.LogInformation(
+            "{Rpc} denied for module {ModuleId}: user {UserId} has not consented to {Scopes}",
+            rpc,
+            LogSanitizer.Sanitize(moduleId),
+            userId,
+            string.Join(' ', missing));
+
+        throw ModuleConsentPolicy.CreateConsentRequiredException(missing);
+    }
+
+    /// <summary>
+    /// Gets the recipients of a notification, dropping any user who has not consented to
+    /// <c>notifications:send</c> from a module that declared it.
+    /// </summary>
+    /// <param name="moduleId">The authenticated module id.</param>
+    /// <param name="recipientIds">The requested recipients.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The recipients the module may notify.</returns>
+    private async Task<IReadOnlyList<Guid>> FilterNotificationRecipientsAsync(
+        string moduleId,
+        IEnumerable<string> recipientIds,
+        CancellationToken cancellationToken)
+    {
+        var parsed = recipientIds
+            .Select(id => Guid.TryParse(id, out var userId) ? userId : Guid.Empty)
+            .Where(userId => userId != Guid.Empty)
+            .Distinct()
+            .ToArray();
+
+        var declared = _consentPolicy.GetDeclaredScopes(moduleId);
+        if (declared is null || !declared.Contains(ModuleScopes.NotificationsSend, StringComparer.Ordinal))
+        {
+            // The module did not opt into the consent plane for notifications; the capability grant
+            // is the only gate, exactly as before.
+            return parsed;
+        }
+
+        var allowed = new List<Guid>(parsed.Length);
+        foreach (var userId in parsed)
+        {
+            if (await _consentPolicy.HasConsentAsync(moduleId, userId, ModuleScopes.NotificationsSend, cancellationToken))
+            {
+                allowed.Add(userId);
+            }
+        }
+
+        return allowed;
+    }
+
     /// <remarks>
     /// A reminder is a time-sensitive, high-priority notification and must not be filed as generic
     /// information, which is how every module-sent notification was stored while this field was ignored.
@@ -265,14 +453,21 @@ internal sealed class CoreCapabilitiesServiceImpl : CoreCapabilities.CoreCapabil
     /// <summary>
     /// Enqueues a real-time search-index request from a process-isolated module.
     /// </summary>
+    /// <remarks>
+    /// The index entry is attributed to the <em>authenticated</em> module identity, never to the
+    /// <c>module_id</c> field in the request. A module could otherwise index, overwrite or remove
+    /// entries on behalf of another module.
+    /// </remarks>
     public override async Task<SubmitSearchIndexResponse> SubmitSearchIndex(
         SubmitSearchIndexRequest request, ServerCallContext context)
     {
+        var moduleId = GetModuleId(context);
+
         if (request.Action is < 0 or > 1)
         {
             _logger.LogWarning(
-                "SubmitSearchIndex: invalid action {Action} for {ModuleId}/{EntityId} from module {Caller}",
-                request.Action, request.ModuleId, request.EntityId, GetModuleId(context));
+                "SubmitSearchIndex: invalid action {Action} for {EntityId} from module {ModuleId}",
+                request.Action, LogSanitizer.Sanitize(request.EntityId), moduleId);
             return new SubmitSearchIndexResponse { Success = false };
         }
 
@@ -280,7 +475,7 @@ internal sealed class CoreCapabilitiesServiceImpl : CoreCapabilities.CoreCapabil
         {
             EventId = Guid.CreateVersion7(),
             CreatedAt = DateTime.UtcNow,
-            ModuleId = request.ModuleId,
+            ModuleId = moduleId,
             EntityId = request.EntityId,
             Action = (SearchIndexAction)request.Action
         });
@@ -291,23 +486,67 @@ internal sealed class CoreCapabilitiesServiceImpl : CoreCapabilities.CoreCapabil
     /// <summary>
     /// Gets a module setting value (IModuleSettings capability).
     /// </summary>
-    public override Task<GetSettingResponse> GetSetting(GetSettingRequest request, ServerCallContext context)
+    /// <remarks>
+    /// The key is namespaced by the <em>authenticated</em> module identity; <c>request.ModuleId</c>
+    /// is caller-supplied and ignored, so a module cannot read another module's settings.
+    /// </remarks>
+    public override async Task<GetSettingResponse> GetSetting(GetSettingRequest request, ServerCallContext context)
     {
-        _logger.LogDebug("GetSetting: {Module}/{Key} by module {ModuleId}",
-            request.ModuleId, request.Key, GetModuleId(context));
+        var moduleId = GetModuleId(context);
 
-        return Task.FromResult(new GetSettingResponse { Found = false });
+        if (!ModuleSettingLimits.IsValidKey(request.Key))
+        {
+            _logger.LogWarning(
+                "GetSetting: rejected invalid key from module {ModuleId}: {Key}",
+                moduleId, LogSanitizer.Sanitize(request.Key));
+            return new GetSettingResponse { Found = false };
+        }
+
+        using var scope = _serviceProvider.CreateScope();
+        var store = scope.ServiceProvider.GetRequiredService<IModuleSettingsStore>();
+        var value = await store.GetAsync(moduleId, request.Key, context.CancellationToken);
+
+        return value is null
+            ? new GetSettingResponse { Found = false }
+            : new GetSettingResponse { Found = true, Value = value };
     }
 
     /// <summary>
     /// Sets a module setting value (IModuleSettings capability).
     /// </summary>
-    public override Task<SetSettingResponse> SetSetting(SetSettingRequest request, ServerCallContext context)
+    /// <remarks>
+    /// The key is namespaced by the <em>authenticated</em> module identity; <c>request.ModuleId</c>
+    /// is caller-supplied and ignored. Keys and values are length- and charset-capped before they
+    /// reach the database.
+    /// </remarks>
+    public override async Task<SetSettingResponse> SetSetting(SetSettingRequest request, ServerCallContext context)
     {
-        _logger.LogDebug("SetSetting: {Module}/{Key} by module {ModuleId}",
-            request.ModuleId, request.Key, GetModuleId(context));
+        var moduleId = GetModuleId(context);
 
-        return Task.FromResult(new SetSettingResponse { Success = true });
+        if (!ModuleSettingLimits.IsValidKey(request.Key) || !ModuleSettingLimits.IsValidValue(request.Value))
+        {
+            _logger.LogWarning(
+                "SetSetting: rejected invalid key or oversized value from module {ModuleId}: {Key}",
+                moduleId, LogSanitizer.Sanitize(request.Key));
+            return new SetSettingResponse { Success = false };
+        }
+
+        var actingUserId = context.UserState.TryGetValue("CallerContext", out var callerState)
+            && callerState is CallerContext { Type: CallerType.User } caller
+                ? caller.UserId
+                : (Guid?)null;
+
+        using var scope = _serviceProvider.CreateScope();
+        var store = scope.ServiceProvider.GetRequiredService<IModuleSettingsStore>();
+        await store.SetAsync(
+            moduleId,
+            request.Key,
+            request.Value,
+            isSecret: false,
+            updatedByUserId: actingUserId,
+            context.CancellationToken);
+
+        return new SetSettingResponse { Success = true };
     }
 
     /// <summary>
@@ -417,16 +656,25 @@ internal sealed class CoreCapabilitiesServiceImpl : CoreCapabilities.CoreCapabil
     /// <summary>
     /// Lists the teams a given user belongs to (ITeamDirectory capability).
     /// </summary>
+    /// <remarks>
+    /// The target user is bound to the verified caller: a call carrying a user assertion may only
+    /// ask for that user's teams, and naming someone else is rejected (F4). Module-scope calls
+    /// (background work, no assertion) stay subject to the capability grant and are audited.
+    /// </remarks>
     public override async Task<GetTeamsForUserResponse> GetTeamsForUser(GetTeamsForUserRequest request, ServerCallContext context)
     {
-        if (!Guid.TryParse(request.UserId, out var userId))
+        var binding = await BindSubjectAsync(context, request.UserId, "GetTeamsForUser");
+        if (binding.UserId == Guid.Empty)
         {
-            _logger.LogWarning("GetTeamsForUser called with invalid UserId '{RawId}'", LogSanitizer.Sanitize(request.UserId));
             return new GetTeamsForUserResponse();
         }
 
+        var userId = binding.UserId;
+
         _logger.LogInformation("GetTeamsForUser called for {UserId} by module {ModuleId}",
             userId, GetModuleId(context));
+
+        await EnforceProfileConsentAsync(context, userId, "GetTeamsForUser");
 
         try
         {
@@ -456,21 +704,83 @@ internal sealed class CoreCapabilitiesServiceImpl : CoreCapabilities.CoreCapabil
     }
 
     /// <summary>
+    /// Lists the organizations a user is an active member of (IOrganizationDirectory capability).
+    /// </summary>
+    /// <remarks>
+    /// A module host has no access to <c>core.organizations</c>, so without this RPC a sandboxed
+    /// module UI cannot offer an organization picker and has to ask the user to paste a GUID. The
+    /// subject is bound to the verified caller exactly as for <see cref="GetTeamsForUser"/>: naming
+    /// another user is rejected, and the call is subject to the <c>profile</c> consent scope when the
+    /// module declared it.
+    /// </remarks>
+    public override async Task<GetUserOrganizationsResponse> GetUserOrganizations(
+        GetUserOrganizationsRequest request, ServerCallContext context)
+    {
+        var binding = await BindSubjectAsync(context, request.UserId, "GetUserOrganizations");
+        if (binding.UserId == Guid.Empty)
+        {
+            return new GetUserOrganizationsResponse();
+        }
+
+        var userId = binding.UserId;
+
+        _logger.LogDebug("GetUserOrganizations called for {UserId} by module {ModuleId}",
+            userId, GetModuleId(context));
+
+        await EnforceProfileConsentAsync(context, userId, "GetUserOrganizations");
+
+        try
+        {
+            using var scope = _serviceProvider.CreateScope();
+            var organizationDirectory = scope.ServiceProvider.GetRequiredService<IOrganizationDirectory>();
+            var organizations = await organizationDirectory.GetUserOrganizationsAsync(userId, context.CancellationToken);
+
+            var response = new GetUserOrganizationsResponse();
+            response.Organizations.AddRange(organizations.Select(o => new OrganizationInfoMessage
+            {
+                Id = o.Id.ToString(),
+                Name = o.Name,
+                Description = o.Description ?? string.Empty,
+                MemberCount = o.MemberCount,
+                TeamCount = o.TeamCount,
+                CreatedAt = o.CreatedAt.ToString("O"),
+            }));
+
+            _logger.LogDebug("GetUserOrganizations: found {Count} organizations for user {UserId}",
+                response.Organizations.Count, userId);
+            return response;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "GetUserOrganizations failed for {UserId}", userId);
+            return new GetUserOrganizationsResponse();
+        }
+    }
+
+    /// <summary>
     /// Lists the groups a user belongs to (IGroupDirectory capability). Module hosts use this to
     /// resolve admin shared-folder group grants; without it a host cannot tell whether a caller
     /// is entitled to a folder, and must deny by default.
     /// </summary>
+    /// <remarks>
+    /// As with <see cref="GetTeamsForUser"/>, a user-scoped call may only ask for its own
+    /// membership; naming another user is rejected (F4).
+    /// </remarks>
     public override async Task<GetGroupsForUserResponse> GetGroupsForUser(
         GetGroupsForUserRequest request, ServerCallContext context)
     {
-        if (!Guid.TryParse(request.UserId, out var userId))
+        var binding = await BindSubjectAsync(context, request.UserId, "GetGroupsForUser");
+        if (binding.UserId == Guid.Empty)
         {
-            _logger.LogWarning("GetGroupsForUser called with invalid UserId '{RawId}'", LogSanitizer.Sanitize(request.UserId));
             return new GetGroupsForUserResponse();
         }
 
+        var userId = binding.UserId;
+
         _logger.LogDebug("GetGroupsForUser called for {UserId} by module {ModuleId}",
             userId, GetModuleId(context));
+
+        await EnforceProfileConsentAsync(context, userId, "GetGroupsForUser");
 
         try
         {
@@ -560,6 +870,12 @@ internal sealed class CoreCapabilitiesServiceImpl : CoreCapabilities.CoreCapabil
     /// Called by process-isolated module hosts to push events (new messages,
     /// typing indicators, etc.) through Core.Server's SignalR infrastructure.
     /// </summary>
+    /// <remarks>
+    /// When a module's manifest declares a real-time event vocabulary, the name must be in it — a
+    /// module that can broadcast any name can drive UI surfaces it does not own (a fake
+    /// <c>NewMessage</c> in a chat channel, for instance). Modules that declare nothing keep the
+    /// previous behaviour while the vocabulary is rolled out across the in-repo manifests.
+    /// </remarks>
     public override async Task<BroadcastRealtimeEventResponse> BroadcastRealtimeEvent(
         BroadcastRealtimeEventRequest request, ServerCallContext context)
     {
@@ -567,6 +883,8 @@ internal sealed class CoreCapabilitiesServiceImpl : CoreCapabilities.CoreCapabil
         _logger.LogDebug(
             "BroadcastRealtimeEvent: group={Group}, event={Event} from module {ModuleId}",
             request.Group, request.EventName, moduleId);
+
+        await EnforceDeclaredRealtimeAsync(context, moduleId, request.EventName);
 
         try
         {
@@ -693,7 +1011,9 @@ internal sealed class CoreCapabilitiesServiceImpl : CoreCapabilities.CoreCapabil
             var entry = new AuditEntry
             {
                 Caller = caller,
-                ModuleId = string.IsNullOrWhiteSpace(request.ModuleId) ? moduleId : request.ModuleId,
+                // Attribution comes from the verified credential, never from the payload: a module
+                // must not be able to write audit entries as another module.
+                ModuleId = moduleId,
                 Action = Enum.IsDefined(typeof(AuditAction), request.Action)
                     ? (AuditAction)request.Action
                     : AuditAction.Read,
@@ -818,11 +1138,157 @@ internal sealed class CoreCapabilitiesServiceImpl : CoreCapabilities.CoreCapabil
         }
     }
 
+    /// <summary>
+    /// Rejects a real-time event the calling module did not declare in its manifest.
+    /// </summary>
+    /// <remarks>
+    /// An empty declaration means the vocabulary has not been added to that module's manifest yet;
+    /// those modules keep working unchanged. Once declared, the list is enforced exactly.
+    /// </remarks>
+    private async Task EnforceDeclaredRealtimeAsync(
+        ServerCallContext context,
+        string moduleId,
+        string? eventName)
+    {
+        var registry = _serviceProvider.GetService<IModuleManifestRegistry>();
+        var declared = registry?.GetRealtimeEvents(moduleId);
+
+        if (declared is null)
+        {
+            // The supervisor records every manifest it reads before launching a host, so an
+            // unrecorded module did not come through a supervised launch. Fail closed.
+            _logger.LogWarning(
+                "BroadcastRealtimeEvent rejected: no manifest is recorded for module {ModuleId}",
+                LogSanitizer.Sanitize(moduleId));
+
+            throw new RpcException(
+                new Status(
+                    StatusCode.PermissionDenied,
+                    "[MODULE_EVENT_REJECTED] No manifest is recorded for this module."),
+                new Metadata { { "error-code", ErrorCodes.ModuleEventRejected } });
+        }
+
+        if (declared.Count == 0
+            || (!string.IsNullOrEmpty(eventName)
+                && declared.Contains(eventName, StringComparer.OrdinalIgnoreCase)))
+        {
+            // An empty declaration means the vocabulary has not been added to that module's
+            // manifest yet; it keeps working unchanged.
+            return;
+        }
+
+        _logger.LogWarning(
+            "BroadcastRealtimeEvent rejected for module {ModuleId}: {EventName} is not declared in the manifest",
+            LogSanitizer.Sanitize(moduleId),
+            LogSanitizer.Sanitize(eventName ?? string.Empty));
+
+        try
+        {
+            using var scope = _serviceProvider.CreateScope();
+            var auditLogger = scope.ServiceProvider.GetRequiredService<IAuditLogger>();
+
+            await auditLogger.LogAsync(
+                new AuditEntry
+                {
+                    Caller = CallerSubjectGuard.GetCaller(context) ?? CallerContext.CreateSystemContext(),
+                    ModuleId = moduleId,
+                    Action = AuditAction.ModuleEventRejected,
+                    EntityType = "ModuleEvent",
+                    EntityId = Guid.Empty,
+                    Description =
+                        $"Real-time event '{LogSanitizer.Sanitize(eventName ?? string.Empty)}' is not " +
+                        "declared in the module manifest.",
+                },
+                context.CancellationToken);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _logger.LogWarning(ex, "Could not record the rejected-event audit entry for module {ModuleId}", moduleId);
+        }
+
+        throw new RpcException(
+            new Status(
+                StatusCode.PermissionDenied,
+                "[MODULE_EVENT_REJECTED] The real-time event name is not declared in the module manifest."),
+            new Metadata { { "error-code", ErrorCodes.ModuleEventRejected } });
+    }
+
     private static string GetModuleId(ServerCallContext context)
     {
         return context.UserState.TryGetValue("ModuleId", out var mid)
             ? mid as string ?? "unknown"
             : "unknown";
+    }
+
+    /// <summary>
+    /// Binds a user-scoped request to the subject the call may act for, throwing when the payload
+    /// names someone other than the verified caller.
+    /// </summary>
+    /// <remarks>
+    /// A denial is audited as <see cref="AuditAction.ModuleIdentityMismatch"/> before the call is
+    /// rejected; an audit failure never changes the outcome.
+    /// </remarks>
+    private async Task<SubjectBinding> BindSubjectAsync(
+        ServerCallContext context,
+        string? requestedUserId,
+        string rpc)
+    {
+        var binding = CallerSubjectGuard.Bind(context, requestedUserId);
+
+        if (binding.IsAllowed)
+        {
+            if (binding.IsModuleScope)
+            {
+                _logger.LogDebug(
+                    "{Rpc} served {UserId} to module {ModuleId} on a module-scope (no user assertion) call",
+                    rpc, binding.UserId, GetModuleId(context));
+            }
+
+            return binding;
+        }
+
+        if (binding.Outcome is SubjectBindingOutcome.Mismatch)
+        {
+            await AuditSubjectMismatchAsync(context, rpc);
+        }
+
+        throw CallerSubjectGuard.CreateDeniedException(binding.Outcome);
+    }
+
+    private async Task AuditSubjectMismatchAsync(
+        ServerCallContext context,
+        string rpc)
+    {
+        var moduleId = GetModuleId(context);
+        var caller = CallerSubjectGuard.GetCaller(context);
+
+        _logger.LogWarning(
+            "{Rpc} rejected for module {ModuleId}: the caller ({CallerUserId}) asked for another user's data",
+            rpc,
+            LogSanitizer.Sanitize(moduleId),
+            caller?.UserId);
+
+        try
+        {
+            using var scope = _serviceProvider.CreateScope();
+            var auditLogger = scope.ServiceProvider.GetRequiredService<IAuditLogger>();
+
+            await auditLogger.LogAsync(
+                new AuditEntry
+                {
+                    Caller = caller ?? CallerContext.CreateSystemContext(),
+                    ModuleId = moduleId,
+                    Action = AuditAction.ModuleIdentityMismatch,
+                    EntityType = "ModuleAuth",
+                    EntityId = Guid.Empty,
+                    Description = $"{rpc} denied: request named a user other than the authenticated caller.",
+                },
+                context.CancellationToken);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _logger.LogWarning(ex, "Could not record the subject-mismatch audit entry for module {ModuleId}", moduleId);
+        }
     }
 
     /// <summary>

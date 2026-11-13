@@ -8,16 +8,8 @@ using IContentExtractor = DotNetCloud.Core.Capabilities.IContentExtractor;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Bind gRPC endpoint from DOTNETCLOUD_GRPC_ENDPOINT (set by ProcessSupervisor).
-// Mirrors the old Search module host: the supervisor passes a TCP loopback endpoint
-// (or a unix/named-pipe endpoint translated to HTTP here).
-var grpcEndpoint = Environment.GetEnvironmentVariable("DOTNETCLOUD_GRPC_ENDPOINT");
-if (!string.IsNullOrEmpty(grpcEndpoint))
-{
-    var uri = new Uri(grpcEndpoint.Replace("unix://", "http://").Replace("net.pipe://", "http://"));
-    builder.WebHost.ConfigureKestrel(o =>
-        o.Listen(System.Net.IPAddress.Loopback, uri.Port, l => l.Protocols = HttpProtocols.Http2));
-}
+// Bind the endpoint the supervisor assigned: a Unix socket, a named pipe or loopback TCP.
+DotNetCloud.Core.Grpc.ModuleGrpcEndpointBinding.ConfigureModuleGrpcEndpoint(builder);
 
 // --- Services ---
 

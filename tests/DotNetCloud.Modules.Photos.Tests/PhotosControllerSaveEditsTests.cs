@@ -1,13 +1,13 @@
-using System.Security.Claims;
 using DotNetCloud.Core.DTOs;
 using DotNetCloud.Core.Events;
-using DotNetCloud.Modules.Files.Services;
+using DotNetCloud.Core.Grpc;
 using DotNetCloud.Modules.Photos.Data;
 using DotNetCloud.Modules.Photos.Data.Services;
 using DotNetCloud.Modules.Photos.Host.Controllers;
 using DotNetCloud.Modules.Photos.Services;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 
@@ -18,7 +18,6 @@ public class PhotosControllerSaveEditsTests
 {
     private PhotosDbContext _db = null!;
     private Mock<IPhotoThumbnailService> _thumbnailServiceMock = null!;
-    private Mock<IDownloadService> _downloadServiceMock = null!;
     private PhotosController _controller = null!;
     private Guid _userId;
 
@@ -37,7 +36,6 @@ public class PhotosControllerSaveEditsTests
         var editService = new PhotoEditService(_db, eventBus, NullLogger<PhotoEditService>.Instance);
         var slideshowService = new SlideshowService(_db, NullLogger<SlideshowService>.Instance);
         _thumbnailServiceMock = new Mock<IPhotoThumbnailService>();
-        _downloadServiceMock = new Mock<IDownloadService>();
 
         _controller = new PhotosController(
             photoService,
@@ -48,7 +46,6 @@ public class PhotosControllerSaveEditsTests
             editService,
             slideshowService,
             _thumbnailServiceMock.Object,
-            _downloadServiceMock.Object,
             NullLogger<PhotosController>.Instance);
 
         SetupAuthenticatedUser(_controller, _userId);
@@ -59,16 +56,12 @@ public class PhotosControllerSaveEditsTests
 
     private static void SetupAuthenticatedUser(ControllerBase controller, Guid userId)
     {
-        var claims = new[]
-        {
-            new Claim(ClaimTypes.NameIdentifier, userId.ToString()),
-            new Claim(ClaimTypes.Role, "user")
-        };
-        var identity = new ClaimsIdentity(claims, "TestAuth");
-        var principal = new ClaimsPrincipal(identity);
+        var services = new ServiceCollection();
+        services.AddSingleton<IModuleUserAssertionAccessor>(new FakeModuleUserAssertionAccessor(userId));
+
         controller.ControllerContext = new ControllerContext
         {
-            HttpContext = new DefaultHttpContext { User = principal }
+            HttpContext = new DefaultHttpContext { RequestServices = services.BuildServiceProvider() }
         };
     }
 
@@ -88,7 +81,7 @@ public class PhotosControllerSaveEditsTests
         await _controller.SaveEditsAsync(Guid.CreateVersion7());
 
         _thumbnailServiceMock.Verify(
-            t => t.SaveEditsAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()),
+            t => t.SaveEditsAsync(It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<CancellationToken>()),
             Times.Never);
     }
 
@@ -104,7 +97,6 @@ public class PhotosControllerSaveEditsTests
 
         Assert.IsInstanceOfType<NotFoundObjectResult>(result);
     }
-
     // ─── Save Succeeds ──────────────────────────────────────────────
 
     [TestMethod]
@@ -112,7 +104,7 @@ public class PhotosControllerSaveEditsTests
     {
         var photo = await TestHelpers.SeedPhotoAsync(_db, _userId);
         _thumbnailServiceMock
-            .Setup(t => t.SaveEditsAsync(photo.Id, It.IsAny<CancellationToken>()))
+            .Setup(t => t.SaveEditsAsync(photo.Id, _userId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(true);
 
         var result = await _controller.SaveEditsAsync(photo.Id);
@@ -125,13 +117,13 @@ public class PhotosControllerSaveEditsTests
     {
         var photo = await TestHelpers.SeedPhotoAsync(_db, _userId);
         _thumbnailServiceMock
-            .Setup(t => t.SaveEditsAsync(photo.Id, It.IsAny<CancellationToken>()))
+            .Setup(t => t.SaveEditsAsync(photo.Id, _userId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(true);
 
         await _controller.SaveEditsAsync(photo.Id);
 
         _thumbnailServiceMock.Verify(
-            t => t.SaveEditsAsync(photo.Id, It.IsAny<CancellationToken>()),
+            t => t.SaveEditsAsync(photo.Id, _userId, It.IsAny<CancellationToken>()),
             Times.Once);
     }
 
@@ -142,7 +134,7 @@ public class PhotosControllerSaveEditsTests
     {
         var photo = await TestHelpers.SeedPhotoAsync(_db, _userId);
         _thumbnailServiceMock
-            .Setup(t => t.SaveEditsAsync(photo.Id, It.IsAny<CancellationToken>()))
+            .Setup(t => t.SaveEditsAsync(photo.Id, _userId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(false);
 
         var result = await _controller.SaveEditsAsync(photo.Id);
@@ -163,7 +155,6 @@ public class PhotosControllerSaveEditsTests
         {
             HttpContext = new DefaultHttpContext()
         };
-
         await Assert.ThrowsExactlyAsync<UnauthorizedAccessException>(
             () => _controller.SaveEditsAsync(photo.Id));
     }
@@ -175,7 +166,7 @@ public class PhotosControllerSaveEditsTests
     {
         var photo = await TestHelpers.SeedPhotoAsync(_db, _userId);
         _thumbnailServiceMock
-            .Setup(t => t.SaveEditsAsync(photo.Id, It.IsAny<CancellationToken>()))
+            .Setup(t => t.SaveEditsAsync(photo.Id, _userId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(true);
 
         var result = await _controller.SaveEditsAsync(photo.Id);
@@ -194,7 +185,7 @@ public class PhotosControllerSaveEditsTests
     {
         var photo = await TestHelpers.SeedPhotoAsync(_db, _userId);
         _thumbnailServiceMock
-            .Setup(t => t.SaveEditsAsync(photo.Id, It.IsAny<CancellationToken>()))
+            .Setup(t => t.SaveEditsAsync(photo.Id, _userId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(false);
 
         var result = await _controller.SaveEditsAsync(photo.Id);

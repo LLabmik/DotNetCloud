@@ -46,7 +46,7 @@ public interface IAdminModuleService
     Task<bool> RestartModuleAsync(string moduleId, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Grants a capability to a module.
+    /// Grants a capability to a module, or approves a request that was pending or previously rejected.
     /// </summary>
     /// <param name="moduleId">The module identifier.</param>
     /// <param name="capabilityName">The capability name (e.g., "IStorageProvider").</param>
@@ -55,10 +55,261 @@ public interface IAdminModuleService
     Task<ModuleCapabilityGrantDto?> GrantCapabilityAsync(string moduleId, string capabilityName, Guid grantedByUserId);
 
     /// <summary>
-    /// Revokes a capability from a module.
+    /// Records an administrator's rejection of a capability request.
     /// </summary>
+    /// <remarks>
+    /// The rejection is stored, not merely applied: a rejected capability is reported as rejected on
+    /// the module page and is never raised again as a pending request by the next start-up
+    /// reconciliation. A module that needs the capability must run without it.
+    /// </remarks>
+    /// <param name="moduleId">The module identifier.</param>
+    /// <param name="capabilityName">The capability name being declined.</param>
+    /// <param name="rejectedByUserId">The administrator making the decision.</param>
+    /// <returns>The decision DTO, or <see langword="null"/> if the module was not found.</returns>
+    Task<ModuleCapabilityGrantDto?> RejectCapabilityAsync(
+        string moduleId, string capabilityName, Guid rejectedByUserId);
+
+    /// <summary>
+    /// Revokes a granted capability from a module.
+    /// </summary>
+    /// <remarks>Revoking records a rejection so the capability is not re-requested on restart.</remarks>
     /// <param name="moduleId">The module identifier.</param>
     /// <param name="capabilityName">The capability name to revoke.</param>
-    /// <returns><see langword="true"/> if the grant was found and removed; otherwise <see langword="false"/>.</returns>
+    /// <returns><see langword="true"/> if a granted capability was revoked; otherwise <see langword="false"/>.</returns>
     Task<bool> RevokeCapabilityAsync(string moduleId, string capabilityName);
+
+    /// <summary>
+    /// Gets the isolated data store of a module.
+    /// </summary>
+    /// <param name="moduleId">The module identifier.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The data-store state, or <see langword="null"/> when the module is not installed.</returns>
+    Task<ModuleDataStoreDto?> GetDataStoreAsync(string moduleId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Provisions (or repairs) the schema and database principal for an isolated module.
+    /// </summary>
+    /// <param name="moduleId">The module identifier.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The operation outcome, or <see langword="null"/> when the module is not installed.</returns>
+    Task<ModuleDataStoreOperationResultDto?> ProvisionDataStoreAsync(
+        string moduleId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Rotates the module principal's password and re-encrypts the stored connection string.
+    /// </summary>
+    /// <param name="moduleId">The module identifier.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The operation outcome, or <see langword="null"/> when the module is not installed.</returns>
+    Task<ModuleDataStoreOperationResultDto?> RotateDataStoreCredentialsAsync(
+        string moduleId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Drops the module schema and database principal. Irreversible; destroys all module data.
+    /// </summary>
+    /// <param name="moduleId">The module identifier.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The operation outcome, or <see langword="null"/> when the module is not installed.</returns>
+    Task<ModuleDataStoreOperationResultDto?> DestroyDataStoreAsync(
+        string moduleId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Gets the resource quota override and the effective quota for a module.
+    /// </summary>
+    /// <param name="moduleId">The module identifier.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The quota state, or <see langword="null"/> when the module is not installed.</returns>
+    Task<ModuleQuotaDto?> GetQuotaAsync(string moduleId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Stores an admin quota override for a module. Null or zero values clear the override.
+    /// </summary>
+    /// <param name="moduleId">The module identifier.</param>
+    /// <param name="dto">The replacement override values.</param>
+    /// <param name="updatedByUserId">The administrator making the change.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The outcome, or <see langword="null"/> when the module is not installed.</returns>
+    Task<ModuleQuotaOperationResultDto?> UpdateQuotaAsync(
+        string moduleId,
+        UpdateModuleQuotaDto dto,
+        Guid updatedByUserId,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Lists a module's key/value settings (the module settings plane). Secret values are masked.
+    /// </summary>
+    /// <param name="moduleId">The module identifier.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The settings, or <see langword="null"/> when the module is not installed.</returns>
+    Task<IReadOnlyList<ModuleSettingDto>?> ListSettingsAsync(
+        string moduleId,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Creates or updates one module setting. A module can read its values through the
+    /// <c>GetSetting</c> RPC; only an administrator can write one.
+    /// </summary>
+    /// <param name="moduleId">The module identifier.</param>
+    /// <param name="key">The setting key.</param>
+    /// <param name="dto">The value and its sensitivity.</param>
+    /// <param name="updatedByUserId">The administrator making the change.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The stored setting, or <see langword="null"/> when the module is not installed.</returns>
+    Task<ModuleSettingDto?> SetSettingAsync(
+        string moduleId,
+        string key,
+        UpsertModuleSettingDto dto,
+        Guid updatedByUserId,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Deletes one module setting.
+    /// </summary>
+    /// <param name="moduleId">The module identifier.</param>
+    /// <param name="key">The setting key.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>
+    /// <see langword="true"/> when the setting was deleted, <see langword="false"/> when it did not
+    /// exist, and <see langword="null"/> when the module is not installed.
+    /// </returns>
+    Task<bool?> DeleteSettingAsync(
+        string moduleId,
+        string key,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Uninstalls a module: stops it, revokes its launch credential, optionally drops or orphans its
+    /// isolated data store, optionally removes its binaries, and deletes the installation record.
+    /// </summary>
+    /// <param name="moduleId">The module identifier.</param>
+    /// <param name="dto">Whether to destroy the module's data and remove its files.</param>
+    /// <param name="uninstalledByUserId">The administrator performing the uninstall.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The outcome, or <see langword="null"/> when the module is not installed.</returns>
+    Task<ModuleUninstallResultDto?> UninstallModuleAsync(
+        string moduleId,
+        UninstallModuleDto dto,
+        Guid uninstalledByUserId,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Gets the non-secret lifecycle record of a module's launch credential.
+    /// </summary>
+    /// <param name="moduleId">The module identifier.</param>
+    /// <returns>The credential record, or <see langword="null"/> when the module is not installed.</returns>
+    Task<ModuleCredentialDto?> GetCredentialAsync(string moduleId);
+
+    /// <summary>
+    /// Rotates a module's launch credential. A running module is restarted so it receives the new
+    /// secret; the previous credential stops working immediately.
+    /// </summary>
+    /// <param name="moduleId">The module identifier.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The new credential record, or <see langword="null"/> when the module is not installed.</returns>
+    Task<ModuleCredentialDto?> RotateCredentialAsync(string moduleId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Revokes a module's launch credential. Every in-flight call from the running process is
+    /// rejected until the module is restarted (which mints a new secret).
+    /// </summary>
+    /// <param name="moduleId">The module identifier.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The revoked credential record, or <see langword="null"/> when the module is not installed.</returns>
+    Task<ModuleCredentialDto?> RevokeCredentialAsync(string moduleId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Lists data stores retained as <c>Orphaned</c> after a module was uninstalled with "keep data".
+    /// </summary>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The orphaned stores an administrator can inspect and drop.</returns>
+    Task<IReadOnlyList<ModuleDataStoreDto>> ListOrphanedDataStoresAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Lists the packages available from the configured module store source.
+    /// </summary>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The catalogue entries, each annotated with the installed version when known.</returns>
+    Task<IReadOnlyList<ModuleStorePackageDto>> ListStorePackagesAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Lists installed store packages whose catalogue status changed after they were installed: a
+    /// withdrawn version (with its severity) or a version the store no longer lists at all.
+    /// </summary>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>Warnings ordered by severity, security first. Empty when the store is unreachable.</returns>
+    /// <remarks>
+    /// An unreachable store produces no warnings on purpose: "cannot check" must never be reported as
+    /// "all clear", and it must not break the admin page either.
+    /// </remarks>
+    Task<IReadOnlyList<ModuleRevocationWarningDto>> ListRevocationWarningsAsync(
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Verifies an uploaded package and returns the manifest facts an administrator must review.
+    /// Nothing is installed.
+    /// </summary>
+    /// <param name="packagePath">Path of a package already written to a temporary location.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The review, including every verification finding.</returns>
+    Task<ModulePackageReviewDto> InspectPackageAsync(string packagePath, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Installs an uploaded package after the administrator reviewed it.
+    /// </summary>
+    /// <param name="packagePath">Path of the package to install.</param>
+    /// <param name="dto">
+    /// The reviewed hash plus the acknowledged capabilities and scopes. Both lists must equal the
+    /// manifest's declarations exactly, which is what binds the approval to this package.
+    /// </param>
+    /// <param name="installedByUserId">The administrator performing the install.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The outcome; a failed health check is rolled back before returning.</returns>
+    Task<ModuleInstallResultDto> InstallPackageAsync(
+        string packagePath,
+        InstallModulePackageDto dto,
+        Guid installedByUserId,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Fetches (or reuses) a package the configured store source lists and returns the review an
+    /// administrator must approve. Nothing is installed.
+    /// </summary>
+    /// <param name="moduleId">The module id to inspect.</param>
+    /// <param name="version">The version, or <see langword="null"/> for the highest listed.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The review, including every verification finding.</returns>
+    /// <remarks>
+    /// Throws <c>ModulePackageException</c> when the source does not list the package, or when it
+    /// could not be fetched and verified.
+    /// </remarks>
+    Task<ModulePackageReviewDto> InspectStorePackageAsync(
+        string moduleId,
+        string? version,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Installs a package from the configured store source after the administrator reviewed it.
+    /// </summary>
+    /// <param name="moduleId">The module id to install.</param>
+    /// <param name="dto">The reviewed version, hash and acknowledged capability/scope lists.</param>
+    /// <param name="installedByUserId">The administrator performing the install.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The outcome; a failed health check is rolled back before returning.</returns>
+    Task<ModuleInstallResultDto> InstallStorePackageAsync(
+        string moduleId,
+        InstallStorePackageDto dto,
+        Guid installedByUserId,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Restores the previous version retained by the last install.
+    /// </summary>
+    /// <param name="moduleId">The module identifier.</param>
+    /// <param name="rolledBackByUserId">The administrator performing the rollback.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The outcome.</returns>
+    Task<ModuleInstallResultDto> RollbackModuleAsync(
+        string moduleId,
+        Guid rolledBackByUserId,
+        CancellationToken cancellationToken = default);
 }

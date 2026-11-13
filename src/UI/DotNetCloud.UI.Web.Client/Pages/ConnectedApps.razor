@@ -1,0 +1,74 @@
+@page "/connected-apps"
+@rendermode @(new Microsoft.AspNetCore.Components.Web.InteractiveAutoRenderMode(prerender: false))
+@attribute [Authorize]
+
+<PageTitle>Connected Apps - DotNetCloud</PageTitle>
+
+@if (_loading)
+{
+    <LoadingIndicator Message="Loading connected apps..." />
+}
+else
+{
+    <div class="page-header">
+        <h1>Connected Apps</h1>
+        <a href="/profile" class="btn btn-outline">Back to Profile</a>
+    </div>
+
+    <p class="connected-apps-intro">
+        Modules you have given access to your data. You can revoke access at any time &mdash;
+        revoking stops future access immediately, but does not take back data a module already holds.
+    </p>
+
+    @if (_apps.Count == 0)
+    {
+        <div class="empty-state">
+            <MaterialIcon Icon="apps" Size="MaterialIconSize.Xl" />
+            <p>No applications have access to your data.</p>
+        </div>
+    }
+    else
+    {
+        <div class="connected-apps-list">
+            @foreach (var app in _apps)
+            {
+                <section class="connected-app-card">
+                    <header class="connected-app-header">
+                        <div>
+                            <h2>@app.ModuleName</h2>
+                            <span class="connected-app-id">@app.ModuleId</span>
+                        </div>
+                        @if (!app.IsModuleInstalled)
+                        {
+                            <span class="badge badge-warning">Module removed</span>
+                        }
+                    </header>
+
+                    <ul class="connected-app-scopes">
+                        @foreach (var scope in app.Scopes)
+                        {
+                            <li>
+                                <span class="scope-text">@scope.Description</span>
+                                <code class="scope-name">@scope.Scope</code>
+                            </li>
+                        }
+                    </ul>
+
+                    <footer class="connected-app-actions">
+                        @if (app.GrantedAtUtc is { } grantedAt)
+                        {
+                            <span class="connected-app-since">
+                                Approved @TimeProvider.FormatDateTime(grantedAt, "yyyy-MM-dd")
+                            </span>
+                        }
+                        <button class="btn btn-danger"
+                                disabled="@_busyModuleId.Equals(app.ModuleId, StringComparison.Ordinal)"
+                                @onclick="() => RevokeAsync(app)">
+                            Revoke access
+                        </button>
+                    </footer>
+                </section>
+            }
+        </div>
+    }
+}

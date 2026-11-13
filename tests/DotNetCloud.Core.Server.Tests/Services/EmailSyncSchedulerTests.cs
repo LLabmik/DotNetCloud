@@ -47,7 +47,12 @@ public class EmailSyncSchedulerTests
         var endpointProvider = new ModuleEndpointProvider(
             supervisor: null!,
             channelProvider: null!,
-            Microsoft.Extensions.Options.Options.Create(new ProcessSupervisorOptions()),
+            endpoints: new ModuleEndpointAllocator(
+                ModuleTransportKind.Tcp,
+                unixSocketDirectory: null,
+                namedPipePrefix: "dotnetcloud",
+                new ProcessSupervisorOptions(),
+                Path.GetTempPath()),
             NullLogger<ModuleEndpointProvider>.Instance);
 
         return new EmailSyncScheduler(

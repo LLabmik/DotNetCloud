@@ -1,18 +1,34 @@
 {
+  "manifestVersion": 2,
   "id": "dotnetcloud.example",
   "name": "Example",
-  "version": "1.0.0",
-  "description": "Reference implementation of a DotNetCloud module. Demonstrates lifecycle management, capability usage, event publishing, gRPC services, and Blazor UI components.",
-  "author": "DotNetCloud",
-  "requiredCapabilities": [
-    "INotificationService",
-    "IStorageProvider"
-  ],
-  "publishedEvents": [
-    "NoteCreatedEvent",
-    "NoteDeletedEvent"
-  ],
-  "subscribedEvents": [],
-  "minCoreVersion": "1.0.0",
-  "schemaProvider": "self"
+  "version": "1.1.0",
+  "description": "Reference implementation of a DotNetCloud module. Demonstrates lifecycle management, capability usage, event publishing, gRPC services, and a module-hosted web UI served from its own process.",
+  "publisher": {
+    "id": "dotnetcloud",
+    "name": "DotNetCloud",
+    "url": "https://dotnetcloud.net"
+  },
+  "moduleApiVersion": 1,
+  "minCoreVersion": "0.7.0",
+  "dataStore": "isolated",
+  "handlesUserErasure": true,
+  "capabilities": ["INotificationService", "IAuditLogger"],
+  "userConsentScopes": ["notifications:send"],
+  "events": {
+    "publishes": ["NoteCreatedEvent", "NoteDeletedEvent"],
+    "subscribes": []
+  },
+  "ui": {
+    "type": "iframe",
+    "entryPath": "/",
+    "navItems": [
+      {
+        "id": "notes",
+        "label": "Example",
+        "icon": "note",
+        "path": "/"
+      }
+    ]
+  }
 }

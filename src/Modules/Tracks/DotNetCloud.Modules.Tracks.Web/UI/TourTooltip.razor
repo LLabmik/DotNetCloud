@@ -1,0 +1,48 @@
+@namespace DotNetCloud.Modules.Tracks.Web.UI
+@inherits TourTooltipBase
+
+@* Centered tooltip card for the onboarding tour. *@
+
+<div class="tour-tooltip" @onclick:stopPropagation>
+    @if (!string.IsNullOrWhiteSpace(Icon))
+    {
+        <div class="tour-tooltip__icon">
+            <MaterialIcon Icon="@Icon" Size="MaterialIconSize.Xl" />
+        </div>
+    }
+
+    <div class="tour-tooltip__step-indicator">@($"{CurrentStep + 1} of {TotalSteps}")</div>
+
+    <h3 class="tour-tooltip__title">@Title</h3>
+    @if (!string.IsNullOrWhiteSpace(Description))
+    {
+        <p class="tour-tooltip__description">@Description</p>
+    }
+
+    <div class="tour-tooltip__actions">
+        @if (CurrentStep > 0)
+        {
+            <button class="btn btn-secondary btn-sm" @onclick="() => OnPrevious.InvokeAsync()">
+                <MaterialIcon Icon="arrow_back" Size="MaterialIconSize.Sm" /> Back
+            </button>
+        }
+        <div class="tour-tooltip__spacer"></div>
+        <button class="btn btn-ghost btn-sm tour-tooltip__skip" @onclick="() => OnSkip.InvokeAsync()">
+            Skip tour
+        </button>
+        <button class="btn btn-primary btn-sm" @onclick="() => OnNext.InvokeAsync()">
+            @if (CurrentStep < TotalSteps - 1)
+            {
+                <text>Next
+                    <MaterialIcon Icon="arrow_forward" Size="MaterialIconSize.Sm" />
+                </text>
+            }
+            else
+            {
+                <text>Finish
+                    <MaterialIcon Icon="check" Size="MaterialIconSize.Sm" />
+                </text>
+            }
+        </button>
+    </div>
+</div>

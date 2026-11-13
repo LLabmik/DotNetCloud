@@ -27,10 +27,26 @@
     <ProjectReference Include="..\..\src\Modules\Tracks\DotNetCloud.Modules.Tracks\DotNetCloud.Modules.Tracks.csproj" />
     <ProjectReference Include="..\..\src\Modules\Tracks\DotNetCloud.Modules.Tracks.Data\DotNetCloud.Modules.Tracks.Data.csproj" />
     <ProjectReference Include="..\..\src\Modules\Tracks\DotNetCloud.Modules.Tracks.Host\DotNetCloud.Modules.Tracks.Host.csproj" />
+    <!-- The browser-side services: a plain net10.0 library precisely so they can be tested here. -->
+    <ProjectReference Include="..\..\src\Modules\Tracks\DotNetCloud.Modules.Tracks.Web.Services\DotNetCloud.Modules.Tracks.Web.Services.csproj" />
   </ItemGroup>
 
   <ItemGroup>
     <Using Include="Microsoft.VisualStudio.TestTools.UnitTesting" />
+  </ItemGroup>
+
+  <!-- The shipped files are the ones under test: the manifest, the module UI's widget document and
+       the SDK bridge. The Blazor WebAssembly app itself is exercised in a browser; these copies let
+       the asset guard fail the build instead. -->
+  <ItemGroup>
+    <None Include="..\..\src\Modules\Tracks\manifest.json" Link="ui\manifest.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\src\Modules\Tracks\DotNetCloud.Modules.Tracks.Host\wwwroot\widget\index.html" Link="ui\widget\index.html" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\src\Modules\Tracks\DotNetCloud.Modules.Tracks.Host\wwwroot\widget\widget.js" Link="ui\widget\widget.js" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\src\Modules\Tracks\DotNetCloud.Modules.Tracks.Host\wwwroot\widget\widget.css" Link="ui\widget\widget.css" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\src\Modules\Tracks\DotNetCloud.Modules.Tracks.Web\wwwroot\index.html" Link="ui\index.html" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\src\Modules\Tracks\DotNetCloud.Modules.Tracks.Web\wwwroot\css\app.css" Link="ui\css\app.css" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\src\Modules\Tracks\DotNetCloud.Modules.Tracks.Web\wwwroot\js\tracks-boot.js" Link="ui\js\tracks-boot.js" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\src\SDK\DotNetCloud.Modules.Sdk\wwwroot\dncModuleBridge.js" Link="ui\dncModuleBridge.js" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

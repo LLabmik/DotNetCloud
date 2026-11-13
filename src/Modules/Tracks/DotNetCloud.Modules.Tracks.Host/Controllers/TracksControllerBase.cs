@@ -1,7 +1,6 @@
 using System.Security.Claims;
 using DotNetCloud.Core.Authorization;
 using DotNetCloud.Core.Errors;
-using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace DotNetCloud.Modules.Tracks.Host.Controllers;
@@ -9,8 +8,14 @@ namespace DotNetCloud.Modules.Tracks.Host.Controllers;
 /// <summary>
 /// Base controller for Tracks module endpoints. Provides authentication helpers and response envelope methods.
 /// </summary>
+/// <remarks>
+/// There is deliberately no <c>[Authorize]</c> here. The host is sandboxed and registers no cookie
+/// scheme: the core proxies every request with a short-lived, module-audience assertion which
+/// <c>UseModuleUserAssertion</c> turns into the request principal, and
+/// <see cref="TracksRequireUserAssertionFilter"/> (registered globally in <c>Program</c>) rejects a
+/// request without one. The caller identity is read from that principal.
+/// </remarks>
 [ApiController]
-[Authorize(AuthenticationSchemes = "Identity.Application")]
 public abstract class TracksControllerBase : ControllerBase
 {
     /// <summary>

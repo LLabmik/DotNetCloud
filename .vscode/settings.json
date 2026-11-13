@@ -7,5 +7,6 @@
     "dotnet test": true
   },
   "sarif-viewer.connectToGithubCodeScanning": "on",
-  "dotnet.defaultSolution": "DotNetCloud.sln"
+  "dotnet.defaultSolution": "DotNetCloud.sln",
+  "chat.editor.preferCopilotHarness": false
 }

@@ -16,14 +16,15 @@ public sealed class PhotosModuleManifest : IModuleManifest
     public string Name => "Photos";
 
     /// <inheritdoc />
-    public string Version => "1.0.0";
+    public string Version => "2.0.0";
 
     /// <inheritdoc />
     public IReadOnlyCollection<string> RequiredCapabilities => new[]
     {
-        nameof(Core.Capabilities.IStorageProvider),
-        nameof(Core.Capabilities.IUserDirectory),
-        nameof(Core.Capabilities.ICurrentUserContext),
+        nameof(Core.Capabilities.IAuditLogger),
+        nameof(Core.Capabilities.ISearchProvider),
+        nameof(Core.Capabilities.ITeamDirectory),
+        nameof(Core.Capabilities.IFileDirectory),
         nameof(Core.Capabilities.INotificationService)
     };
 
@@ -38,8 +39,5 @@ public sealed class PhotosModuleManifest : IModuleManifest
     };
 
     /// <inheritdoc />
-    public IReadOnlyCollection<string> SubscribedEvents => new[]
-    {
-        "FileUploadedEvent"
-    };
+    public IReadOnlyCollection<string> SubscribedEvents => Array.Empty<string>();
 }

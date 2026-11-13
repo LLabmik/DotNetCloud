@@ -1,0 +1,82 @@
+@page "/admin/erasure"
+@rendermode @(new Microsoft.AspNetCore.Components.Web.InteractiveAutoRenderMode(prerender: false))
+@attribute [Authorize(Policy = "RequireAdmin")]
+
+<PageTitle>Data Erasure - DotNetCloud</PageTitle>
+
+<div class="page-header">
+    <h1>Data erasure</h1>
+    <a href="/admin/modules" class="btn btn-outline">Modules</a>
+</div>
+
+<p class="text-muted">
+    Deleting an account asks every module that handles user data to erase it. A request stays
+    pending until each reachable module acknowledges; an administrator can override a request a
+    module never answers.
+</p>
+
+@if (_loading)
+{
+    <LoadingIndicator Message="Loading erasure requests..." />
+}
+else if (_requests.Count == 0)
+{
+    <div class="empty-state">
+        <p>No outstanding erasure requests.</p>
+    </div>
+}
+else
+{
+    <div class="table-container">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Requested</th>
+                    <th>User</th>
+                    <th>Status</th>
+                    <th>Modules</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var request in _requests)
+                {
+                    <tr>
+                        <td>@request.RequestedAtUtc.ToString("yyyy-MM-dd HH:mm")</td>
+                        <td class="erasure-user">@request.UserId</td>
+                        <td>
+                            <span class="badge badge-@GetStatusClass(request.Status)">@request.Status</span>
+                        </td>
+                        <td>
+                            <ul class="module-status-list">
+                                @foreach (var module in request.Modules)
+                                {
+                                    <li>
+                                        <span class="module-id">@module.ModuleId</span>
+                                        <span class="badge badge-@GetStatusClass(module.Status)">@module.Status</span>
+                                        @if (!string.IsNullOrWhiteSpace(module.LastError))
+                                        {
+                                            <small class="text-muted">@module.LastError</small>
+                                        }
+                                    </li>
+                                }
+                            </ul>
+                        </td>
+                        <td>
+                            @if (request.Status == "Pending")
+                            {
+                                <button class="btn btn-sm btn-warning"
+                                        disabled="@_actionInProgress"
+                                        @onclick="() => OverrideAsync(request.RequestId)">
+                                    Force complete
+                                </button>
+                            }
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+}
+
+<ConfirmDialog @ref="_confirmDialog" />

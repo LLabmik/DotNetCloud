@@ -39,6 +39,10 @@
     <ProjectReference Include="..\..\src\Modules\Chat\DotNetCloud.Modules.Chat.Host\DotNetCloud.Modules.Chat.Host.csproj">
       <Aliases>ChatHost</Aliases>
     </ProjectReference>
+    <!-- Tracks is process-isolated since the Track C flip: the core no longer references its data
+         project, so the schema-migration integration test names it directly. -->
+    <ProjectReference Include="..\..\src\Modules\Tracks\DotNetCloud.Modules.Tracks.Data\DotNetCloud.Modules.Tracks.Data.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Tracks\DotNetCloud.Modules.Tracks.Data.SqlServer\DotNetCloud.Modules.Tracks.Data.SqlServer.csproj" />
   </ItemGroup>
 
   <ItemGroup>

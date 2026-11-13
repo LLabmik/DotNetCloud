@@ -1,6 +1,5 @@
 using System.Security.Claims;
 using DotNetCloud.Modules.Email.Host.Protos;
-using DotNetCloud.Modules.Email.Models;
 using DotNetCloud.Core.Services.ModuleApis;
 using Grpc.Core;
 using Grpc.Net.Client;
@@ -480,49 +479,6 @@ public sealed class EmailGrpcApiClient : IEmailApiClient, IDisposable
         }
     }
 
-    /// <inheritdoc />
-    public async Task<UploadAttachmentResult> AttachFromFilesModuleAsync(Guid fileNodeId, CancellationToken ct = default)
-    {
-        var request = new AttachFromFilesRequest
-        {
-            FileNodeId = fileNodeId.ToString(),
-            UserId = GetUserId()
-        };
-        try
-        {
-            var response = await _client.Value.AttachFromFilesModuleAsync(request, DeadlineHeaders(ct));
-            return response.Success
-                ? new UploadAttachmentResult
-                {
-                    StorageKey = response.StorageKey,
-                    FileName = response.FileName,
-                    ContentType = response.ContentType,
-                    Size = response.Size,
-                    ContentHash = response.ContentHash
-                }
-                : new UploadAttachmentResult
-                {
-                    StorageKey = string.Empty,
-                    FileName = string.Empty,
-                    ContentType = string.Empty,
-                    Size = 0,
-                    ContentHash = string.Empty
-                };
-        }
-        catch (RpcException ex)
-        {
-            _logger.LogError(ex, "EmailGrpcApiClient.AttachFromFilesModuleAsync failed for {FileNodeId}", fileNodeId);
-            return new UploadAttachmentResult
-            {
-                StorageKey = string.Empty,
-                FileName = string.Empty,
-                ContentType = string.Empty,
-                Size = 0,
-                ContentHash = string.Empty
-            };
-        }
-    }
-
     // ─── Helpers ────────────────────────────────────────────────────────────
 
     private Metadata DeadlineHeaders(CancellationToken ct)
@@ -541,7 +497,8 @@ public sealed class EmailGrpcApiClient : IEmailApiClient, IDisposable
         {
             Id = Guid.Parse(m.Id),
             OwnerId = Guid.Parse(m.OwnerId),
-            ProviderType = Enum.TryParse<EmailProviderType>(m.ProviderType, out var pt) ? pt.ToString() : nameof(EmailProviderType.ImapSmtp),
+            // The wire value is the provider enum name; an unset value means the default (IMAP/SMTP).
+            ProviderType = string.IsNullOrWhiteSpace(m.ProviderType) ? "ImapSmtp" : m.ProviderType,
             DisplayName = m.DisplayName,
             EmailAddress = m.EmailAddress,
             IsEnabled = m.IsEnabled,
@@ -635,7 +592,8 @@ public sealed class EmailGrpcApiClient : IEmailApiClient, IDisposable
     public void Dispose()
     {
         // The channel belongs to GrpcChannelManager and is shared, so there is nothing to release.
-        if (_disposed) return;
+        if (_disposed)
+            return;
         _disposed = true;
     }
 }

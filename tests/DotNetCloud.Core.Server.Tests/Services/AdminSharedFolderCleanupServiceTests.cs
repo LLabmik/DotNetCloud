@@ -5,7 +5,7 @@ using DotNetCloud.Core.Events;
 using DotNetCloud.Core.Server.Services;
 using DotNetCloud.Core.Services;
 using DotNetCloud.Modules.Music.Events;
-using DotNetCloud.Modules.Photos.Events;
+using DotNetCloud.Core.Server.Services.Media;
 using DotNetCloud.Modules.Video.Events;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -212,7 +212,7 @@ public sealed class AdminSharedFolderCleanupServiceTests
         var sharedFolderId = Guid.CreateVersion7();
         var userId = Guid.CreateVersion7();
 
-        var photoCallbackMock = new Mock<IPhotoIndexingCallback>();
+        var photoCallbackMock = new Mock<IPhotoIndexingClient>();
         photoCallbackMock
             .Setup(callback => callback.RemoveDeletedPhotosAsync(
                 It.IsAny<IReadOnlyCollection<Guid>>(),
@@ -486,7 +486,7 @@ public sealed class AdminSharedFolderCleanupServiceTests
     private static (ServiceProvider Provider, Mock<IUserSettingsService> SettingsServiceMock, CoreDbContext DbContext) CreateTestFixture(
         IMusicIndexingCallback? musicCallback = null,
         IVideoIndexingCallback? videoCallback = null,
-        IPhotoIndexingCallback? photoCallback = null,
+        IPhotoIndexingClient? photoCallback = null,
         ICleanupStatusReporter? statusReporter = null)
     {
         var dbName = Guid.CreateVersion7().ToString();

@@ -152,7 +152,9 @@ public partial class CalendarPage
 
 ```css
 /* CalendarPage.razor.css — Blazor CSS isolation */
-.calendar-page-layout { display: flex; }
+.calendar-page-layout {
+  display: flex;
+}
 ```
 
 **Details:**
@@ -161,7 +163,7 @@ public partial class CalendarPage
 - Code-behind namespace must match the `.razor` file's namespace (folder-derived or explicit `@namespace`).
 - Directives stay in the `.razor` file: `@page`, `@using`, `@inject`, `@inherits`, `@implements`, `@attribute`, `@layout`, `@typeparam`, `@rendermode`, `@key`-style markup constructs.
 - Dynamic inline styles that depend on runtime state (e.g. `style="width: @pct%"`) are allowed, but prefer a CSS custom property (`style="--pct: @pct"`) defined in `.razor.css`.
-- A `<style>` block emitted as component *content* (e.g. inside an email/HTML preview `MarkupString`) is not component CSS and is exempt.
+- A `<style>` block emitted as component _content_ (e.g. inside an email/HTML preview `MarkupString`) is not component CSS and is exempt.
 
 **Why:** Keeps markup readable, makes logic testable and analyzable as C#, and ensures styles compile through CSS isolation instead of leaking globally.
 
@@ -661,6 +663,13 @@ When the user says the keyword **"remember"**, it means this information should 
 
 Applies to all backup operations (DB dumps, file storage, config archives).
 
+### Shell Quoting (MANDATORY)
+
+- ❌ Never put `!` in a terminal command — bash history expansion aborts it with
+  `bash: !: event not found` (e.g. `grep -E "Passed!|Failed!"`).
+- ✅ Use single quotes and match words only: `grep -E 'Passed|Failed|error'`.
+- Applies to any literal containing `!`, including passwords passed to `psql`/`sqlcmd`.
+
 ### Mediator Command Execution Rule (MANDATORY)
 
 When the assistant needs the mediator to run a command:
@@ -674,12 +683,25 @@ When the assistant needs the mediator to run a command:
 For commands that require elevation (e.g. `sudo ./scripts/deploy.sh --force --verify`):
 
 - ✅ The **assistant types out and launches the command itself** in the visible terminal — do NOT just print the command and hand it to the user to run.
-- ✅ **Say everything FIRST:** emit ALL explanation, expected behaviour and next-step notes **before** launching the command. The **"Focus Terminal" button** is rendered *at the moment of launch* and is **erased by any assistant text emitted after it** — even a few lines. So **launch the command as the very last action and then emit NO text at all** (no "type your password" reminder) — end the turn and wait for the command to report back.
+- ✅ **Say everything FIRST:** emit ALL explanation, expected behaviour and next-step notes **before** launching the command. The **"Focus Terminal" button** is rendered _at the moment of launch_ and is **erased by any assistant text emitted after it** — even a few lines. So **launch the command as the very last action and then emit NO text at all** (no "type your password" reminder) — end the turn and wait for the command to report back.
 - ✅ The **user types the sudo password directly into that terminal** when `[sudo] password for <user>:` appears. The assistant stops and waits at that prompt without killing the command.
 - ❌ Never ask the user for the password via `vscode_askQuestions`, and never send it with `send_to_terminal` — secrets must never be routed through the model.
 - ❌ Never re-run or duplicate a privileged command that is already sitting at a password prompt.
 - After the user enters the password, check **once** with `get_terminal_output` to confirm the command is underway, then **wait for the automatic completion notification** — do NOT poll repeatedly.
 - ❌ **NEVER kill** the command — not even if it looks slow or stuck. A full build/publish can take 10+ minutes.
+
+### Commit Message Content (MANDATORY)
+
+Commit messages are pushed to public GitHub and are effectively permanent. **Never put private deployment topology in them.**
+
+- ❌ No server, machine or workstation names (`mint22`, `portal6`, …), IP addresses, OS user names, host-specific paths (`C:\inetpub\…`, `/home/<user>/…`), or aliases that resolve to a specific box.
+- ❌ No database / site names taken from one deployment.
+- ✅ Describe the code, the failing symptom and the evidence — "verified live against the published catalogue", "`Notes` + `__EFMigrationsHistory` in the generated schema", "`/health/ready` 15/15" — without saying where it ran.
+- ✅ Public project domains already documented in this repo (`dotnetcloud.net`, `modules.dotnetcloud.net`) are fine; anything that identifies a specific machine is not.
+
+The same rule applies to **branch names** and **PR descriptions**. It is the same prohibition as §3.5 of `docs/THIRD_PARTY_MODULE_SANDBOX_AND_STORE_PLAN.md` ("no committed document may reference private deployment topology"), extended to git metadata.
+
+If a host name has already been committed or pushed, do **not** rewrite shared history on your own initiative — report the commit hash and let the user decide.
 
 ### Git Push Responsibility
 
@@ -699,7 +721,13 @@ For commands that require elevation (e.g. `sudo ./scripts/deploy.sh --force --ve
 
 ## Domain Information
 
-**IMPORTANT:** The dotnetcloud.net domain has no content yet. References to dotnetcloud.net/docs are incorrect — documentation is only available from the GitHub repository (https://github.com/LLabmik/DotNetCloud). Only generic informational references to dotnetcloud.net are acceptable (website coming soon, contact, domain name). No URLs pointing to specific resources on dotnetcloud.net (docs, downloads, install scripts, etc.).
+**As of 2026-11-08 the domain serves two static IIS sites** (plain files, no application — see `docs/admin/SITES.md`):
+
+- `https://www.dotnetcloud.net` — marketing site (`DotNetCloud-WebSite` repo): home, server install, client pages, module store page, support.
+- `https://modules.dotnetcloud.net` — module store: store frontend, the signed catalogue (`index/v1/index.json` + `.sig`), `packages/<id>/<version>/<file>.dncpkg`, `publishers.json`, `yanked.json`.
+- `https://dotnetcloud.net` redirects to `https://www.dotnetcloud.net`.
+
+**Still incorrect:** `dotnetcloud.net/docs`, `/downloads`, `/install.sh` and similar paths do not exist. Documentation lives only in the GitHub repository (https://github.com/LLabmik/DotNetCloud/tree/main/docs), and installers are served from `raw.githubusercontent.com` or release assets. Do not invent URLs on the domain beyond the three sites listed above.
 
 ---
 

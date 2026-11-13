@@ -26,20 +26,13 @@ using DotNetCloud.Core.Events;
 using DotNetCloud.Core.Services;
 using DotNetCloud.Modules.Files.Services;
 using DotNetCloud.Modules.Notes.Data;
-using DotNetCloud.Modules.Tracks.Data;
-using DotNetCloud.Modules.Tracks.Data.Services;
-using DotNetCloud.Modules.Tracks.Services;
 using DotNetCloud.Modules.Music.Data;
-using DotNetCloud.Modules.Photos.Data;
 using DotNetCloud.Modules.Video.Data;
-using DotNetCloud.Modules.AI.Data;
-using DotNetCloud.Modules.Bookmarks.Data;
 using DotNetCloud.Modules.Chat.Data;
 using DotNetCloud.Modules.Chat.Data.Services;
 using DotNetCloud.Modules.Chat.Services;
 using DotNetCloud.Modules.Calendar.Data;
 using DotNetCloud.Modules.Contacts.Data;
-using DotNetCloud.Modules.Email.Data;
 using DotNetCloud.Modules.Files.Data;
 using DotNetCloud.UI.Web.Client.Services;
 using DotNetCloud.UI.Web.Services;
@@ -260,10 +253,7 @@ public class Program
 
         // Configure and register supervisor + module gRPC infrastructure.
         builder.ConfigureGrpcForModules();
-        builder.Services.AddProcessSupervisor(options =>
-        {
-            options.PreferTcpTransport = true;
-        });
+        builder.Services.AddProcessSupervisor(enableDetailedErrors: builder.Environment.IsDevelopment());
 
         // Add service defaults (logging, telemetry, health checks)
         builder.AddDotNetCloudServiceDefaults();
@@ -300,6 +290,9 @@ public class Program
                 "or 'connectionString' in config.json (DOTNETCLOUD_CONFIG_DIR).");
         }
         builder.Services.AddDotNetCloudDbContext(connectionString, provider);
+
+        // Captured for services that need raw ADO.NET access (module data-store provisioning).
+        builder.Services.AddSingleton(new Sandbox.CoreDatabaseOptions(connectionString, provider));
 
         // DB outage resilience: a transient database failure in a background service must
         // NOT stop the entire host. The default BackgroundServiceExceptionBehavior is
@@ -340,14 +333,10 @@ public class Program
         // Each module's .Data project owns its Add*UiServices registration, including
         // the DbContext configuration.
         builder.Services.AddNotesUiServices(builder.Configuration!, provider, connectionString);
-        // Tracks module in-process UI services (SignalR real-time, command palette, CSV import).
-        // All other Tracks API calls go through the gRPC ITracksApiClient (registered below).
-        // Uses the module's dedicated UI registration so the full dependency graph
-        // (e.g. CsvImportService behind ICsvImportUiService) is present.
-        builder.Services.AddTracksUiServices(builder.Configuration!, provider, connectionString);
         builder.Services.AddMusicUiServices(builder.Configuration!, provider, connectionString);
-        builder.Services.AddPhotosUiServices(builder.Configuration!, provider, connectionString);
         builder.Services.AddVideoUiServices(builder.Configuration!, provider, connectionString);
+        // NOTE: Photos is process-isolated — its UI is served by the module host through the
+        // /apps/dotnetcloud.photos frame, and its data is reached through the module API.
         // NOTE: AI chat is process-isolated — it goes through the module host gRPC client
         // (IAiApiClient) below. No in-process AI UI services are registered here.
 
@@ -397,27 +386,22 @@ public class Program
             ModuleDbContextConfiguration.Configure(options, provider, connectionString, "DotNetCloud.Modules.Calendar.Data.SqlServer"),
             ServiceLifetime.Transient);
 
-        // AI DbContext for schema creation by DbContextSchemaProvider only.
-        // AI chat goes through the process-isolated module host via IAiApiClient (gRPC).
-        builder.Services.AddDbContext<AiDbContext>(options =>
-            ModuleDbContextConfiguration.Configure(options, provider, connectionString, "DotNetCloud.Modules.AI.Data.SqlServer"),
-            ServiceLifetime.Transient);
-
-        // Contacts/Bookmarks/Email DbContexts for schema creation by DbContextSchemaProvider.
-        // These modules are process-isolated — their hosts query the shared DB directly, but the
-        // schema must exist before the module host starts. Without these registrations the schema
-        // provider skipped them entirely and no contacts/bookmarks/email tables were ever created on
+        // AI is deliberately absent: it owns its data store (dataStore: "isolated"), so its own host
+        // applies its migrations into the schema the core provisions. Registering its DbContext here
+        // would make the core try to create tables in a schema the module principal owns.
+        // Contacts DbContext for schema creation by DbContextSchemaProvider.
+        // The module is process-isolated — its host queries the shared DB directly, but the
+        // schema must exist before the module host starts. Without this registration the schema
+        // provider skipped it entirely and no contacts tables were ever created on
         // server-only (Docker/Helm) installs that never run `dotnetcloud migrate`. The .Data.SqlServer
         // migrations assembly string is only used on SQL Server; on PostgreSQL Npgsql discovers the
         // (Postgres) migrations in the DbContext's own .Data assembly.
+        //
+        // Bookmarks and Email are deliberately absent: they own their data stores
+        // (dataStore: "isolated", Track C), so the core neither registers nor migrates their
+        // DbContexts — each module self-migrates in the schema the provisioning service created.
         builder.Services.AddDbContext<ContactsDbContext>(options =>
             ModuleDbContextConfiguration.Configure(options, provider, connectionString, "DotNetCloud.Modules.Contacts.Data.SqlServer"),
-            ServiceLifetime.Transient);
-        builder.Services.AddDbContext<BookmarksDbContext>(options =>
-            ModuleDbContextConfiguration.Configure(options, provider, connectionString, "DotNetCloud.Modules.Bookmarks.Data.SqlServer"),
-            ServiceLifetime.Transient);
-        builder.Services.AddDbContext<EmailDbContext>(options =>
-            ModuleDbContextConfiguration.Configure(options, provider, connectionString, "DotNetCloud.Modules.Email.Data.SqlServer"),
             ServiceLifetime.Transient);
 
         // Override Chat services with no-op/stub implementations for the global UI.
@@ -455,6 +439,19 @@ public class Program
         // Inbox for platform events raised by module hosts over PublishEvent. The core owns
         // delivery; the inbox only whitelists which event types a module may raise.
         builder.Services.AddSingleton<ModuleEventInbox>();
+        // Per-user consent plane (phase A3): stored (module, user, scope) grants, evaluated on every
+        // user-scoped module call and by the OIDC consent step.
+        builder.Services.AddScoped<DotNetCloud.Core.Modules.IModuleConsentService, ModuleConsentService>();
+        builder.Services.AddSingleton<DotNetCloud.Core.Server.Grpc.ModuleAccess.ModuleConsentPolicy>();
+        builder.Services.AddSingleton<DotNetCloud.Core.Server.Consent.ConsentRequestStore>();
+        // One public, explicitly-consenting OIDC client per consent-aware module (phase A3).
+        builder.Services.AddScoped<DotNetCloud.Core.Server.Consent.ModuleOidcClientRegistrar>();
+        builder.Services.AddHostedService<DotNetCloud.Core.Server.Consent.ModuleOidcClientProvisioningService>();
+        // Account erasure (F12): fan out to every module, retry for 72 hours, never report success early.
+        builder.Services.AddScoped<DotNetCloud.Core.Server.Services.IModuleErasureDispatcher, DotNetCloud.Core.Server.Services.GrpcModuleErasureDispatcher>();
+        builder.Services.AddScoped<DotNetCloud.Core.Services.IUserErasureService, UserErasureService>();
+        builder.Services.AddHostedService<UserDeletedEventSubscriber>();
+        builder.Services.AddHostedService<UserErasureRetryHostedService>();
         // LegacyFilesMigrationService moved to Files.Host (runs in that process)
         builder.Services.AddScoped<DotNetCloud.Core.Capabilities.ICrossModuleLinkResolver, CrossModuleLinkResolver>();
         builder.Services.AddSingleton<DotNetCloud.Core.Services.IBackgroundServiceTracker, DotNetCloud.Core.Services.BackgroundServiceTracker>();
@@ -566,6 +563,11 @@ public class Program
         builder.Services.AddHttpContextAccessor();
         builder.Services.AddSingleton<ModuleUiRegistry>();
         builder.Services.AddSingleton<WidgetUiRegistry>();
+
+        // Route constraint for the module UI plane: /apps/{moduleId} only matches reverse-DNS module
+        // ids, so the shell's first-party pages (/apps/files, /apps/chat, ...) are never captured.
+        builder.Services.Configure<Microsoft.AspNetCore.Routing.RouteOptions>(options =>
+            options.ConstraintMap[Proxy.ModuleAppProxy.ModuleIdConstraint] = typeof(Proxy.ModuleIdRouteConstraint));
         builder.Services.AddScoped<DotNetCloud.UI.Web.Services.HomeWidgetLayoutService>();
         builder.Services.AddScoped<DotNetCloud.UI.Shared.Services.BrowserTimeProvider>();
         builder.Services.AddScoped<ToastService>();
@@ -672,6 +674,10 @@ public class Program
         builder.Services.AddScoped<DotNetCloud.Core.Services.ModuleApis.IFilesApiClient, DotNetCloud.Core.Server.Grpc.Clients.FilesGrpcApiClient>();
         builder.Services.AddScoped<DotNetCloud.Core.Services.ModuleApis.IMusicApiClient, DotNetCloud.Core.Server.Grpc.Clients.MusicGrpcApiClient>();
         builder.Services.AddScoped<DotNetCloud.Core.Services.ModuleApis.IPhotosApiClient, DotNetCloud.Core.Server.Grpc.Clients.PhotosGrpcApiClient>();
+        // Media import indexes photos through the module's own RPCs, with a core-signed assertion
+        // naming the library owner (a sandboxed module never touches the Files module's tables).
+        builder.Services.AddSingleton<DotNetCloud.Core.Server.Services.Media.IPhotoIndexingClient,
+            DotNetCloud.Core.Server.Services.Media.PhotosIndexingGrpcClient>();
         builder.Services.AddScoped<DotNetCloud.Core.Services.ModuleApis.IVideoApiClient, DotNetCloud.Core.Server.Grpc.Clients.VideoGrpcApiClient>();
         builder.Services.AddScoped<DotNetCloud.Core.Services.ModuleApis.IAboutApiClient, DotNetCloud.Core.Server.Grpc.Clients.AboutGrpcApiClient>();
         builder.Services.AddScoped<DotNetCloud.Core.Services.ModuleApis.IAiApiClient, DotNetCloud.Core.Server.Grpc.Clients.AiGrpcApiClient>();
@@ -681,7 +687,6 @@ public class Program
         // gRPC clients — Tracks and Email modules are process-isolated with full proto support
         builder.Services.AddScoped<DotNetCloud.Core.Services.ModuleApis.ITracksApiClient, DotNetCloud.Core.Server.Grpc.Clients.TracksGrpcApiClient>();
         builder.Services.AddScoped<DotNetCloud.Core.Services.ModuleApis.IEmailApiClient, DotNetCloud.Core.Server.Grpc.Clients.EmailGrpcApiClient>();
-        builder.Services.AddScoped<DotNetCloud.Modules.Tracks.Services.IOnboardingStateService, DotNetCloud.Modules.Tracks.Services.OnboardingStateService>();
 
         // Typed HttpClient for server prerendering of client components (NotificationBell, etc.).
         // During static SSR, HttpClient from the .Client project has no BaseAddress.
@@ -714,24 +719,6 @@ public class Program
 
         // Calendar API client for the Blazor CalendarPage component.
         builder.Services.AddHttpClient<DotNetCloud.Modules.Calendar.Services.ICalendarApiClient, DotNetCloud.Modules.Calendar.Services.CalendarApiClient>(client =>
-            client.BaseAddress = new Uri($"https://localhost:{httpsPort}"))
-            .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
-            {
-                ServerCertificateCustomValidationCallback = AcceptLoopbackCertificate
-            })
-            .AddHttpMessageHandler<DotNetCloud.Core.Server.Middleware.CookieForwardingHandler>();
-
-        // Bookmarks API client for the Blazor BookmarksPage component.
-        builder.Services.AddHttpClient<DotNetCloud.Modules.Bookmarks.Services.IBookmarksApiClient, DotNetCloud.Modules.Bookmarks.Services.BookmarksApiClient>(client =>
-            client.BaseAddress = new Uri($"https://localhost:{httpsPort}"))
-            .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
-            {
-                ServerCertificateCustomValidationCallback = AcceptLoopbackCertificate
-            })
-            .AddHttpMessageHandler<DotNetCloud.Core.Server.Middleware.CookieForwardingHandler>();
-
-        // Email API client for the Blazor EmailPage component.
-        builder.Services.AddHttpClient<DotNetCloud.Modules.Email.Services.IEmailApiClient, DotNetCloud.Modules.Email.Services.EmailApiClient>(client =>
             client.BaseAddress = new Uri($"https://localhost:{httpsPort}"))
             .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
             {
@@ -800,6 +787,7 @@ public class Program
                     sp.GetRequiredService<IProcessSupervisor>(),
                     sp.GetRequiredService<Supervisor.GrpcChannelManager>(),
                     sp.GetRequiredService<DatabaseConnectivityState>(),
+                    sp.GetRequiredService<IServiceScopeFactory>(),
                     sp.GetRequiredService<ILogger<ModulesAggregateHealthCheck>>()),
                 failureStatus: Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus.Unhealthy,
                 tags: ["module"]));
@@ -834,6 +822,8 @@ public class Program
 
         builder.Services.AddHostedService<ModuleUiRegistrationHostedService>();
         builder.Services.AddHostedService<WidgetUiRegistrationHostedService>();
+        // Manifest-declared (iframe) module UIs. Required modules keep the static path above.
+        builder.Services.AddHostedService<ModuleAppRegistrationHostedService>();
         builder.Services.AddHostedService<NotificationEventSubscriber>();
         builder.Services.AddHostedService<SearchEventSubscriber>();
         // Hosted service backed by the concrete singleton registered above (keeps it resolvable).
@@ -982,7 +972,16 @@ public class Program
         });
 
         // CORS
-        app.UseCors(CorsConfiguration.PolicyName);
+        //
+        // Note the exception for /apps: the module UI plane (/apps/{moduleId}/**) is its own CORS
+        // authority. A sandboxed frame has an opaque origin ("null"), which the platform policy
+        // deliberately refuses — the global middleware would answer its preflights with 204 and no
+        // CORS headers, so ModuleAppProxy's own preflight handler would never run and every
+        // state-changing call from a module UI would fail. The proxy answers those preflights
+        // itself, with an origin of exactly "null" plus credentials.
+        app.UseWhen(
+            ctx => !ctx.Request.Path.StartsWithSegments("/apps", StringComparison.OrdinalIgnoreCase),
+            branch => branch.UseCors(CorsConfiguration.PolicyName));
 
         // Branch internal gRPC requests (module introspection, lifecycle, etc.) into a
         // dedicated pipeline that bypasses HTTP-specific middleware. gRPC uses cleartext
@@ -1000,6 +999,7 @@ public class Program
                 grpcApp.UseEndpoints(endpoints =>
                 {
                     endpoints.MapGrpcService<CoreCapabilitiesServiceImpl>();
+                    endpoints.MapGrpcService<ModuleApiV1Service>();
                     endpoints.MapGrpcService<TokenIntrospectionServiceImpl>();
                     endpoints.MapGrpcService<FilesUploadStreamService>();
                 });
@@ -1049,12 +1049,23 @@ public class Program
 
         // Map OpenIddict endpoints
         app.MapOpenIddictEndpoints();
+        // Consent prompt + POST-only decision endpoint (phase A3, F9).
+        DotNetCloud.Core.Server.Consent.ConsentEndpoints.MapConsentEndpoints(app);
 
         // Proxy Collabora through the main DotNetCloud origin so clients only need one public port.
         MapCollaboraReverseProxy(app);
 
         // Proxy module REST API calls (music, video, notes, wopi) to running module hosts.
         MapModuleApiProxies(app);
+
+        // Module UI plane: reverse-proxy /apps/{moduleId}/** to the module's own host so its UI can
+        // be framed by ModuleAppHost. Registered before MapRazorComponents so the shell's catch-all
+        // route does not swallow it.
+        Proxy.ModuleAppProxy.MapModuleAppProxies(app);
+
+        // Internal JSON facade for module backends without a gRPC client. Same credential, caller
+        // assertion, rate limits and capability evaluation as the gRPC listener.
+        app.MapModuleApiRestEndpoints();
 
         // Map API controllers
         app.MapControllers();
@@ -1079,16 +1090,12 @@ public class Program
             .AddAdditionalAssemblies(
                 typeof(DotNetCloud.UI.Web.Client._Imports).Assembly,
                 typeof(DotNetCloud.Modules.Video.UI.VideoPage).Assembly,
-                typeof(DotNetCloud.Modules.Photos.UI.PhotosPage).Assembly,
                 typeof(DotNetCloud.Modules.Music.UI.MusicPage).Assembly,
                 typeof(DotNetCloud.Modules.Chat.UI.ChatPageLayout).Assembly,
                 typeof(DotNetCloud.Modules.Notes.UI.NotesPage).Assembly,
                 typeof(DotNetCloud.Modules.Calendar.UI.CalendarPage).Assembly,
                 typeof(DotNetCloud.Modules.Contacts.UI.ContactsPage).Assembly,
-                typeof(DotNetCloud.Modules.Tracks.UI.TracksPage).Assembly,
                 typeof(DotNetCloud.Modules.Files.UI.FileBrowser).Assembly,
-                typeof(DotNetCloud.Modules.Bookmarks.UI.BookmarksPage).Assembly,
-                typeof(DotNetCloud.Modules.Email.UI.EmailPage).Assembly,
                 typeof(DotNetCloud.Modules.About.UI.AboutPage).Assembly);
     }
 
@@ -1287,25 +1294,10 @@ public class Program
             ["api/v1/poker"] = "dotnetcloud.tracks",
         };
 
-        var handler = new SocketsHttpHandler
-        {
-            UseProxy = false,
-            AllowAutoRedirect = false,
-            UseCookies = false,
-            EnableMultipleHttp2Connections = true,
-            // Prevent stale HTTP/2 connections: force reconnection every 2 minutes
-            // to avoid "Connection reset by peer" / "Request timed out" errors from
-            // long-lived connections that outlast the backend's keep-alive settings.
-            PooledConnectionLifetime = TimeSpan.FromMinutes(2),
-            // Close idle connections after 30 seconds to free resources on the backend.
-            PooledConnectionIdleTimeout = TimeSpan.FromSeconds(30),
-            // Limit connection attempts so a dead backend doesn't hang the proxy indefinitely.
-            ConnectTimeout = TimeSpan.FromSeconds(10),
-        };
-        // Module hosts are configured for HTTP/2 (gRPC). Force HTTP/2 for REST proxy.
-        handler.SslOptions.RemoteCertificateValidationCallback = static (_, _, _, _) => true;
-        var httpClient = new HttpMessageInvoker(handler);
-        app.Lifetime.ApplicationStopping.Register(httpClient.Dispose);
+        // Transport-aware invokers: loopback TCP keeps one shared handler, while socket/pipe
+        // endpoints get a per-module handler whose ConnectCallback dials that module's socket.
+        var invokerCache = app.Services.GetRequiredService<Supervisor.ModuleHttpInvokerCache>();
+        app.Lifetime.ApplicationStopping.Register(invokerCache.Dispose);
 
         foreach (var (prefix, moduleId) in moduleMappings)
         {
@@ -1324,10 +1316,10 @@ public class Program
                     return;
                 }
 
-                // GrpcEndpoint is like "http://localhost:50105" — use it directly as destination.
-                var destinationPrefix = moduleInfo.GrpcEndpoint;
-                if (!destinationPrefix.EndsWith('/'))
-                    destinationPrefix += "/";
+                // GrpcEndpoint is "http://localhost:50105", "unix:///…/module.sock" or
+                // "net.pipe://dotnetcloud-…". The invoker cache returns the matching handler
+                // (socket/dial-redirect or shared TCP) plus the destination prefix YARP needs.
+                var (destinationPrefix, httpClient) = invokerCache.Resolve(moduleId, moduleInfo.GrpcEndpoint);
 
                 var error = await forwarder.SendAsync(
                     httpContext,

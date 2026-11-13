@@ -45,6 +45,10 @@ service CoreCapabilities {
   // Lists the teams a given user is a member of (ITeamDirectory capability).
   rpc GetTeamsForUser (GetTeamsForUserRequest) returns (GetTeamsForUserResponse);
 
+  // Lists the organizations a given user is an active member of
+  // (IOrganizationDirectory capability).
+  rpc GetUserOrganizations (GetUserOrganizationsRequest) returns (GetUserOrganizationsResponse);
+
   // Broadcasts a real-time event to connected SignalR clients.
   // Called by process-isolated module hosts that need to push real-time
   // events (new messages, typing indicators, etc.) to web/mobile clients
@@ -268,6 +272,26 @@ message TeamInfoMessage {
   string name = 3;
   string description = 4;
   int32 member_count = 5;
+  string created_at = 6;
+}
+
+// --- IOrganizationDirectory ---
+
+message GetUserOrganizationsRequest {
+  CallerContextMessage caller = 1;
+  string user_id = 2;
+}
+
+message GetUserOrganizationsResponse {
+  repeated OrganizationInfoMessage organizations = 1;
+}
+
+message OrganizationInfoMessage {
+  string id = 1;
+  string name = 2;
+  string description = 3;
+  int32 member_count = 4;
+  int32 team_count = 5;
   string created_at = 6;
 }
 

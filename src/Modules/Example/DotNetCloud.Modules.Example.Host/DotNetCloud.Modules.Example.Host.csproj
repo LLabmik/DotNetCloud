@@ -23,11 +23,31 @@
     <Protobuf Include="Protos\example_service.proto" GrpcServices="Server" />
   </ItemGroup>
 
+  <!--
+    The supervisor reads <modules>/<id>/manifest.json to decide how a module runs. The packer
+    copies its own manifest into a package, but a plain `dotnet publish` of this host must still
+    produce one — that is what makes a directly-published build run sandboxed rather than falling
+    back to the v1 default manifest.
+  -->
+  <ItemGroup>
+    <Content Include="..\manifest.json"
+             Link="manifest.json"
+             CopyToOutputDirectory="PreserveNewest"
+             CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
+
   <ItemGroup>
     <ProjectReference Include="..\DotNetCloud.Modules.Example\DotNetCloud.Modules.Example.csproj" />
     <ProjectReference Include="..\DotNetCloud.Modules.Example.Data\DotNetCloud.Modules.Example.Data.csproj" />
     <ProjectReference Include="..\DotNetCloud.Modules.Example.Data.SqlServer\DotNetCloud.Modules.Example.Data.SqlServer.csproj" />
     <ProjectReference Include="..\..\..\Core\DotNetCloud.Core.Grpc\DotNetCloud.Core.Grpc.csproj" />
+    <!-- The Example module is the reference implementation of a sandboxed third-party module. -->
+    <ProjectReference Include="..\..\..\SDK\DotNetCloud.Modules.Sdk\DotNetCloud.Modules.Sdk.csproj" />
+    <!-- The module UI. This is the standard hosted-Blazor-WebAssembly shape: referencing the
+         WebAssembly project contributes its published files as this host's static web assets, so
+         the frame the core loads at /apps/dotnetcloud.example/ is served by the module process
+         itself. No copy step, no duplicated output. -->
+    <ProjectReference Include="..\DotNetCloud.Modules.Example.Web\DotNetCloud.Modules.Example.Web.csproj" />
   </ItemGroup>
 
 </Project>

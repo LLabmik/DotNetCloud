@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
@@ -11,12 +11,8 @@ namespace DotNetCloud.Modules.Bookmarks.Data.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.EnsureSchema(
-                name: "bookmarks");
-
             migrationBuilder.CreateTable(
                 name: "BookmarkFolders",
-                schema: "bookmarks",
                 columns: table => new
                 {
                     Id = table.Column<Guid>(type: "uuid", nullable: false),
@@ -36,15 +32,12 @@ namespace DotNetCloud.Modules.Bookmarks.Data.Migrations
                     table.ForeignKey(
                         name: "FK_BookmarkFolders_BookmarkFolders_ParentId",
                         column: x => x.ParentId,
-                        principalSchema: "bookmarks",
                         principalTable: "BookmarkFolders",
-                        principalColumn: "Id",
-                        onDelete: ReferentialAction.SetNull);
+                        principalColumn: "Id");
                 });
 
             migrationBuilder.CreateTable(
                 name: "Bookmarks",
-                schema: "bookmarks",
                 columns: table => new
                 {
                     Id = table.Column<Guid>(type: "uuid", nullable: false),
@@ -55,7 +48,7 @@ namespace DotNetCloud.Modules.Bookmarks.Data.Migrations
                     Title = table.Column<string>(type: "character varying(500)", maxLength: 500, nullable: false),
                     Description = table.Column<string>(type: "character varying(2000)", maxLength: 2000, nullable: true),
                     Notes = table.Column<string>(type: "text", nullable: true),
-                    TagsJson = table.Column<string>(type: "jsonb", nullable: true),
+                    TagsJson = table.Column<string>(type: "text", nullable: true),
                     IsFavorite = table.Column<bool>(type: "boolean", nullable: false),
                     IsDeleted = table.Column<bool>(type: "boolean", nullable: false),
                     DeletedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
@@ -68,7 +61,6 @@ namespace DotNetCloud.Modules.Bookmarks.Data.Migrations
                     table.ForeignKey(
                         name: "FK_Bookmarks_BookmarkFolders_FolderId",
                         column: x => x.FolderId,
-                        principalSchema: "bookmarks",
                         principalTable: "BookmarkFolders",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.SetNull);
@@ -76,7 +68,6 @@ namespace DotNetCloud.Modules.Bookmarks.Data.Migrations
 
             migrationBuilder.CreateTable(
                 name: "BookmarkPreviews",
-                schema: "bookmarks",
                 columns: table => new
                 {
                     Id = table.Column<Guid>(type: "uuid", nullable: false),
@@ -103,7 +94,6 @@ namespace DotNetCloud.Modules.Bookmarks.Data.Migrations
                     table.ForeignKey(
                         name: "FK_BookmarkPreviews_Bookmarks_BookmarkId",
                         column: x => x.BookmarkId,
-                        principalSchema: "bookmarks",
                         principalTable: "Bookmarks",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Cascade);
@@ -111,56 +101,47 @@ namespace DotNetCloud.Modules.Bookmarks.Data.Migrations
 
             migrationBuilder.CreateIndex(
                 name: "ix_bookmark_folders_owner_id",
-                schema: "bookmarks",
                 table: "BookmarkFolders",
                 column: "OwnerId");
 
             migrationBuilder.CreateIndex(
                 name: "ix_bookmark_folders_owner_parent",
-                schema: "bookmarks",
                 table: "BookmarkFolders",
                 columns: new[] { "OwnerId", "ParentId" });
 
             migrationBuilder.CreateIndex(
                 name: "IX_BookmarkFolders_ParentId",
-                schema: "bookmarks",
                 table: "BookmarkFolders",
                 column: "ParentId");
 
             migrationBuilder.CreateIndex(
                 name: "ix_bookmark_previews_bookmark_id",
-                schema: "bookmarks",
                 table: "BookmarkPreviews",
                 column: "BookmarkId",
                 unique: true);
 
             migrationBuilder.CreateIndex(
                 name: "ix_bookmark_previews_status",
-                schema: "bookmarks",
                 table: "BookmarkPreviews",
                 column: "Status");
 
             migrationBuilder.CreateIndex(
                 name: "IX_Bookmarks_FolderId",
-                schema: "bookmarks",
                 table: "Bookmarks",
                 column: "FolderId");
 
             migrationBuilder.CreateIndex(
                 name: "ix_bookmarks_normalized_url",
-                schema: "bookmarks",
                 table: "Bookmarks",
                 column: "NormalizedUrl");
 
             migrationBuilder.CreateIndex(
                 name: "ix_bookmarks_owner_folder",
-                schema: "bookmarks",
                 table: "Bookmarks",
                 columns: new[] { "OwnerId", "FolderId" });
 
             migrationBuilder.CreateIndex(
                 name: "ix_bookmarks_owner_id",
-                schema: "bookmarks",
                 table: "Bookmarks",
                 column: "OwnerId");
         }
@@ -169,16 +150,13 @@ namespace DotNetCloud.Modules.Bookmarks.Data.Migrations
         protected override void Down(MigrationBuilder migrationBuilder)
         {
             migrationBuilder.DropTable(
-                name: "BookmarkPreviews",
-                schema: "bookmarks");
+                name: "BookmarkPreviews");
 
             migrationBuilder.DropTable(
-                name: "Bookmarks",
-                schema: "bookmarks");
+                name: "Bookmarks");
 
             migrationBuilder.DropTable(
-                name: "BookmarkFolders",
-                schema: "bookmarks");
+                name: "BookmarkFolders");
         }
     }
 }

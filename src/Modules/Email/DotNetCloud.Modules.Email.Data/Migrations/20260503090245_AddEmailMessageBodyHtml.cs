@@ -12,7 +12,6 @@ namespace DotNetCloud.Modules.Email.Data.Migrations
         {
             migrationBuilder.AddColumn<string>(
                 name: "BodyHtml",
-                schema: "email",
                 table: "EmailMessages",
                 type: "text",
                 nullable: true);
@@ -23,7 +22,6 @@ namespace DotNetCloud.Modules.Email.Data.Migrations
         {
             migrationBuilder.DropColumn(
                 name: "BodyHtml",
-                schema: "email",
                 table: "EmailMessages");
         }
     }

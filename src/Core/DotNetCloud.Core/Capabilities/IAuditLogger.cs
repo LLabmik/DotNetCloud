@@ -98,5 +98,113 @@ public enum AuditAction
     Export,
 
     /// <summary>Entity imported.</summary>
-    Import
+    Import,
+
+    /// <summary>
+    /// A module was registered/installed (admin action or startup discovery).
+    /// </summary>
+    ModuleInstalled,
+
+    /// <summary>
+    /// An installed module changed version or was enabled/disabled/restarted by an operator.
+    /// </summary>
+    ModuleUpdated,
+
+    /// <summary>
+    /// A module was uninstalled. The description records whether its data was destroyed or kept.
+    /// </summary>
+    ModuleUninstalled,
+
+    /// <summary>
+    /// A module's launch credential was rotated or revoked.
+    /// </summary>
+    ModuleCredentialRotated,
+
+    /// <summary>
+    /// A module's isolated schema and principal were provisioned (or adopted).
+    /// </summary>
+    ModuleDataStoreProvisioned,
+
+    /// <summary>
+    /// A module's isolated schema and principal were dropped.
+    /// </summary>
+    ModuleDataStoreDestroyed,
+
+    /// <summary>
+    /// A module data-store operation failed. The description carries the sanitized reason.
+    /// </summary>
+    ModuleDataStoreError,
+
+    /// <summary>
+    /// A module exceeded one of its rate limits. Emitted at most once per window per module
+    /// and category so a runaway module cannot amplify load through the audit path.
+    /// </summary>
+    ModuleRateLimited,
+
+    /// <summary>
+    /// A module package failed signature, hash or archive-structure verification.
+    /// </summary>
+    ModulePackageVerificationFailed,
+
+    /// <summary>
+    /// A module ran under the transitional <c>Modules:AllowLegacyAccess</c> override.
+    /// </summary>
+    ModuleLegacyAccessUsed,
+
+    /// <summary>
+    /// A module's call was denied by capability enforcement (missing grant, unmapped RPC or
+    /// forbidden capability).
+    /// </summary>
+    ModuleCapabilityDenied,
+
+    /// <summary>
+    /// A module failed transport authentication (missing or invalid credential).
+    /// </summary>
+    ModuleAuthFailed,
+
+    /// <summary>
+    /// A module's user-scoped call named a different user than the authenticated caller.
+    /// </summary>
+    ModuleIdentityMismatch,
+
+    /// <summary>
+    /// A module tried to raise an event (platform or real-time) its manifest does not declare.
+    /// </summary>
+    ModuleEventRejected,
+
+    /// <summary>
+    /// A user approved one or more scopes for a module.
+    /// </summary>
+    ModuleConsentGranted,
+
+    /// <summary>
+    /// A user (or an administrator on the user's behalf) revoked a consent grant.
+    /// </summary>
+    ModuleConsentRevoked,
+
+    /// <summary>
+    /// A user declined a consent prompt, so the module received no access.
+    /// </summary>
+    ModuleConsentDenied,
+
+    /// <summary>
+    /// A module acknowledged that it erased a deleted user's data.
+    /// </summary>
+    ModuleUserErasureAcknowledged,
+
+    /// <summary>
+    /// A module failed to erase a deleted user's data; the request stays pending and is retried.
+    /// </summary>
+    ModuleUserErasureFailed,
+
+    /// <summary>
+    /// An administrator force-completed a user-erasure request that had outstanding modules.
+    /// </summary>
+    ModuleUserErasureOverridden,
+
+    /// <summary>
+    /// An administrator created, changed or deleted a module setting in the module settings plane.
+    /// Secret values are never recorded in the audit description.
+    /// </summary>
+    ModuleSettingChanged
 }

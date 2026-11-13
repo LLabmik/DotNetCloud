@@ -13,7 +13,6 @@ namespace DotNetCloud.Modules.Email.Data.SqlServer.Migrations
         {
             migrationBuilder.AlterColumn<Guid>(
                 name: "Id",
-                schema: "email",
                 table: "EmailThreads",
                 type: "uniqueidentifier",
                 nullable: false,
@@ -23,7 +22,6 @@ namespace DotNetCloud.Modules.Email.Data.SqlServer.Migrations
 
             migrationBuilder.AlterColumn<Guid>(
                 name: "Id",
-                schema: "email",
                 table: "EmailRules",
                 type: "uniqueidentifier",
                 nullable: false,
@@ -33,7 +31,6 @@ namespace DotNetCloud.Modules.Email.Data.SqlServer.Migrations
 
             migrationBuilder.AlterColumn<Guid>(
                 name: "Id",
-                schema: "email",
                 table: "EmailRuleConditions",
                 type: "uniqueidentifier",
                 nullable: false,
@@ -43,7 +40,6 @@ namespace DotNetCloud.Modules.Email.Data.SqlServer.Migrations
 
             migrationBuilder.AlterColumn<Guid>(
                 name: "Id",
-                schema: "email",
                 table: "EmailRuleConditionGroups",
                 type: "uniqueidentifier",
                 nullable: false,
@@ -53,7 +49,6 @@ namespace DotNetCloud.Modules.Email.Data.SqlServer.Migrations
 
             migrationBuilder.AlterColumn<Guid>(
                 name: "Id",
-                schema: "email",
                 table: "EmailRuleActions",
                 type: "uniqueidentifier",
                 nullable: false,
@@ -63,7 +58,6 @@ namespace DotNetCloud.Modules.Email.Data.SqlServer.Migrations
 
             migrationBuilder.AlterColumn<Guid>(
                 name: "Id",
-                schema: "email",
                 table: "EmailMessages",
                 type: "uniqueidentifier",
                 nullable: false,
@@ -73,7 +67,6 @@ namespace DotNetCloud.Modules.Email.Data.SqlServer.Migrations
 
             migrationBuilder.AlterColumn<Guid>(
                 name: "Id",
-                schema: "email",
                 table: "EmailMailboxes",
                 type: "uniqueidentifier",
                 nullable: false,
@@ -83,7 +76,6 @@ namespace DotNetCloud.Modules.Email.Data.SqlServer.Migrations
 
             migrationBuilder.AlterColumn<Guid>(
                 name: "Id",
-                schema: "email",
                 table: "EmailAttachments",
                 type: "uniqueidentifier",
                 nullable: false,
@@ -93,7 +85,6 @@ namespace DotNetCloud.Modules.Email.Data.SqlServer.Migrations
 
             migrationBuilder.AlterColumn<Guid>(
                 name: "Id",
-                schema: "email",
                 table: "EmailAccounts",
                 type: "uniqueidentifier",
                 nullable: false,
@@ -107,7 +98,6 @@ namespace DotNetCloud.Modules.Email.Data.SqlServer.Migrations
         {
             migrationBuilder.AlterColumn<Guid>(
                 name: "Id",
-                schema: "email",
                 table: "EmailThreads",
                 type: "uniqueidentifier",
                 nullable: false,
@@ -117,7 +107,6 @@ namespace DotNetCloud.Modules.Email.Data.SqlServer.Migrations
 
             migrationBuilder.AlterColumn<Guid>(
                 name: "Id",
-                schema: "email",
                 table: "EmailRules",
                 type: "uniqueidentifier",
                 nullable: false,
@@ -127,7 +116,6 @@ namespace DotNetCloud.Modules.Email.Data.SqlServer.Migrations
 
             migrationBuilder.AlterColumn<Guid>(
                 name: "Id",
-                schema: "email",
                 table: "EmailRuleConditions",
                 type: "uniqueidentifier",
                 nullable: false,
@@ -137,7 +125,6 @@ namespace DotNetCloud.Modules.Email.Data.SqlServer.Migrations
 
             migrationBuilder.AlterColumn<Guid>(
                 name: "Id",
-                schema: "email",
                 table: "EmailRuleConditionGroups",
                 type: "uniqueidentifier",
                 nullable: false,
@@ -147,7 +134,6 @@ namespace DotNetCloud.Modules.Email.Data.SqlServer.Migrations
 
             migrationBuilder.AlterColumn<Guid>(
                 name: "Id",
-                schema: "email",
                 table: "EmailRuleActions",
                 type: "uniqueidentifier",
                 nullable: false,
@@ -157,7 +143,6 @@ namespace DotNetCloud.Modules.Email.Data.SqlServer.Migrations
 
             migrationBuilder.AlterColumn<Guid>(
                 name: "Id",
-                schema: "email",
                 table: "EmailMessages",
                 type: "uniqueidentifier",
                 nullable: false,
@@ -167,7 +152,6 @@ namespace DotNetCloud.Modules.Email.Data.SqlServer.Migrations
 
             migrationBuilder.AlterColumn<Guid>(
                 name: "Id",
-                schema: "email",
                 table: "EmailMailboxes",
                 type: "uniqueidentifier",
                 nullable: false,
@@ -177,7 +161,6 @@ namespace DotNetCloud.Modules.Email.Data.SqlServer.Migrations
 
             migrationBuilder.AlterColumn<Guid>(
                 name: "Id",
-                schema: "email",
                 table: "EmailAttachments",
                 type: "uniqueidentifier",
                 nullable: false,
@@ -187,7 +170,6 @@ namespace DotNetCloud.Modules.Email.Data.SqlServer.Migrations
 
             migrationBuilder.AlterColumn<Guid>(
                 name: "Id",
-                schema: "email",
                 table: "EmailAccounts",
                 type: "uniqueidentifier",
                 nullable: false,

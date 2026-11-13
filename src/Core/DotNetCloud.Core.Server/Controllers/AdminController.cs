@@ -7,9 +7,11 @@ using DotNetCloud.Core.DTOs;
 using DotNetCloud.Core.Grpc.Lifecycle;
 using HealthStatusGrpc = DotNetCloud.Core.Grpc.Lifecycle.HealthStatus;
 using HealthStatusCore = Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus;
+using DotNetCloud.Core.Modules;
 using DotNetCloud.Core.Modules.Supervisor;
 using DotNetCloud.Core.Services;
 using DotNetCloud.Core.Server.Services;
+using DotNetCloud.ModulePackaging;
 using Grpc.Net.Client;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -206,7 +208,7 @@ public class AdminController : ControllerBase
         {
             Caller = BuildCaller(),
             ModuleId = "dotnetcloud.core",
-            Action = AuditAction.Update,
+            Action = AuditAction.ModuleUpdated,
             EntityType = "Module",
             EntityId = Guid.CreateVersion7(),
             Description = $"module-started:{SanitizeForLog(moduleId)}",
@@ -237,7 +239,7 @@ public class AdminController : ControllerBase
             {
                 Caller = BuildCaller(),
                 ModuleId = "dotnetcloud.core",
-                Action = AuditAction.Update,
+                Action = AuditAction.ModuleUpdated,
                 EntityType = "Module",
                 EntityId = Guid.CreateVersion7(),
                 Description = $"module-stopped:{SanitizeForLog(moduleId)}",
@@ -271,7 +273,7 @@ public class AdminController : ControllerBase
         {
             Caller = BuildCaller(),
             ModuleId = "dotnetcloud.core",
-            Action = AuditAction.Update,
+            Action = AuditAction.ModuleUpdated,
             EntityType = "Module",
             EntityId = Guid.CreateVersion7(),
             Description = $"module-restarted:{SanitizeForLog(moduleId)}",
@@ -279,6 +281,288 @@ public class AdminController : ControllerBase
         var sanitizedModuleId = SanitizeForLog(moduleId);
         _logger.LogInformation("Module {ModuleId} restarted by admin", sanitizedModuleId);
         return Ok(new { success = true, message = $"Module '{moduleId}' restarted successfully." });
+    }
+
+    /// <summary>
+    /// Get the isolated data store of a module.
+    /// </summary>
+    /// <param name="moduleId">The module identifier.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The data-store state, including schema, principal and provisioning status.</returns>
+    [HttpGet("modules/{moduleId}/datastore")]
+    public async Task<IActionResult> GetModuleDataStoreAsync(string moduleId, CancellationToken cancellationToken)
+    {
+        var store = await _moduleService.GetDataStoreAsync(moduleId, cancellationToken);
+        if (store is null)
+        {
+            return NotFound(new { success = false, error = new { code = "MODULE_NOT_FOUND", message = $"Module '{moduleId}' not found." } });
+        }
+
+        return Ok(new { success = true, data = store });
+    }
+
+    /// <summary>
+    /// Provisions (or repairs) the schema and database principal for an isolated module.
+    /// </summary>
+    /// <param name="moduleId">The module identifier.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The provisioning outcome. Never contains credentials.</returns>
+    [HttpPost("modules/{moduleId}/datastore/provision")]
+    public async Task<IActionResult> ProvisionModuleDataStoreAsync(string moduleId, CancellationToken cancellationToken)
+    {
+        var result = await _moduleService.ProvisionDataStoreAsync(moduleId, cancellationToken);
+        if (result is null)
+        {
+            return NotFound(new { success = false, error = new { code = "MODULE_NOT_FOUND", message = $"Module '{moduleId}' not found." } });
+        }
+
+        if (!result.Success)
+        {
+            _logger.LogWarning("Data store provisioning for module {ModuleId} failed by admin request", SanitizeForLog(moduleId));
+            await AuditDataStoreErrorAsync("provision", moduleId, result.Error);
+            return BadRequest(new { success = false, error = new { code = "MODULE_DATASTORE_OPERATION_FAILED", message = result.Error } });
+        }
+
+        await _auditLogger.LogAsync(new AuditEntry
+        {
+            Caller = BuildCaller(),
+            ModuleId = "dotnetcloud.core",
+            Action = AuditAction.ModuleDataStoreProvisioned,
+            EntityType = "ModuleDataStore",
+            EntityId = Guid.CreateVersion7(),
+            Description = $"module-datastore-provisioned:{SanitizeForLog(moduleId)}",
+        });
+        _logger.LogInformation("Data store for module {ModuleId} provisioned by admin", SanitizeForLog(moduleId));
+        return Ok(new { success = true, data = result });
+    }
+
+    /// <summary>
+    /// Rotates the module database principal's password and re-encrypts the stored connection string.
+    /// </summary>
+    /// <param name="moduleId">The module identifier.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The rotation outcome. Never contains credentials.</returns>
+    [HttpPost("modules/{moduleId}/datastore/rotate")]
+    public async Task<IActionResult> RotateModuleDataStoreCredentialsAsync(string moduleId, CancellationToken cancellationToken)
+    {
+        var result = await _moduleService.RotateDataStoreCredentialsAsync(moduleId, cancellationToken);
+        if (result is null)
+        {
+            return NotFound(new { success = false, error = new { code = "MODULE_NOT_FOUND", message = $"Module '{moduleId}' not found." } });
+        }
+
+        if (!result.Success)
+        {
+            _logger.LogWarning("Data store credential rotation for module {ModuleId} failed by admin request", SanitizeForLog(moduleId));
+            await AuditDataStoreErrorAsync("rotate", moduleId, result.Error);
+            return BadRequest(new { success = false, error = new { code = "MODULE_DATASTORE_OPERATION_FAILED", message = result.Error } });
+        }
+
+        await _auditLogger.LogAsync(new AuditEntry
+        {
+            Caller = BuildCaller(),
+            ModuleId = "dotnetcloud.core",
+            Action = AuditAction.ModuleDataStoreProvisioned,
+            EntityType = "ModuleDataStore",
+            EntityId = Guid.CreateVersion7(),
+            Description = $"module-datastore-credentials-rotated:{SanitizeForLog(moduleId)}",
+        });
+        _logger.LogInformation("Data store credentials for module {ModuleId} rotated by admin", SanitizeForLog(moduleId));
+        return Ok(new { success = true, data = result });
+    }
+
+    /// <summary>
+    /// Drops the module schema and database principal. Irreversible; all module data is destroyed.
+    /// </summary>
+    /// <param name="moduleId">The module identifier.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The destruction outcome.</returns>
+    [HttpDelete("modules/{moduleId}/datastore")]
+    public async Task<IActionResult> DestroyModuleDataStoreAsync(string moduleId, CancellationToken cancellationToken)
+    {
+        var result = await _moduleService.DestroyDataStoreAsync(moduleId, cancellationToken);
+        if (result is null)
+        {
+            return NotFound(new { success = false, error = new { code = "MODULE_NOT_FOUND", message = $"Module '{moduleId}' not found." } });
+        }
+
+        if (!result.Success)
+        {
+            _logger.LogWarning("Data store destruction for module {ModuleId} failed by admin request", SanitizeForLog(moduleId));
+            await AuditDataStoreErrorAsync("destroy", moduleId, result.Error);
+            return BadRequest(new { success = false, error = new { code = "MODULE_DATASTORE_OPERATION_FAILED", message = result.Error } });
+        }
+
+        await _auditLogger.LogAsync(new AuditEntry
+        {
+            Caller = BuildCaller(),
+            ModuleId = "dotnetcloud.core",
+            Action = AuditAction.ModuleDataStoreDestroyed,
+            EntityType = "ModuleDataStore",
+            EntityId = Guid.CreateVersion7(),
+            Description = $"module-datastore-destroyed:{SanitizeForLog(moduleId)}",
+        });
+        _logger.LogInformation("Data store for module {ModuleId} destroyed by admin", SanitizeForLog(moduleId));
+        return Ok(new { success = true, data = result });
+    }
+
+    /// <summary>
+    /// Gets the resource quota override and the effective quota of a module.
+    /// </summary>
+    /// <param name="moduleId">The module identifier.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The quota state, including the effective values applied by the supervisor.</returns>
+    [HttpGet("modules/{moduleId}/quota")]
+    public async Task<IActionResult> GetModuleQuotaAsync(string moduleId, CancellationToken cancellationToken)
+    {
+        var quota = await _moduleService.GetQuotaAsync(moduleId, cancellationToken);
+        if (quota is null)
+        {
+            return NotFound(new { success = false, error = new { code = "MODULE_NOT_FOUND", message = $"Module '{moduleId}' not found." } });
+        }
+
+        return Ok(new { success = true, data = quota });
+    }
+
+    /// <summary>
+    /// Stores an admin resource-quota override for a module (F10).
+    /// </summary>
+    /// <param name="moduleId">The module identifier.</param>
+    /// <param name="dto">The replacement override values; null or zero clears a dimension.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The stored quota and the effective values after policy clamping.</returns>
+    [HttpPut("modules/{moduleId}/quota")]
+    public async Task<IActionResult> UpdateModuleQuotaAsync(
+        string moduleId, [FromBody] UpdateModuleQuotaDto dto, CancellationToken cancellationToken)
+    {
+        if (!TryGetUserId(out var adminUserId))
+        {
+            return Unauthorized(new { success = false, error = new { code = "INVALID_TOKEN", message = "Invalid token claims" } });
+        }
+
+        var result = await _moduleService.UpdateQuotaAsync(moduleId, dto, adminUserId, cancellationToken);
+        if (result is null)
+        {
+            return NotFound(new { success = false, error = new { code = "MODULE_NOT_FOUND", message = $"Module '{moduleId}' not found." } });
+        }
+
+        if (!result.Success)
+        {
+            return BadRequest(new { success = false, error = new { code = "MODULE_QUOTA_INVALID", message = result.Error } });
+        }
+
+        await _auditLogger.LogAsync(new AuditEntry
+        {
+            Caller = BuildCaller(),
+            ModuleId = "dotnetcloud.core",
+            Action = AuditAction.Update,
+            EntityType = "ModuleQuota",
+            EntityId = Guid.CreateVersion7(),
+            Description = $"module-quota-changed:{SanitizeForLog(moduleId)}",
+        });
+        _logger.LogInformation("Resource quota for module {ModuleId} updated by admin", SanitizeForLog(moduleId));
+        return Ok(new { success = true, data = result.Quota });
+    }
+
+    /// <summary>
+    /// Lists the key/value settings a module owns (the module settings plane, not system settings).
+    /// </summary>
+    /// <param name="moduleId">The module identifier.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The settings; secret values are masked.</returns>
+    [HttpGet("modules/{moduleId}/settings")]
+    public async Task<IActionResult> ListModuleSettingsAsync(string moduleId, CancellationToken cancellationToken)
+    {
+        var settings = await _moduleService.ListSettingsAsync(moduleId, cancellationToken);
+        if (settings is null)
+        {
+            return NotFound(new { success = false, error = new { code = "MODULE_NOT_FOUND", message = $"Module '{moduleId}' not found." } });
+        }
+
+        return Ok(new { success = true, data = settings });
+    }
+
+    /// <summary>
+    /// Creates or updates one module setting. This is how an administrator configures a sandboxed
+    /// module (for example the AI provider and model) when the module cannot read the core's system
+    /// settings.
+    /// </summary>
+    /// <param name="moduleId">The module identifier.</param>
+    /// <param name="key">The setting key.</param>
+    /// <param name="dto">The value and whether it is sensitive.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The stored setting. A secret value is never echoed back.</returns>
+    [HttpPut("modules/{moduleId}/settings/{key}")]
+    public async Task<IActionResult> UpsertModuleSettingAsync(
+        string moduleId, string key, [FromBody] UpsertModuleSettingDto dto, CancellationToken cancellationToken)
+    {
+        if (!TryGetUserId(out var adminUserId))
+        {
+            return Unauthorized(new { success = false, error = new { code = "INVALID_TOKEN", message = "Invalid token claims" } });
+        }
+
+        ModuleSettingDto? setting;
+        try
+        {
+            setting = await _moduleService.SetSettingAsync(moduleId, key, dto, adminUserId, cancellationToken);
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(new { success = false, error = new { code = "MODULE_SETTING_INVALID", message = ex.Message } });
+        }
+
+        if (setting is null)
+        {
+            return NotFound(new { success = false, error = new { code = "MODULE_NOT_FOUND", message = $"Module '{moduleId}' not found." } });
+        }
+
+        await _auditLogger.LogAsync(new AuditEntry
+        {
+            Caller = BuildCaller(),
+            ModuleId = "dotnetcloud.core",
+            Action = AuditAction.ModuleSettingChanged,
+            EntityType = "ModuleSetting",
+            EntityId = Guid.CreateVersion7(),
+            // Never the value: a secret must not reach the audit log.
+            Description = $"module-setting-changed:{SanitizeForLog(moduleId)}:{SanitizeForLog(key)}:{(dto.IsSecret ? "secret" : "plain")}",
+        });
+
+        return Ok(new { success = true, data = setting });
+    }
+
+    /// <summary>
+    /// Deletes one module setting.
+    /// </summary>
+    /// <param name="moduleId">The module identifier.</param>
+    /// <param name="key">The setting key.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>Confirmation that the setting was deleted.</returns>
+    [HttpDelete("modules/{moduleId}/settings/{key}")]
+    public async Task<IActionResult> DeleteModuleSettingAsync(
+        string moduleId, string key, CancellationToken cancellationToken)
+    {
+        var deleted = await _moduleService.DeleteSettingAsync(moduleId, key, cancellationToken);
+        if (deleted is null)
+        {
+            return NotFound(new { success = false, error = new { code = "MODULE_NOT_FOUND", message = $"Module '{moduleId}' not found." } });
+        }
+
+        if (deleted == false)
+        {
+            return NotFound(new { success = false, error = new { code = "MODULE_SETTING_NOT_FOUND", message = $"Setting '{key}' is not set for module '{moduleId}'." } });
+        }
+
+        await _auditLogger.LogAsync(new AuditEntry
+        {
+            Caller = BuildCaller(),
+            ModuleId = "dotnetcloud.core",
+            Action = AuditAction.ModuleSettingChanged,
+            EntityType = "ModuleSetting",
+            EntityId = Guid.CreateVersion7(),
+            Description = $"module-setting-deleted:{SanitizeForLog(moduleId)}:{SanitizeForLog(key)}",
+        });
+
+        return Ok(new { success = true, message = "Setting deleted successfully." });
     }
 
     private static string SanitizeForLog(string? value)
@@ -366,6 +650,525 @@ public class AdminController : ControllerBase
             capability, moduleId);
         return Ok(new { success = true, message = $"Capability '{capability}' revoked from module '{moduleId}'." });
     }
+
+    /// <summary>
+    /// Reject a capability the module's manifest requests.
+    /// </summary>
+    /// <remarks>
+    /// The decision is stored so the request is not raised again on the next start, and any grant
+    /// that already existed stops being enforced immediately.
+    /// </remarks>
+    /// <param name="moduleId">The module identifier.</param>
+    /// <param name="capability">The capability name to reject.</param>
+    /// <returns>The stored decision.</returns>
+    [HttpPost("modules/{moduleId}/capabilities/{capability}/reject")]
+    public async Task<IActionResult> RejectCapabilityAsync(string moduleId, string capability)
+    {
+        if (!TryGetUserId(out var adminUserId))
+        {
+            return Unauthorized(new { success = false, error = new { code = "INVALID_TOKEN", message = "Invalid token claims" } });
+        }
+
+        var decision = await _moduleService.RejectCapabilityAsync(moduleId, capability, adminUserId);
+        if (decision is null)
+        {
+            return NotFound(new { success = false, error = new { code = "MODULE_NOT_FOUND", message = $"Module '{moduleId}' not found." } });
+        }
+
+        await _auditLogger.LogAsync(new AuditEntry
+        {
+            Caller = BuildCaller(),
+            ModuleId = "dotnetcloud.core",
+            Action = AuditAction.Update,
+            EntityType = "ModuleCapability",
+            EntityId = Guid.CreateVersion7(),
+            Description = $"capability-rejected:{SanitizeForLog(moduleId)}:{SanitizeForLog(capability)}",
+        });
+
+        _logger.LogInformation("Capability {Capability} rejected for module {ModuleId} by admin {AdminUserId}",
+            SanitizeForLog(capability), SanitizeForLog(moduleId), adminUserId);
+
+        return Ok(new { success = true, data = decision });
+    }
+
+    // ---------------------------------------------------------------------------
+    // Module lifecycle: uninstall, launch credentials, orphaned data stores
+    // ---------------------------------------------------------------------------
+
+    /// <summary>
+    /// Uninstall a module.
+    /// </summary>
+    /// <param name="moduleId">The module identifier.</param>
+    /// <param name="dto">Whether to destroy the module's data and remove its binaries.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The uninstall outcome, including whether the data store was destroyed or kept.</returns>
+    [HttpPost("modules/{moduleId}/uninstall")]
+    public async Task<IActionResult> UninstallModuleAsync(
+        string moduleId, [FromBody] UninstallModuleDto dto, CancellationToken cancellationToken)
+    {
+        if (!TryGetUserId(out var adminUserId))
+        {
+            return Unauthorized(new { success = false, error = new { code = "INVALID_TOKEN", message = "Invalid token claims" } });
+        }
+
+        var result = await _moduleService.UninstallModuleAsync(moduleId, dto, adminUserId, cancellationToken);
+        if (result is null)
+        {
+            return NotFound(new { success = false, error = new { code = "MODULE_NOT_FOUND", message = $"Module '{moduleId}' not found." } });
+        }
+
+        if (!result.Success)
+        {
+            var code = RequiredModules.IsRequired(moduleId) ? "MODULE_REQUIRED" : "MODULE_UNINSTALL_FAILED";
+            return BadRequest(new { success = false, error = new { code, message = result.Error } });
+        }
+
+        await _auditLogger.LogAsync(new AuditEntry
+        {
+            Caller = BuildCaller(),
+            ModuleId = "dotnetcloud.core",
+            Action = AuditAction.ModuleUninstalled,
+            EntityType = "Module",
+            EntityId = Guid.CreateVersion7(),
+            Description = result.DataStoreDestroyed
+                ? $"module-uninstalled:data-destroyed:{SanitizeForLog(moduleId)}"
+                : $"module-uninstalled:data-kept:{SanitizeForLog(moduleId)}",
+        });
+        _logger.LogInformation(
+            "Module {ModuleId} uninstalled by admin (dataDestroyed={DataDestroyed})",
+            SanitizeForLog(moduleId), result.DataStoreDestroyed);
+        return Ok(new { success = true, data = result });
+    }
+
+    /// <summary>
+    /// Gets the non-secret lifecycle record of a module's launch credential.
+    /// </summary>
+    /// <param name="moduleId">The module identifier.</param>
+    /// <returns>The credential record (never the token itself).</returns>
+    [HttpGet("modules/{moduleId}/credential")]
+    public async Task<IActionResult> GetModuleCredentialAsync(string moduleId)
+    {
+        var credential = await _moduleService.GetCredentialAsync(moduleId);
+        if (credential is null)
+        {
+            return NotFound(new { success = false, error = new { code = "MODULE_NOT_FOUND", message = $"Module '{moduleId}' not found." } });
+        }
+
+        return Ok(new { success = true, data = credential });
+    }
+
+    /// <summary>
+    /// Rotates a module's launch credential, restarting the module when it is running.
+    /// </summary>
+    /// <param name="moduleId">The module identifier.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The new credential record.</returns>
+    [HttpPost("modules/{moduleId}/credential/rotate")]
+    public async Task<IActionResult> RotateModuleCredentialAsync(string moduleId, CancellationToken cancellationToken)
+    {
+        var credential = await _moduleService.RotateCredentialAsync(moduleId, cancellationToken);
+        if (credential is null)
+        {
+            return NotFound(new { success = false, error = new { code = "MODULE_NOT_FOUND", message = $"Module '{moduleId}' not found." } });
+        }
+
+        await _auditLogger.LogAsync(new AuditEntry
+        {
+            Caller = BuildCaller(),
+            ModuleId = "dotnetcloud.core",
+            Action = AuditAction.ModuleCredentialRotated,
+            EntityType = "ModuleCredential",
+            EntityId = Guid.CreateVersion7(),
+            Description = $"module-credential-rotated:{SanitizeForLog(moduleId)}",
+        });
+        _logger.LogInformation("Launch credential for module {ModuleId} rotated by admin", SanitizeForLog(moduleId));
+        return Ok(new { success = true, data = credential });
+    }
+
+    /// <summary>
+    /// Revokes a module's launch credential. The running process is rejected until it restarts.
+    /// </summary>
+    /// <param name="moduleId">The module identifier.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The revoked credential record.</returns>
+    [HttpPost("modules/{moduleId}/credential/revoke")]
+    public async Task<IActionResult> RevokeModuleCredentialAsync(string moduleId, CancellationToken cancellationToken)
+    {
+        var credential = await _moduleService.RevokeCredentialAsync(moduleId, cancellationToken);
+        if (credential is null)
+        {
+            return NotFound(new { success = false, error = new { code = "MODULE_NOT_FOUND", message = $"Module '{moduleId}' not found." } });
+        }
+
+        await _auditLogger.LogAsync(new AuditEntry
+        {
+            Caller = BuildCaller(),
+            ModuleId = "dotnetcloud.core",
+            Action = AuditAction.ModuleCredentialRotated,
+            EntityType = "ModuleCredential",
+            EntityId = Guid.CreateVersion7(),
+            Description = $"module-credential-revoked:{SanitizeForLog(moduleId)}",
+        });
+        _logger.LogWarning("Launch credential for module {ModuleId} revoked by admin", SanitizeForLog(moduleId));
+        return Ok(new { success = true, data = credential });
+    }
+
+    /// <summary>
+    /// Lists data stores retained as orphaned after modules were uninstalled with "keep data".
+    /// </summary>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The orphaned stores an administrator can inspect and drop.</returns>
+    [HttpGet("datastores/orphaned")]
+    public async Task<IActionResult> ListOrphanedDataStoresAsync(CancellationToken cancellationToken)
+    {
+        var stores = await _moduleService.ListOrphanedDataStoresAsync(cancellationToken);
+        return Ok(new { success = true, data = stores });
+    }
+
+    private Task AuditDataStoreErrorAsync(string operation, string moduleId, string? error) =>
+        _auditLogger.LogAsync(new AuditEntry
+        {
+            Caller = BuildCaller(),
+            ModuleId = "dotnetcloud.core",
+            Action = AuditAction.ModuleDataStoreError,
+            EntityType = "ModuleDataStore",
+            EntityId = Guid.CreateVersion7(),
+            Description = $"module-datastore-{operation}-failed:{SanitizeForLog(moduleId)}:{SanitizeForLog(error)}",
+        });
+
+    // ---------------------------------------------------------------------------
+    // Module store (B3)
+    // ---------------------------------------------------------------------------
+
+    /// <summary>
+    /// Lists the packages available from the configured module store source.
+    /// </summary>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The catalogue entries, annotated with the installed version where known.</returns>
+    [HttpGet("modules/store")]
+    public async Task<IActionResult> ListStorePackagesAsync(CancellationToken cancellationToken)
+    {
+        var packages = await _moduleService.ListStorePackagesAsync(cancellationToken);
+        return Ok(new { success = true, data = packages });
+    }
+
+    /// <summary>
+    /// Lists installed store packages whose catalogue status changed after they were installed
+    /// (withdrawn, with its severity, or no longer published).
+    /// </summary>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The warnings, security first; empty when the store cannot be reached.</returns>
+    [HttpGet("modules/store/revocations")]
+    public async Task<IActionResult> ListRevocationWarningsAsync(CancellationToken cancellationToken)
+    {
+        var warnings = await _moduleService.ListRevocationWarningsAsync(cancellationToken);
+        return Ok(new { success = true, data = warnings });
+    }
+
+    /// <summary>
+    /// Fetches a package the configured store source lists and returns its review without
+    /// installing it.
+    /// </summary>
+    /// <param name="moduleId">The module id to inspect.</param>
+    /// <param name="version">The version to inspect; omit for the highest listed.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The verification findings and the manifest facts the administrator must review.</returns>
+    [HttpPost("modules/store/{moduleId}/inspect")]
+    public async Task<IActionResult> InspectStorePackageAsync(
+        string moduleId,
+        [FromQuery] string? version,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var review = await _moduleService.InspectStorePackageAsync(moduleId, version, cancellationToken);
+            return Ok(new { success = true, data = review });
+        }
+        catch (ModulePackageException ex)
+        {
+            _logger.LogWarning(
+                "Store package inspection for {ModuleId} failed: {Error}",
+                SanitizeForLog(moduleId), SanitizeForLog(ex.Message));
+
+            return BadRequest(new
+            {
+                success = false,
+                error = new { code = "STORE_PACKAGE_UNAVAILABLE", message = ex.Message },
+            });
+        }
+    }
+
+    /// <summary>
+    /// Installs a package from the configured store source after an administrator reviewed it.
+    /// </summary>
+    /// <remarks>
+    /// The body must carry the hash shown by the review and the exact capability and scope lists it
+    /// displayed, exactly as the upload path does.
+    /// </remarks>
+    /// <param name="moduleId">The module id to install.</param>
+    /// <param name="dto">The reviewed version, hash and acknowledgements.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The install outcome; a failed health check is rolled back before the response.</returns>
+    [HttpPost("modules/store/{moduleId}/install")]
+    public async Task<IActionResult> InstallStorePackageAsync(
+        string moduleId,
+        [FromBody] InstallStorePackageDto dto,
+        CancellationToken cancellationToken)
+    {
+        if (!TryGetUserId(out var adminUserId))
+        {
+            return Unauthorized(new { success = false, error = new { code = "INVALID_TOKEN", message = "Invalid token claims" } });
+        }
+
+        if (dto is null)
+        {
+            return BadRequest(new
+            {
+                success = false,
+                error = new { code = "INVALID_REQUEST", message = "A request body is required." },
+            });
+        }
+
+        if (string.IsNullOrWhiteSpace(dto.ExpectedSha256))
+        {
+            return BadRequest(new
+            {
+                success = false,
+                error = new
+                {
+                    code = "PACKAGE_HASH_REQUIRED",
+                    message = "Send the SHA-256 the review displayed; it binds the approval to those bytes.",
+                },
+            });
+        }
+
+        try
+        {
+            var result = await _moduleService.InstallStorePackageAsync(
+                moduleId, dto, adminUserId, cancellationToken);
+
+            if (!result.Success)
+            {
+                _logger.LogWarning(
+                    "Store install failed for module {ModuleId}: {Error}",
+                    SanitizeForLog(result.ModuleId), SanitizeForLog(result.Error));
+
+                return BadRequest(new
+                {
+                    success = false,
+                    data = result,
+                    error = new { code = "INSTALL_FAILED", message = result.Error },
+                });
+            }
+
+            _logger.LogInformation(
+                "Store install of {ModuleId} {Version} completed by admin {AdminUserId} (unverified={Unverified})",
+                SanitizeForLog(result.ModuleId), SanitizeForLog(result.Version), adminUserId, dto.AllowUnverified);
+
+            return Ok(new { success = true, data = result });
+        }
+        catch (ModulePackageException ex)
+        {
+            _logger.LogWarning(
+                "Store install for {ModuleId} could not be resolved: {Error}",
+                SanitizeForLog(moduleId), SanitizeForLog(ex.Message));
+
+            return BadRequest(new
+            {
+                success = false,
+                error = new { code = "STORE_PACKAGE_UNAVAILABLE", message = ex.Message },
+            });
+        }
+    }
+
+    /// <summary>
+    /// Verifies an uploaded <c>.dncpkg</c> package without installing it.
+    /// </summary>
+    /// <param name="file">The package file.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The verification findings and the manifest facts the administrator must review.</returns>
+    [HttpPost("modules/install/inspect")]
+    [RequestSizeLimit(ModulePackageLimits.MaxPackageBytes)]
+    public async Task<IActionResult> InspectModulePackageAsync(
+        [FromForm] IFormFile? file,
+        CancellationToken cancellationToken)
+    {
+        if (file is null || file.Length == 0)
+        {
+            return BadRequest(new
+            {
+                success = false,
+                error = new { code = "PACKAGE_MISSING", message = "Upload a .dncpkg file." },
+            });
+        }
+
+        var temporaryPath = await SaveUploadAsync(file, cancellationToken);
+
+        try
+        {
+            var review = await _moduleService.InspectPackageAsync(temporaryPath, cancellationToken);
+            return Ok(new { success = true, data = review });
+        }
+        finally
+        {
+            TryDeleteFile(temporaryPath);
+        }
+    }
+
+    /// <summary>
+    /// Installs an uploaded <c>.dncpkg</c> package after an administrator reviewed it.
+    /// </summary>
+    /// <remarks>
+    /// The form must carry the hash shown by the review and the exact capability and scope lists it
+    /// displayed. Anything else is the wrong package or an unreviewed capability set and is refused.
+    /// </remarks>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The install outcome; a failed health check is rolled back before the response.</returns>
+    [HttpPost("modules/install")]
+    [RequestSizeLimit(ModulePackageLimits.MaxPackageBytes)]
+    public async Task<IActionResult> InstallModulePackageAsync(CancellationToken cancellationToken)
+    {
+        if (!TryGetUserId(out var adminUserId))
+        {
+            return Unauthorized(new { success = false, error = new { code = "INVALID_TOKEN", message = "Invalid token claims" } });
+        }
+
+        if (!Request.HasFormContentType)
+        {
+            return BadRequest(new
+            {
+                success = false,
+                error = new { code = "INVALID_REQUEST", message = "Expected multipart/form-data." },
+            });
+        }
+
+        var form = await Request.ReadFormAsync(cancellationToken);
+        var file = form.Files.GetFile("file");
+
+        if (file is null || file.Length == 0)
+        {
+            return BadRequest(new
+            {
+                success = false,
+                error = new { code = "PACKAGE_MISSING", message = "Upload a .dncpkg file." },
+            });
+        }
+
+        var dto = new InstallModulePackageDto
+        {
+            ExpectedSha256 = form["expectedSha256"].FirstOrDefault(),
+            AcknowledgedCapabilities = ReadFormList(form, "acknowledgedCapabilities"),
+            AcknowledgedScopes = ReadFormList(form, "acknowledgedScopes"),
+            AllowUnverified = ReadFormBool(form, "allowUnverified", defaultValue: false),
+            StartAfterInstall = ReadFormBool(form, "startAfterInstall", defaultValue: true),
+        };
+
+        var temporaryPath = await SaveUploadAsync(file, cancellationToken);
+
+        try
+        {
+            var result = await _moduleService.InstallPackageAsync(
+                temporaryPath, dto, adminUserId, cancellationToken);
+
+            if (!result.Success)
+            {
+                _logger.LogWarning(
+                    "Package install failed for module {ModuleId}: {Error}",
+                    SanitizeForLog(result.ModuleId), SanitizeForLog(result.Error));
+
+                return BadRequest(new { success = false, data = result, error = new { code = "INSTALL_FAILED", message = result.Error } });
+            }
+
+            _logger.LogInformation(
+                "Package install of {ModuleId} {Version} completed by admin {AdminUserId} (unverified={Unverified})",
+                SanitizeForLog(result.ModuleId), SanitizeForLog(result.Version), adminUserId, dto.AllowUnverified);
+
+            return Ok(new { success = true, data = result });
+        }
+        finally
+        {
+            TryDeleteFile(temporaryPath);
+        }
+    }
+
+    /// <summary>
+    /// Restores the previous version retained by the last install.
+    /// </summary>
+    /// <param name="moduleId">The module identifier.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The rollback outcome.</returns>
+    [HttpPost("modules/{moduleId}/rollback")]
+    public async Task<IActionResult> RollbackModuleAsync(string moduleId, CancellationToken cancellationToken)
+    {
+        if (!TryGetUserId(out var adminUserId))
+        {
+            return Unauthorized(new { success = false, error = new { code = "INVALID_TOKEN", message = "Invalid token claims" } });
+        }
+
+        var result = await _moduleService.RollbackModuleAsync(moduleId, adminUserId, cancellationToken);
+
+        if (!result.Success)
+        {
+            return BadRequest(new { success = false, data = result, error = new { code = "ROLLBACK_FAILED", message = result.Error } });
+        }
+
+        await _auditLogger.LogAsync(new AuditEntry
+        {
+            Caller = BuildCaller(),
+            ModuleId = "dotnetcloud.core",
+            Action = AuditAction.ModuleUpdated,
+            EntityType = "Module",
+            EntityId = Guid.CreateVersion7(),
+            Description = $"module-rollback:{SanitizeForLog(moduleId)}:{SanitizeForLog(result.Version)}",
+        });
+
+        _logger.LogInformation(
+            "Module {ModuleId} rolled back to {Version} by admin {AdminUserId}",
+            SanitizeForLog(moduleId), SanitizeForLog(result.Version), adminUserId);
+
+        return Ok(new { success = true, data = result });
+    }
+
+    private async Task<string> SaveUploadAsync(IFormFile file, CancellationToken cancellationToken)
+    {
+        var directory = Path.Combine(Path.GetTempPath(), "dnc-module-upload");
+        Directory.CreateDirectory(directory);
+
+        // Never trust the client's file name: the extension is fixed and the name is generated.
+        var path = Path.Combine(directory, Guid.CreateVersion7().ToString("N") + ModulePackageFormat.Extension);
+
+        await using var stream = new FileStream(path, FileMode.CreateNew, FileAccess.Write, FileShare.None);
+        await file.CopyToAsync(stream, cancellationToken);
+
+        return path;
+    }
+
+    private void TryDeleteFile(string path)
+    {
+        try
+        {
+            // 'File' alone would resolve to ControllerBase.File(...).
+            if (System.IO.File.Exists(path))
+            {
+                System.IO.File.Delete(path);
+            }
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            _logger.LogDebug("Could not delete the uploaded package {Path}: {Error}", path, ex.Message);
+        }
+    }
+
+    private static IReadOnlyList<string> ReadFormList(IFormCollection form, string key) =>
+        form[key]
+            .Where(value => !string.IsNullOrWhiteSpace(value))
+            .Select(value => value!)
+            .ToArray();
+
+    private static bool ReadFormBool(IFormCollection form, string key, bool defaultValue) =>
+        form.TryGetValue(key, out var value) && bool.TryParse(value.FirstOrDefault(), out var parsed)
+            ? parsed
+            : defaultValue;
 
     // ---------------------------------------------------------------------------
     // Backup & Restore

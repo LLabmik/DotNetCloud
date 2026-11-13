@@ -1,0 +1,42 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>DotNetCloud.Modules.Sdk</RootNamespace>
+    <AssemblyName>DotNetCloud.Modules.Sdk</AssemblyName>
+
+    <!-- Published to GitHub Packages (see .github/workflows/publish-module-sdk.yml). -->
+    <IsPackable>true</IsPackable>
+    <PackageId>DotNetCloud.Modules.Sdk</PackageId>
+    <Title>DotNetCloud Module SDK</Title>
+    <Description>Build process-isolated DotNetCloud modules: manifest v2 model, credential-authenticated core API clients (gRPC and REST), lifecycle base and an in-memory test harness.</Description>
+    <PackageTags>dotnetcloud;module;plugin;sdk;grpc</PackageTags>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\Core\DotNetCloud.Core\DotNetCloud.Core.csproj" />
+    <ProjectReference Include="..\..\Core\DotNetCloud.Core.Grpc\DotNetCloud.Core.Grpc.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="DotNetCloud.Modules.Sdk.Tests" />
+  </ItemGroup>
+
+  <!--
+    The module-side bridge for the core's iframe UI plane (phase A5). It is a plain static asset,
+    not an npm build: a module host copies it into its own wwwroot and loads it from the page the
+    core frames. Shipped as package content so an SDK consumer gets it without a NuGet dependency.
+  -->
+  <ItemGroup>
+    <Content Include="wwwroot\dncModuleBridge.js">
+      <Pack>true</Pack>
+      <PackagePath>contentFiles/any/any/wwwroot/dncModuleBridge.js</PackagePath>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <!-- Also embedded so the protocol drift test can read the shipped bytes without a path guess. -->
+    <EmbeddedResource Include="wwwroot\dncModuleBridge.js" />
+  </ItemGroup>
+
+</Project>

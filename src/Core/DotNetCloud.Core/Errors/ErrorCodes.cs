@@ -39,6 +39,11 @@ public static class ErrorCodes
     /// <summary>Error code for email not confirmed.</summary>
     public const string EmailNotConfirmed = "AUTH_EMAIL_NOT_CONFIRMED";
 
+    /// <summary>
+    /// Error code returned when a request names a user other than the authenticated caller.
+    /// </summary>
+    public const string SubjectMismatch = "AUTH_SUBJECT_MISMATCH";
+
     // User & Identity
     /// <summary>Error code for user not found.</summary>
     public const string UserNotFound = "USER_NOT_FOUND";
@@ -117,6 +122,30 @@ public static class ErrorCodes
 
     /// <summary>Error code for invalid module manifest.</summary>
     public const string InvalidModuleManifest = "MODULE_INVALID_MANIFEST";
+
+    /// <summary>
+    /// Error code returned when a module sends a request whose content is out of policy (for
+    /// example an oversized notification or a non-relative action link).
+    /// </summary>
+    public const string ModuleInvalidRequest = "MODULE_INVALID_REQUEST";
+
+    /// <summary>
+    /// Error code returned when a module tries to raise an event its manifest does not declare.
+    /// </summary>
+    public const string ModuleEventRejected = "MODULE_EVENT_REJECTED";
+
+    /// <summary>
+    /// Error code returned when a module reaches for a user's personal data that the user has not
+    /// consented to. The denial carries the missing scopes so the module can request consent for
+    /// exactly those.
+    /// </summary>
+    public const string ModuleConsentRequired = "MODULE_CONSENT_REQUIRED";
+
+    /// <summary>
+    /// Error code returned when a module could not erase a deleted user's data inside its retry
+    /// window. The outstanding work is surfaced to administrators.
+    /// </summary>
+    public const string ModuleUserErasureFailed = "MODULE_USER_ERASURE_FAILED";
 
     // Events
     /// <summary>Error code for event bus error.</summary>

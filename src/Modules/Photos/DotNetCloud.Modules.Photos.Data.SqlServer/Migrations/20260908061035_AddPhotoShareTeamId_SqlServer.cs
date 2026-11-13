@@ -13,14 +13,12 @@ namespace DotNetCloud.Modules.Photos.Data.SqlServer.Migrations
         {
             migrationBuilder.AddColumn<Guid>(
                 name: "SharedWithTeamId",
-                schema: "photos",
                 table: "PhotoShares",
                 type: "uniqueidentifier",
                 nullable: true);
 
             migrationBuilder.CreateIndex(
                 name: "ix_photo_shares_shared_with_team",
-                schema: "photos",
                 table: "PhotoShares",
                 column: "SharedWithTeamId");
         }
@@ -30,12 +28,10 @@ namespace DotNetCloud.Modules.Photos.Data.SqlServer.Migrations
         {
             migrationBuilder.DropIndex(
                 name: "ix_photo_shares_shared_with_team",
-                schema: "photos",
                 table: "PhotoShares");
 
             migrationBuilder.DropColumn(
                 name: "SharedWithTeamId",
-                schema: "photos",
                 table: "PhotoShares");
         }
     }

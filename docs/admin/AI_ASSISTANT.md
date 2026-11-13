@@ -9,25 +9,26 @@
 
 The AI Assistant module provides LLM-powered chat, summarization, and content generation for all DotNetCloud users. It supports **local inference** via Ollama (no data leaves your server) and optional **cloud providers** (OpenAI, Anthropic) for organizations that prefer managed APIs.
 
-The module runs as a separate process (`dotnetcloud-module ai`) and communicates with the core via gRPC, following the standard DotNetCloud module architecture.
+The module runs as a separate, process-isolated host launched by the core supervisor and communicates
+over a per-module socket with a per-launch credential. Users are identified by a short-lived
+core-signed assertion — the module holds no cookie scheme and no core database credential.
 
 ---
 
 ## Module Registration
 
-The AI module is discovered automatically via its `manifest.json`. No manual registration is required.
+The AI module is discovered automatically via its `manifest.json` (v2). No manual registration is required.
 
 ### Required Core Capabilities
 
 | Capability | Purpose |
 |---|---|
-| `ICurrentUserContext` | Identify the authenticated user for per-user conversation isolation |
 | `IAuditLogger` | Log AI operations for compliance and debugging |
-| `IUserDirectory` | Resolve user information |
-| `INotificationService` | Future: notify users of long-running completions |
-| `ILlmProvider` | Core LLM abstraction for cross-module AI features |
 
-If any required capability is unavailable, the module will not start. Check logs for capability resolution errors.
+That is the only core capability the module declares. Conversations live in the module's own isolated
+schema, provider settings come from the module settings plane, and the module raises no cross-module
+events. If the capability cannot be granted, the module will not start — check the module's capability
+grant on the admin page.
 
 ---
 
@@ -108,25 +109,30 @@ Settings are located in the AI module's host configuration file:
 
 Settings are resolved with a fallback chain:
 
-1. **Admin UI settings** — stored in the `SystemSetting` database table (module: `dotnetcloud.ai`)
-2. **`appsettings.json`** — file-based configuration
+1. **Module settings plane** — `ModuleSettings` rows owned by `dotnetcloud.ai`, written by an administrator from **Admin → Modules → AI Assistant → Module settings** and read by the module through the module API. Values marked secret (the API key) are encrypted at rest by the core and are never returned to a browser.
+2. **`appsettings.json`** — the module host's own file-based defaults
 3. **Built-in defaults** — safe fallback values
 
-Admin UI settings always take precedence. This allows runtime provider switching without restarts.
+Module settings take precedence, so a provider or model change applies on the module's next request without a restart.
 
 ---
 
-## Admin Settings UI
+## Admin Settings
 
-Navigate to **Admin → AI Assistant** in the web dashboard. The settings page provides:
+Open **Admin → Modules → AI Assistant**. The **Module settings** panel stores key/value settings for the
+module (`Provider`, `ApiBaseUrl`, `ApiKey`, `OrganizationId`, `DefaultModel`, `MaxTokens`,
+`RequestTimeoutSeconds`). Tick **Secret** for the API key: the value is encrypted with the core
+DataProtection key ring and the listing shows only `Secret (set)`.
 
-| Section | Controls |
-|---|---|
-| **LLM Provider** | Dropdown to select Ollama, OpenAI, or Anthropic |
-| **API Endpoint** | Base URL input with provider-specific hints and placeholders |
-| **Authentication** | API key (password field) and optional organization ID — only shown for cloud providers |
-| **Model Configuration** | Default model name, max tokens per response |
-| **Request Limits** | Request timeout in seconds |
+The same page has a **Capabilities** panel. A module installed from a store package is never granted
+its capabilities automatically, so the settings panel only takes effect once **`IModuleSettings`** is
+granted there; the grant is audited. A bundled module is granted it from its manifest at startup.
+
+> The old **Admin → Settings** page is not used for AI any more: a sandboxed module cannot read the
+> core `SystemSettings` table, and duplicating the values there would create a second source of truth.
+> On upgrade the server copies the existing `dotnetcloud.ai` system settings into the module settings
+> plane once (credentials as secrets, without overwriting anything already set in the panel) and
+> deletes the stale rows, so the values you configured before the upgrade keep working.
 
 Changes take effect immediately after clicking **Save Settings**. Use **Reset to Defaults** to restore built-in values.
 
@@ -186,7 +192,11 @@ CPU-only inference is supported but significantly slower. Ollama automatically u
 
 ## Database
 
-The AI module uses its own `AiDbContext` with a separate schema. No shared tables with other modules.
+The AI module owns an isolated data store (`dataStore: "isolated"`): the core provisions a dedicated
+schema and database principal for it, and the module applies its own migrations there. It never
+opens the core database, and no other module can read its tables. The model and both provider
+migration sets are schema-neutral — the provisioned connection string's `search_path` (PostgreSQL)
+or default schema (SQL Server) decides where the tables and `__EFMigrationsHistory` land.
 
 ### Key Tables
 
@@ -235,18 +245,20 @@ All endpoints require authentication. Conversation endpoints enforce per-user ow
 
 ---
 
-## Cross-Module Integration
+## Cross-Module Integration (not implemented)
 
-Other DotNetCloud modules can use AI capabilities via the `ILlmProvider` interface:
+The core defines an `ILlmProvider` capability, but **no module implements it and the AI module does not
+expose it**. Cross-module AI features therefore are not available today:
 
-| Module | AI Use Case |
+| Module | Planned AI use case |
 |---|---|
 | **Notes** | Summarize, expand, translate, grammar check |
 | **Chat** | Message summarization, smart replies |
 | **Files** | Content summarization, document Q&A |
 | **Email** | Draft replies, summarize threads |
 
-These integrations use the same provider configuration — switching providers in the admin UI affects all modules.
+Delivering these requires a core-brokered provider capability (module API surface + consent), not a
+direct module-to-module call, which the sandbox forbids.
 
 ---
 

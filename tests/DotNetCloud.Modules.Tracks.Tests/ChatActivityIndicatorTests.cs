@@ -1,5 +1,5 @@
 using DotNetCloud.Modules.Tracks.Services;
-using DotNetCloud.Modules.Tracks.UI;
+using DotNetCloud.Modules.Tracks.Web.UI;
 
 namespace DotNetCloud.Modules.Tracks.Tests;
 

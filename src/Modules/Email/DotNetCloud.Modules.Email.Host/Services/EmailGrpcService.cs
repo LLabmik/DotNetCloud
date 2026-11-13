@@ -4,9 +4,7 @@ using DotNetCloud.Modules.Email.Data;
 using DotNetCloud.Modules.Email.Host.Protos;
 using DotNetCloud.Modules.Email.Models;
 using DotNetCloud.Modules.Email.Services;
-using DotNetCloud.Modules.Files.Host.Protos;
 using Grpc.Core;
-using Grpc.Net.Client;
 using Microsoft.EntityFrameworkCore;
 
 namespace DotNetCloud.Modules.Email.Host.Services;
@@ -24,7 +22,6 @@ public sealed class EmailGrpcService : EmailService.EmailServiceBase
     private readonly IModuleUserAssertionAccessor _userAssertionAccessor;
     private readonly EmailDbContext _db;
     private readonly ILogger<EmailGrpcService> _logger;
-    private readonly Lazy<FilesService.FilesServiceClient> _filesClient;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="EmailGrpcService"/> class.
@@ -37,7 +34,6 @@ public sealed class EmailGrpcService : EmailService.EmailServiceBase
         IAttachmentStorage attachmentStorage,
         IModuleUserAssertionAccessor userAssertionAccessor,
         EmailDbContext db,
-        IConfiguration configuration,
         ILogger<EmailGrpcService> logger)
     {
         _accountService = accountService;
@@ -48,20 +44,6 @@ public sealed class EmailGrpcService : EmailService.EmailServiceBase
         _userAssertionAccessor = userAssertionAccessor;
         _db = db;
         _logger = logger;
-
-        _filesClient = new Lazy<FilesService.FilesServiceClient>(() =>
-        {
-            var address = configuration.GetValue<string>("FilesGrpc:Address") ?? "http://localhost:5004";
-            var channel = GrpcChannel.ForAddress(address, new GrpcChannelOptions
-            {
-                HttpHandler = new SocketsHttpHandler
-                {
-                    EnableMultipleHttp2Connections = true,
-                    ConnectTimeout = TimeSpan.FromSeconds(5)
-                }
-            });
-            return new FilesService.FilesServiceClient(channel);
-        });
     }
 
     private static CallerContext SystemCaller => CallerContext.CreateSystemContext();
@@ -753,88 +735,6 @@ public sealed class EmailGrpcService : EmailService.EmailServiceBase
             attachmentId, request.TargetFolderId);
 
         return Task.FromResult(new DetachAttachmentResponse { Success = true });
-    }
-
-    /// <inheritdoc />
-    public override async Task<UploadAttachmentResponse> AttachFromFilesModule(
-        AttachFromFilesRequest request,
-        ServerCallContext context)
-    {
-        if (!Guid.TryParse(request.FileNodeId, out var fileNodeId))
-            return new UploadAttachmentResponse { Success = false, ErrorMessage = "Invalid file node ID." };
-
-        try
-        {
-            // Download file content from the Files module via gRPC streaming
-            var downloadRequest = new DownloadFileRequest
-            {
-                NodeId = request.FileNodeId,
-                UserId = request.UserId,
-                VersionNumber = 0
-            };
-
-            await using var ms = new MemoryStream();
-            string? fileName = null;
-            string? contentType = null;
-
-            using var downloadCall = _filesClient.Value.DownloadFile(downloadRequest, cancellationToken: context.CancellationToken);
-            await foreach (var chunk in downloadCall.ResponseStream.ReadAllAsync(context.CancellationToken))
-            {
-                ms.Write(chunk.ChunkData.Span);
-            }
-
-            if (ms.Length == 0)
-                return new UploadAttachmentResponse { Success = false, ErrorMessage = "File is empty or not found." };
-
-            // Also get the file node metadata for filename/content type
-            try
-            {
-                var nodeResponse = await _filesClient.Value.GetNodeAsync(
-                    new GetNodeRequest { NodeId = request.FileNodeId, UserId = request.UserId },
-                    cancellationToken: context.CancellationToken);
-                if (nodeResponse.Found && nodeResponse.Node is not null)
-                {
-                    fileName = nodeResponse.Node.Name;
-                    contentType = nodeResponse.Node.MimeType;
-                }
-            }
-            catch (RpcException ex) when (ex.StatusCode == StatusCode.NotFound)
-            {
-                _logger.LogWarning("AttachFromFilesModule: file node {Id} not found via GetNode", fileNodeId);
-                return new UploadAttachmentResponse { Success = false, ErrorMessage = "File node not found." };
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "AttachFromFilesModule: GetNode failed, proceeding without metadata");
-            }
-
-            ms.Position = 0;
-            var result = await _attachmentStorage.StoreAsync(
-                ms,
-                fileName ?? "file.bin",
-                contentType ?? "application/octet-stream",
-                context.CancellationToken);
-
-            return new UploadAttachmentResponse
-            {
-                Success = true,
-                StorageKey = result.StorageKey,
-                FileName = fileName ?? "file.bin",
-                ContentType = contentType ?? "application/octet-stream",
-                Size = result.Size,
-                ContentHash = result.ContentHash
-            };
-        }
-        catch (RpcException ex)
-        {
-            _logger.LogError(ex, "AttachFromFilesModule gRPC failed for file {FileNodeId}", request.FileNodeId);
-            return new UploadAttachmentResponse { Success = false, ErrorMessage = ex.Message };
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "AttachFromFilesModule failed for file {FileNodeId}", request.FileNodeId);
-            return new UploadAttachmentResponse { Success = false, ErrorMessage = ex.Message };
-        }
     }
 
     // ─── Search Index ───────────────────────────────────────────────────────

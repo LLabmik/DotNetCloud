@@ -9,6 +9,8 @@
     <IsTestProject>true</IsTestProject>
     <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
     <NoWarn>$(NoWarn);CS8618</NoWarn>
+    <!-- Shared integration tests select their database provider from this symbol. -->
+    <DefineConstants>$(DefineConstants);SQLSERVER_INTEGRATION</DefineConstants>
   </PropertyGroup>
 
   <!--

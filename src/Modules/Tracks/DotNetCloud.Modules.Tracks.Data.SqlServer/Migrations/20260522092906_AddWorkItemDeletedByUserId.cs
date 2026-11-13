@@ -13,14 +13,12 @@ namespace DotNetCloud.Modules.Tracks.Data.SqlServer.Migrations
         {
             migrationBuilder.AddColumn<Guid>(
                 name: "DeletedByUserId",
-                schema: "tracks",
                 table: "WorkItems",
                 type: "uniqueidentifier",
                 nullable: true);
 
             migrationBuilder.AddColumn<Guid>(
                 name: "DeletedByUserId",
-                schema: "tracks",
                 table: "WorkItemComments",
                 type: "uniqueidentifier",
                 nullable: true);
@@ -31,12 +29,10 @@ namespace DotNetCloud.Modules.Tracks.Data.SqlServer.Migrations
         {
             migrationBuilder.DropColumn(
                 name: "DeletedByUserId",
-                schema: "tracks",
                 table: "WorkItems");
 
             migrationBuilder.DropColumn(
                 name: "DeletedByUserId",
-                schema: "tracks",
                 table: "WorkItemComments");
         }
     }

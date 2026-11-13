@@ -150,6 +150,36 @@ public class SearchResultNavigationHelperTests
         Assert.AreEqual("/apps/music?trackId=track-1", url);
     }
 
+    [TestMethod]
+    public void GetResultUrl_WhenAiResult_OpensTheFramedModuleApp()
+    {
+        var item = CreateItem(moduleId: "ai", entityId: "conversation-7");
+
+        var url = SearchResultNavigationHelper.GetResultUrl(item, navToken: 1);
+
+        Assert.AreEqual("/modules/dotnetcloud.ai?conversationId=conversation-7", url);
+    }
+
+    [TestMethod]
+    public void GetResultUrl_WhenPhotosResult_OpensTheFramedModuleApp()
+    {
+        var item = CreateItem(moduleId: "photos", entityId: "photo-3");
+
+        var url = SearchResultNavigationHelper.GetResultUrl(item, navToken: 1);
+
+        Assert.AreEqual("/modules/dotnetcloud.photos?photoId=photo-3", url);
+    }
+
+    [TestMethod]
+    public void GetResultUrl_WhenTracksResult_OpensTheFramedModuleApp()
+    {
+        var item = CreateItem(moduleId: "tracks", entityId: "card-9");
+
+        var url = SearchResultNavigationHelper.GetResultUrl(item, navToken: 1);
+
+        Assert.AreEqual("/modules/dotnetcloud.tracks?card=card-9", url);
+    }
+
     private static SearchResultItem CreateItem(
         string moduleId,
         string entityId = "entity-1",

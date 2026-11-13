@@ -112,10 +112,10 @@ public class SearchIndexEventBridgeHandlerTests
             await handler.HandleAsync(@event);
 
             // Core.Server's AuthenticationInterceptor rejects gRPC calls without a
-            // module-id header, so the bridge must attach the host's module identity.
+            // dnc-module-id header, so the bridge must attach the host's module identity.
             client.Verify(c => c.SubmitSearchIndexAsync(
                 It.IsAny<SubmitSearchIndexRequest>(),
-                It.Is<Metadata>(m => m.GetValue("module-id") == expectedModuleId),
+                It.Is<Metadata>(m => m.GetValue(ModuleIdentityMetadata.ModuleIdHeader) == expectedModuleId),
                 It.IsAny<DateTime?>(),
                 It.IsAny<CancellationToken>()), Times.Once);
         }

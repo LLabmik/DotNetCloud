@@ -11,15 +11,11 @@ namespace DotNetCloud.Modules.Bookmarks.Data.SqlServer.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.EnsureSchema(
-                name: "bookmarks");
-
             migrationBuilder.CreateTable(
                 name: "BookmarkFolders",
-                schema: "bookmarks",
                 columns: table => new
                 {
-                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false, defaultValueSql: "NEWSEQUENTIALID()"),
                     OwnerId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
                     ParentId = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
                     Name = table.Column<string>(type: "nvarchar(300)", maxLength: 300, nullable: false),
@@ -36,18 +32,15 @@ namespace DotNetCloud.Modules.Bookmarks.Data.SqlServer.Migrations
                     table.ForeignKey(
                         name: "FK_BookmarkFolders_BookmarkFolders_ParentId",
                         column: x => x.ParentId,
-                        principalSchema: "bookmarks",
                         principalTable: "BookmarkFolders",
-                        principalColumn: "Id",
-                        onDelete: ReferentialAction.NoAction);
+                        principalColumn: "Id");
                 });
 
             migrationBuilder.CreateTable(
                 name: "Bookmarks",
-                schema: "bookmarks",
                 columns: table => new
                 {
-                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false, defaultValueSql: "NEWSEQUENTIALID()"),
                     OwnerId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
                     FolderId = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
                     Url = table.Column<string>(type: "nvarchar(2048)", maxLength: 2048, nullable: false),
@@ -68,7 +61,6 @@ namespace DotNetCloud.Modules.Bookmarks.Data.SqlServer.Migrations
                     table.ForeignKey(
                         name: "FK_Bookmarks_BookmarkFolders_FolderId",
                         column: x => x.FolderId,
-                        principalSchema: "bookmarks",
                         principalTable: "BookmarkFolders",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.SetNull);
@@ -76,10 +68,9 @@ namespace DotNetCloud.Modules.Bookmarks.Data.SqlServer.Migrations
 
             migrationBuilder.CreateTable(
                 name: "BookmarkPreviews",
-                schema: "bookmarks",
                 columns: table => new
                 {
-                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false, defaultValueSql: "NEWSEQUENTIALID()"),
                     BookmarkId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
                     FetchedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
                     Status = table.Column<int>(type: "int", nullable: false),
@@ -103,7 +94,6 @@ namespace DotNetCloud.Modules.Bookmarks.Data.SqlServer.Migrations
                     table.ForeignKey(
                         name: "FK_BookmarkPreviews_Bookmarks_BookmarkId",
                         column: x => x.BookmarkId,
-                        principalSchema: "bookmarks",
                         principalTable: "Bookmarks",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Cascade);
@@ -111,56 +101,47 @@ namespace DotNetCloud.Modules.Bookmarks.Data.SqlServer.Migrations
 
             migrationBuilder.CreateIndex(
                 name: "ix_bookmark_folders_owner_id",
-                schema: "bookmarks",
                 table: "BookmarkFolders",
                 column: "OwnerId");
 
             migrationBuilder.CreateIndex(
                 name: "ix_bookmark_folders_owner_parent",
-                schema: "bookmarks",
                 table: "BookmarkFolders",
                 columns: new[] { "OwnerId", "ParentId" });
 
             migrationBuilder.CreateIndex(
                 name: "IX_BookmarkFolders_ParentId",
-                schema: "bookmarks",
                 table: "BookmarkFolders",
                 column: "ParentId");
 
             migrationBuilder.CreateIndex(
                 name: "ix_bookmark_previews_bookmark_id",
-                schema: "bookmarks",
                 table: "BookmarkPreviews",
                 column: "BookmarkId",
                 unique: true);
 
             migrationBuilder.CreateIndex(
                 name: "ix_bookmark_previews_status",
-                schema: "bookmarks",
                 table: "BookmarkPreviews",
                 column: "Status");
 
             migrationBuilder.CreateIndex(
                 name: "IX_Bookmarks_FolderId",
-                schema: "bookmarks",
                 table: "Bookmarks",
                 column: "FolderId");
 
             migrationBuilder.CreateIndex(
                 name: "ix_bookmarks_normalized_url",
-                schema: "bookmarks",
                 table: "Bookmarks",
                 column: "NormalizedUrl");
 
             migrationBuilder.CreateIndex(
                 name: "ix_bookmarks_owner_folder",
-                schema: "bookmarks",
                 table: "Bookmarks",
                 columns: new[] { "OwnerId", "FolderId" });
 
             migrationBuilder.CreateIndex(
                 name: "ix_bookmarks_owner_id",
-                schema: "bookmarks",
                 table: "Bookmarks",
                 column: "OwnerId");
         }
@@ -169,16 +150,13 @@ namespace DotNetCloud.Modules.Bookmarks.Data.SqlServer.Migrations
         protected override void Down(MigrationBuilder migrationBuilder)
         {
             migrationBuilder.DropTable(
-                name: "BookmarkPreviews",
-                schema: "bookmarks");
+                name: "BookmarkPreviews");
 
             migrationBuilder.DropTable(
-                name: "Bookmarks",
-                schema: "bookmarks");
+                name: "Bookmarks");
 
             migrationBuilder.DropTable(
-                name: "BookmarkFolders",
-                schema: "bookmarks");
+                name: "BookmarkFolders");
         }
     }
 }

@@ -34,6 +34,8 @@ else
                     <th>Name</th>
                     <th>Version</th>
                     <th>Status</th>
+                    <th>Trust</th>
+                    <th>Sandbox</th>
                     <th>Installed</th>
                     <th>Actions</th>
                 </tr>
@@ -49,6 +51,12 @@ else
                         <td>@module.Version</td>
                         <td>
                             <span class="badge badge-@GetStatusClass(module.Status)">@module.Status</span>
+                        </td>
+                        <td>
+                            <span class="badge badge-@GetTrustClass(module.TrustTier)">@module.TrustTier</span>
+                        </td>
+                        <td>
+                            <span class="badge badge-@GetSandboxClass(module.SandboxStatus)">@module.SandboxStatus</span>
                         </td>
                         <td>@module.InstalledAt.ToString("yyyy-MM-dd")</td>
                         <td class="actions">

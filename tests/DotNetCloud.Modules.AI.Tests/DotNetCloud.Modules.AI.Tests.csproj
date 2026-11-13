@@ -26,6 +26,28 @@
     <ProjectReference Include="..\..\src\Modules\AI\DotNetCloud.Modules.AI\DotNetCloud.Modules.AI.csproj" />
     <ProjectReference Include="..\..\src\Modules\AI\DotNetCloud.Modules.AI.Data\DotNetCloud.Modules.AI.Data.csproj" />
     <ProjectReference Include="..\..\src\Modules\AI\DotNetCloud.Modules.AI.Host\DotNetCloud.Modules.AI.Host.csproj" />
+    <!-- The browser-side services are a plain library so these tests can drive them directly. -->
+    <ProjectReference Include="../../src/Modules/AI/DotNetCloud.Modules.AI.Web.Services/DotNetCloud.Modules.AI.Web.Services.csproj" />
+    <ProjectReference Include="../../src/SDK/DotNetCloud.Modules.Sdk.Web/DotNetCloud.Modules.Sdk.Web.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The packaged manifest is asserted directly, so the test reads the file that ships in the .dncpkg. -->
+    <None Include="..\..\src\Modules\AI\manifest.json" Link="manifest.json" CopyToOutputDirectory="PreserveNewest" />
+
+    <!-- The module-hosted UI assets (phase A5) are asserted for relative references and safe DOM use. -->
+
+    <None Include="..\..\src\Modules\AI\DotNetCloud.Modules.AI.Host\wwwroot\widget\index.html" Link="ui\widget\index.html" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\src\Modules\AI\DotNetCloud.Modules.AI.Host\wwwroot\widget\widget.js" Link="ui\widget\widget.js" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\src\Modules\AI\DotNetCloud.Modules.AI.Host\wwwroot\widget\widget.css" Link="ui\widget\widget.css" CopyToOutputDirectory="PreserveNewest" />
+    <!-- The module UI is a Blazor WebAssembly app served by the host; these are its entry
+         document and stylesheet. -->
+    <None Include="..\..\src\Modules\AI\DotNetCloud.Modules.AI.Web\wwwroot\index.html" Link="ui\index.html" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\src\Modules\AI\DotNetCloud.Modules.AI.Web\wwwroot\css\app.css" Link="ui\css\app.css" CopyToOutputDirectory="PreserveNewest" />
+        <!-- The bridge is the SDK's single copy of the UI protocol; the host copies it at build time. -->
+    <None Include="..\..\src\SDK\DotNetCloud.Modules.Sdk\wwwroot\dncModuleBridge.js" Link="ui\js\dncModuleBridge.js" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\src\SDK\DotNetCloud.Modules.Sdk.Web\wwwroot\dncModuleFrame.js" Link="ui\js\dncModuleFrame.js" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\src\SDK\DotNetCloud.Modules.Sdk.Web\wwwroot\dncModuleBoot.js" Link="ui\js\dncModuleBoot.js" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <ItemGroup>

@@ -1,8 +1,8 @@
 using DotNetCloud.Core.DTOs;
 using DotNetCloud.Core.Errors;
-using DotNetCloud.Modules.Files.Services;
 using DotNetCloud.Modules.Photos.Data.Services;
 using DotNetCloud.Modules.Photos.Services;
+using DotNetCloud.Modules.Sdk.Api;
 using Microsoft.AspNetCore.Mvc;
 
 namespace DotNetCloud.Modules.Photos.Host.Controllers;
@@ -21,12 +21,25 @@ public class PhotosController : PhotosControllerBase
     private readonly PhotoEditService _editService;
     private readonly SlideshowService _slideshowService;
     private readonly IPhotoThumbnailService _thumbnailService;
-    private readonly IDownloadService _downloadService;
+    private readonly IDncModuleApi? _coreApi;
     private readonly ILogger<PhotosController> _logger;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="PhotosController"/> class.
     /// </summary>
+    /// <param name="photoService">Photo CRUD service.</param>
+    /// <param name="albumService">Album service.</param>
+    /// <param name="metadataService">Metadata service.</param>
+    /// <param name="geoService">Geo query service.</param>
+    /// <param name="shareService">Sharing service.</param>
+    /// <param name="editService">Edit-stack service.</param>
+    /// <param name="slideshowService">Slideshow service.</param>
+    /// <param name="thumbnailService">Thumbnail cache and generator.</param>
+    /// <param name="logger">Logger.</param>
+    /// <param name="coreApi">
+    /// The core module API used to read the original image, or <see langword="null"/> when the host
+    /// was not launched by the supervisor.
+    /// </param>
     public PhotosController(
         PhotoService photoService,
         AlbumService albumService,
@@ -36,8 +49,8 @@ public class PhotosController : PhotosControllerBase
         PhotoEditService editService,
         SlideshowService slideshowService,
         IPhotoThumbnailService thumbnailService,
-        IDownloadService downloadService,
-        ILogger<PhotosController> logger)
+        ILogger<PhotosController> logger,
+        IDncModuleApi? coreApi = null)
     {
         _photoService = photoService;
         _albumService = albumService;
@@ -47,7 +60,7 @@ public class PhotosController : PhotosControllerBase
         _editService = editService;
         _slideshowService = slideshowService;
         _thumbnailService = thumbnailService;
-        _downloadService = downloadService;
+        _coreApi = coreApi;
         _logger = logger;
     }
 
@@ -74,13 +87,25 @@ public class PhotosController : PhotosControllerBase
     }
 
     /// <summary>Gets a thumbnail for a photo at the requested size.</summary>
+    /// <remarks>
+    /// The first request for a newly indexed photo also produces the cache, because that is the only
+    /// point at which an acting user is asserting — the module can only read the original through the
+    /// core on a signed-in user's behalf. Only the owner can generate; a photo merely shared with the
+    /// caller is served from the owner's cache.
+    /// </remarks>
     [HttpGet("{photoId:guid}/thumbnail")]
     public async Task<IActionResult> GetThumbnailAsync(Guid photoId, [FromQuery] string size = "grid")
     {
+        var caller = GetAuthenticatedCaller();
+
+        var photo = await _photoService.GetPhotoAsync(photoId, caller);
+        if (photo is null)
+            return NotFound(ErrorEnvelope(ErrorCodes.PhotoNotFound, "Photo not found."));
+
         if (!Enum.TryParse<PhotoThumbnailSize>(size, ignoreCase: true, out var thumbnailSize))
             thumbnailSize = PhotoThumbnailSize.Grid;
 
-        var (stream, contentType) = await _thumbnailService.GetThumbnailAsync(photoId, thumbnailSize);
+        var (stream, contentType) = await _thumbnailService.GetThumbnailAsync(photoId, caller.UserId, thumbnailSize);
         if (stream is null)
             return NotFound();
 
@@ -90,8 +115,13 @@ public class PhotosController : PhotosControllerBase
 
     /// <summary>
     /// Serves the original full-resolution photo file.
-    /// Resolves the photo's FileNodeId through the Files module to stream the original image.
     /// </summary>
+    /// <remarks>
+    /// The bytes are read through the core's module API (<c>IFileDirectory</c>, consent
+    /// <c>files:read</c>) for the acting user. A file that belongs to another account — for example a
+    /// photo shared with the caller — is not readable that way, so the download answers 404 and the
+    /// UI links to the owner's library instead.
+    /// </remarks>
     [HttpGet("{photoId:guid}/download")]
     public async Task<IActionResult> DownloadPhotoAsync(Guid photoId)
     {
@@ -100,13 +130,24 @@ public class PhotosController : PhotosControllerBase
         if (photo is null)
             return NotFound(ErrorEnvelope(ErrorCodes.PhotoNotFound, "Photo not found."));
 
-        var stream = await _downloadService.DownloadCurrentAsync(photo.FileNodeId, caller);
-        if (stream is null)
-            return NotFound();
+        if (_coreApi is null)
+            return StatusCode(503, ErrorEnvelope("FILES_UNAVAILABLE", "File access is unavailable on this server."));
 
-        var contentType = photo.MimeType ?? "image/jpeg";
-        Response.Headers.CacheControl = "private, max-age=3600";
-        return File(stream, contentType, photo.FileName);
+        try
+        {
+            var stream = await _coreApi.DownloadFileAsync(photo.FileNodeId.ToString(), HttpContext.RequestAborted);
+
+            var contentType = photo.MimeType ?? "image/jpeg";
+            Response.Headers.CacheControl = "private, max-age=3600";
+            return File(stream, contentType, photo.FileName);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            // The core answers the same way for "the file is gone" and "this caller may not read
+            // it", so the two cases are deliberately indistinguishable to the caller.
+            _logger.LogWarning(ex, "The original of photo {PhotoId} could not be read through the core", photoId);
+            return NotFound(ErrorEnvelope("PHOTO_ORIGINAL_UNAVAILABLE", "The original file is not available."));
+        }
     }
 
     /// <summary>Creates a photo record linked to a file node.</summary>
@@ -286,8 +327,10 @@ public class PhotosController : PhotosControllerBase
 
     /// <summary>
     /// Applies the current edit stack to the original image and regenerates thumbnails.
-    /// The original file on disk is preserved (non-destructive).
+    /// The original file is preserved (non-destructive).
     /// </summary>
+    /// <param name="photoId">The photo whose edit stack is baked into the thumbnail cache.</param>
+    /// <returns>Whether the thumbnails were regenerated.</returns>
     [HttpPost("{photoId:guid}/edits/save")]
     public async Task<IActionResult> SaveEditsAsync(Guid photoId)
     {
@@ -298,7 +341,10 @@ public class PhotosController : PhotosControllerBase
         if (photo is null)
             return NotFound(ErrorEnvelope(ErrorCodes.PhotoNotFound, "Photo not found."));
 
-        var success = await _thumbnailService.SaveEditsAsync(photoId);
+        if (photo.OwnerId != caller.UserId)
+            return StatusCode(403, ErrorEnvelope("NOT_PHOTO_OWNER", "Only the owner can save edits."));
+
+        var success = await _thumbnailService.SaveEditsAsync(photoId, caller.UserId);
         if (!success)
             return StatusCode(500, ErrorEnvelope("SAVE_EDITS_FAILED", "Failed to apply edits to thumbnails."));
 

@@ -4,7 +4,7 @@ using DotNetCloud.Core;
 using DotNetCloud.Core.DTOs.Media;
 using DotNetCloud.Core.Services;
 using DotNetCloud.Core.Services.ModuleApis;
-using DotNetCloud.Modules.Photos.Events;
+using DotNetCloud.Core.Server.Services.Media;
 using DotNetCloud.Modules.Music.Events;
 using DotNetCloud.Modules.Video.Events;
 using Microsoft.Extensions.Configuration;
@@ -535,10 +535,10 @@ public sealed class MediaFolderImportService : IMediaLibraryScanner
 
             case MediaScanType.Photos:
             {
-                var photoCallback = sp.GetService<IPhotoIndexingCallback>();
-                return photoCallback is null
+                var photoIndexer = sp.GetService<IPhotoIndexingClient>();
+                return photoIndexer is null
                     ? []
-                    : await photoCallback.GetIndexedFileNodeIdsAsync(ownerId, cancellationToken);
+                    : await photoIndexer.GetIndexedFileNodeIdsAsync(ownerId, cancellationToken);
             }
 
             default:
@@ -559,16 +559,16 @@ public sealed class MediaFolderImportService : IMediaLibraryScanner
         {
             case MediaScanType.Photos:
             {
-                var photoCallback = sp.GetService<IPhotoIndexingCallback>();
-                if (photoCallback is not null)
+                var photoIndexer = sp.GetService<IPhotoIndexingClient>();
+                if (photoIndexer is null)
                 {
-                    await photoCallback.IndexPhotoAsync(
-                        candidate.Id, candidate.Name, candidate.MimeType, candidate.Size,
-                        ownerId, storagePath: null, cancellationToken);
+                    _logger.LogWarning("IPhotoIndexingClient not registered — cannot index {File}", candidate.Name);
                 }
                 else
                 {
-                    _logger.LogWarning("IPhotoIndexingCallback not registered — cannot index {File}", candidate.Name);
+                    await photoIndexer.IndexPhotoAsync(
+                        candidate.Id, candidate.Name, candidate.MimeType, candidate.Size, ownerId,
+                        cancellationToken);
                 }
                 break;
             }
@@ -637,10 +637,10 @@ public sealed class MediaFolderImportService : IMediaLibraryScanner
 
             case MediaScanType.Photos:
             {
-                var photoCallback = sp.GetService<IPhotoIndexingCallback>();
-                return photoCallback is null
+                var photoIndexer = sp.GetService<IPhotoIndexingClient>();
+                return photoIndexer is null
                     ? 0
-                    : await photoCallback.RemoveDeletedPhotosAsync(deletedFileNodeIds, ownerId, cancellationToken);
+                    : await photoIndexer.RemoveDeletedPhotosAsync(deletedFileNodeIds, ownerId, cancellationToken);
             }
 
             default:

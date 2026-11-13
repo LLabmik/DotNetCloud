@@ -1,0 +1,230 @@
+# Module UI Hosting
+
+How a (non-required) DotNetCloud module ships its own web UI, and how the core frames it.
+
+> Required modules are the exception: they are part of the core and their Blazor pages live inside
+> the core process. A manifest for a required module must not declare a `ui` block — the validator
+> rejects it.
+>
+> **Reference implementation:** `src/Modules/Example` — `manifest.json` (`ui` block, consent scopes),
+> `DotNetCloud.Modules.Example.Host/wwwroot` (the page and the bridge) and `Host/Ui/ExampleNotesApi.cs`
+> (the assertion-authenticated JSON API the page calls).
+
+---
+
+## 1. Declaring a UI
+
+Add a `ui` section to your **version 2** manifest:
+
+```json
+{
+  "manifestVersion": 2,
+  "id": "vendor.receipts",
+  "name": "Receipts",
+  "version": "1.0.0",
+  "ui": {
+    "type": "iframe",
+    "entryPath": "/",
+    "navItems": [
+      {
+        "id": "receipts",
+        "label": "Receipts",
+        "icon": "receipt_long",
+        "path": "/"
+      },
+      {
+        "id": "settings",
+        "label": "Receipt settings",
+        "icon": "settings",
+        "path": "/settings"
+      }
+    ]
+  }
+}
+```
+
+| Field                 | Rules                                                                                                                                                                              |
+| --------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ui.type`             | Must be `iframe`. Nothing else is accepted.                                                                                                                                        |
+| `ui.entryPath`        | Site-relative (`/`), no query or fragment, no `..`, no `//host`.                                                                                                                   |
+| `ui.navItems[].id`    | Stable id, unique within the module.                                                                                                                                               |
+| `ui.navItems[].label` | Sidebar label.                                                                                                                                                                     |
+| `ui.navItems[].icon`  | **Google Material Icons ligature name** (`[a-z][a-z0-9_]*`) — never an emoji. If omitted or invalid, the core falls back to the module's canonical icon from `ModuleIconProvider`. |
+| `ui.navItems[].path`  | Module-relative path (`/`, `/settings`).                                                                                                                                           |
+| `ui.widget.path`      | Optional. Module-relative path of a compact page for the Home-page widget card (for example `/widget/index.html`). Omit it and the module gets no widget.                          |
+
+The core registers each nav item as `<label>` → `/modules/<moduleId><path>`, and that shell page
+frames your app.
+
+---
+
+## 2. Where your UI is served
+
+| URL                    | Who serves it                                                                                                                                                     |
+| ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `/apps/<moduleId>/…`   | **You.** The core proxies this to your host process, stripping `/apps/<moduleId>` before forwarding, so your app still sees `/`, `/settings`, `/assets/app.js`, … |
+| `/modules/<moduleId>…` | The core. This is the chrome page (sidebar + header) that iframes the proxied path.                                                                               |
+
+Consequences:
+
+- **Reference every asset relatively.** The core serves your document at `/apps/<moduleId>/`, so
+  `assets/app.js` resolves to `/apps/<moduleId>/assets/app.js` and your process sees `/assets/app.js`.
+  A leading-slash path (`/assets/app.js`) is **not** rewritten by the browser or by the proxy: it
+  leaves your module and hits a core route (404 at best, a core endpoint at worst). Same rule for
+  your own API calls (`api/notes`, not `/api/notes`) — the core has `/api/...` routes of its own.
+- **Never hard-code `/apps/<moduleId>`** in your own links. Use relative paths (`./settings`) or read
+  `window.location.pathname` (which already includes the prefix).
+- Your listener is whatever Kestrel endpoint the supervisor assigned (a Unix socket by default, phase
+  A4) — you only need to serve HTTP/1.1 or HTTP/2 on it, as every module host already does.
+- **You get the whole content area.** The shell caps ordinary pages at a reading width and pads them;
+  the module page opts out (`app.css`: `.page-content:has(.module-app-host) { padding: 0 }` and
+  `max-width: none`, frame height 100%). A module that previously looked narrow on a wide window was
+  hitting that cap — the in-core full-bleed allow-list matched layout classes that live *inside* an
+  iframe and can therefore never match from the shell (found 2026-11-09).
+
+---
+
+## 3. Bring the bridge
+
+Copy `dncModuleBridge.js` from the SDK package (`contentFiles/any/any/wwwroot/`) into your host's
+`wwwroot` and load it from the framed page:
+
+```html
+<script src="/dncModuleBridge.js"></script>
+<script>
+  window.dncModuleBridge
+    .on("init", function (info) {
+      /* role, moduleId, theme, locale */
+    })
+    .on("theme", function (t) {
+      document.body.dataset.theme = t.theme;
+    })
+    .start({ title: "Receipts" });
+</script>
+```
+
+No npm, no bundler: it is a plain static asset.
+
+### Things to design for
+
+- **Opaque origin.** Your document is sandboxed with
+  `allow-scripts allow-forms allow-popups allow-modals` and **no** `allow-same-origin`.
+  `document.cookie`, `localStorage` and `sessionStorage` are unavailable. Keep state on your server
+  and reach it through the same proxied path the document came from.
+- **Your own API is cross-origin.** Because the frame's origin is opaque, every `fetch` is a
+  cross-origin request and must use `credentials: 'include'`. The core answers the preflight and
+  returns `Access-Control-Allow-Origin: null` plus `Access-Control-Allow-Credentials: true`, then
+  authenticates the real request itself. Fetch only paths **under your module's prefix**; core
+  endpoints carry no CORS headers.
+- **Modals are available.** `allow-modals` is granted, so `alert`/`confirm`/`prompt` and
+  `<dialog>.showModal()` work. Prefer `<dialog>`: it does not freeze the page and cannot be
+  suppressed by a browser setting.
+- **Downloads are not.** Use `dncModuleBridge.openExternal(url)` to hand a download or external link
+  to the core, which opens it in a real tab.
+- **Never trust `event.origin`.** It is `"null"` for every sandboxed frame. The bridge already
+  validates `event.source === window.parent`; use its `on(...)` API instead of adding your own
+  listener.
+- **Do not touch `window.parent`/`window.top`.** They are cross-origin. Use the bridge.
+
+---
+
+## 4. Protocol
+
+Host → frame:
+
+| Type                | Payload                                    | When                               |
+| ------------------- | ------------------------------------------ | ---------------------------------- |
+| `dnc:init`          | `{ role, moduleId, theme, locale, title }` | Immediately after each frame load  |
+| `dnc:theme`         | `{ theme, locale }`                        | The user changed theme or language |
+| `dnc:consentResult` | `{ scope, granted }`                       | A consent decision was recorded    |
+
+Frame → host (rate-limited where noted):
+
+| Type                 | Payload             | Notes                                                                               |
+| -------------------- | ------------------- | ----------------------------------------------------------------------------------- |
+| `dnc:ready`          | –                   | Required. The host shows a "not available" state if it does not arrive within 10 s. |
+| `dnc:navigate`       | `{ path }`          | Module-relative only.                                                               |
+| `dnc:resize`         | `{ height }`        | Widget role only; clamped to 200–20000 px.                                          |
+| `dnc:title`          | `{ title }`         | ≤ 200 chars.                                                                        |
+| `dnc:openExternal`   | `{ url }`           | `https:` only, opened with `noopener,noreferrer`.                                   |
+| `dnc:requestConsent` | `{ scopes: [...] }` | Renders a core consent banner; this is not an OIDC flow yet (§6).                   |
+| `dnc:notify`         | `{ message }`       | ≤ 500 chars, **5 per minute**.                                                      |
+
+Messages larger than 8 KiB are dropped, unknown types are dropped, and messages whose source is not
+the expected window are dropped.
+
+### Theme
+
+The shell applies the user's choice by toggling the **`dark-mode` class** on `<html>` and `<body>`
+(`wwwroot/js/theme.js`) — there is no `data-theme` attribute on the shell. The host script reads that
+class (`module-app-host.js`: `currentTheme()`), sends it in `dnc:init`, and observes the class so a
+toggle pushes `dnc:theme` into every mounted frame without a remount. The bridge then sets
+`data-theme="dark|light"` on the module document's `<html>`, which is what a module stylesheet must
+key off:
+
+```css
+:root { --surface: #fff; }
+html[data-theme="dark"] { --surface: #1b1f26; }
+```
+
+Do not use `prefers-color-scheme` for this: the frame's media query follows the operating system, not
+the user's DotNetCloud setting, and a sandboxed frame has no access to the shell's preference. Reading
+only a `data-theme` attribute from the *shell* was a real defect — every module frame stayed light in
+dark mode until the host script was fixed (2026-11-09).
+
+---
+
+## 5. Identity
+
+Your backend never receives the user's core session cookie — the proxy strips `Cookie` and
+`Authorization`. What it does receive is:
+
+```
+dnc-user-assertion: <core-signed token>
+x-forwarded-proto: https
+x-forwarded-host: <public host>
+```
+
+The assertion is the same token type the core uses for module capability calls: audience-bound to
+**your** module id, valid for **60 seconds**, operation `ui`. Verify it with the public key the
+supervisor puts in `DOTNETCLOUD_ASSERTION_PUBLIC_KEY`, or simply forward it on your `IDncModuleApi`
+calls — `ModuleUserAssertionContext` (in `DotNetCloud.Core.Grpc`) does that for you.
+
+You cannot mint an assertion, and you cannot use one issued for another module.
+
+---
+
+## 6. Widgets
+
+A Home-page widget is a framed document, declared in the same `ui` block:
+
+```json
+"ui": {
+  "type": "iframe",
+  "entryPath": "/",
+  "navItems": [ { "id": "receipts", "label": "Receipts", "icon": "receipt_long", "path": "/" } ],
+  "widget": { "path": "/widget/index.html" }
+}
+```
+
+- The core registers the card with `WidgetUiRegistry.RegisterIframeWidget(...)`, using the module's
+  name, canonical icon and shell path as the card's **Open** target.
+- The frame is rendered by `ModuleWidgetFrame` and uses the same protocol with `role: "widget"`, so
+  `dnc:resize` is honoured (the card grows to your reported height) and notifications work.
+- The widget path is usually a **separate, compact page**, not your full app — a sidebar layout in a
+  small card is unusable. Bookmarks ships `/widget/index.html` alongside its app at `/`.
+- Removing the `ui.widget` block on the next refresh unregisters the card; the shell never guesses a
+  path.
+- A widget frame has the same opaque origin and the same relative-path rule as the app frame.
+
+---
+
+## 7. Limits and known gaps
+
+- **Consent from a frame is a banner, not an OIDC popup.** `dnc:requestConsent` lists the scopes and
+  links to `/connected-apps`.
+- **No service worker, no `window.top` access, no cookies** from inside the frame.
+- **`apps.<host>` origin separation** is a public-store launch gate, not part of this pass. Until
+  then the frame shares the core origin: it cannot _read_ core resources, but its requests are
+  cross-site for cookie purposes (core cookies are `SameSite=Lax`).
+- **Response bodies are capped at 32 MiB** by the proxy.

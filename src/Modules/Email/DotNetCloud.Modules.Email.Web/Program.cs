@@ -1,0 +1,37 @@
+using DotNetCloud.Modules.Email.Web;
+using DotNetCloud.Modules.Email.Web.Services;
+using DotNetCloud.Modules.Sdk.Web;
+using Microsoft.AspNetCore.Components.Authorization;
+using Microsoft.AspNetCore.Components.Web;
+using Microsoft.AspNetCore.Components.WebAssembly.Hosting;
+
+var builder = WebAssemblyHostBuilder.CreateDefault(args);
+builder.RootComponents.Add<App>("#app");
+builder.RootComponents.Add<HeadOutlet>("head::after");
+
+// Every request is relative: the core proxies /apps/dotnetcloud.email/ and strips the prefix, so the
+// module host serves both the document and its API under the frame's own base address. The frame
+// ticket is attached by the SDK bridge's fetch patch, not by a handler here.
+builder.Services.AddScoped(_ => new HttpClient
+{
+    BaseAddress = new Uri(builder.HostEnvironment.BaseAddress),
+});
+
+builder.Services.AddScoped<ModuleApiClient>();
+builder.Services.AddScoped<EmailApi>();
+
+// The panels are thin views over EmailState, which the pages, the panel base class and the overlays all
+// inject. Nothing else registers it: without this the whole frame dies at render time with
+// "Cannot provide a value for property 'State' ... There is no registered service of type ...EmailState".
+builder.Services.AddScoped<EmailState>();
+
+// Frame contract with the core shell: theme, title, toasts, consent prompts and external tabs.
+builder.Services.AddSingleton<ModuleFrameBridge>();
+
+// The frame has no cookie of its own; the acting user is read from the module host once per page.
+builder.Services.AddScoped<ModuleFrameAuthenticationStateProvider>();
+builder.Services.AddScoped<AuthenticationStateProvider>(sp => sp.GetRequiredService<ModuleFrameAuthenticationStateProvider>());
+builder.Services.AddAuthorizationCore();
+builder.Services.AddCascadingAuthenticationState();
+
+await builder.Build().RunAsync();

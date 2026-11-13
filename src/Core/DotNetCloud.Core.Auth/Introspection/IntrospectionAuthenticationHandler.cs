@@ -74,7 +74,10 @@ public sealed class IntrospectionAuthenticationHandler
                 ?? Environment.GetEnvironmentVariable("DOTNETCLOUD_MODULE_ID")
                 ?? "unknown";
 
-            var requiredAudience = Options.RequiredAudience ?? moduleId;
+            // Only pin an audience when the operator configured one. Defaulting to the module id
+            // would require every token to carry a module-scoped audience, which OpenIddict does
+            // not issue yet (that arrives with the per-module OIDC clients in phase A3).
+            var requiredAudience = Options.RequiredAudience;
 
             var result = await _introspectionClient.IntrospectAsync(
                 token, moduleId, requiredAudience, Context.RequestAborted);

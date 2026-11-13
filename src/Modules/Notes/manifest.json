@@ -12,7 +12,8 @@
     "ICrossModuleLinkResolver",
     "IContactDirectory",
     "ICalendarDirectory",
-    "ITeamDirectory"
+    "ITeamDirectory",
+    "ISearchProvider"
   ],
   "publishedEvents": [
     "NoteCreatedEvent",
@@ -21,10 +22,6 @@
     "ResourceSharedEvent",
     "UserMentionedEvent"
   ],
-  "subscribedEvents": [
-    "ContactCreatedEvent",
-    "CalendarEventCreatedEvent"
-  ],
-  "minCoreVersion": "1.0.0",
-  "schemaProvider": "core"
+  "subscribedEvents": ["ContactCreatedEvent", "CalendarEventCreatedEvent"],
+  "minCoreVersion": "0.7.0"
 }

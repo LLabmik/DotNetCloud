@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using DotNetCloud.Core.Grpc;
+using DotNetCloud.Core.Modules.Supervisor;
 using Grpc.Core;
 using Grpc.Net.Client;
 using Microsoft.Extensions.Logging;
@@ -71,30 +72,35 @@ internal sealed class GrpcChannelManager : IModuleGrpcChannelProvider, IDisposab
 
     private GrpcChannel CreateChannel(string moduleId, string endpoint)
     {
-        // All internal gRPC is cleartext HTTP/2 over TCP — never use TLS. The module host still
-        // authenticates us: it presents this same supervisor-issued secret on every call and
+        // All internal gRPC is cleartext HTTP/2 — never use TLS. The module host still
+        // authenticates us: it presents this same supervisor-issued token on every call and
         // rejects anything that does not match, so a stray local process cannot pose as the core.
         var callCredentials = CallCredentials.FromInterceptor((_, metadata) =>
         {
-            if (_credentials.TryGetSecret(moduleId, out var secret))
+            if (_credentials.TryGetToken(moduleId, out var token))
             {
-                metadata.Add(ModuleIdentityMetadata.ModuleSecretHeader, secret);
+                metadata.Add(ModuleIdentityMetadata.ModuleTokenHeader, token);
             }
 
             return Task.CompletedTask;
         });
 
-        return GrpcChannel.ForAddress(endpoint, new GrpcChannelOptions
+        // A Unix socket / named pipe endpoint cannot be parsed by SocketsHttpHandler, so the
+        // address becomes http://localhost and the connect is redirected to the socket. See
+        // ModuleHttpTransport for the rationale.
+        var parsed = ModuleEndpoint.TryParse(endpoint, out var moduleEndpoint)
+            ? moduleEndpoint
+            : ModuleEndpoint.Tcp(1);
+        var address = parsed.ToClientBaseAddress();
+        var handler = ModuleHttpTransport.CreateHandler(parsed, TimeSpan.FromSeconds(5));
+
+        return GrpcChannel.ForAddress(address, new GrpcChannelOptions
         {
             Credentials = ChannelCredentials.Create(ChannelCredentials.Insecure, callCredentials),
             UnsafeUseInsecureChannelCallCredentials = true,
             MaxReceiveMessageSize = 16 * 1024 * 1024,
             MaxSendMessageSize = 16 * 1024 * 1024,
-            HttpHandler = new SocketsHttpHandler
-            {
-                EnableMultipleHttp2Connections = true,
-                ConnectTimeout = TimeSpan.FromSeconds(5),
-            }
+            HttpHandler = handler,
         });
     }
 

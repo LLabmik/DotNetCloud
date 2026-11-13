@@ -9,7 +9,7 @@ using DotNetCloud.Core.Services;
 using DotNetCloud.Integration.Tests.Infrastructure;
 using DotNetCloud.Modules.Files.DTOs;
 using DotNetCloud.Modules.Files.Services;
-using DotNetCloud.Modules.Photos.Events;
+using DotNetCloud.Core.Server.Services.Media;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -73,7 +73,7 @@ public sealed class MediaLibraryEndpointIntegrationTests
         var sharedFolderId = Guid.CreateVersion7();
         var stalePhotoId = Guid.CreateVersion7();
         var filesApiClientMock = new Mock<DotNetCloud.Core.Services.ModuleApis.IFilesApiClient>();
-        var photoCallbackMock = new Mock<IPhotoIndexingCallback>();
+        var photoCallbackMock = new Mock<IPhotoIndexingClient>();
 
         filesApiClientMock
             .Setup(client => client.ScanMediaFoldersAsync(
@@ -102,7 +102,7 @@ public sealed class MediaLibraryEndpointIntegrationTests
             builder.ConfigureServices(services =>
             {
                 services.RemoveAll<DotNetCloud.Core.Services.ModuleApis.IFilesApiClient>();
-                services.RemoveAll<IPhotoIndexingCallback>();
+                services.RemoveAll<IPhotoIndexingClient>();
                 services.AddScoped(_ => filesApiClientMock.Object);
                 services.AddScoped(_ => photoCallbackMock.Object);
             });

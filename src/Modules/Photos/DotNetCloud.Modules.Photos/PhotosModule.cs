@@ -1,7 +1,5 @@
 using DotNetCloud.Core.Events;
 using DotNetCloud.Core.Modules;
-using DotNetCloud.Modules.Files.Events;
-using DotNetCloud.Modules.Photos.Events;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
@@ -11,10 +9,13 @@ namespace DotNetCloud.Modules.Photos;
 /// Photos module implementation.
 /// Manages photo library, albums, non-destructive editing, and geo-clustering.
 /// </summary>
+/// <remarks>
+/// The module used to subscribe to the Files module's <c>FileUploadedEvent</c> in-process. A
+/// sandboxed module cannot see another module's events, so images are indexed by the core's media
+/// import (which calls this module's <c>IndexPhoto</c> RPC) and by the module's own library scan.
+/// </remarks>
 public sealed class PhotosModule : IModuleLifecycle
 {
-    private IEventBus? _eventBus;
-    private FileUploadedPhotoHandler? _fileUploadedHandler;
     private ILogger<PhotosModule>? _logger;
     private bool _initialized;
     private bool _running;
@@ -23,25 +24,16 @@ public sealed class PhotosModule : IModuleLifecycle
     public IModuleManifest Manifest { get; } = new PhotosModuleManifest();
 
     /// <inheritdoc />
-    public async Task InitializeAsync(ModuleInitializationContext context, CancellationToken cancellationToken = default)
+    public Task InitializeAsync(ModuleInitializationContext context, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(context);
 
         _logger = context.Services.GetService<ILogger<PhotosModule>>();
         _logger?.LogInformation("Initializing Photos module ({ModuleId})", context.ModuleId);
 
-        _eventBus = context.Services.GetRequiredService<IEventBus>();
-
-        var handlerLogger = context.Services.GetService<ILogger<FileUploadedPhotoHandler>>();
-        var indexingCallback = context.Services.GetService<IPhotoIndexingCallback>();
-        _fileUploadedHandler = new FileUploadedPhotoHandler(
-            handlerLogger ?? Microsoft.Extensions.Logging.Abstractions.NullLogger<FileUploadedPhotoHandler>.Instance,
-            indexingCallback);
-
-        await _eventBus.SubscribeAsync(_fileUploadedHandler, cancellationToken);
-
         _initialized = true;
         _logger?.LogInformation("Photos module initialized successfully");
+        return Task.CompletedTask;
     }
 
     /// <inheritdoc />
@@ -58,16 +50,11 @@ public sealed class PhotosModule : IModuleLifecycle
     }
 
     /// <inheritdoc />
-    public async Task StopAsync(CancellationToken cancellationToken = default)
+    public Task StopAsync(CancellationToken cancellationToken = default)
     {
         _running = false;
-
-        if (_eventBus is not null && _fileUploadedHandler is not null)
-        {
-            await _eventBus.UnsubscribeAsync(_fileUploadedHandler, cancellationToken);
-        }
-
         _logger?.LogInformation("Photos module stopped");
+        return Task.CompletedTask;
     }
 
     /// <summary>

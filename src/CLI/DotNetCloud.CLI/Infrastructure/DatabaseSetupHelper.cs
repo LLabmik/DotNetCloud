@@ -71,15 +71,16 @@ internal static class DatabaseSetupHelper
 
         // Create the role (ignore error if it already exists). CREATEDB lets
         // the server recreate the database at startup if it was dropped (e.g.
-        // by an uninstall that opted to drop the database).
+        // by an uninstall that opted to drop the database). CREATEROLE lets the
+        // server provision scoped principals for sandboxed modules.
         var createUser = RunSudoPostgres(
-            $"-c \"CREATE ROLE {quotedUser} WITH LOGIN PASSWORD '{EscapeSql(dbPassword)}' CREATEDB;\"");
+            $"-c \"CREATE ROLE {quotedUser} WITH LOGIN PASSWORD '{EscapeSql(dbPassword)}' CREATEDB CREATEROLE;\"");
 
         if (!createUser)
         {
             // Role might already exist — try ALTER instead
             RunSudoPostgres(
-                $"-c \"ALTER ROLE {quotedUser} WITH LOGIN PASSWORD '{EscapeSql(dbPassword)}' CREATEDB;\"");
+                $"-c \"ALTER ROLE {quotedUser} WITH LOGIN PASSWORD '{EscapeSql(dbPassword)}' CREATEDB CREATEROLE;\"");
         }
 
         // Create the database (ignore error if it already exists)

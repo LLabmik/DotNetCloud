@@ -1,7 +1,9 @@
 using DotNetCloud.Core.Authorization;
 using DotNetCloud.Core.DTOs;
+using DotNetCloud.Core.Grpc;
 using DotNetCloud.Modules.Photos.Data.Services;
 using DotNetCloud.Modules.Photos.Host.Protos;
+using DotNetCloud.Modules.Photos.Services;
 using Grpc.Core;
 
 namespace DotNetCloud.Modules.Photos.Host.Services;
@@ -15,21 +17,37 @@ public sealed class PhotosGrpcServiceImpl : PhotosGrpcService.PhotosGrpcServiceB
     private readonly PhotoService _photoService;
     private readonly AlbumService _albumService;
     private readonly PhotoGeoService _geoService;
+    private readonly IPhotoShareService _shareService;
+    private readonly IPhotoIndexingCallback _indexingCallback;
+    private readonly IModuleUserAssertionAccessor? _assertionAccessor;
     private readonly ILogger<PhotosGrpcServiceImpl> _logger;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="PhotosGrpcServiceImpl"/> class.
     /// </summary>
+    /// <param name="photoService">Photo CRUD service.</param>
+    /// <param name="albumService">Album service.</param>
+    /// <param name="geoService">Geo query service.</param>
+    /// <param name="shareService">Photo and album sharing service.</param>
+    /// <param name="indexingCallback">Library indexing callback used by the core's media import.</param>
+    /// <param name="logger">Logger.</param>
+    /// <param name="assertionAccessor">Resolves the acting user the core asserted, when present.</param>
     public PhotosGrpcServiceImpl(
         PhotoService photoService,
         AlbumService albumService,
         PhotoGeoService geoService,
-        ILogger<PhotosGrpcServiceImpl> logger)
+        IPhotoShareService shareService,
+        IPhotoIndexingCallback indexingCallback,
+        ILogger<PhotosGrpcServiceImpl> logger,
+        IModuleUserAssertionAccessor? assertionAccessor = null)
     {
         _photoService = photoService;
         _albumService = albumService;
         _geoService = geoService;
+        _shareService = shareService;
+        _indexingCallback = indexingCallback;
         _logger = logger;
+        _assertionAccessor = assertionAccessor;
     }
 
     /// <inheritdoc />
@@ -355,6 +373,138 @@ public sealed class PhotosGrpcServiceImpl : PhotosGrpcService.PhotosGrpcServiceB
             Found = true,
             Document = MapPhotoToSearchableDocument(photo)
         };
+    }
+
+    /// <summary>
+    /// Resolves the acting user of a core-initiated call.
+    /// </summary>    /// <remarks>
+    /// The user comes from the core-signed assertion carried on the call
+    /// (<see cref="ModuleUserAssertionGrpcInterceptor"/> publishes it to the ambient flow), never
+    /// from a request field. A call with no verified assertion is refused: these RPCs exist only for
+    /// the core acting on a signed-in user's behalf.
+    /// </remarks>
+    private Guid RequireActingUser()
+    {
+        var userId = _assertionAccessor?.GetCurrentUserId();
+        if (userId is null || userId.Value == Guid.Empty)
+        {
+            throw new RpcException(new Status(
+                StatusCode.Unauthenticated,
+                "This operation requires a verified end-user assertion."));
+        }
+
+        return userId.Value;
+    }
+
+    /// <inheritdoc />
+    public override async Task<IndexPhotoResponse> IndexPhoto(IndexPhotoRequest request, ServerCallContext context)
+    {
+        try
+        {
+            var ownerId = RequireActingUser();
+
+            if (!Guid.TryParse(request.FileNodeId, out var fileNodeId))
+            {
+                return new IndexPhotoResponse { Success = false, ErrorMessage = "A valid file node id is required." };
+            }
+
+            await _indexingCallback.IndexPhotoAsync(
+                fileNodeId,
+                request.FileName,
+                request.MimeType,
+                request.SizeBytes,
+                ownerId,
+                context.CancellationToken);
+
+            return new IndexPhotoResponse { Success = true };
+        }
+        catch (RpcException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "IndexPhoto failed");
+            return new IndexPhotoResponse { Success = false, ErrorMessage = ex.Message };
+        }
+    }
+
+    /// <inheritdoc />
+    public override async Task<GetIndexedFileNodeIdsResponse> GetIndexedFileNodeIds(
+        GetIndexedFileNodeIdsRequest request, ServerCallContext context)
+    {
+        var ownerId = RequireActingUser();
+        var ids = await _indexingCallback.GetIndexedFileNodeIdsAsync(ownerId, context.CancellationToken);
+
+        var response = new GetIndexedFileNodeIdsResponse();
+        response.FileNodeIds.AddRange(ids.Select(id => id.ToString()));
+        return response;
+    }
+
+    /// <inheritdoc />
+    public override async Task<RemoveDeletedPhotosResponse> RemoveDeletedPhotos(
+        RemoveDeletedPhotosRequest request, ServerCallContext context)
+    {
+        var ownerId = RequireActingUser();
+
+        var fileNodeIds = new List<Guid>();
+        foreach (var id in request.FileNodeIds)
+        {
+            if (Guid.TryParse(id, out var parsed))
+            {
+                fileNodeIds.Add(parsed);
+            }
+        }
+
+        if (fileNodeIds.Count == 0)
+        {
+            return new RemoveDeletedPhotosResponse { Removed = 0 };
+        }
+
+        var removed = await _indexingCallback.RemoveDeletedPhotosAsync(fileNodeIds, ownerId, context.CancellationToken);
+        return new RemoveDeletedPhotosResponse { Removed = removed };
+    }
+
+    /// <inheritdoc />
+    public override async Task<GetSharedWithMeResponse> GetSharedWithMe(
+        GetSharedWithMeRequest request, ServerCallContext context)
+    {
+        var userId = RequireActingUser();
+        var caller = new CallerContext(userId, [], CallerType.User);
+
+        var shares = await _shareService.GetSharedWithMeAsync(caller, context.CancellationToken);
+        var response = new GetSharedWithMeResponse();
+
+        foreach (var share in shares)
+        {
+            // The core cannot resolve a title (it has no access to this schema), so the module
+            // answers with one — an album title or a file name — or leaves it blank when the
+            // entity is gone and the entry is stale.
+            var title = string.Empty;
+
+            if (share.AlbumId is { } albumId)
+            {
+                var album = await _albumService.GetAlbumAsync(albumId, caller, context.CancellationToken);
+                title = album?.Title ?? string.Empty;
+            }
+            else if (share.PhotoId is { } photoId)
+            {
+                var photo = await _photoService.GetPhotoAsync(photoId, caller, context.CancellationToken);
+                title = photo?.FileName ?? string.Empty;
+            }
+
+            response.Shares.Add(new PhotoSharedItemMessage
+            {
+                ShareId = share.Id.ToString(),
+                PhotoId = share.PhotoId?.ToString() ?? string.Empty,
+                AlbumId = share.AlbumId?.ToString() ?? string.Empty,
+                Title = title,
+                Permission = share.Permission.ToString(),
+                CreatedAt = share.CreatedAt.ToString("O"),
+            });
+        }
+
+        return response;
     }
 
     private static SearchableDocument MapPhotoToSearchableDocument(PhotoDto photo)

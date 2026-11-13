@@ -1,0 +1,38 @@
+<Project Sdk="Microsoft.NET.Sdk.BlazorWebAssembly">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <NoDefaultLaunchSettingsFile>true</NoDefaultLaunchSettingsFile>
+    <BlazorWebAssemblyLoadAllGlobalizationData>false</BlazorWebAssemblyLoadAllGlobalizationData>
+    <InvariantGlobalization>true</InvariantGlobalization>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The frame bridge and its Blazor bootstrap are the SDK's files, not copies: one
+         implementation, no npm. The bridge patches window.fetch so every request carries the frame
+         ticket; the frame script also pumps the streaming chat response. -->
+    <Content Include="..\..\..\SDK\DotNetCloud.Modules.Sdk\wwwroot\dncModuleBridge.js"
+             Link="wwwroot\js\dncModuleBridge.js"
+             CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="..\..\..\SDK\DotNetCloud.Modules.Sdk.Web\wwwroot\dncModuleFrame.js"
+             Link="wwwroot\js\dncModuleFrame.js"
+             CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="..\..\..\SDK\DotNetCloud.Modules.Sdk.Web\wwwroot\dncModuleBoot.js"
+             Link="wwwroot\js\dncModuleBoot.js"
+             CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\Core\DotNetCloud.Core\DotNetCloud.Core.csproj" />
+    <ProjectReference Include="..\..\..\UI\DotNetCloud.UI.Shared\DotNetCloud.UI.Shared.csproj" />
+    <ProjectReference Include="..\..\..\SDK\DotNetCloud.Modules.Sdk.Web\DotNetCloud.Modules.Sdk.Web.csproj" />
+    <ProjectReference Include="..\DotNetCloud.Modules.AI.Web.Services\DotNetCloud.Modules.AI.Web.Services.csproj" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,74 @@
+.store-panel {
+  margin-bottom: 1.5rem;
+}
+
+.store-file-input {
+  display: block;
+  margin-top: 1rem;
+}
+
+.store-details {
+  display: grid;
+  grid-template-columns: minmax(8rem, max-content) 1fr;
+  gap: 0.5rem 1rem;
+  margin: 1rem 0;
+}
+
+.store-details dt {
+  font-weight: 600;
+  color: var(--color-text-muted, #64748b);
+}
+
+.store-details dd {
+  margin: 0;
+}
+
+.store-hash {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 0.8125rem;
+  word-break: break-all;
+}
+
+.store-list {
+  margin: 0.5rem 0 1rem 1.25rem;
+  padding: 0;
+}
+
+.store-list li {
+  margin-bottom: 0.25rem;
+}
+
+.store-confirm {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+  font-size: 0.9375rem;
+}
+
+.store-confirm input {
+  margin-top: 0.2rem;
+}
+
+.store-actions {
+  display: flex;
+  gap: 0.75rem;
+  margin-top: 1.25rem;
+}
+
+.store-issue {
+  margin: 0.25rem 0;
+  font-size: 0.875rem;
+  color: var(--color-text-muted, #64748b);
+}
+
+.store-issue-error {
+  color: var(--color-danger, #dc2626);
+}
+
+.store-result-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}

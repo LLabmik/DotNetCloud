@@ -1,15 +1,21 @@
 using DotNetCloud.Core.DTOs;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace DotNetCloud.Modules.Tracks.Data.Services;
 
 public sealed class AnalyticsService
 {
     private readonly TracksDbContext _db;
+    private readonly DotNetCloud.Core.Capabilities.IUserDirectory? _userDirectory;
 
-    public AnalyticsService(TracksDbContext db)
+    public AnalyticsService(TracksDbContext db, IServiceProvider? serviceProvider = null)
     {
         _db = db;
+
+        // Optional capability, resolved with GetService so a test or minimal host container that
+        // has no user directory still serves analytics (names then fall back to the id).
+        _userDirectory = serviceProvider?.GetService<DotNetCloud.Core.Capabilities.IUserDirectory>();
     }
 
     public async Task<ProductAnalyticsDto> GetProductAnalyticsAsync(Guid productId, CancellationToken ct)
@@ -436,12 +442,18 @@ public sealed class AnalyticsService
             .Select(g => new WorkloadDto
             {
                 UserId = g.Key,
-                DisplayName = g.Key.ToString(), // Will be resolved by the caller
                 AssignedItems = g.Count(),
                 TotalStoryPoints = g.Sum(x => x.StoryPoints ?? 0)
             })
             .OrderByDescending(w => w.TotalStoryPoints)
             .Take(10)
+            .ToList();
+
+        var workloadNames = await UserDisplayNames.LookupAsync(
+            workload.Select(w => w.UserId), _userDirectory, ct);
+
+        workload = workload
+            .Select(w => w with { DisplayName = workloadNames.GetValueOrDefault(w.UserId) })
             .ToList();
 
         // Recently updated items (last 10, non-deleted)
@@ -546,8 +558,22 @@ public sealed class AnalyticsService
                 .Select(d => d.DependsOnWorkItemId)
                 .ToList(),
             AssigneeUserId = wi.Assignments?.FirstOrDefault()?.UserId,
-            AssigneeDisplayName = wi.Assignments?.FirstOrDefault()?.UserId.ToString() // Resolved by UI
+            AssigneeDisplayName = wi.Assignments?.FirstOrDefault()?.UserId.ToString() // Resolved below
         }).ToList();
+
+        // The name lives in the core user directory, not on the assignment row.
+        var roadmapAssigneeNames = await UserDisplayNames.LookupAsync(
+            roadmapItems
+                .Where(i => i.AssigneeUserId.HasValue)
+                .Select(i => i.AssigneeUserId!.Value),
+            _userDirectory,
+            ct);
+
+        roadmapItems = roadmapItems
+            .Select(i => i.AssigneeUserId.HasValue && roadmapAssigneeNames.TryGetValue(i.AssigneeUserId.Value, out var name)
+                ? i with { AssigneeDisplayName = name }
+                : i)
+            .ToList();
 
         // Get all milestones for the product
         var milestones = await _db.Milestones
@@ -666,7 +692,6 @@ public sealed class AnalyticsService
                 return new MemberCapacityDto
                 {
                     UserId = g.Key,
-                    DisplayName = g.Key.ToString(), // Will be resolved by the UI
                     AssignedStoryPoints = storyPoints,
                     AssignedItemCount = itemCount,
                     CapacityPercent = defaultCapacityTarget > 0
@@ -678,7 +703,12 @@ public sealed class AnalyticsService
             .OrderByDescending(m => m.CapacityPercent)
             .ToList();
 
-        return memberData;
+        var memberNames = await UserDisplayNames.LookupAsync(
+            memberData.Select(m => m.UserId), _userDirectory, ct);
+
+        return memberData
+            .Select(m => m with { DisplayName = memberNames.GetValueOrDefault(m.UserId) })
+            .ToList();
     }
 
     /// <summary>

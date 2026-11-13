@@ -1,0 +1,7 @@
+@namespace DotNetCloud.Modules.Tracks.Web.UI
+@* Priority indicator: one Material dot, coloured by CSS so the five levels read the same way in every view. *@
+
+<span class="tracks-priority-icon tracks-priority--@TracksIcons.PriorityToken(Priority)"
+      title="@(Title ?? Priority.ToString())">
+    <MaterialIcon Icon="@TracksIcons.PriorityDot" Size="MaterialIconSize.Sm" />
+</span>

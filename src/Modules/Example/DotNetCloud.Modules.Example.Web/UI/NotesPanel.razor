@@ -1,0 +1,100 @@
+@inject ExampleApi Api
+@inject ModuleFrameBridge Bridge
+
+<header class="page-header">
+    <h1>Example Notes</h1>
+    <p class="text-muted">Reference module demonstrating notes management in its own process.</p>
+</header>
+
+<div class="toolbar">
+    <button type="button" class="btn btn-primary" @onclick="OpenForm">
+        <MaterialIcon Icon="add" Size="MaterialIconSize.Sm" />
+        <span>New note</span>
+    </button>
+</div>
+
+@if (_formOpen)
+{
+    <form class="card note-form" @onsubmit="CreateAsync" @onsubmit:preventDefault>
+        <div class="card-header">
+            <h2>Create note</h2>
+        </div>
+        <div class="card-body">
+            <div class="form-group">
+                <label for="note-title">Title</label>
+                <input id="note-title"
+                       type="text"
+                       maxlength="200"
+                       autocomplete="off"
+                       placeholder="Enter note title"
+                       required
+                       @bind="_title" />
+            </div>
+
+            <div class="form-group">
+                <label for="note-content">Content</label>
+                <textarea id="note-content"
+                          rows="4"
+                          maxlength="10000"
+                          placeholder="Write your note here..."
+                          @bind="_content"></textarea>
+            </div>
+
+            @if (!string.IsNullOrEmpty(_formError))
+            {
+                <p class="alert alert-danger" role="alert">@_formError</p>
+            }
+
+            <div class="form-actions">
+                <button type="submit" class="btn btn-primary" disabled="@_saving">
+                    @(_saving ? "Saving..." : "Save")
+                </button>
+                <button type="button" class="btn btn-secondary" @onclick="CloseForm">Cancel</button>
+            </div>
+        </div>
+    </form>
+}
+
+@if (!string.IsNullOrEmpty(_status))
+{
+    <p class="status" role="status" aria-live="polite">@_status</p>
+}
+
+@if (_loading)
+{
+    <p class="status" role="status">Loading notes...</p>
+}
+else if (_notes.Count == 0)
+{
+    <div class="empty-state">
+        <p>No notes yet. Create your first note!</p>
+    </div>
+}
+else
+{
+    <div class="notes-grid" aria-live="polite">
+        @foreach (var note in _notes)
+        {
+            <article class="note-card" @key="note.Id">
+                <h3>@(string.IsNullOrWhiteSpace(note.Title) ? "(untitled)" : note.Title)</h3>
+
+                @if (!string.IsNullOrEmpty(note.Content))
+                {
+                    <p class="note-content">@note.Content</p>
+                }
+
+                <p class="note-meta">@FormatDate(note.CreatedAt)</p>
+
+                <div class="note-actions">
+                    <button type="button"
+                            class="btn btn-danger btn-small"
+                            disabled="@_deleting.Contains(note.Id)"
+                            @onclick="() => DeleteAsync(note.Id)">
+                        <MaterialIcon Icon="delete" Size="MaterialIconSize.Sm" />
+                        <span>Delete</span>
+                    </button>
+                </div>
+            </article>
+        }
+    </div>
+}

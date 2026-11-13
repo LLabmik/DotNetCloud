@@ -17,7 +17,6 @@ namespace DotNetCloud.Modules.Email.Data.SqlServer.Migrations
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasDefaultSchema("email")
                 .HasAnnotation("ProductVersion", "10.0.3")
                 .HasAnnotation("Relational:MaxIdentifierLength", 128);
 
@@ -79,7 +78,7 @@ namespace DotNetCloud.Modules.Email.Data.SqlServer.Migrations
                     b.HasIndex("OwnerId")
                         .HasDatabaseName("ix_email_accounts_owner_id");
 
-                    b.ToTable("EmailAccounts", "email");
+                    b.ToTable("EmailAccounts");
                 });
 
             modelBuilder.Entity("DotNetCloud.Modules.Email.Models.EmailAttachment", b =>
@@ -127,7 +126,7 @@ namespace DotNetCloud.Modules.Email.Data.SqlServer.Migrations
                     b.HasIndex("MessageId")
                         .HasDatabaseName("ix_email_attachments_message_id");
 
-                    b.ToTable("EmailAttachments", "email");
+                    b.ToTable("EmailAttachments");
                 });
 
             modelBuilder.Entity("DotNetCloud.Modules.Email.Models.EmailMailbox", b =>
@@ -173,7 +172,7 @@ namespace DotNetCloud.Modules.Email.Data.SqlServer.Migrations
                         .IsUnique()
                         .HasDatabaseName("ix_email_mailboxes_account_provider");
 
-                    b.ToTable("EmailMailboxes", "email");
+                    b.ToTable("EmailMailboxes");
                 });
 
             modelBuilder.Entity("DotNetCloud.Modules.Email.Models.EmailMessage", b =>
@@ -280,7 +279,7 @@ namespace DotNetCloud.Modules.Email.Data.SqlServer.Migrations
                         .HasDatabaseName("ix_email_messages_account_mailbox_provider")
                         .HasFilter("[MailboxId] IS NOT NULL");
 
-                    b.ToTable("EmailMessages", "email");
+                    b.ToTable("EmailMessages");
                 });
 
             modelBuilder.Entity("DotNetCloud.Modules.Email.Models.EmailRule", b =>
@@ -328,7 +327,7 @@ namespace DotNetCloud.Modules.Email.Data.SqlServer.Migrations
                     b.HasIndex("OwnerId", "AccountId")
                         .HasDatabaseName("ix_email_rules_owner_account");
 
-                    b.ToTable("EmailRules", "email");
+                    b.ToTable("EmailRules");
                 });
 
             modelBuilder.Entity("DotNetCloud.Modules.Email.Models.EmailRuleAction", b =>
@@ -361,7 +360,7 @@ namespace DotNetCloud.Modules.Email.Data.SqlServer.Migrations
                     b.HasIndex("RuleId")
                         .HasDatabaseName("ix_email_rule_actions_rule_id");
 
-                    b.ToTable("EmailRuleActions", "email");
+                    b.ToTable("EmailRuleActions");
                 });
 
             modelBuilder.Entity("DotNetCloud.Modules.Email.Models.EmailRuleCondition", b =>
@@ -395,7 +394,7 @@ namespace DotNetCloud.Modules.Email.Data.SqlServer.Migrations
                     b.HasIndex("ConditionGroupId")
                         .HasDatabaseName("ix_email_rule_conditions_group_id");
 
-                    b.ToTable("EmailRuleConditions", "email");
+                    b.ToTable("EmailRuleConditions");
                 });
 
             modelBuilder.Entity("DotNetCloud.Modules.Email.Models.EmailRuleConditionGroup", b =>
@@ -424,7 +423,7 @@ namespace DotNetCloud.Modules.Email.Data.SqlServer.Migrations
                     b.HasIndex("RuleId")
                         .HasDatabaseName("ix_email_rule_condition_groups_rule_id");
 
-                    b.ToTable("EmailRuleConditionGroups", "email");
+                    b.ToTable("EmailRuleConditionGroups");
                 });
 
             modelBuilder.Entity("DotNetCloud.Modules.Email.Models.EmailThread", b =>
@@ -483,7 +482,7 @@ namespace DotNetCloud.Modules.Email.Data.SqlServer.Migrations
                         .IsUnique()
                         .HasDatabaseName("ix_email_threads_account_provider");
 
-                    b.ToTable("EmailThreads", "email");
+                    b.ToTable("EmailThreads");
                 });
 
             modelBuilder.Entity("DotNetCloud.Modules.Email.Models.EmailAttachment", b =>

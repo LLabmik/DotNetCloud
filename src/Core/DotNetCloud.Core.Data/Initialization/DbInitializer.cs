@@ -605,56 +605,10 @@ public class DbInitializer
                 Description = "Enable WebAuthn/Passkey support"
             },
 
-            // AI Assistant module settings
-            new SystemSetting
-            {
-                Module = "dotnetcloud.ai",
-                Key = "Provider",
-                Value = "ollama",
-                Description = "LLM provider type (ollama, openai, anthropic)"
-            },
-            new SystemSetting
-            {
-                Module = "dotnetcloud.ai",
-                Key = "ApiBaseUrl",
-                Value = "http://localhost:11434/",
-                Description = "Base URL of the LLM API endpoint"
-            },
-            new SystemSetting
-            {
-                Module = "dotnetcloud.ai",
-                Key = "ApiKey",
-                Value = "",
-                Description = "API key for cloud LLM providers (OpenAI, Anthropic). Not required for local Ollama."
-            },
-            new SystemSetting
-            {
-                Module = "dotnetcloud.ai",
-                Key = "OrganizationId",
-                Value = "",
-                Description = "Optional organization ID for providers that support it (e.g. OpenAI)"
-            },
-            new SystemSetting
-            {
-                Module = "dotnetcloud.ai",
-                Key = "DefaultModel",
-                Value = "gpt-oss:20b",
-                Description = "Default LLM model for new conversations"
-            },
-            new SystemSetting
-            {
-                Module = "dotnetcloud.ai",
-                Key = "MaxTokens",
-                Value = "0",
-                Description = "Maximum tokens per response (0 = provider default)"
-            },
-            new SystemSetting
-            {
-                Module = "dotnetcloud.ai",
-                Key = "RequestTimeoutSeconds",
-                Value = "300",
-                Description = "Request timeout in seconds for LLM API calls"
-            },
+            // The AI module's provider settings are NOT seeded here. Since Track C the module is
+            // sandboxed, so its settings live in the module settings plane (ModuleSettings, managed
+            // through the admin module page) and the module reads them over the module API. Seeding
+            // them as core system settings would create a second source of truth nothing reads.
 
             // Chat module limits — enforced when a message or attachment is written.
             new SystemSetting

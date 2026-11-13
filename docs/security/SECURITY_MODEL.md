@@ -1,12 +1,12 @@
 # Security Model
 
-**Last Updated:** May 14, 2026
+**Last Updated:** November 6, 2026 (module transport and database-access claims reconciled with v0.7.0)
 
 ---
 
 ## Overview
 
-DotNetCloud uses a **module-isolated architecture** where each feature module runs as a separate OS process and communicates exclusively via gRPC over Unix sockets or Named Pipes. This document describes the trust boundaries, threat model, and data flow for the entire platform.
+DotNetCloud uses a **module-isolated architecture** where each feature module runs as a separate OS process and communicates **only with the core** over gRPC. In v0.7.0 that transport is cleartext HTTP/2 (h2c) over a supervisor-assigned **loopback TCP port**; per-module Unix sockets / Named Pipes are planned (phase A4). Modules never call each other. This document describes the trust boundaries, threat model, and data flow for the entire platform.
 
 ---
 
@@ -18,13 +18,15 @@ DotNetCloud uses a **module-isolated architecture** where each feature module ru
        v
 [Reverse Proxy (nginx/YARP)] ──── TLS termination ────► [DotNetCloud Core]
                                                               |
-                                              ┌───────────────┼───────────────┐
-                                              |               |               |
-                                              v               v               v
-                                        [Module A] ──gRPC── [Module B] ──gRPC── [Module C]
-                                              |               |               |
-                                              v               v               v
-                                        [DB A]          [DB B]          [DB C]
+                                    ┌─────────────────────────┼─────────────────────────┐
+                                    |                         |                         |
+                                    v                         v                         v
+                              [Module A]                [Module B]                [Module C]
+                                    |                         |                         |
+                                    └────── gRPC to core ─────┴────── gRPC to core ─────┘
+                                                              |
+                                                              v
+                                                        [dotnetcloud DB]
 ```
 
 ### Boundary 1: Internet → Reverse Proxy (TLS)
@@ -41,16 +43,25 @@ DotNetCloud uses a **module-isolated architecture** where each feature module ru
 
 ### Boundary 3: Core → Modules (gRPC)
 
-- Unix socket files with restrictive file permissions (0600)
-- gRPC channels authenticated using mutual TLS or Unix socket credentials
-- No direct database access between modules
-- `CallerContext` propagated with every gRPC call (User/System/Module identity)
+- Cleartext HTTP/2 (h2c) on a per-module Unix socket / Named Pipe, or on a loopback TCP port assigned per module by `ProcessSupervisor` (`Modules:Transport=Tcp`)
+- Per-module Unix sockets (`0600`, `0700` runtime directory) and Named Pipes (`PipeOptions.CurrentUserOnly`) are the **default** since phase A4; the credential check below is applied on every transport
+- Socket/pipe permissions key on the OS user, so sibling modules can reach each other's endpoint — the module credential, not the filesystem, is the API identity control
+- The supervisor mints a fresh 32-byte token for each module launch (`DOTNETCLOUD_MODULE_TOKEN`); module→core calls carry `dnc-module-id` + `dnc-module-token` and are validated in constant time
+- Core→module calls are authenticated by `ModulePeerAuthenticationInterceptor` and fail closed when the supervisor did not launch the host
+- End-user identity is only ever carried in a core-signed, short-lived `dnc-user-assertion`; modules cannot assert `CallerType.System` or supply their own roles
+- `ModuleAccessInterceptor` delegates to `ModuleAccessEvaluator`, which enforces the module's `ModuleCapabilityGrants` on every mapped RPC from a shared `CapabilityCatalog`; unmapped module-facing RPCs fail closed and denials are audited (`ModuleCapabilityDenied`)
+- Modules cannot call each other: there is no module-to-module channel
+
+### Boundary 3a: Same-OS-user limitation
+
+All module hosts run as the core service account. The transport and credential controls above are an **API-layer**, not an OS-layer, boundary: a same-UID process can read a sibling's environment and files. Credential rotation, capability grants, audit logging and store review are the compensating controls; per-module OS isolation is a public-store launch gate.
 
 ### Boundary 4: Modules → Databases
 
-- Each module has its own database schema (PostgreSQL schemas or separate databases)
-- Connection strings provided via environment variables (`DOTNETCLOUD_DB_CONNECTION`)
-- No module accesses another module's database schema
+- Required modules share the `core` schema; optional modules have their own schemas (PostgreSQL schemas / SQL Server schemas)
+- **Current limitation:** module hosts receive the core `config.json` (and therefore the core connection string) via `DOTNETCLOUD_CONFIG_DIR`, so the database layer is not yet an isolation boundary
+- Scoped per-module principals + sanitized `module.json` are the first deliverable of the module sandbox program (`docs/THIRD_PARTY_MODULE_SANDBOX_AND_STORE_PLAN.md`, phase A1)
+- No module accesses another module's database schema by design (enforced at the API layer today, at the database layer after A1)
 
 ---
 
@@ -123,7 +134,7 @@ User → Login → OpenIddict Server ──► Access Token (JWT, 60 min)
 
 - Module process isolation (separate OS processes)
 - systemd security hardening (NoNewPrivileges, ProtectSystem, ProtectHome, PrivateTmp)
-- Unix socket file permissions
+- Loopback-only module listener; per-module sockets/pipes planned (phase A4)
 - No shared memory or IPC bypassing gRPC
 
 ---

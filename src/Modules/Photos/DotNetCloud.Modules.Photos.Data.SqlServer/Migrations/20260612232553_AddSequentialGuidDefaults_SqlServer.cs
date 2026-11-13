@@ -13,7 +13,6 @@ namespace DotNetCloud.Modules.Photos.Data.SqlServer.Migrations
         {
             migrationBuilder.AlterColumn<Guid>(
                 name: "Id",
-                schema: "photos",
                 table: "PhotoTags",
                 type: "uniqueidentifier",
                 nullable: false,
@@ -23,7 +22,6 @@ namespace DotNetCloud.Modules.Photos.Data.SqlServer.Migrations
 
             migrationBuilder.AlterColumn<Guid>(
                 name: "Id",
-                schema: "photos",
                 table: "PhotoShares",
                 type: "uniqueidentifier",
                 nullable: false,
@@ -33,7 +31,6 @@ namespace DotNetCloud.Modules.Photos.Data.SqlServer.Migrations
 
             migrationBuilder.AlterColumn<byte[]>(
                 name: "ThumbnailGrid",
-                schema: "photos",
                 table: "Photos",
                 type: "varbinary(max)",
                 nullable: true,
@@ -43,7 +40,6 @@ namespace DotNetCloud.Modules.Photos.Data.SqlServer.Migrations
 
             migrationBuilder.AlterColumn<byte[]>(
                 name: "ThumbnailDetail",
-                schema: "photos",
                 table: "Photos",
                 type: "varbinary(max)",
                 nullable: true,
@@ -53,7 +49,6 @@ namespace DotNetCloud.Modules.Photos.Data.SqlServer.Migrations
 
             migrationBuilder.AlterColumn<Guid>(
                 name: "Id",
-                schema: "photos",
                 table: "Photos",
                 type: "uniqueidentifier",
                 nullable: false,
@@ -63,7 +58,6 @@ namespace DotNetCloud.Modules.Photos.Data.SqlServer.Migrations
 
             migrationBuilder.AlterColumn<Guid>(
                 name: "Id",
-                schema: "photos",
                 table: "PhotoMetadata",
                 type: "uniqueidentifier",
                 nullable: false,
@@ -73,7 +67,6 @@ namespace DotNetCloud.Modules.Photos.Data.SqlServer.Migrations
 
             migrationBuilder.AlterColumn<Guid>(
                 name: "Id",
-                schema: "photos",
                 table: "PhotoEditRecords",
                 type: "uniqueidentifier",
                 nullable: false,
@@ -83,7 +76,6 @@ namespace DotNetCloud.Modules.Photos.Data.SqlServer.Migrations
 
             migrationBuilder.AlterColumn<Guid>(
                 name: "Id",
-                schema: "photos",
                 table: "Albums",
                 type: "uniqueidentifier",
                 nullable: false,
@@ -97,7 +89,6 @@ namespace DotNetCloud.Modules.Photos.Data.SqlServer.Migrations
         {
             migrationBuilder.AlterColumn<Guid>(
                 name: "Id",
-                schema: "photos",
                 table: "PhotoTags",
                 type: "uniqueidentifier",
                 nullable: false,
@@ -107,7 +98,6 @@ namespace DotNetCloud.Modules.Photos.Data.SqlServer.Migrations
 
             migrationBuilder.AlterColumn<Guid>(
                 name: "Id",
-                schema: "photos",
                 table: "PhotoShares",
                 type: "uniqueidentifier",
                 nullable: false,
@@ -117,7 +107,6 @@ namespace DotNetCloud.Modules.Photos.Data.SqlServer.Migrations
 
             migrationBuilder.AlterColumn<byte[]>(
                 name: "ThumbnailGrid",
-                schema: "photos",
                 table: "Photos",
                 type: "bytea",
                 nullable: true,
@@ -127,7 +116,6 @@ namespace DotNetCloud.Modules.Photos.Data.SqlServer.Migrations
 
             migrationBuilder.AlterColumn<byte[]>(
                 name: "ThumbnailDetail",
-                schema: "photos",
                 table: "Photos",
                 type: "bytea",
                 nullable: true,
@@ -137,7 +125,6 @@ namespace DotNetCloud.Modules.Photos.Data.SqlServer.Migrations
 
             migrationBuilder.AlterColumn<Guid>(
                 name: "Id",
-                schema: "photos",
                 table: "Photos",
                 type: "uniqueidentifier",
                 nullable: false,
@@ -147,7 +134,6 @@ namespace DotNetCloud.Modules.Photos.Data.SqlServer.Migrations
 
             migrationBuilder.AlterColumn<Guid>(
                 name: "Id",
-                schema: "photos",
                 table: "PhotoMetadata",
                 type: "uniqueidentifier",
                 nullable: false,
@@ -157,7 +143,6 @@ namespace DotNetCloud.Modules.Photos.Data.SqlServer.Migrations
 
             migrationBuilder.AlterColumn<Guid>(
                 name: "Id",
-                schema: "photos",
                 table: "PhotoEditRecords",
                 type: "uniqueidentifier",
                 nullable: false,
@@ -167,7 +152,6 @@ namespace DotNetCloud.Modules.Photos.Data.SqlServer.Migrations
 
             migrationBuilder.AlterColumn<Guid>(
                 name: "Id",
-                schema: "photos",
                 table: "Albums",
                 type: "uniqueidentifier",
                 nullable: false,

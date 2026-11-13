@@ -1,19 +1,57 @@
 {
-    "id": "dotnetcloud.tracks",
-    "name": "Tracks",
-    "version": "1.0.0",
-    "description": "Project management with products, work items, sprints, and team collaboration.",
-    "author": "DotNetCloud",
-    "requiredCapabilities": [
-        "INotificationService",
-        "IUserDirectory",
-        "ICurrentUserContext",
-        "IAuditLogger",
-        "IOrganizationDirectory"
+  "manifestVersion": 2,
+  "id": "dotnetcloud.tracks",
+  "name": "Tracks",
+  "version": "2.0.0",
+  "description": "Project management with products, work items, sprints, and team collaboration.",
+  "publisher": {
+    "id": "dotnetcloud",
+    "name": "DotNetCloud",
+    "url": "https://dotnetcloud.net"
+  },
+  "moduleApiVersion": 1,
+  "minCoreVersion": "0.7.0",
+  "dataStore": "isolated",
+  "handlesUserErasure": true,
+  "capabilities": [
+    "IAuditLogger",
+    "IUserDirectory",
+    "INotificationService",
+    "IOrganizationDirectory",
+    "IRealtimeBroadcaster"
+  ],
+  "userConsentScopes": ["profile", "notifications:send"],
+  "events": {
+    "publishes": [
+      "ProductCreatedEvent",
+      "ProductDeletedEvent",
+      "WorkItemCreatedEvent",
+      "WorkItemMovedEvent",
+      "WorkItemUpdatedEvent",
+      "WorkItemDeletedEvent",
+      "WorkItemAssignedEvent",
+      "WorkItemCommentAddedEvent",
+      "SprintStartedEvent",
+      "SprintCompletedEvent",
+      "PokerSessionStartedEvent",
+      "PokerSessionRevealedEvent",
+      "PokerSessionCompletedEvent"
     ],
-    "publishedEvents": [
-        "WorkItemCreatedEvent"
+    "subscribes": []
+  },
+  "ui": {
+    "type": "iframe",
+    "entryPath": "/",
+    "navItems": [
+      {
+        "id": "tracks",
+        "label": "Tracks",
+        "icon": "assignment",
+        "path": "/"
+      }
     ],
-    "subscribedEvents": [],
-    "minCoreVersion": "1.0.0"
+    "widget": {
+      "path": "/widget/index.html"
+    }
+  }
 }

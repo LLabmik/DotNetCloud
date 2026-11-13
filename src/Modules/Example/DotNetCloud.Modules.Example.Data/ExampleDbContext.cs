@@ -11,10 +11,11 @@ namespace DotNetCloud.Modules.Example.Data;
 /// Demonstrates how modules create their own DbContext for data persistence.
 /// </summary>
 /// <remarks>
-/// The Example module uses a self-managed database schema. The schema name is
-/// determined by <see cref="ITableNamingStrategy.GetSchemaForModule"/> at startup.
-/// Third-party modules should follow this same pattern: inject the naming strategy,
-/// call <c>HasDefaultSchema</c> in <c>OnModelCreating</c>, and self-migrate on startup.
+/// The Example module uses a self-managed database schema, and that schema is <b>not</b> part of
+/// the model: sandboxed modules receive a generated schema, pinned as the session
+/// <c>search_path</c> by the connection string the core provisions. Keeping the model and its
+/// migrations schema-neutral is what lets one migration apply to every store's schema (and keeps
+/// EF from reporting pending model changes against the snapshot).
 /// </remarks>
 public class ExampleDbContext : DbContext
 {
@@ -39,7 +40,6 @@ public class ExampleDbContext : DbContext
     /// <inheritdoc />
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
-        modelBuilder.HasDefaultSchema(_namingStrategy.GetSchemaForModule("example"));
         base.OnModelCreating(modelBuilder);
         modelBuilder.ApplyConfiguration(new ExampleNoteConfiguration());
 

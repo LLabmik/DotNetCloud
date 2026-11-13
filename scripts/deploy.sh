@@ -1003,6 +1003,29 @@ else
 
     log "Module hosts: $publish_success published, $publish_failures failed."
 
+    # A module's manifest.json is where the supervisor learns its capabilities, events and data-store
+    # mode. `dotnet publish` only ships it when the Host project declares the Content item, and
+    # without it the supervisor silently falls back to a default manifest with NO capabilities: no
+    # grants are created and every capability call is denied at runtime by ModuleAccessEvaluator.
+    # (That is what broke music and video playback on 2026-11-13 — the v1 hosts never published
+    # their manifest.) Every module that has a manifest in the repo must ship it.
+    missing_manifests=()
+    for module in "${PUBLISHED_MODULES[@]}"; do
+        module_lower=$(echo "$module" | tr 'A-Z' 'a-z')
+        repo_manifest="$REPO_ROOT/src/Modules/$module/manifest.json"
+
+        if [ -f "$repo_manifest" ] &&
+           [ ! -f "$MODULES_DIR/dotnetcloud.$module_lower/manifest.json" ]; then
+            missing_manifests+=("dotnetcloud.$module_lower")
+        fi
+    done
+
+    if [ "${#missing_manifests[@]}" -gt 0 ]; then
+        log "  ✗ manifest.json missing from deployed module(s): ${missing_manifests[*]}"
+        log "    Add a Content item for ..\\manifest.json to that module's Host .csproj."
+        exit 1
+    fi
+
     # Phase 4b: Sync transitive dependency assemblies for each published module
     #
     # dotnet publish --no-build copies the module host assembly and its direct

@@ -1,0 +1,84 @@
+/* Photos home-page widget — compact list of the five most recent photos. */
+:root {
+  color-scheme: light;
+  --text: #1c2024;
+  --text-muted: #5d6673;
+  --surface-alt: #eceff3;
+}
+
+html[data-theme="dark"] {
+  color-scheme: dark;
+  --text: #e9edf1;
+  --text-muted: #9aa4b0;
+  --surface-alt: #23272c;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: transparent;
+  color: var(--text);
+  font: 14px/1.4 "Segoe UI", system-ui, -apple-system, sans-serif;
+}
+
+.widget-message {
+  margin: 4px 0;
+  color: var(--text-muted);
+}
+
+.widget-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.widget-photo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 4px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.widget-photo:hover {
+  background: var(--surface-alt);
+}
+
+.widget-thumb {
+  width: 40px;
+  height: 40px;
+  border-radius: 6px;
+  object-fit: cover;
+  background: var(--surface-alt);
+  flex: 0 0 auto;
+}
+
+.widget-photo-main {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.widget-photo-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.widget-photo-meta {
+  color: var(--text-muted);
+  font-size: 12px;
+}

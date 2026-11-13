@@ -1,0 +1,15 @@
+@* Root component of the Email module UI (Blazor WebAssembly, served from the module host). *@
+@using Microsoft.AspNetCore.Components.Routing
+
+<Router AppAssembly="@typeof(App).Assembly">
+    <Found Context="routeData">
+        <RouteView RouteData="@routeData" DefaultLayout="@typeof(Layout.MainLayout)" />
+        <FocusOnNavigate RouteData="@routeData" Selector="h1" />
+    </Found>
+    <NotFound>
+        <LayoutView Layout="@typeof(Layout.MainLayout)">
+            <h1>Email</h1>
+            <p role="alert">No page matches this address.</p>
+        </LayoutView>
+    </NotFound>
+</Router>

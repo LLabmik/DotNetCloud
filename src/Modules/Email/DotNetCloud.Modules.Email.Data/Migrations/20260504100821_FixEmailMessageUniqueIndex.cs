@@ -12,12 +12,10 @@ namespace DotNetCloud.Modules.Email.Data.Migrations
         {
             migrationBuilder.DropIndex(
                 name: "ix_email_messages_account_provider",
-                schema: "email",
                 table: "EmailMessages");
 
             migrationBuilder.CreateIndex(
                 name: "ix_email_messages_account_mailbox_provider",
-                schema: "email",
                 table: "EmailMessages",
                 columns: new[] { "AccountId", "MailboxId", "ProviderMessageId" },
                 unique: true);
@@ -28,12 +26,10 @@ namespace DotNetCloud.Modules.Email.Data.Migrations
         {
             migrationBuilder.DropIndex(
                 name: "ix_email_messages_account_mailbox_provider",
-                schema: "email",
                 table: "EmailMessages");
 
             migrationBuilder.CreateIndex(
                 name: "ix_email_messages_account_provider",
-                schema: "email",
                 table: "EmailMessages",
                 columns: new[] { "AccountId", "ProviderMessageId" },
                 unique: true);

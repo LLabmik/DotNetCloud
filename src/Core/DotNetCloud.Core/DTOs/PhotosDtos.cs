@@ -171,6 +171,35 @@ public sealed record PhotoEditOperationDto
 }
 
 /// <summary>
+/// One recorded entry of a photo's non-destructive edit stack.
+/// </summary>
+/// <remarks>
+/// This is the boundary type, not the module's <c>PhotoEditRecord</c> entity. Returning the entity
+/// puts its <c>Photo</c> navigation in the JSON, which drags in every cached thumbnail as a base64
+/// blob — a 27 MB response for a 40-byte edit, which the UI proxy then reset mid-stream.
+/// </remarks>
+public sealed record PhotoEditRecordDto
+{
+    /// <summary>Identifier of the edit entry.</summary>
+    public Guid Id { get; init; }
+
+    /// <summary>The photo the edit applies to.</summary>
+    public Guid PhotoId { get; init; }
+
+    /// <summary>The edit operation name (Crop, Rotate, Flip, …).</summary>
+    public required string OperationType { get; init; }
+
+    /// <summary>Operation parameters as they were recorded.</summary>
+    public IReadOnlyDictionary<string, string> Parameters { get; init; } = new Dictionary<string, string>();
+
+    /// <summary>Position of the edit in the stack, oldest first.</summary>
+    public int StackOrder { get; init; }
+
+    /// <summary>When the edit was recorded.</summary>
+    public DateTime CreatedAt { get; init; }
+}
+
+/// <summary>
 /// Types of non-destructive photo edit operations.
 /// </summary>
 public enum PhotoEditType

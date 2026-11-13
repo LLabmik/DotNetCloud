@@ -10,41 +10,50 @@ using Npgsql;
 namespace DotNetCloud.Integration.Tests.Database;
 
 /// <summary>
-/// Integration tests for the Tracks PostgreSQL schema compatibility migrations.
+/// Integration tests for the Tracks module's sandboxed data plane (Track C).
 /// </summary>
+/// <remarks>
+/// <para>
+/// Since the data-plane flip the module owns its schema: <see cref="TracksDbInitializer"/> applies the
+/// module's own migrations, and every DDL statement in them is unqualified, so the tables and
+/// <c>__EFMigrationsHistory</c> land in whichever schema the provisioned connection string pins
+/// (<c>search_path</c>). The module principal is deliberately not allowed to run <c>CREATE SCHEMA</c>.
+/// </para>
+/// <para>
+/// The tests create a disposable database and a module-style schema as the admin connection, then
+/// initialise through a connection whose <c>search_path</c> points at that schema — the same shape the
+/// core provisions for a sandboxed module.
+/// </para>
+/// </remarks>
 [TestClass]
 [TestCategory("Integration")]
 public sealed class TracksSchemaMigrationIntegrationTests
 {
     private const string DefaultAdminConnectionString = "Host=localhost;Database=postgres;Username=postgres;Password=postgres";
-    private const string MigrationDatabasePrefix = "tracks_swimlane_migration_";
+    private const string MigrationDatabasePrefix = "tracks_sandbox_migration_";
     private static readonly TimeSpan StaleDatabaseThreshold = TimeSpan.FromMinutes(15);
 
     [TestMethod]
-    public async Task TracksDbInitializer_LegacyListSchema_MigratesToSwimlaneSchema()
+    public async Task TracksDbInitializer_OwnSchema_CreatesUnqualifiedTablesAndHistory()
     {
         var adminConnectionString = Environment.GetEnvironmentVariable("DOTNETCLOUD_TEST_POSTGRES_CONNECTION")
             ?? DefaultAdminConnectionString;
 
         var databaseName = $"{MigrationDatabasePrefix}{Guid.CreateVersion7():N}";
+        var moduleSchema = $"dnc_tracks_{Guid.NewGuid():N}"[..20];
         var testConnectionString = BuildDatabaseConnectionString(adminConnectionString, databaseName);
 
         try
         {
             await CleanupStaleDatabasesAsync(adminConnectionString, MigrationDatabasePrefix, StaleDatabaseThreshold);
             await CreateDatabaseAsync(adminConnectionString, databaseName);
+            await CreateSchemaAsync(testConnectionString, moduleSchema);
 
-            await using (var setupContext = CreateTracksContext(testConnectionString))
-            {
-                await setupContext.Database.EnsureCreatedAsync();
-                await RewindTracksSchemaToLegacyListNamesAsync(setupContext);
-            }
+            var moduleConnectionString = BuildModuleConnectionString(testConnectionString, moduleSchema);
 
-            await using (var migrationContext = CreateTracksContext(testConnectionString))
+            await using (var migrationContext = CreateTracksContext(moduleConnectionString))
             {
                 await TracksDbInitializer.InitializeAsync(migrationContext, NullLogger.Instance);
-
-                await AssertSchemaStateAsync(migrationContext);
 
                 var productId = Guid.CreateVersion7();
                 var swimlaneId = Guid.CreateVersion7();
@@ -53,7 +62,7 @@ public sealed class TracksSchemaMigrationIntegrationTests
                 var product = new Product
                 {
                     Id = productId,
-                    Name = "Migration Validation Product",
+                    Name = "Sandboxed Product",
                     OwnerId = ownerId,
                 };
 
@@ -74,7 +83,7 @@ public sealed class TracksSchemaMigrationIntegrationTests
                     ProductId = productId,
                     SwimlaneId = swimlaneId,
                     ItemNumber = 1,
-                    Title = "Schema migrated",
+                    Title = "Sandboxed item",
                     Position = 1000,
                     CreatedByUserId = ownerId,
                     Type = WorkItemType.Item,
@@ -83,16 +92,17 @@ public sealed class TracksSchemaMigrationIntegrationTests
                 await migrationContext.SaveChangesAsync();
             }
 
-            await using (var verificationContext = CreateTracksContext(testConnectionString))
+            await using (var verificationContext = CreateTracksContext(moduleConnectionString))
             {
                 var workItem = await verificationContext.WorkItems
                     .Include(wi => wi.Swimlane)
-                    .SingleAsync(wi => wi.Title == "Schema migrated");
+                    .SingleAsync(wi => wi.Title == "Sandboxed item");
 
                 Assert.IsNotNull(workItem.Swimlane);
                 Assert.AreEqual("Ready", workItem.Swimlane.Title);
-                Assert.AreNotEqual(Guid.Empty, workItem.SwimlaneId ?? Guid.Empty);
             }
+
+            await AssertModuleSchemaStateAsync(testConnectionString, moduleSchema);
         }
         catch (NpgsqlException ex)
         {
@@ -120,6 +130,20 @@ public sealed class TracksSchemaMigrationIntegrationTests
 
         await using var command = connection.CreateCommand();
         command.CommandText = $"CREATE DATABASE \"{databaseName}\"";
+        await command.ExecuteNonQueryAsync();
+    }
+
+    /// <summary>
+    /// Creates the module's schema the way the core's provisioning service does — as an admin
+    /// connection, never as the module principal.
+    /// </summary>
+    private static async Task CreateSchemaAsync(string connectionString, string schemaName)
+    {
+        await using var connection = new NpgsqlConnection(connectionString);
+        await connection.OpenAsync();
+
+        await using var command = connection.CreateCommand();
+        command.CommandText = $"CREATE SCHEMA \"{schemaName}\"";
         await command.ExecuteNonQueryAsync();
     }
 
@@ -199,83 +223,38 @@ public sealed class TracksSchemaMigrationIntegrationTests
         await command.ExecuteNonQueryAsync();
     }
 
-    private static async Task RewindTracksSchemaToLegacyListNamesAsync(TracksDbContext context)
+    /// <summary>
+    /// Asserts the sandboxed contract: the tables and the migration history exist in the module's own
+    /// schema and nothing was created in <c>public</c>.
+    /// </summary>
+    private static async Task AssertModuleSchemaStateAsync(string connectionString, string schemaName)
     {
-        await context.Database.ExecuteSqlRawAsync("""
-            ALTER TABLE "Swimlanes" RENAME TO "BoardLists";
-            ALTER TABLE "WorkItems" RENAME COLUMN "SwimlaneId" TO "ListId";
-            ALTER INDEX "ix_swimlanes_container_position" RENAME TO "ix_board_lists_board_position";
-            ALTER INDEX "ix_swimlanes_is_archived" RENAME TO "ix_board_lists_is_archived";
-            ALTER INDEX "ix_work_items_swimlane_position" RENAME TO "ix_cards_list_position";
-            """);
+        await using var connection = new NpgsqlConnection(connectionString);
+        await connection.OpenAsync();
+
+        Assert.IsTrue(
+            await RelationExistsAsync(connection, schemaName, "Products"),
+            "the Products table must be created in the module's own schema");
+        Assert.IsTrue(
+            await RelationExistsAsync(connection, schemaName, "WorkItems"),
+            "the WorkItems table must be created in the module's own schema");
+        Assert.IsTrue(
+            await RelationExistsAsync(connection, schemaName, "__EFMigrationsHistory"),
+            "the module owns its migration history");
+        Assert.IsFalse(
+            await RelationExistsAsync(connection, "public", "Products"),
+            "the module must not create tables in public; search_path decides the schema");
     }
 
-    private static async Task AssertSchemaStateAsync(TracksDbContext context)
-    {
-        var connection = context.Database.GetDbConnection();
-        var wasOpen = connection.State == System.Data.ConnectionState.Open;
-        if (!wasOpen)
-        {
-            await connection.OpenAsync();
-        }
-
-        try
-        {
-            Assert.IsTrue(await RegClassExistsAsync(connection, "public.\"Swimlanes\""));
-            Assert.IsFalse(await RegClassExistsAsync(connection, "public.\"BoardLists\""));
-            Assert.IsTrue(await RegClassExistsAsync(connection, "public.\"ix_swimlanes_container_position\""));
-            Assert.IsTrue(await RegClassExistsAsync(connection, "public.\"ix_swimlanes_is_archived\""));
-            Assert.IsTrue(await RegClassExistsAsync(connection, "public.\"ix_work_items_swimlane_position\""));
-            Assert.IsFalse(await RegClassExistsAsync(connection, "public.\"ix_board_lists_board_position\""));
-            Assert.IsFalse(await RegClassExistsAsync(connection, "public.\"ix_board_lists_is_archived\""));
-            Assert.IsFalse(await RegClassExistsAsync(connection, "public.\"ix_cards_list_position\""));
-            Assert.IsTrue(await ColumnExistsAsync(connection, "WorkItems", "SwimlaneId"));
-            Assert.IsFalse(await ColumnExistsAsync(connection, "WorkItems", "ListId"));
-        }
-        finally
-        {
-            if (!wasOpen)
-            {
-                await connection.CloseAsync();
-            }
-        }
-    }
-
-    private static async Task<bool> RegClassExistsAsync(DbConnection connection, string relationName)
+    private static async Task<bool> RelationExistsAsync(DbConnection connection, string schemaName, string relationName)
     {
         await using var command = connection.CreateCommand();
         command.CommandText = "SELECT to_regclass(@relationName) IS NOT NULL;";
 
         var parameter = command.CreateParameter();
         parameter.ParameterName = "@relationName";
-        parameter.Value = relationName;
+        parameter.Value = $"{schemaName}.\"{relationName}\"";
         command.Parameters.Add(parameter);
-
-        return (bool)(await command.ExecuteScalarAsync() ?? false);
-    }
-
-    private static async Task<bool> ColumnExistsAsync(DbConnection connection, string tableName, string columnName)
-    {
-        await using var command = connection.CreateCommand();
-        command.CommandText = """
-            SELECT EXISTS (
-                SELECT 1
-                FROM information_schema.columns
-                WHERE table_schema = 'public'
-                  AND table_name = @tableName
-                  AND column_name = @columnName
-            );
-            """;
-
-        var tableParameter = command.CreateParameter();
-        tableParameter.ParameterName = "@tableName";
-        tableParameter.Value = tableName;
-        command.Parameters.Add(tableParameter);
-
-        var columnParameter = command.CreateParameter();
-        columnParameter.ParameterName = "@columnName";
-        columnParameter.Value = columnName;
-        command.Parameters.Add(columnParameter);
 
         return (bool)(await command.ExecuteScalarAsync() ?? false);
     }
@@ -285,6 +264,20 @@ public sealed class TracksSchemaMigrationIntegrationTests
         var builder = new NpgsqlConnectionStringBuilder(adminConnectionString)
         {
             Database = databaseName,
+        };
+
+        return builder.ConnectionString;
+    }
+
+    /// <summary>
+    /// The shape the core provisions for a sandboxed module: the schema is pinned through
+    /// <c>search_path</c> and every DDL statement in the module's migrations is unqualified.
+    /// </summary>
+    private static string BuildModuleConnectionString(string connectionString, string schemaName)
+    {
+        var builder = new NpgsqlConnectionStringBuilder(connectionString)
+        {
+            SearchPath = schemaName,
         };
 
         return builder.ConnectionString;

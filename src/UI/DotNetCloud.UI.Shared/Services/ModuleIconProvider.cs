@@ -29,6 +29,60 @@ public static class ModuleIconProvider
     };
 
     /// <summary>
+    /// Resolves the icon to use for a module nav item.
+    /// </summary>
+    /// <param name="declaredIcon">
+    /// The Material Icons ligature name declared by the module (manifest <c>ui.navItems[].icon</c>),
+    /// or <see langword="null"/>/empty when the module declared none.
+    /// </param>
+    /// <param name="fallbackIcon">The icon to use when the declaration is absent or unusable.</param>
+    /// <returns>A Material Icons ligature name.</returns>
+    /// <remarks>
+    /// This is the single place a module-declared icon is resolved, so the shell never renders an
+    /// arbitrary string through <c>MaterialIcon</c>. The manifest validator already restricts the
+    /// declared value to <c>[a-z][a-z0-9_]*</c>; the check is repeated here because a manifest is
+    /// untrusted input by the time it reaches a component.
+    /// </remarks>
+    public static string ResolveIcon(string? declaredIcon, string fallbackIcon = "search")
+    {
+        if (string.IsNullOrWhiteSpace(declaredIcon))
+        {
+            return NormalizeIconName(fallbackIcon, "search");
+        }
+
+        var candidate = declaredIcon.Trim();
+        if (candidate.Length == 0 || candidate.Length > 64)
+        {
+            return NormalizeIconName(fallbackIcon, "search");
+        }
+
+        if (!char.IsAsciiLetterLower(candidate[0]))
+        {
+            return NormalizeIconName(fallbackIcon, "search");
+        }
+
+        foreach (var ch in candidate)
+        {
+            if (!char.IsAsciiLetterLower(ch) && !char.IsAsciiDigit(ch) && ch != '_')
+            {
+                return NormalizeIconName(fallbackIcon, "search");
+            }
+        }
+
+        return candidate;
+    }
+
+    private static string NormalizeIconName(string? icon, string defaultIcon)
+    {
+        if (string.IsNullOrWhiteSpace(icon) || !char.IsAsciiLetterLower(icon.Trim()[0]))
+        {
+            return defaultIcon;
+        }
+
+        return icon.Trim();
+    }
+
+    /// <summary>
     /// Returns a human-readable display name for the given module ID.
     /// </summary>
     public static string GetDisplayName(string moduleId) => NormalizeModuleId(moduleId) switch

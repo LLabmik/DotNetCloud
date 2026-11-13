@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk.Razor">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
@@ -14,13 +14,20 @@
     <InternalsVisibleTo Include="DotNetCloud.Modules.AI.Tests" />
   </ItemGroup>
 
-  <ItemGroup>
-    <FrameworkReference Include="Microsoft.AspNetCore.App" />
-  </ItemGroup>
-
+  <!--
+    The module library carries contracts only (models, service interfaces, events, the module
+    lifecycle). Its UI is served from DotNetCloud.Modules.AI.Host/wwwroot and framed by the core, so
+    this project has no Razor SDK, no ASP.NET Core framework reference and no dependency on the core's
+    Blazor component library (Track C decoupling).
+  -->
   <ItemGroup>
     <ProjectReference Include="..\..\..\Core\DotNetCloud.Core\DotNetCloud.Core.csproj" />
-    <ProjectReference Include="..\..\..\UI\DotNetCloud.UI.Shared\DotNetCloud.UI.Shared.csproj" />
+  </ItemGroup>
+
+  <!-- The domain library needs logging + DI abstractions only; not the ASP.NET Core framework. -->
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
   </ItemGroup>
 
 </Project>

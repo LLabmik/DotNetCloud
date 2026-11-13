@@ -1,19 +1,49 @@
 {
-    "id": "dotnetcloud.photos",
-    "name": "Photos",
-    "version": "1.0.0",
-    "description": "Photo library management with albums, editing, geo-clustering, and slideshows.",
-    "author": "DotNetCloud",
-    "requiredCapabilities": [
-        "INotificationService",
-        "IUserDirectory",
-        "ICurrentUserContext",
-        "IAuditLogger",
-        "ITeamDirectory"
+  "manifestVersion": 2,
+  "id": "dotnetcloud.photos",
+  "name": "Photos",
+  "version": "2.0.0",
+  "description": "Photo library management with albums, editing, geo-clustering, and slideshows.",
+  "publisher": {
+    "id": "dotnetcloud",
+    "name": "DotNetCloud",
+    "url": "https://dotnetcloud.net"
+  },
+  "moduleApiVersion": 1,
+  "minCoreVersion": "0.7.0",
+  "dataStore": "isolated",
+  "handlesUserErasure": true,
+  "capabilities": [
+    "IAuditLogger",
+    "ISearchProvider",
+    "ITeamDirectory",
+    "IFileDirectory",
+    "INotificationService"
+  ],
+  "userConsentScopes": ["files:read", "notifications:send"],
+  "events": {
+    "publishes": [
+      "PhotoUploadedEvent",
+      "PhotoDeletedEvent",
+      "AlbumCreatedEvent",
+      "AlbumSharedEvent",
+      "PhotoEditedEvent"
     ],
-    "publishedEvents": [
-        "PhotoUploadedEvent"
+    "subscribes": []
+  },
+  "ui": {
+    "type": "iframe",
+    "entryPath": "/",
+    "navItems": [
+      {
+        "id": "photos",
+        "label": "Photos",
+        "icon": "photo_library",
+        "path": "/"
+      }
     ],
-    "subscribedEvents": [],
-    "minCoreVersion": "1.0.0"
+    "widget": {
+      "path": "/widget/index.html"
+    }
+  }
 }

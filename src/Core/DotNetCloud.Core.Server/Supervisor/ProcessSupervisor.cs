@@ -5,11 +5,13 @@ using DotNetCloud.Core.Capabilities;
 using DotNetCloud.Core.Data.Context;
 using DotNetCloud.Core.Data.Entities.Modules;
 using DotNetCloud.Core.Data.Services;
+using DotNetCloud.Core.Grpc;
 using DotNetCloud.Core.Grpc.Lifecycle;
 using DotNetCloud.Core;
 using DotNetCloud.Core.Modules;
 using DotNetCloud.Core.Modules.Supervisor;
 using DotNetCloud.Core.Server.ModuleLoading;
+using DotNetCloud.Core.Server.Sandbox;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -29,37 +31,57 @@ internal sealed class ProcessSupervisor : BackgroundService, IProcessSupervisor
     private readonly ProcessSupervisorOptions _options;
     private readonly ModuleDiscoveryService _discoveryService;
     private readonly ModuleManifestLoader _manifestLoader;
+    private readonly IModuleManifestRegistry _manifestRegistry;
     private readonly GrpcChannelManager _channelManager;
     private readonly ResourceLimiter _resourceLimiter;
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly ModuleSchemaService _moduleSchemaService;
     private readonly ModuleCredentialStore _credentials;
     private readonly ModuleAssertionKeyRing _assertions;
+    private readonly IModuleDataStoreProvisioningService _dataStoreProvisioning;
+    private readonly CoreDatabaseOptions _database;
+    private readonly Quotas.ModuleQuotaResolver _quotas;
+    private readonly ModuleEndpointAllocator _endpoints;
     private readonly ConcurrentDictionary<string, ModuleProcessHandle> _modules = new();
     private readonly SemaphoreSlim _startStopLock = new(1, 1);
+
+    /// <summary>How often database-requested lifecycle changes are reconciled against live processes.</summary>
+    private static readonly TimeSpan StatusReconcileInterval = TimeSpan.FromSeconds(30);
+
+    private DateTime _lastStatusReconcileUtc = DateTime.MinValue;
 
     public ProcessSupervisor(
         ILogger<ProcessSupervisor> logger,
         IOptions<ProcessSupervisorOptions> options,
         ModuleDiscoveryService discoveryService,
         ModuleManifestLoader manifestLoader,
+        IModuleManifestRegistry manifestRegistry,
         GrpcChannelManager channelManager,
         ResourceLimiter resourceLimiter,
         IServiceScopeFactory scopeFactory,
         ModuleSchemaService moduleSchemaService,
         ModuleCredentialStore credentials,
-        ModuleAssertionKeyRing assertions)
+        ModuleAssertionKeyRing assertions,
+        IModuleDataStoreProvisioningService dataStoreProvisioning,
+        CoreDatabaseOptions database,
+        Quotas.ModuleQuotaResolver quotas,
+        ModuleEndpointAllocator endpoints)
     {
         _logger = logger;
         _options = options.Value;
         _discoveryService = discoveryService;
         _manifestLoader = manifestLoader;
+        _manifestRegistry = manifestRegistry;
         _channelManager = channelManager;
         _resourceLimiter = resourceLimiter;
         _scopeFactory = scopeFactory;
         _moduleSchemaService = moduleSchemaService;
         _credentials = credentials;
         _assertions = assertions;
+        _dataStoreProvisioning = dataStoreProvisioning;
+        _database = database;
+        _quotas = quotas;
+        _endpoints = endpoints;
     }
 
     // ---- IProcessSupervisor ----
@@ -81,6 +103,19 @@ internal sealed class ProcessSupervisor : BackgroundService, IProcessSupervisor
             _logger.LogInformation("Starting {Count} discovered modules", discovered.Count);
 
             await SyncDiscoveredModulesToDatabaseAsync(discovered, cancellationToken);
+
+            // A module the operator disabled (admin API or `dotnetcloud module stop`) must stay down
+            // across restarts instead of silently coming back with the core.
+            var disabled = await GetDisabledModuleIdsAsync(cancellationToken);
+            if (disabled.Count > 0)
+            {
+                discovered = discovered
+                    .Where(module => !disabled.Contains(module.ModuleId))
+                    .ToList();
+                _logger.LogInformation(
+                    "Skipping {Count} disabled module(s) at startup: {Modules}",
+                    disabled.Count, string.Join(", ", disabled));
+            }
 
             // Ensure every module's database schema exists BEFORE its host process is spawned.
             // On a fresh database the InstalledModules table is empty when core startup runs, so
@@ -250,9 +285,102 @@ internal sealed class ProcessSupervisor : BackgroundService, IProcessSupervisor
         _logger.LogInformation("Starting module {ModuleId} from {Path}", SanitizeForLog(moduleId), SanitizeForLog(discovered.ExecutablePath));
 
         var manifest = LoadManifest(discovered);
+
+        if (ModuleCompatibility.TryGetIncompatibilityReason(manifest, out var incompatibilityReason))
+        {
+            // Refuse the start instead of launching a host that cannot work against this core.
+            // The handle is recorded so the admin surface shows why the module is not running.
+            _logger.LogError(
+                "Module {ModuleId} v{Version} is incompatible with this core: {Reason}",
+                SanitizeForLog(moduleId), SanitizeForLog(manifest.Version), incompatibilityReason);
+
+            RecordRejectedStart(discovered, manifest, incompatibilityReason!);
+            return;
+        }
+
+        // Resource quotas are resolved before anything is provisioned or spawned: the database
+        // connection limit feeds principal creation, and memory/CPU/pids feed the cgroup/job.
+        // The manifest only requests; policy and the admin override may lower it.
+        var quota = await _quotas.ResolveAsync(moduleId, BuildQuotaRequest(manifest), cancellationToken);
+
+        // A module suspended for exceeding a measured quota stays down until its usage drops or an
+        // admin raises the quota; starting it would immediately re-exceed the limit.
+        if (await GetSandboxStatusAsync(moduleId, cancellationToken) == ModuleSandboxStatus.QuotaExceeded)
+        {
+            const string overQuota = "Module data usage is over its quota; raise the quota or remove data before starting it.";
+            _logger.LogWarning("Module {ModuleId} cannot start: {Reason}", SanitizeForLog(moduleId), overQuota);
+            RecordRejectedStart(discovered, manifest, overQuota);
+            return;
+        }
+
+        // Sandboxed modules own a scoped database principal. Provision it before the host starts so
+        // the process never launches without the store it was promised.
+        string? moduleConnectionString = null;
+        string? sandboxSchema = null;
+        var useLegacyLayout = !ModuleLaunchEnvironment.IsSandboxed(manifest);
+        if (ModuleLaunchEnvironment.IsSandboxed(manifest))
+        {
+            if (manifest.EffectiveDataStoreMode == ModuleDataStoreMode.Isolated)
+            {
+                var provisioned = await _dataStoreProvisioning.EnsureProvisionedAsync(
+                    moduleId, quota.ConnectionLimit, cancellationToken);
+
+                if (!provisioned.Success)
+                {
+                    // Transitional override (§9.5): a bundled module whose store cannot be
+                    // provisioned may keep the legacy config/data layout so the server still boots.
+                    // Store-tier modules never qualify.
+                    if (await TryEnterLegacyOverrideAsync(moduleId, provisioned.Error ?? "unknown error", cancellationToken))
+                    {
+                        useLegacyLayout = true;
+                    }
+                    else
+                    {
+                        _logger.LogError(
+                            "Module {ModuleId} cannot start: {Reason}", SanitizeForLog(moduleId), provisioned.Error);
+                        RecordRejectedStart(
+                            discovered, manifest, $"Data-store provisioning failed: {provisioned.Error}");
+                        await SetSandboxStatusAsync(moduleId, ModuleSandboxStatus.Error, cancellationToken);
+                        return;
+                    }
+                }
+                else
+                {
+                    moduleConnectionString = await _dataStoreProvisioning.GetConnectionStringAsync(
+                        moduleId, cancellationToken);
+                    sandboxSchema = provisioned.SchemaName;
+
+                    if (string.IsNullOrEmpty(moduleConnectionString))
+                    {
+                        const string reason = "The module data store is provisioned but its connection string could not be read.";
+                        _logger.LogError("Module {ModuleId} cannot start: {Reason}", SanitizeForLog(moduleId), reason);
+                        RecordRejectedStart(discovered, manifest, reason);
+                        await SetSandboxStatusAsync(moduleId, ModuleSandboxStatus.Error, cancellationToken);
+                        return;
+                    }
+                }
+            }
+
+            if (!useLegacyLayout)
+            {
+                await SetSandboxStatusAsync(moduleId, ModuleSandboxStatus.Active, cancellationToken);
+            }
+        }
+
         var restartPolicy = ParseRestartPolicy(manifest.RestartPolicy);
-        var memoryLimitMb = manifest.MemoryLimitMb ?? _options.DefaultMemoryLimitMb;
-        var grpcEndpoint = BuildGrpcEndpoint(moduleId);
+        var memoryLimitMb = quota.MemoryLimitMb ?? 0;
+
+        // Endpoint transport is decided once for the process (see ModuleTransportSelection) and
+        // minted here: a per-module Unix socket / named pipe, or a loopback TCP port.
+        var endpoint = _endpoints.Resolve(moduleId, GetActiveEndpoints(moduleId));
+        if (!ModuleRuntimeArtifacts.Prepare(endpoint, runDirectory: null))
+        {
+            _logger.LogWarning(
+                "Could not prepare the {Transport} endpoint for module {ModuleId}; the module may fail to bind",
+                endpoint.Transport, SanitizeForLog(moduleId));
+        }
+
+        var grpcEndpoint = endpoint.ToEndpointString();
 
         var handle = new ModuleProcessHandle
         {
@@ -269,9 +397,10 @@ internal sealed class ProcessSupervisor : BackgroundService, IProcessSupervisor
 
         // Mint a fresh credential for this launch. The module echoes it on every capability call,
         // so a process that did not come from this supervisor cannot impersonate the module.
-        var moduleSecret = _credentials.Issue(moduleId);
+        var moduleToken = _credentials.Issue(moduleId);
 
-        var process = SpawnModuleProcess(discovered, grpcEndpoint, moduleSecret);
+        var process = SpawnModuleProcess(
+            discovered, manifest, grpcEndpoint, moduleToken, moduleConnectionString, sandboxSchema, useLegacyLayout);
         if (process is null)
         {
             _credentials.Revoke(moduleId);
@@ -283,10 +412,11 @@ internal sealed class ProcessSupervisor : BackgroundService, IProcessSupervisor
         handle.SetProcess(process);
         _modules[moduleId] = handle;
 
-        if (_options.EnableResourceLimits && memoryLimitMb > 0)
+        if (_options.EnableResourceLimits)
         {
-            var limitBytes = (long)memoryLimitMb * 1024 * 1024;
-            var applied = _resourceLimiter.ApplyLimits(moduleId, process, limitBytes, cpuPercent: null);
+            var limitBytes = memoryLimitMb > 0 ? (long)memoryLimitMb * 1024 * 1024 : (long?)null;
+            var applied = _resourceLimiter.ApplyLimits(
+                moduleId, process, limitBytes, quota.CpuPercent, quota.PidsLimit);
             if (!applied)
             {
                 _logger.LogWarning("Could not apply resource limits for module {ModuleId}", SanitizeForLog(moduleId));
@@ -302,6 +432,15 @@ internal sealed class ProcessSupervisor : BackgroundService, IProcessSupervisor
         else
         {
             handle.RecordHealthCheck();
+
+            // The socket is created by Kestrel with the process umask, so restrict it to the
+            // service account once the listener exists. Defence in depth only — the module
+            // credential, not the file mode, is the API identity control.
+            if (endpoint.IsSocketTransport)
+            {
+                ModuleRuntimeArtifacts.RestrictSocket(endpoint);
+            }
+
             _logger.LogInformation(
                 "Module {ModuleId} is running (PID {Pid}, endpoint {Endpoint})",
                 SanitizeForLog(moduleId), handle.ProcessId, grpcEndpoint);
@@ -339,7 +478,12 @@ internal sealed class ProcessSupervisor : BackgroundService, IProcessSupervisor
         // 3. Force kill if still running
         if (!exited && handle.IsRunning)
         {
-            _logger.LogWarning("Module {ModuleId} did not exit gracefully, force-killing", moduleId);
+            // The module did not exit within the grace period. It may have acknowledged Stop and
+            // then ignored it (a host that never shuts its listener down), so say so plainly: this
+            // is the line that explains why an install or restart took the full timeout.
+            _logger.LogWarning(
+                "Module {ModuleId} did not exit within {TimeoutSeconds}s of Stop (gRPC stop acknowledged: {Acknowledged}); force-killing PID {Pid}",
+                SanitizeForLog(moduleId), _options.GracefulShutdownTimeout.TotalSeconds, grpcStopSuccess, handle.ProcessId);
             ForceKillProcess(handle);
         }
 
@@ -354,23 +498,37 @@ internal sealed class ProcessSupervisor : BackgroundService, IProcessSupervisor
         _credentials.Revoke(moduleId);
         handle.SetStatus(ModuleProcessStatus.Stopped);
 
+        // A stale socket file would make the next bind fail with "address already in use".
+        if (ModuleEndpoint.TryParse(handle.GrpcEndpoint, out var stoppedEndpoint))
+        {
+            ModuleRuntimeArtifacts.Remove(stoppedEndpoint);
+        }
+
         _logger.LogInformation("Module {ModuleId} stopped", moduleId);
     }
 
     // ---- Process Spawning ----
 
-    private Process? SpawnModuleProcess(DiscoveredModule discovered, string grpcEndpoint, string moduleSecret)
+    private Process? SpawnModuleProcess(
+        DiscoveredModule discovered,
+        ModuleManifestData manifest,
+        string grpcEndpoint,
+        string moduleToken,
+        string? moduleConnectionString,
+        string? sandboxSchema,
+        bool useLegacyLayout)
     {
         try
         {
             // Validate that the discovered executable and directory paths are
             // within the configured modules directory to prevent path traversal
             // or execution of arbitrary binaries (CWE-078).
+            //
+            // A prefix comparison would accept a sibling directory such as
+            // "<modulesDir>-evil"; resolve both paths and compare them relatively instead.
             var modulesDir = Path.GetFullPath(GetModulesDirectory());
-            var fullExePath = Path.GetFullPath(discovered.ExecutablePath);
-            var fullModuleDir = Path.GetFullPath(discovered.ModuleDirectory);
 
-            if (!fullExePath.StartsWith(modulesDir, StringComparison.Ordinal))
+            if (!PathContainment.TryResolveWithin(modulesDir, discovered.ExecutablePath, out var fullExePath))
             {
                 _logger.LogError(
                     "Module {ModuleId} executable path {Path} is outside the modules directory",
@@ -378,7 +536,7 @@ internal sealed class ProcessSupervisor : BackgroundService, IProcessSupervisor
                 return null;
             }
 
-            if (!fullModuleDir.StartsWith(modulesDir, StringComparison.Ordinal))
+            if (!PathContainment.TryResolveWithin(modulesDir, discovered.ModuleDirectory, out var fullModuleDir))
             {
                 _logger.LogError(
                     "Module {ModuleId} directory {Path} is outside the modules directory",
@@ -411,16 +569,57 @@ internal sealed class ProcessSupervisor : BackgroundService, IProcessSupervisor
             }
 
             startInfo.Environment["DOTNETCLOUD_MODULE_ID"] = discovered.ModuleId;
-            startInfo.Environment["DOTNETCLOUD_MODULE_SECRET"] = moduleSecret;
+            startInfo.Environment[ModuleIdentityMetadata.ModuleTokenEnvironmentVariable] = moduleToken;
             // Public half only: a module can verify a user assertion but cannot mint one.
             startInfo.Environment["DOTNETCLOUD_ASSERTION_PUBLIC_KEY"] = _assertions.PublicKeyBase64;
+            // Socket (unix://… / net.pipe://…) or TCP (http://localhost:<port>) form, parsed by the
+            // shared host binding helper. Never rewritten to http:// here.
             startInfo.Environment["DOTNETCLOUD_GRPC_ENDPOINT"] = ForceHttpForInternalGrpc(grpcEndpoint);
             startInfo.Environment["DOTNETCLOUD_CORE_ENDPOINT"] = ForceHttpForInternalGrpc(BuildCoreEndpoint());
 
-            // Forward shared config and data directory env vars so modules can
-            // load config.json and find DataProtection keys / file storage.
-            ForwardEnvVar(startInfo, "DOTNETCLOUD_CONFIG_DIR");
-            ForwardEnvVar(startInfo, "DOTNETCLOUD_DATA_DIR");
+            // The JSON facade lives on the core's own listener, so a module backend without a gRPC
+            // client reaches it at the same address under /internal/moduleapi/v1.
+            startInfo.Environment[ModuleIdentityMetadata.CoreRestEndpointEnvironmentVariable] =
+                ForceHttpForInternalGrpc(BuildCoreEndpoint()) + Extensions.ModuleRestEndpointExtensions.Prefix + "/";
+
+            var launchEnvironment = ModuleLaunchEnvironment.Resolve(
+                manifest,
+                _options,
+                discovered.ModuleId,
+                GetDataRootDirectory(),
+                moduleConnectionString,
+                useLegacyLayout,
+                Environment.GetEnvironmentVariable(ModuleLaunchEnvironment.LegacyConfigDirectoryVariable),
+                Environment.GetEnvironmentVariable(ModuleLaunchEnvironment.LegacyDataDirectoryVariable));
+
+            foreach (var (name, value) in launchEnvironment.Variables)
+            {
+                startInfo.Environment[name] = value;
+            }
+
+            if (launchEnvironment.Layout is { } layout)
+            {
+                // Sandboxed modules never see the core config directory or data directory: those
+                // carry the core connection string, TLS material and the WOPI signing key. They get
+                // a private directory tree containing only non-secret topology.
+                layout.EnsureCreated();
+                layout.WriteModuleJson(
+                    manifest.Version,
+                    manifest.EffectiveDataStoreMode,
+                    _database.Provider.ToString(),
+                    sandboxSchema,
+                    ForceHttpForInternalGrpc(BuildCoreEndpoint()),
+                    ForceHttpForInternalGrpc(grpcEndpoint));
+            }
+            else if (launchEnvironment.LegacyDirectoriesRefused)
+            {
+                // Transition only: product-shipped v1 modules still load the shared config.json and
+                // data directory while they are migrated to the sandboxed model (Track C). With the
+                // override disabled they run without either directory rather than with core secrets.
+                _logger.LogError(
+                    "Module {ModuleId} is not sandboxed and legacy access is disabled; refusing to forward the core config/data directories",
+                    SanitizeForLog(discovered.ModuleId));
+            }
 
             startInfo.WorkingDirectory = fullModuleDir;
 
@@ -459,15 +658,6 @@ internal sealed class ProcessSupervisor : BackgroundService, IProcessSupervisor
         return LogSanitizer.Sanitize(value);
     }
 
-    /// <summary>Copies an environment variable from the current process to the child
-    /// process if it is set.</summary>
-    private static void ForwardEnvVar(ProcessStartInfo startInfo, string name)
-    {
-        var value = Environment.GetEnvironmentVariable(name);
-        if (!string.IsNullOrEmpty(value))
-            startInfo.Environment[name] = value;
-    }
-
     // ---- Health Monitoring ----
 
     private async Task RunHealthMonitorLoopAsync(CancellationToken stoppingToken)
@@ -497,9 +687,80 @@ internal sealed class ProcessSupervisor : BackgroundService, IProcessSupervisor
 
                 await CheckModuleHealthAsync(moduleId, handle, stoppingToken);
             }
+
+            await ReconcileRequestedOperationsAsync(stoppingToken);
         }
 
         _logger.LogInformation("Health monitor stopped");
+    }
+
+    /// <summary>
+    /// Applies lifecycle changes requested through the database (CLI <c>module start|stop|restart</c>)
+    /// to the live processes. Throttled so the query never runs on every probe tick.
+    /// </summary>
+    private async Task ReconcileRequestedOperationsAsync(CancellationToken cancellationToken)
+    {
+        if (DateTime.UtcNow - _lastStatusReconcileUtc < StatusReconcileInterval)
+        {
+            return;
+        }
+
+        _lastStatusReconcileUtc = DateTime.UtcNow;
+
+        var statuses = await GetInstalledModuleStatusesAsync(cancellationToken);
+        if (statuses.Count == 0)
+        {
+            return;
+        }
+
+        foreach (var (moduleId, status) in statuses)
+        {
+            if (cancellationToken.IsCancellationRequested)
+            {
+                return;
+            }
+
+            var running = _modules.TryGetValue(moduleId, out var handle) && handle.IsRunning;
+
+            if (string.Equals(status, ModuleInstallStatus.RestartPending, StringComparison.OrdinalIgnoreCase))
+            {
+                await SetInstalledModuleStatusAsync(moduleId, ModuleInstallStatus.Enabled, cancellationToken);
+                _logger.LogInformation(
+                    "Applying a requested restart for module {ModuleId}", SanitizeForLog(moduleId));
+                await RestartModuleAsync(moduleId, cancellationToken);
+                continue;
+            }
+
+            if (string.Equals(status, ModuleInstallStatus.Disabled, StringComparison.OrdinalIgnoreCase))
+            {
+                if (running && !RequiredModules.IsRequired(moduleId))
+                {
+                    _logger.LogInformation(
+                        "Stopping module {ModuleId} because its database status is Disabled",
+                        SanitizeForLog(moduleId));
+                    await StopModuleCoreAsync(moduleId, cancellationToken);
+                }
+
+                continue;
+            }
+
+            // Only an explicitly Enabled module is started, and never one the supervisor gave up on
+            // (Failed) — that would fight the alert-only terminal state and restart forever.
+            if (string.Equals(status, ModuleInstallStatus.Enabled, StringComparison.OrdinalIgnoreCase)
+                && !running
+                && (!_modules.TryGetValue(moduleId, out var existing)
+                    || existing.Status is ModuleProcessStatus.Stopped or ModuleProcessStatus.Stopping))
+            {
+                var discovered = _discoveryService.DiscoverModule(moduleId);
+                if (discovered is not null)
+                {
+                    _logger.LogInformation(
+                        "Starting module {ModuleId} because its database status is Enabled",
+                        SanitizeForLog(moduleId));
+                    await StartModuleCoreAsync(discovered, cancellationToken);
+                }
+            }
+        }
     }
 
     private async Task CheckModuleHealthAsync(
@@ -539,7 +800,24 @@ internal sealed class ProcessSupervisor : BackgroundService, IProcessSupervisor
         }
         else
         {
-            _logger.LogWarning("Health check failed for module {ModuleId}", moduleId);
+            var failures = handle.RecordHealthFailure();
+            _logger.LogWarning(
+                "Health check failed for module {ModuleId} ({Failures}/{Threshold})",
+                moduleId, failures, _options.UnhealthyThreshold);
+
+            // Without this, a module that fails every probe is marked Degraded and never restarted.
+            if (_options.UnhealthyThreshold > 0
+                && failures >= _options.UnhealthyThreshold
+                && handle.IsRunning)
+            {
+                _logger.LogError(
+                    "Module {ModuleId} failed {Failures} consecutive health checks; restarting it",
+                    moduleId, failures);
+
+                ForceKillProcess(handle);
+                await HandleCrashedModuleAsync(moduleId, handle, cancellationToken);
+                return;
+            }
 
             if (handle.Status != ModuleProcessStatus.Degraded)
             {
@@ -608,6 +886,12 @@ internal sealed class ProcessSupervisor : BackgroundService, IProcessSupervisor
         await _channelManager.RemoveChannelAsync(moduleId);
         _credentials.Revoke(moduleId);
         handle.IncrementRestartCount();
+
+        // The crashed host may have left its socket behind; a stale file blocks the re-bind.
+        if (ModuleEndpoint.TryParse(handle.GrpcEndpoint, out var crashedEndpoint))
+        {
+            ModuleRuntimeArtifacts.Remove(crashedEndpoint);
+        }
 
         if (handle.RestartPolicy == RestartPolicy.AlertOnly)
         {
@@ -693,20 +977,259 @@ internal sealed class ProcessSupervisor : BackgroundService, IProcessSupervisor
 
     // ---- Helpers ----
 
+    /// <summary>
+    /// Whether a module runs in the sandboxed model: a version 2 manifest on a non-required module.
+    /// </summary>
+    /// <summary>
+    /// Maps a manifest's resource requests onto a quota request. Values are requests only; the
+    /// resolver applies the admin override and policy ceiling with <c>min()</c>.
+    /// </summary>
+    private static Quotas.ModuleQuotaRequest BuildQuotaRequest(ModuleManifestData manifest) =>
+        new(
+            MemoryLimitMb: manifest.EffectiveMemoryLimitMb,
+            CpuPercent: manifest.Resources?.CpuPercent,
+            DataDirMb: manifest.Resources?.DataDirMb,
+            DatabaseMb: manifest.Resources?.DatabaseMb,
+            ConnectionLimit: manifest.Resources?.ConnectionLimit);
+
+    /// <summary>
+    /// Records a module that was refused before a process was spawned, so the admin surface can
+    /// show why it is not running.
+    /// </summary>
+    private void RecordRejectedStart(DiscoveredModule discovered, ModuleManifestData manifest, string reason)
+    {
+        var rejected = new ModuleProcessHandle
+        {
+            ModuleId = discovered.ModuleId,
+            ModuleName = manifest.Name,
+            Version = manifest.Version,
+            ExecutablePath = discovered.ExecutablePath,
+            GrpcEndpoint = _endpoints.Resolve(discovered.ModuleId, GetActiveEndpoints(discovered.ModuleId)).ToEndpointString(),
+            RestartPolicy = ParseRestartPolicy(manifest.RestartPolicy),
+            MaxRestartAttempts = _options.MaxRestartAttempts
+        };
+
+        rejected.SetStatus(ModuleProcessStatus.Failed, reason);
+        _modules[discovered.ModuleId] = rejected;
+    }
+
+    /// <summary>
+    /// Persists the sandbox state shown to operators. Best effort: a database hiccup must not stop
+    /// a module from starting.
+    /// </summary>
+    /// <summary>
+    /// Applies the transitional legacy-access override (§9.5) when a sandboxed module cannot be
+    /// provisioned. Only bundled (non-required, non-store-tier) modules qualify, the override must
+    /// be enabled by the operator, and every use is audit-logged. Returns false when the module
+    /// must be refused instead.
+    /// </summary>
+    private async Task<bool> TryEnterLegacyOverrideAsync(
+        string moduleId, string reason, CancellationToken cancellationToken)
+    {
+        if (!_options.AllowLegacyAccess)
+        {
+            return false;
+        }
+
+        try
+        {
+            using var scope = _scopeFactory.CreateScope();
+            var dbContext = scope.ServiceProvider.GetRequiredService<CoreDbContext>();
+
+            var row = await dbContext.InstalledModules
+                .AsTracking()
+                .FirstOrDefaultAsync(m => m.ModuleId == moduleId, cancellationToken);
+
+            if (row is null || row.IsRequired || row.TrustTier == ModuleTrustTier.Store)
+            {
+                return false;
+            }
+
+            row.SandboxStatus = ModuleSandboxStatus.LegacyOverride;
+            row.UpdatedAt = DateTime.UtcNow;
+            await dbContext.SaveChangesAsync(cancellationToken);
+
+            _logger.LogWarning(
+                "Module {ModuleId} is using the transitional legacy-access override because its data store could not be provisioned: {Reason}. " +
+                "Fix the prerequisite and restart; this override is removed in 1.0.",
+                SanitizeForLog(moduleId), reason);
+
+            try
+            {
+                var auditLogger = scope.ServiceProvider.GetRequiredService<DotNetCloud.Core.Capabilities.IAuditLogger>();
+                await auditLogger.LogAsync(
+                    new DotNetCloud.Core.Capabilities.AuditEntry
+                    {
+                        Caller = DotNetCloud.Core.Authorization.CallerContext.CreateSystemContext(),
+                        ModuleId = "dotnetcloud.core",
+                        Action = DotNetCloud.Core.Capabilities.AuditAction.ModuleLegacyAccessUsed,
+                        EntityType = "Module",
+                        EntityId = Guid.CreateVersion7(),
+                        Description = $"module-legacy-access-used:{moduleId}",
+                    },
+                    cancellationToken);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                _logger.LogWarning(ex, "Could not audit legacy access for module {ModuleId}", SanitizeForLog(moduleId));
+            }
+
+            return true;
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _logger.LogError(ex, "Could not apply the legacy-access override for module {ModuleId}", SanitizeForLog(moduleId));
+            return false;
+        }
+    }
+
+    private async Task SetSandboxStatusAsync(
+        string moduleId, ModuleSandboxStatus status, CancellationToken cancellationToken)
+    {
+        try
+        {
+            using var scope = _scopeFactory.CreateScope();
+            var dbContext = scope.ServiceProvider.GetRequiredService<CoreDbContext>();
+
+            var row = await dbContext.InstalledModules
+                .AsTracking()
+                .FirstOrDefaultAsync(m => m.ModuleId == moduleId, cancellationToken);
+
+            if (row is null || row.SandboxStatus == status)
+            {
+                return;
+            }
+
+            row.SandboxStatus = status;
+            row.UpdatedAt = DateTime.UtcNow;
+            await dbContext.SaveChangesAsync(cancellationToken);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _logger.LogWarning(ex, "Could not persist sandbox status for module {ModuleId}", SanitizeForLog(moduleId));
+        }
+    }
+
+    /// <summary>
+    /// Resolves the server data directory used for per-module sandbox directories.
+    /// </summary>
+    private static string GetDataRootDirectory() => ModuleSandboxLayout.GetDataRoot();
+
+    /// <summary>
+    /// Reads the persisted sandbox state for a module so starts can be refused while it is
+    /// suspended for exceeding a measured quota.
+    /// </summary>
+    private async Task<ModuleSandboxStatus?> GetSandboxStatusAsync(
+        string moduleId, CancellationToken cancellationToken)
+    {
+        try
+        {
+            using var scope = _scopeFactory.CreateScope();
+            var dbContext = scope.ServiceProvider.GetRequiredService<CoreDbContext>();
+
+            var row = await dbContext.InstalledModules
+                .AsNoTracking()
+                .FirstOrDefaultAsync(m => m.ModuleId == moduleId, cancellationToken);
+
+            return row?.SandboxStatus;
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _logger.LogWarning(
+                ex, "Could not read the sandbox status for module {ModuleId}", SanitizeForLog(moduleId));
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Returns the ids of installed modules whose persisted status says they must not run.
+    /// </summary>
+    private async Task<IReadOnlyCollection<string>> GetDisabledModuleIdsAsync(CancellationToken cancellationToken)
+    {
+        var statuses = await GetInstalledModuleStatusesAsync(cancellationToken);
+        return statuses
+            .Where(pair => string.Equals(pair.Value, ModuleInstallStatus.Disabled, StringComparison.OrdinalIgnoreCase))
+            .Select(pair => pair.Key)
+            .ToList();
+    }
+
+    /// <summary>
+    /// Reads every installed module's persisted status. Failures degrade to an empty set: a database
+    /// hiccup must not stop the supervisor, and the next reconcile pass retries.
+    /// </summary>
+    private async Task<IReadOnlyDictionary<string, string>> GetInstalledModuleStatusesAsync(
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            using var scope = _scopeFactory.CreateScope();
+            var dbContext = scope.ServiceProvider.GetRequiredService<CoreDbContext>();
+
+            return await dbContext.InstalledModules
+                .AsNoTracking()
+                .Select(m => new { m.ModuleId, m.Status })
+                .ToDictionaryAsync(m => m.ModuleId, m => m.Status, StringComparer.OrdinalIgnoreCase, cancellationToken);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _logger.LogDebug(ex, "Could not read installed module statuses");
+            return new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        }
+    }
+
+    /// <summary>
+    /// Persists a module's lifecycle status (e.g. clearing <c>RestartPending</c> after honouring it).
+    /// </summary>
+    private async Task SetInstalledModuleStatusAsync(
+        string moduleId, string status, CancellationToken cancellationToken)
+    {
+        try
+        {
+            using var scope = _scopeFactory.CreateScope();
+            var dbContext = scope.ServiceProvider.GetRequiredService<CoreDbContext>();
+
+            var row = await dbContext.InstalledModules
+                .AsTracking()
+                .FirstOrDefaultAsync(m => m.ModuleId == moduleId, cancellationToken);
+
+            if (row is null || string.Equals(row.Status, status, StringComparison.Ordinal))
+            {
+                return;
+            }
+
+            row.Status = status;
+            row.UpdatedAt = DateTime.UtcNow;
+            await dbContext.SaveChangesAsync(cancellationToken);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _logger.LogWarning(
+                ex, "Could not persist status {Status} for module {ModuleId}",
+                status, SanitizeForLog(moduleId));
+        }
+    }
+
     private ModuleManifestData LoadManifest(DiscoveredModule discovered)
     {
         if (discovered.ManifestPath is not null)
         {
             var result = _manifestLoader.LoadAndValidate(discovered.ManifestPath, discovered.ModuleId);
             if (result.IsValid && result.Manifest is not null)
+            {
+                // Every discovery/start path funnels through here, so this is the one place that
+                // needs to publish what the module declared it publishes.
+                _manifestRegistry.Record(discovered.ModuleId, result.Manifest);
                 return result.Manifest;
+            }
 
             _logger.LogWarning(
                 "Manifest invalid for {ModuleId}: {Errors}. Using defaults.",
                 discovered.ModuleId, string.Join("; ", result.Errors));
         }
 
-        return _manifestLoader.CreateDefaultManifest(discovered.ModuleId);
+        var fallback = _manifestLoader.CreateDefaultManifest(discovered.ModuleId);
+        _manifestRegistry.Record(discovered.ModuleId, fallback);
+        return fallback;
     }
 
     private RestartPolicy ParseRestartPolicy(string? policyString)
@@ -731,12 +1254,6 @@ internal sealed class ProcessSupervisor : BackgroundService, IProcessSupervisor
         }
 
         return path;
-    }
-
-    private string BuildGrpcEndpoint(string moduleId)
-    {
-        var port = AllocateTcpPort(moduleId);
-        return $"http://localhost:{port}";
     }
 
     /// <summary>
@@ -768,41 +1285,17 @@ internal sealed class ProcessSupervisor : BackgroundService, IProcessSupervisor
         return $"http://localhost:{_options.TcpPortRangeStart}";
     }
 
-    private int AllocateTcpPort(string moduleId)
-    {
-        // Reserve TcpPortRangeStart for the core gRPC server.
-        // Module ports use the module name's hash to pick a semi-stable offset,
-        // but with probe avoidance: we check the allocated set and shift forward
-        // linearly to skip collisions (same hash means same port every restart).
-        var range = Math.Max(1, _options.TcpPortRangeEnd - _options.TcpPortRangeStart - 1);
-        var basePort = _options.TcpPortRangeStart + 1 + (Math.Abs(moduleId.GetHashCode()) % range);
-        var port = basePort;
-
-        var allocated = new HashSet<int>(_modules.Values
-            .Where(m => m.GrpcEndpoint is not null)
-            .Select(m =>
-            {
-                var ep = m.GrpcEndpoint!;
-                var colon = ep.LastIndexOf(':');
-                return colon >= 0 && int.TryParse(ep.AsSpan(colon + 1), out var p) ? p : 0;
-            })
-            .Where(p => p > 0));
-
-        // Linear probe forward until we find an unclaimed port.
-        var end = _options.TcpPortRangeEnd;
-        while (port <= end && allocated.Contains(port))
-            port++;
-
-        // If we exhausted the range, wrap around and try again from the start.
-        if (port > end)
-        {
-            port = _options.TcpPortRangeStart + 1;
-            while (port < basePort && allocated.Contains(port))
-                port++;
-        }
-
-        return port;
-    }
+    /// <summary>
+    /// Gets the endpoints already handed to other module handles, so TCP port probing skips them.
+    /// The module being (re)started is excluded: its own previous handle would otherwise push it
+    /// to the next port on every restart.
+    /// </summary>
+    private IEnumerable<string> GetActiveEndpoints(string excludedModuleId) =>
+        _modules
+            .Where(pair => !string.Equals(pair.Key, excludedModuleId, StringComparison.OrdinalIgnoreCase))
+            .Select(pair => pair.Value.GrpcEndpoint)
+            .OfType<string>()
+            .Where(endpoint => endpoint.Length > 0);
 
     private static async Task<bool> WaitForProcessExitAsync(
         ModuleProcessHandle handle, TimeSpan timeout, CancellationToken cancellationToken)
@@ -840,9 +1333,15 @@ internal sealed class ProcessSupervisor : BackgroundService, IProcessSupervisor
     // ---- Database Sync ----
 
     /// <summary>
-    /// Ensures all discovered modules have corresponding <see cref="InstalledModule"/>
-    /// records in the database so the admin UI and module UI registration can see them.
+    /// Ensures all discovered modules have corresponding <see cref="InstalledModule"/> records in
+    /// the database, reconciling version, status, required flag and sandbox metadata on restart.
     /// </summary>
+    /// <remarks>
+    /// This used to be insert-only, so an upgraded module kept its original version and status in
+    /// the admin UI forever. The upsert persists the trust tier from <em>provenance</em> and never
+    /// upgrades an existing store-tier row: a package that claims a bundled module id must not
+    /// inherit the bundled tier.
+    /// </remarks>
     private async Task SyncDiscoveredModulesToDatabaseAsync(
         IReadOnlyList<DiscoveredModule> discovered, CancellationToken cancellationToken)
     {
@@ -851,42 +1350,29 @@ internal sealed class ProcessSupervisor : BackgroundService, IProcessSupervisor
             using var scope = _scopeFactory.CreateScope();
             var dbContext = scope.ServiceProvider.GetRequiredService<CoreDbContext>();
 
-            var existingModuleIds = await dbContext.InstalledModules
-                .Select(m => m.ModuleId)
-                .ToListAsync(cancellationToken);
-
-            var existingSet = existingModuleIds.ToHashSet(StringComparer.OrdinalIgnoreCase);
-            var added = 0;
-
+            List<ModuleRegistryEntry> entries = [];
             foreach (var module in discovered)
             {
-                if (existingSet.Contains(module.ModuleId))
-                    continue;
-
-                var manifest = LoadManifest(module);
-
-                dbContext.InstalledModules.Add(new InstalledModule
-                {
-                    ModuleId = module.ModuleId,
-                    Version = manifest.Version,
-                    Status = "Enabled",
-                    InstalledAt = DateTime.UtcNow,
-                    IsRequired = RequiredModules.IsRequired(module.ModuleId),
-                });
-
-                added++;
-                _logger.LogInformation(
-                    "Auto-registered discovered module {ModuleId} (v{Version}) in database",
-                    module.ModuleId, manifest.Version);
+                entries.Add(new ModuleRegistryEntry(
+                    module.ModuleId,
+                    LoadManifest(module),
+                    RequiredModules.IsRequired(module.ModuleId)));
             }
 
-            if (added > 0)
+            // Reconciliation lives in its own type because the rows must be loaded with tracking:
+            // CoreDbContext is NoTracking by default, and a detached read silently dropped every
+            // update (version, trust tier, data-store mode) on SaveChanges.
+            var (added, updated) = await ModuleRegistryReconciler.ReconcileAsync(
+                dbContext, entries, cancellationToken);
+
+            if (added > 0 || updated > 0)
             {
-                await dbContext.SaveChangesAsync(cancellationToken);
-                _logger.LogInformation("Registered {Count} newly discovered modules in database", added);
+                _logger.LogInformation(
+                    "Reconciled module registry: {Added} added, {Updated} reconciled", added, updated);
             }
 
             await EnsureManifestGrantsAsync(dbContext, discovered, cancellationToken);
+            await SeedModuleSettingDefaultsAsync(dbContext, discovered, cancellationToken);
         }
         catch (Exception ex)
         {
@@ -895,21 +1381,36 @@ internal sealed class ProcessSupervisor : BackgroundService, IProcessSupervisor
     }
 
     /// <summary>
-    /// Persists <c>ModuleCapabilityGrants</c> rows for the restricted and privileged capabilities
-    /// a module's manifest declares.
+    /// Persists a <c>ModuleCapabilityGrants</c> decision row for every restricted or privileged
+    /// capability a module's manifest declares.
     /// </summary>
     /// <remarks>
-    /// The manifest is the module's install-time request, so accepting it here is the equivalent
-    /// of an operator installing the module. The resulting rows are ordinary grants: an
-    /// administrator can revoke any of them, and <c>CapabilityGrantInterceptor</c> refuses the
-    /// capability on the next call once the row is gone. Capabilities whose tier is public or
-    /// unknown are skipped because they are not governed by the grant table.
+    /// <para>
+    /// The row is the operator's answer to the module's request, not merely a record of a past
+    /// grant: <c>Granted</c> allows the capability, <c>Pending</c> and <c>Rejected</c> deny it. A row
+    /// that already exists is never changed here, so an administrator's rejection survives every
+    /// restart instead of being quietly re-approved by the next reconciliation.
+    /// </para>
+    /// <para>
+    /// For product-shipped modules (required and bundled) the manifest is the module's install-time
+    /// request, so accepting it here is the equivalent of an operator installing the module.
+    /// </para>
+    /// <para>
+    /// <strong>Store-tier modules are never auto-granted.</strong> Their capabilities must be
+    /// approved explicitly by an administrator, otherwise a publisher would self-authorize through
+    /// its own manifest. Grants whose tier is public or unknown are skipped because they are not
+    /// governed by the grant table.
+    /// </para>
     /// </remarks>
     private async Task EnsureManifestGrantsAsync(
         CoreDbContext dbContext,
         IReadOnlyList<DiscoveredModule> discovered,
         CancellationToken cancellationToken)
     {
+        var trustTiers = await dbContext.InstalledModules
+            .Select(m => new { m.ModuleId, m.TrustTier })
+            .ToDictionaryAsync(m => m.ModuleId, m => m.TrustTier, StringComparer.OrdinalIgnoreCase, cancellationToken);
+
         var existingGrants = await dbContext.ModuleCapabilityGrants
             .Select(g => new { g.ModuleId, g.CapabilityName })
             .ToListAsync(cancellationToken);
@@ -919,17 +1420,20 @@ internal sealed class ProcessSupervisor : BackgroundService, IProcessSupervisor
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
         var addedGrants = 0;
+        var addedRequests = 0;
 
         foreach (var module in discovered)
         {
             cancellationToken.ThrowIfCancellationRequested();
 
+            var isStoreTier = trustTiers.TryGetValue(module.ModuleId, out var trustTier)
+                && trustTier == ModuleTrustTier.Store;
+
             var manifest = LoadManifest(module);
 
-            foreach (var capability in manifest.RequiredCapabilities)
+            foreach (var capability in manifest.EffectiveCapabilities)
             {
-                var tier = CapabilityValidator.GetCapabilityTier(capability);
-                if (tier is not (CapabilityTier.Restricted or CapabilityTier.Privileged))
+                if (!CapabilityCatalog.RequiresGrant(capability))
                 {
                     continue;
                 }
@@ -940,24 +1444,74 @@ internal sealed class ProcessSupervisor : BackgroundService, IProcessSupervisor
                     continue;
                 }
 
+                var isStore = isStoreTier;
+                var tier = CapabilityCatalog.GetCapabilityTier(capability);
+
                 dbContext.ModuleCapabilityGrants.Add(new ModuleCapabilityGrant
                 {
                     ModuleId = module.ModuleId,
                     CapabilityName = capability,
                     GrantedAt = DateTime.UtcNow,
+                    Status = isStore
+                        ? ModuleCapabilityGrantStatus.Pending
+                        : ModuleCapabilityGrantStatus.Granted,
                 });
 
-                addedGrants++;
-                _logger.LogInformation(
-                    "Provisioned manifest-declared {Tier} capability {Capability} for module {ModuleId}",
-                    tier, capability, module.ModuleId);
+                if (isStore)
+                {
+                    addedRequests++;
+                    _logger.LogInformation(
+                        "Module {ModuleId} requests {Tier} capability {Capability}; awaiting an administrator's decision",
+                        module.ModuleId, tier, capability);
+                }
+                else
+                {
+                    addedGrants++;
+                    _logger.LogInformation(
+                        "Granted manifest-declared {Tier} capability {Capability} to product-shipped module {ModuleId}",
+                        tier, capability, module.ModuleId);
+                }
             }
         }
 
-        if (addedGrants > 0)
+        if (addedGrants > 0 || addedRequests > 0)
         {
             await dbContext.SaveChangesAsync(cancellationToken);
-            _logger.LogInformation("Provisioned {Count} manifest-declared capability grants", addedGrants);
+
+            _logger.LogInformation(
+                "Provisioned {Granted} manifest capability grant(s) and {Pending} pending request(s)",
+                addedGrants, addedRequests);
+        }
+    }
+
+    /// <summary>
+    /// Writes the default settings a module declares in its manifest into the module settings plane.
+    /// </summary>
+    /// <remarks>
+    /// Additive only: a key that already has a value is never rewritten, so an administrator's edit
+    /// and an upgrade both win over the packaged default. A module that is not registered yet is
+    /// skipped — its defaults are seeded on the next start, after reconciliation has created the row.
+    /// </remarks>
+    private async Task SeedModuleSettingDefaultsAsync(
+        CoreDbContext dbContext,
+        IReadOnlyList<DiscoveredModule> discovered,
+        CancellationToken cancellationToken)
+    {
+        foreach (var module in discovered)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            try
+            {
+                await Core.Server.Sandbox.ModuleSettingDefaultsSeeder.SeedFromModuleDirectoryAsync(
+                    dbContext, module.ModuleId, module.ModuleDirectory, _logger, cancellationToken);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                // A manifest that fails to seed must not stop the module from being reconciled.
+                _logger.LogWarning(
+                    ex, "Failed to seed manifest setting defaults for module {ModuleId}", module.ModuleId);
+            }
         }
     }
 

@@ -1,0 +1,62 @@
+.consent-user-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 0.75rem;
+  font-size: 0.9rem;
+}
+
+.consent-user-table th,
+.consent-user-table td {
+  text-align: left;
+  padding: 0.4rem 0.5rem;
+  border-bottom: 1px solid var(--border-color, #2a2f3a);
+  vertical-align: middle;
+}
+
+.consent-user-table th {
+  font-weight: 600;
+  color: var(--text-secondary, #8b93a1);
+}
+
+.consent-user-id {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.8rem;
+}
+
+.quota-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.quota-grid label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.85rem;
+  color: var(--text-secondary, #8b93a1);
+}
+
+.quota-grid input {
+  padding: 0.35rem 0.5rem;
+  border: 1px solid var(--border-color, #2a2f3a);
+  border-radius: 4px;
+  background: var(--input-background, transparent);
+  color: var(--text-primary, inherit);
+}
+
+.quota-grid small {
+  font-size: 0.75rem;
+}
+
+.checkbox-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.35rem;
+}
+
+.detail-danger {
+  border-color: var(--danger-color, #b3261e);
+}

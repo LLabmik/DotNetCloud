@@ -17,9 +17,18 @@
   <ItemGroup>
     <InternalsVisibleTo Include="DotNetCloud.Core.Server.Tests" />
     <InternalsVisibleTo Include="DotNetCloud.Integration.Tests" />
+    <InternalsVisibleTo Include="DotNetCloud.Integration.Tests.PostgreSQL" />
+    <InternalsVisibleTo Include="DotNetCloud.Integration.Tests.SqlServer" />
+    <!-- The packer validates packaged manifests with the same loader the core uses. -->
+    <InternalsVisibleTo Include="dotnetcloud-pack" />    <!-- Allows Moq/Castle to proxy internal types (for example the legacy capability service the
+         canonical module API adapter delegates to) from the test project. -->
+    <InternalsVisibleTo Include="DynamicProxyGenAssembly2" />
   </ItemGroup>
 
   <ItemGroup>
+    <!-- Ed25519 package/signature verification (B1/B3). .NET 10 has no
+         System.Security.Cryptography.Ed25519 surface; BouncyCastle is pure managed. -->
+    <PackageReference Include="BouncyCastle.Cryptography" />
     <PackageReference Include="Grpc.AspNetCore" />
     <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly.Server" />
     <!-- Microsoft.OpenApi comes transitively from Microsoft.AspNetCore.OpenApi at a vulnerable
@@ -66,27 +75,12 @@
     <ProjectReference Include="..\..\Modules\Notes\DotNetCloud.Modules.Notes\DotNetCloud.Modules.Notes.csproj" />
     <ProjectReference Include="..\..\Modules\Notes\DotNetCloud.Modules.Notes.Data\DotNetCloud.Modules.Notes.Data.csproj" />
     <ProjectReference Include="..\..\Modules\Notes\DotNetCloud.Modules.Notes.Data.SqlServer\DotNetCloud.Modules.Notes.Data.SqlServer.csproj" />
-    <ProjectReference Include="..\..\Modules\Tracks\DotNetCloud.Modules.Tracks\DotNetCloud.Modules.Tracks.csproj" />
-    <ProjectReference Include="..\..\Modules\Tracks\DotNetCloud.Modules.Tracks.Data\DotNetCloud.Modules.Tracks.Data.csproj" />
-    <ProjectReference Include="..\..\Modules\Tracks\DotNetCloud.Modules.Tracks.Data.SqlServer\DotNetCloud.Modules.Tracks.Data.SqlServer.csproj" />
-    <ProjectReference Include="..\..\Modules\Photos\DotNetCloud.Modules.Photos\DotNetCloud.Modules.Photos.csproj" />
-    <ProjectReference Include="..\..\Modules\Photos\DotNetCloud.Modules.Photos.Data\DotNetCloud.Modules.Photos.Data.csproj" />
-    <ProjectReference Include="..\..\Modules\Photos\DotNetCloud.Modules.Photos.Data.SqlServer\DotNetCloud.Modules.Photos.Data.SqlServer.csproj" />
     <ProjectReference Include="..\..\Modules\Music\DotNetCloud.Modules.Music\DotNetCloud.Modules.Music.csproj" />
     <ProjectReference Include="..\..\Modules\Music\DotNetCloud.Modules.Music.Data\DotNetCloud.Modules.Music.Data.csproj" />
     <ProjectReference Include="..\..\Modules\Music\DotNetCloud.Modules.Music.Data.SqlServer\DotNetCloud.Modules.Music.Data.SqlServer.csproj" />
     <ProjectReference Include="..\..\Modules\Video\DotNetCloud.Modules.Video\DotNetCloud.Modules.Video.csproj" />
     <ProjectReference Include="..\..\Modules\Video\DotNetCloud.Modules.Video.Data\DotNetCloud.Modules.Video.Data.csproj" />
     <ProjectReference Include="..\..\Modules\Video\DotNetCloud.Modules.Video.Data.SqlServer\DotNetCloud.Modules.Video.Data.SqlServer.csproj" />
-    <ProjectReference Include="..\..\Modules\AI\DotNetCloud.Modules.AI\DotNetCloud.Modules.AI.csproj" />
-    <ProjectReference Include="..\..\Modules\AI\DotNetCloud.Modules.AI.Data\DotNetCloud.Modules.AI.Data.csproj" />
-    <ProjectReference Include="..\..\Modules\AI\DotNetCloud.Modules.AI.Data.SqlServer\DotNetCloud.Modules.AI.Data.SqlServer.csproj" />
-    <ProjectReference Include="..\..\Modules\Bookmarks\DotNetCloud.Modules.Bookmarks\DotNetCloud.Modules.Bookmarks.csproj" />
-    <ProjectReference Include="..\..\Modules\Bookmarks\DotNetCloud.Modules.Bookmarks.Data\DotNetCloud.Modules.Bookmarks.Data.csproj" />
-    <ProjectReference Include="..\..\Modules\Bookmarks\DotNetCloud.Modules.Bookmarks.Data.SqlServer\DotNetCloud.Modules.Bookmarks.Data.SqlServer.csproj" />
-    <ProjectReference Include="..\..\Modules\Email\DotNetCloud.Modules.Email\DotNetCloud.Modules.Email.csproj" />
-    <ProjectReference Include="..\..\Modules\Email\DotNetCloud.Modules.Email.Data\DotNetCloud.Modules.Email.Data.csproj" />
-    <ProjectReference Include="..\..\Modules\Email\DotNetCloud.Modules.Email.Data.SqlServer\DotNetCloud.Modules.Email.Data.SqlServer.csproj" />
     <ProjectReference Include="..\..\Modules\Files\DotNetCloud.Modules.Files.Data\DotNetCloud.Modules.Files.Data.csproj" />
     <ProjectReference Include="..\..\Modules\Files\DotNetCloud.Modules.Files.Data.SqlServer\DotNetCloud.Modules.Files.Data.SqlServer.csproj" />
     <ProjectReference Include="..\..\Modules\About\DotNetCloud.Modules.About\DotNetCloud.Modules.About.csproj" />
@@ -98,13 +92,8 @@
     <ProjectReference Include="..\..\Modules\Contacts\DotNetCloud.Modules.Contacts.Widget\DotNetCloud.Modules.Contacts.Widget.csproj" />
     <ProjectReference Include="..\..\Modules\Calendar\DotNetCloud.Modules.Calendar.Widget\DotNetCloud.Modules.Calendar.Widget.csproj" />
     <ProjectReference Include="..\..\Modules\Notes\DotNetCloud.Modules.Notes.Widget\DotNetCloud.Modules.Notes.Widget.csproj" />
-    <ProjectReference Include="..\..\Modules\Tracks\DotNetCloud.Modules.Tracks.Widget\DotNetCloud.Modules.Tracks.Widget.csproj" />
-    <ProjectReference Include="..\..\Modules\Photos\DotNetCloud.Modules.Photos.Widget\DotNetCloud.Modules.Photos.Widget.csproj" />
     <ProjectReference Include="..\..\Modules\Music\DotNetCloud.Modules.Music.Widget\DotNetCloud.Modules.Music.Widget.csproj" />
     <ProjectReference Include="..\..\Modules\Video\DotNetCloud.Modules.Video.Widget\DotNetCloud.Modules.Video.Widget.csproj" />
-    <ProjectReference Include="..\..\Modules\AI\DotNetCloud.Modules.AI.Widget\DotNetCloud.Modules.AI.Widget.csproj" />
-    <ProjectReference Include="..\..\Modules\Bookmarks\DotNetCloud.Modules.Bookmarks.Widget\DotNetCloud.Modules.Bookmarks.Widget.csproj" />
-    <ProjectReference Include="..\..\Modules\Email\DotNetCloud.Modules.Email.Widget\DotNetCloud.Modules.Email.Widget.csproj" />
     <ProjectReference Include="..\..\UI\DotNetCloud.UI.Web\DotNetCloud.UI.Web.csproj" />
     <ProjectReference Include="..\..\UI\DotNetCloud.UI.Web.Client\DotNetCloud.UI.Web.Client.csproj" />
   </ItemGroup>

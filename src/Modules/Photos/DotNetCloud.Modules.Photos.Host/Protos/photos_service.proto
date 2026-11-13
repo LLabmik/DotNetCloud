@@ -48,6 +48,26 @@ service PhotosGrpcService {
 
   // Returns a single searchable document by entity ID.
   rpc GetSearchableDocument (GetSearchableDocumentRequest) returns (SearchableDocumentResponse);
+
+  // ── Core-initiated library indexing (peer channel, user assertion required) ──
+  //
+  // The core drives media import for the admin media-library scan. A sandboxed module cannot
+  // subscribe to the Files module's events, so the core calls these RPCs on the signed-in user's
+  // behalf instead. Every call carries the core-signed dnc-user-assertion; the module never trusts
+  // a user id from the payload.
+
+  // Records an image node as a photo in the acting user's library (idempotent).
+  rpc IndexPhoto (IndexPhotoRequest) returns (IndexPhotoResponse);
+
+  // Returns the file node ids already indexed for the acting user.
+  rpc GetIndexedFileNodeIds (GetIndexedFileNodeIdsRequest) returns (GetIndexedFileNodeIdsResponse);
+
+  // Removes photos whose backing file nodes no longer exist.
+  rpc RemoveDeletedPhotos (RemoveDeletedPhotosRequest) returns (RemoveDeletedPhotosResponse);
+
+  // Lists the photos and albums shared with the acting user, with each title already resolved.
+  // Used by the core's Files "Shared with me" tree (the core cannot read the module's tables).
+  rpc GetSharedWithMe (GetSharedWithMeRequest) returns (GetSharedWithMeResponse);
 }
 
 // ── Photo Messages ──────────────────────────────────────────────
@@ -63,6 +83,49 @@ message CreatePhotoRequest {
 message GetPhotoRequest {
   string photo_id = 1;
   string user_id = 2;
+}
+
+message IndexPhotoRequest {
+  string file_node_id = 1;
+  string file_name = 2;
+  string mime_type = 3;
+  int64 size_bytes = 4;
+}
+
+message IndexPhotoResponse {
+  bool success = 1;
+  string error_message = 2;
+}
+
+message GetIndexedFileNodeIdsRequest {
+}
+
+message GetIndexedFileNodeIdsResponse {
+  repeated string file_node_ids = 1;
+}
+
+message RemoveDeletedPhotosRequest {
+  repeated string file_node_ids = 1;
+}
+
+message RemoveDeletedPhotosResponse {
+  int32 removed = 1;
+}
+
+message GetSharedWithMeRequest {
+}
+
+message GetSharedWithMeResponse {
+  repeated PhotoSharedItemMessage shares = 1;
+}
+
+message PhotoSharedItemMessage {
+  string share_id = 1;
+  string photo_id = 2;
+  string album_id = 3;
+  string title = 4;
+  string permission = 5;
+  string created_at = 6;
 }
 
 message ListPhotosRequest {

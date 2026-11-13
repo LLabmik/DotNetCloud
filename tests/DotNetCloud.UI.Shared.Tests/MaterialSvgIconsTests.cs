@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using DotNetCloud.UI.Shared.Components.DataDisplay;
 using DotNetCloud.UI.Shared.Services;
 
@@ -29,6 +30,7 @@ public class MaterialSvgIconsTests
     [DataRow("chat")]
     [DataRow("description")]
     [DataRow("lock")]
+    [DataRow("shield")]
     public void GetPath_IconUsedBySidebarOrClientPages_ReturnsPathData(string icon)
     {
         Assert.IsTrue(MaterialSvgIcons.HasPath(icon), $"Icon '{icon}' has no SVG path and would render as text.");
@@ -243,5 +245,75 @@ public class MaterialSvgIconsTests
         var result = MaterialSvgIcons.HasPath("definitely-not-a-real-icon-xyz");
 
         Assert.IsFalse(result);
+    }
+
+    /// <summary>
+    /// Every icon a Razor file asks for by name must resolve to path data.
+    /// </summary>
+    /// <remarks>
+    /// <see cref="MaterialIcon"/> renders an unknown name as the literal text of that name, so a typo
+    /// or a forgotten entry ships as the word "shield" on screen — which is exactly what happened in
+    /// the consent bar. This walks the tree instead of trusting a hand-maintained list: it catches new
+    /// usages anywhere in <c>src/</c>, including module UIs. Only literal values are checked; an
+    /// <c>Icon="@…"</c> expression cannot be resolved without running the component.
+    /// </remarks>
+    [TestMethod]
+    public void EveryLiteralIconInRazor_ResolvesToPathData()
+    {
+        var repoRoot = FindRepositoryRoot();
+        var razorFiles = Directory
+            .EnumerateFiles(Path.Combine(repoRoot, "src"), "*.razor", SearchOption.AllDirectories)
+            .ToArray();
+
+        Assert.IsTrue(razorFiles.Length > 20, $"Expected to scan the Razor tree, found {razorFiles.Length} file(s).");
+
+        var literal = new Regex("\\bIcon\\s*=\\s*\"(?<name>[^\"@{}]+)\"", RegexOptions.CultureInvariant);
+        var missing = new SortedDictionary<string, SortedSet<string>>(StringComparer.Ordinal);
+
+        foreach (var file in razorFiles)
+        {
+            var relative = Path.GetRelativePath(repoRoot, file).Replace('\\', '/');
+
+            foreach (Match match in literal.Matches(File.ReadAllText(file)))
+            {
+                var name = match.Groups["name"].Value.Trim();
+                if (name.Length == 0 || MaterialSvgIcons.HasPath(name))
+                {
+                    continue;
+                }
+
+                if (!missing.TryGetValue(name, out var files))
+                {
+                    files = new SortedSet<string>(StringComparer.Ordinal);
+                    missing[name] = files;
+                }
+
+                files.Add(relative);
+            }
+        }
+
+        Assert.AreEqual(
+            0,
+            missing.Count,
+            "These icon names have no SVG path and would render as text. Add them to MaterialSvgIcons:"
+            + string.Concat(missing.Select(pair => $"{Environment.NewLine}  {pair.Key} ({string.Join(", ", pair.Value)})")));
+    }
+
+    private static string FindRepositoryRoot()
+    {
+        var directory = new DirectoryInfo(AppContext.BaseDirectory);
+
+        while (directory is not null)
+        {
+            if (File.Exists(Path.Combine(directory.FullName, "DotNetCloud.sln")))
+            {
+                return directory.FullName;
+            }
+
+            directory = directory.Parent;
+        }
+
+        Assert.Fail($"Could not locate DotNetCloud.sln above {AppContext.BaseDirectory}.");
+        return string.Empty;
     }
 }

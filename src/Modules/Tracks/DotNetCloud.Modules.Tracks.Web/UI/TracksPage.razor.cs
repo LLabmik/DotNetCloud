@@ -1,0 +1,1174 @@
+using System.Security.Claims;
+using System.Text.Json;
+using DotNetCloud.Core.Capabilities;
+using DotNetCloud.Core.DTOs;
+using DotNetCloud.Modules.Tracks.Services;
+using DotNetCloud.Modules.Tracks.Web.Services;
+using DotNetCloud.UI.Shared.Components.DataDisplay;
+using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Components.Authorization;
+using Microsoft.AspNetCore.Components.Web;
+using Microsoft.JSInterop;
+
+namespace DotNetCloud.Modules.Tracks.Web.UI;
+
+/// <summary>
+/// Main entry component for the Tracks module UI with drill-down hierarchy navigation.
+/// Product Kanban → Epic Kanban → Feature Kanban → Item Detail.
+/// </summary>
+public partial class TracksPage : ComponentBase, IDisposable
+{
+    /// <summary>
+    /// Optional work item ID to auto-navigate to its kanban board.
+    /// Set via the <c>kanban</c> query parameter on the frame URL.
+    /// </summary>
+    [Parameter]
+    public string? KanbanId { get; set; }
+
+    /// <summary>
+    /// Optional work item ID whose detail panel opens once the board is shown.
+    /// Set via the <c>card</c> query parameter on the frame URL.
+    /// </summary>
+    [Parameter]
+    public string? CardId { get; set; }
+
+    [Inject] private DotNetCloud.Core.Services.ModuleApis.ITracksApiClient ApiClient { get; set; } = default!;
+    [Inject] private ITracksSignalRService SignalRService { get; set; } = default!;
+    [Inject] private AuthenticationStateProvider AuthStateProvider { get; set; } = default!;
+    [Inject] private IOrganizationDirectory OrgDirectory { get; set; } = default!;
+    [Inject] private IUserDirectory UserDirectory { get; set; } = default!;
+    [Inject] private IOnboardingStateService OnboardingState { get; set; } = default!;
+    [Inject] private IJSRuntime JS { get; set; } = default!;
+    [Inject] private BrowserPreferenceStore Preferences { get; set; } = default!;
+    [Inject] private ModuleBridge Bridge { get; set; } = default!;
+
+    private enum TracksView { ProductList, ProductKanban, EpicKanban, FeatureKanban, Teams, Planning, Wizard, Backlog, Timeline, Review, Settings, Calendar, List, Dashboard, Roadmap }
+
+    private TracksView _view = TracksView.ProductList;
+    private bool _sidebarCollapsed;
+    private bool _isLoading = true;
+    private string? _errorMessage;
+
+    // Organization state
+    private readonly List<OrganizationDto> _organizations = [];
+    private Guid? _selectedOrgId;
+
+    // Product state
+    private readonly List<ProductDto> _products = [];
+    private ProductDto? _selectedProduct;
+    private readonly List<SwimlaneDto> _currentSwimlanes = [];
+    private readonly Dictionary<Guid, List<WorkItemDto>> _currentWorkItems = [];
+    private readonly List<LabelDto> _currentLabels = [];
+    private readonly List<ProductMemberDto> _currentMembers = [];
+
+    // Drill-down state
+    private WorkItemDto? _selectedEpic;
+    private WorkItemDto? _selectedFeature;
+    private WorkItemDto? _selectedWorkItem;
+
+    // Teams
+    private readonly List<TracksTeamDto> _teams = [];
+
+    // Sprint state
+    private readonly List<SprintDto> _sprints = [];
+    private bool _showSprints;
+
+    // Panels
+    private SprintDto? _planningSprint;
+
+    // Review session
+    private ReviewSessionDto? _activeReviewSession;
+    private bool _isHost;
+    private bool _isStartingReview;
+    private string? _reviewStartError;
+
+    // Keyboard shortcuts
+    private bool _showShortcutsModal;
+    private DotNetObjectReference<TracksPage>? _jsRef;
+
+    // Undo toast
+    private UndoToast? _undoToast;
+    private string _undoToastMessage = "";
+    private Guid? _lastDeletedProductId;
+
+    // Saved views
+    private CustomViewsSidebar? _customViewsSidebar;
+    private Guid? _selectedViewId;
+    private bool _showSaveViewDialog;
+    private string _newViewName = "";
+    private bool _newViewIsShared;
+
+    // Tour
+    private OnboardingTour? _onboardingTour;
+    private string? _currentUserId;
+    private bool _tourInitialized;
+
+    private SprintDto? PlannableSprint => _sprints.FirstOrDefault(s => s.Status is SprintStatus.Planning or SprintStatus.Active);
+
+    protected override async Task OnInitializedAsync()
+    {
+        SubscribeToRealtimeEvents();
+        await LoadInitialDataAsync();
+
+        if (!string.IsNullOrWhiteSpace(KanbanId) && Guid.TryParse(KanbanId, out var parsed))
+        {
+            await NavigateToKanbanAsync(parsed);
+        }
+
+        // Deep link to a single card: the board is already selected above when the link supplies
+        // both parameters, so opening the panel is enough.
+        if (!string.IsNullOrWhiteSpace(CardId) && Guid.TryParse(CardId, out var cardId))
+        {
+            await SelectWorkItem(cardId);
+        }
+    }
+
+    /// <inheritdoc />
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            _jsRef = DotNetObjectReference.Create(this);
+            await JS.InvokeVoidAsync("tracksKeyboard.init", _jsRef);
+            await InitializeTourAsync();
+        }
+    }
+
+    private async Task InitializeTourAsync()
+    {
+        if (_tourInitialized)
+            return;
+        _tourInitialized = true;
+
+        _currentUserId = (await GetCurrentUserIdAsync())?.ToString();
+        if (_onboardingTour is not null && !string.IsNullOrWhiteSpace(_currentUserId))
+        {
+            // Pass userId directly — Blazor parameter binding happens during render,
+            // and _currentUserId was null when the first render bound it.
+            await _onboardingTour.InitializeAsync(_currentUserId);
+        }
+    }
+
+    private async Task LoadInitialDataAsync()
+    {
+        _isLoading = true;
+        _errorMessage = null;
+
+        try
+        {
+            var userId = await GetCurrentUserIdAsync();
+            if (userId.HasValue)
+            {
+                var orgs = await OrgDirectory.GetUserOrganizationsAsync(userId.Value);
+                _organizations.Clear();
+                _organizations.AddRange(orgs);
+
+                // Restore the last-selected organization if one was persisted
+                var lastOrgKey = $"tracks_last_org_{userId}";
+                var lastOrgVal = await Preferences.GetAsync(lastOrgKey);
+                if (Guid.TryParse(lastOrgVal, out var lastOrgId) && lastOrgId != Guid.Empty
+                    && _organizations.Any(o => o.Id == lastOrgId))
+                {
+                    await SelectOrganization(lastOrgId);
+                }
+            }
+
+            var teamsTask = ApiClient.ListTeamsAsync();
+            _teams.Clear();
+            _teams.AddRange(await teamsTask);
+        }
+        catch (ConsentRequiredException ex)
+        {
+            // The shell owns the consent prompt; asking it here makes the prompt appear instead of
+            // leaving an empty product list with no explanation.
+            _errorMessage = ex.Message;
+            await Bridge.RequestConsentAsync([.. ex.Scopes]);
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = $"Failed to load data: {ex.Message}";
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private async Task OnOrgSelected()
+    {
+        var userId = await GetCurrentUserIdAsync();
+        if (userId.HasValue)
+        {
+            var key = $"tracks_last_org_{userId}";
+
+            if (_selectedOrgId.HasValue)
+            {
+                await Preferences.SetAsync(key, _selectedOrgId.Value.ToString());
+                await SelectOrganization(_selectedOrgId.Value);
+            }
+            else
+            {
+                // "Personal" selected — clear the persisted preference
+                await Preferences.RemoveAsync(key);
+                _selectedProduct = null;
+                _selectedEpic = null;
+                _selectedFeature = null;
+                _selectedWorkItem = null;
+                _products.Clear();
+                _view = TracksView.ProductList;
+            }
+        }
+    }
+
+    private async Task<Guid?> GetCurrentUserIdAsync()
+    {
+        var state = await AuthStateProvider.GetAuthenticationStateAsync();
+        var claim = state.User.FindFirst(ClaimTypes.NameIdentifier)?.Value
+                 ?? state.User.FindFirst("sub")?.Value;
+        return Guid.TryParse(claim, out var id) ? id : null;
+    }
+
+    // ── Navigation ──────────────────────────────────────────
+
+    private async Task SelectOrganization(Guid orgId)
+    {
+        _selectedOrgId = orgId;
+        _selectedProduct = null;
+        _selectedEpic = null;
+        _selectedFeature = null;
+        _selectedWorkItem = null;
+        _view = TracksView.ProductList;
+
+        try
+        {
+            var products = await ApiClient.ListProductsAsync(orgId);
+            _products.Clear();
+            _products.AddRange(products);
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = $"Failed to load products: {ex.Message}";
+        }
+    }
+
+    private async Task SelectProduct(Guid productId)
+    {
+        _isLoading = true;
+        _errorMessage = null;
+        _selectedEpic = null;
+        _selectedFeature = null;
+        _selectedWorkItem = null;
+
+        try
+        {
+            _selectedProduct = await ApiClient.GetProductAsync(productId);
+            if (_selectedProduct is null)
+            {
+                _errorMessage = "Product not found.";
+                return;
+            }
+
+            await LoadProductKanbanDataAsync();
+            _view = TracksView.ProductKanban;
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = $"Failed to load product: {ex.Message}";
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    /// <summary>
+    /// Navigates to the kanban board for the given work item (Epic or Feature).
+    /// Called after the initial page load when a <c>kanban</c> query parameter is present.
+    /// </summary>
+    private async Task NavigateToKanbanAsync(Guid workItemId)
+    {
+        try
+        {
+            var workItem = await ApiClient.GetWorkItemAsync(workItemId);
+            if (workItem is null)
+                return;
+
+            // Ensure the product is selected first, since kanban views need _selectedProduct
+            if (_selectedProduct?.Id != workItem.ProductId)
+            {
+                // Find the product in the already-loaded list, or fetch it
+                var product = _products.FirstOrDefault(p => p.Id == workItem.ProductId);
+                if (product is null)
+                {
+                    product = await ApiClient.GetProductAsync(workItem.ProductId);
+                    if (product is null)
+                        return;
+                    _products.Add(product);
+                }
+
+                // Select the product (loads its kanban data, sets view to ProductKanban)
+                await SelectProduct(product.Id);
+            }
+
+            // Now navigate to the specific kanban view
+            if (workItem.Type == WorkItemType.Epic)
+            {
+                await OpenEpicKanban(workItemId);
+            }
+            else if (workItem.Type == WorkItemType.Feature)
+            {
+                await OpenFeatureKanban(workItemId);
+            }
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = $"Failed to navigate to kanban: {ex.Message}";
+        }
+    }
+
+    private async Task OpenEpicKanban(Guid epicId)
+    {
+        _isLoading = true;
+        _selectedFeature = null;
+        _selectedWorkItem = null;
+        StateHasChanged();
+
+        try
+        {
+            _selectedEpic = await ApiClient.GetWorkItemAsync(epicId);
+            if (_selectedEpic is null)
+                return;
+
+            await LoadEpicKanbanDataAsync();
+            _view = TracksView.EpicKanban;
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = $"Failed to load epic: {ex.Message}";
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private async Task OpenFeatureKanban(Guid featureId)
+    {
+        _isLoading = true;
+        _selectedWorkItem = null;
+        StateHasChanged();
+
+        try
+        {
+            _selectedFeature = await ApiClient.GetWorkItemAsync(featureId);
+            if (_selectedFeature is null)
+                return;
+
+            await LoadFeatureKanbanDataAsync();
+            _view = TracksView.FeatureKanban;
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = $"Failed to load feature: {ex.Message}";
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private async Task SelectWorkItem(Guid workItemId)
+    {
+        try
+        {
+            _selectedWorkItem = await ApiClient.GetWorkItemAsync(workItemId);
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = $"Failed to load work item: {ex.Message}";
+        }
+    }
+
+    /// <summary>Selects a work item by its product-scoped item number (used by calendar view).</summary>
+    private async Task SelectWorkItemByNumber(int itemNumber)
+    {
+        if (_selectedProduct is null)
+            return;
+        try
+        {
+            _selectedWorkItem = await ApiClient.GetWorkItemByNumberAsync(_selectedProduct.Id, itemNumber);
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = $"Failed to load work item: {ex.Message}";
+        }
+    }
+
+    private void CloseWorkItemDetail()
+    {
+        _selectedWorkItem = null;
+    }
+
+    /// <summary>
+    /// Batch-resolves display names for all current product members via <see cref="IUserDirectory"/>.
+    /// Replaces each <see cref="ProductMemberDto"/> with a copy that has <see cref="ProductMemberDto.DisplayName"/> populated.
+    /// </summary>
+    private async Task ResolveMemberDisplayNamesAsync()
+    {
+        if (_currentMembers.Count == 0)
+            return;
+
+        var userIds = _currentMembers.Select(m => m.UserId).Distinct().ToList();
+        try
+        {
+            var displayNames = await UserDirectory.GetDisplayNamesAsync(userIds, CancellationToken.None);
+            for (var i = 0; i < _currentMembers.Count; i++)
+            {
+                var member = _currentMembers[i];
+                if (member.DisplayName is null && displayNames.TryGetValue(member.UserId, out var name))
+                {
+                    _currentMembers[i] = member with { DisplayName = name };
+                }
+            }
+        }
+        catch
+        {
+            // If resolution fails, the UI will show fallback text
+        }
+    }
+
+    // ── Kanban Data Loading ─────────────────────────────────
+
+    private async Task LoadProductKanbanDataAsync()
+    {
+        if (_selectedProduct is null)
+            return;
+
+        var swimlanes = await ApiClient.ListProductSwimlanesAsync(_selectedProduct.Id);
+        var labels = await ApiClient.ListLabelsAsync(_selectedProduct.Id);
+        var members = await ApiClient.ListProductMembersAsync(_selectedProduct.Id);
+
+        _currentSwimlanes.Clear();
+        _currentSwimlanes.AddRange(swimlanes.OrderBy(s => s.Position));
+
+        _currentLabels.Clear();
+        _currentLabels.AddRange(labels);
+
+        _currentMembers.Clear();
+        _currentMembers.AddRange(members);
+
+        // Resolve display names for members (server returns null for DisplayName)
+        await ResolveMemberDisplayNamesAsync();
+
+        _currentWorkItems.Clear();
+        foreach (var swimlane in _currentSwimlanes)
+        {
+            var items = await ApiClient.ListWorkItemsAsync(swimlane.Id);
+            _currentWorkItems[swimlane.Id] = items.OrderBy(c => c.Position).ToList();
+        }
+    }
+
+    private async Task LoadEpicKanbanDataAsync()
+    {
+        if (_selectedEpic is null)
+            return;
+        if (_selectedProduct is null)
+            return;
+
+        var swimlanes = await ApiClient.ListWorkItemSwimlanesAsync(_selectedEpic.Id);
+        _currentSwimlanes.Clear();
+        _currentSwimlanes.AddRange(swimlanes.OrderBy(s => s.Position));
+
+        _currentWorkItems.Clear();
+        foreach (var swimlane in _currentSwimlanes)
+        {
+            var items = await ApiClient.ListWorkItemsAsync(swimlane.Id);
+            _currentWorkItems[swimlane.Id] = items.OrderBy(c => c.Position).ToList();
+        }
+
+        // Also load sprints for the epic
+        _sprints.Clear();
+        _sprints.AddRange(await ApiClient.ListSprintsAsync(_selectedEpic.Id));
+    }
+
+    private async Task LoadFeatureKanbanDataAsync()
+    {
+        if (_selectedFeature is null)
+            return;
+        if (_selectedProduct is null)
+            return;
+
+        var swimlanes = await ApiClient.ListWorkItemSwimlanesAsync(_selectedFeature.Id);
+        _currentSwimlanes.Clear();
+        _currentSwimlanes.AddRange(swimlanes.OrderBy(s => s.Position));
+
+        _currentWorkItems.Clear();
+        foreach (var swimlane in _currentSwimlanes)
+        {
+            var items = await ApiClient.ListWorkItemsAsync(swimlane.Id);
+            _currentWorkItems[swimlane.Id] = items.OrderBy(c => c.Position).ToList();
+        }
+    }
+
+    private async Task RefreshCurrentKanbanAsync()
+    {
+        switch (_view)
+        {
+            case TracksView.ProductKanban:
+                await LoadProductKanbanDataAsync();
+                break;
+            case TracksView.EpicKanban:
+                await LoadEpicKanbanDataAsync();
+                break;
+            case TracksView.FeatureKanban:
+                await LoadFeatureKanbanDataAsync();
+                break;
+            case TracksView.List:
+            case TracksView.Dashboard:
+                // List and Dashboard load their own data; just trigger re-render
+                break;
+        }
+        StateHasChanged();
+    }
+
+    private async Task RefreshSprintsAsync()
+    {
+        if (_selectedEpic is null)
+            return;
+        var planningSprintId = _planningSprint?.Id;
+
+        _sprints.Clear();
+        _sprints.AddRange(await ApiClient.ListSprintsAsync(_selectedEpic.Id));
+
+        if (planningSprintId.HasValue)
+        {
+            _planningSprint = _sprints.FirstOrDefault(s => s.Id == planningSprintId.Value);
+            if (_planningSprint is null && _view == TracksView.Planning)
+                _view = GetKanbanView();
+        }
+        StateHasChanged();
+    }
+
+    // ── Kanban Event Handlers ───────────────────────────────
+
+    private async Task HandleWorkItemMoved(WorkItemDto item)
+    {
+        foreach (var (_, items) in _currentWorkItems)
+            items.RemoveAll(c => c.Id == item.Id);
+
+        if (item.SwimlaneId.HasValue && _currentWorkItems.TryGetValue(item.SwimlaneId.Value, out var target))
+        {
+            target.Add(item);
+            target.Sort((a, b) => a.Position.CompareTo(b.Position));
+        }
+    }
+
+    private async Task HandleWorkItemCreated(WorkItemDto item)
+    {
+        if (item.SwimlaneId.HasValue && _currentWorkItems.TryGetValue(item.SwimlaneId.Value, out var items))
+        {
+            items.Add(item);
+            items.Sort((a, b) => a.Position.CompareTo(b.Position));
+        }
+    }
+
+    private async Task HandleWorkItemUpdated(WorkItemDto item)
+    {
+        _selectedWorkItem = item;
+        foreach (var (_, items) in _currentWorkItems)
+        {
+            var index = items.FindIndex(c => c.Id == item.Id);
+            if (index >= 0)
+            { items[index] = item; break; }
+        }
+    }
+
+    private async Task HandleWorkItemDeleted(Guid workItemId)
+    {
+        foreach (var (_, items) in _currentWorkItems)
+            items.RemoveAll(c => c.Id == workItemId);
+        if (_selectedWorkItem?.Id == workItemId)
+            _selectedWorkItem = null;
+    }
+
+    private async Task HandleSwimlaneCreated(SwimlaneDto swimlane)
+    {
+        _currentSwimlanes.Add(swimlane);
+        _currentSwimlanes.Sort((a, b) => a.Position.CompareTo(b.Position));
+        _currentWorkItems[swimlane.Id] = [];
+    }
+
+    private async Task HandleSwimlaneDeleted(Guid swimlaneId)
+    {
+        _currentSwimlanes.RemoveAll(l => l.Id == swimlaneId);
+        _currentWorkItems.Remove(swimlaneId);
+    }
+
+    // ── Product Event Handlers ──────────────────────────────
+
+    private async Task HandleProductCreated(ProductDto product)
+    {
+        _products.Insert(0, product);
+        await SelectProduct(product.Id);
+    }
+
+    private async Task HandleProductDeleted(Guid productId)
+    {
+        var deletedProduct = _products.FirstOrDefault(p => p.Id == productId);
+        _products.RemoveAll(p => p.Id == productId);
+        if (_selectedProduct?.Id == productId)
+            NavigateToProductList();
+
+        // Show undo toast so users can recover accidentally deleted products
+        if (deletedProduct is not null && _undoToast is not null)
+        {
+            _lastDeletedProductId = productId;
+            _undoToastMessage = $"\"{deletedProduct.Name}\" moved to trash.";
+            await _undoToast.ShowAsync();
+        }
+    }
+
+    /// <summary>
+    /// Restores the most recently deleted product. Called from the Undo toast.
+    /// </summary>
+    private async Task RestoreLastDeletedProductAsync()
+    {
+        if (!_lastDeletedProductId.HasValue)
+            return;
+
+        try
+        {
+            var restored = await ApiClient.RestoreProductAsync(_lastDeletedProductId.Value);
+            if (restored is not null)
+            {
+                _products.Insert(0, restored);
+                StateHasChanged();
+            }
+        }
+        catch
+        {
+            // Restore failed silently
+        }
+        finally
+        {
+            _lastDeletedProductId = null;
+        }
+    }
+
+    private async Task HandleProductRestored(ProductDto product)
+    {
+        _products.Insert(0, product);
+    }
+
+    // ── Drilling / Navigation ───────────────────────────────
+
+    private void NavigateToProductList()
+    {
+        _view = TracksView.ProductList;
+        _selectedProduct = null;
+        _selectedEpic = null;
+        _selectedFeature = null;
+        _selectedWorkItem = null;
+    }
+
+    /// <summary>
+    /// Builds the breadcrumb trail for the current navigation context
+    /// (Organization → Product → Epic → Feature). Each item navigates to its target view.
+    /// </summary>
+    /// <remarks>
+    /// The handlers run inside the child <c>DncBreadcrumb</c> component's render context, so
+    /// Blazor only re-renders the child. Each handler calls <c>StateHasChanged()</c> after
+    /// mutating state so this page re-renders with the new view.
+    /// </remarks>
+    private IReadOnlyList<BreadcrumbItem> BreadcrumbItems
+    {
+        get
+        {
+            var items = new List<BreadcrumbItem>();
+
+            if (_selectedOrgId is Guid orgId)
+            {
+                var orgName = _organizations.FirstOrDefault(o => o.Id == orgId)?.Name ?? "Org";
+                items.Add(new BreadcrumbItem(orgName, OnClick: async () =>
+                {
+                    await SelectOrganization(orgId);
+                    StateHasChanged();
+                }));
+            }
+
+            if (_selectedProduct is { } product)
+            {
+                items.Add(new BreadcrumbItem(
+                    product.Name,
+                    OnClick: async () =>
+                    {
+                        await SelectProduct(product.Id);
+                        StateHasChanged();
+                    }));
+            }
+
+            if (_selectedEpic is { } epic)
+            {
+                items.Add(new BreadcrumbItem(
+                    $"#{epic.ItemNumber} {epic.Title}",
+                    OnClick: async () =>
+                    {
+                        await OpenEpicKanban(epic.Id);
+                        StateHasChanged();
+                    }));
+            }
+
+            if (_selectedFeature is { } feature)
+            {
+                items.Add(new BreadcrumbItem(
+                    $"#{feature.ItemNumber} {feature.Title}",
+                    OnClick: async () =>
+                    {
+                        await OpenFeatureKanban(feature.Id);
+                        StateHasChanged();
+                    }));
+            }
+
+            return items;
+        }
+    }
+
+    private TracksView GetKanbanView() => _selectedFeature is not null ? TracksView.FeatureKanban
+        : _selectedEpic is not null ? TracksView.EpicKanban
+        : TracksView.ProductKanban;
+
+    // ── Epic Sub-views ──────────────────────────────────────
+
+    private void ToggleSprints() => _showSprints = !_showSprints;
+
+    private void OpenSprintPlanning(SprintDto sprint)
+    {
+        _planningSprint = sprint;
+        _selectedWorkItem = null;
+        _showSprints = false;
+        _view = TracksView.Planning;
+    }
+
+    private void ClosePlanning()
+    {
+        _planningSprint = null;
+        _view = GetKanbanView();
+    }
+
+    private void OpenBacklog()
+    {
+        _selectedWorkItem = null;
+        _showSprints = false;
+        _view = TracksView.Backlog;
+    }
+
+    private void OpenTimeline()
+    {
+        _selectedWorkItem = null;
+        _showSprints = false;
+        _view = TracksView.Timeline;
+    }
+
+    private void OpenWizard()
+    {
+        _selectedWorkItem = null;
+        _showSprints = false;
+        _view = TracksView.Wizard;
+    }
+
+    private async Task OpenSettings()
+    {
+        _selectedWorkItem = null;
+        _showSprints = false;
+
+        if (_selectedProduct is not null && _currentSwimlanes.Count == 0)
+            await LoadProductKanbanDataAsync();
+
+        _view = TracksView.Settings;
+    }
+
+    private async Task OpenCalendar()
+    {
+        _selectedWorkItem = null;
+        _showSprints = false;
+
+        if (_selectedProduct is not null && _currentSwimlanes.Count == 0)
+            await LoadProductKanbanDataAsync();
+
+        _view = TracksView.Calendar;
+    }
+
+    private async Task OpenList()
+    {
+        _selectedWorkItem = null;
+        _showSprints = false;
+
+        if (_selectedProduct is not null && _currentSwimlanes.Count == 0)
+            await LoadProductKanbanDataAsync();
+
+        _view = TracksView.List;
+    }
+
+    private async Task OpenDashboard()
+    {
+        _selectedWorkItem = null;
+        _showSprints = false;
+
+        if (_selectedProduct is not null && _currentSwimlanes.Count == 0)
+            await LoadProductKanbanDataAsync();
+
+        _view = TracksView.Dashboard;
+    }
+
+    private async Task OpenRoadmap()
+    {
+        _selectedWorkItem = null;
+        _showSprints = false;
+
+        if (_selectedProduct is not null && _currentSwimlanes.Count == 0)
+            await LoadProductKanbanDataAsync();
+
+        _view = TracksView.Roadmap;
+    }
+
+    private async Task OpenReview()
+    {
+        if (_selectedEpic is null)
+            return;
+        _selectedWorkItem = null;
+        _showSprints = false;
+
+        _isStartingReview = true;
+        _reviewStartError = null;
+        try
+        {
+            _activeReviewSession = await ApiClient.StartReviewSessionAsync(_selectedEpic.Id);
+            if (_activeReviewSession is not null)
+            {
+                var currentUserId = await GetCurrentUserIdAsync();
+                _isHost = currentUserId.HasValue && _activeReviewSession.HostUserId == currentUserId.Value;
+            }
+        }
+        catch (Exception ex)
+        {
+            _reviewStartError = ex.Message;
+        }
+        finally
+        {
+            _isStartingReview = false;
+        }
+        _view = TracksView.Review;
+    }
+
+    private async Task HandleReviewEnded()
+    {
+        _activeReviewSession = null;
+        _isHost = false;
+        _view = GetKanbanView();
+        StateHasChanged();
+    }
+
+    private async Task HandleReviewSessionUpdated(ReviewSessionDto session)
+    {
+        _activeReviewSession = session;
+        StateHasChanged();
+    }
+
+    private async Task HandleTimelineSprintSelected(SprintDto sprint)
+    {
+        _view = GetKanbanView();
+        StateHasChanged();
+    }
+
+    private async Task HandlePlanAdjusted()
+    {
+        await RefreshSprintsAsync();
+    }
+
+    private async Task HandleBacklogChanged()
+    {
+        await RefreshCurrentKanbanAsync();
+    }
+
+    private async Task HandlePlanCreated(IReadOnlyList<SprintDto> overview)
+    {
+        await RefreshSprintsAsync();
+        _view = GetKanbanView();
+    }
+
+    // ── Teams ────────────────────────────────────────────────
+
+    private void ShowTeams()
+    {
+        _view = TracksView.Teams;
+        _selectedProduct = null;
+        _selectedEpic = null;
+        _selectedFeature = null;
+        _selectedWorkItem = null;
+    }
+
+    private async Task RefreshTeamsAsync()
+    {
+        _teams.Clear();
+        _teams.AddRange(await ApiClient.ListTeamsAsync());
+        StateHasChanged();
+    }
+
+    private async Task HandleProductUpdated(ProductDto product)
+    {
+        _selectedProduct = product;
+        var index = _products.FindIndex(p => p.Id == product.Id);
+        if (index >= 0)
+            _products[index] = product;
+    }
+
+    // ── Saved Views ─────────────────────────────────────────
+
+    private async Task HandleSaveCurrentView()
+    {
+        _showSaveViewDialog = true;
+        _newViewName = "";
+        _newViewIsShared = false;
+    }
+
+    private async Task HandleSaveViewConfirm()
+    {
+        if (string.IsNullOrWhiteSpace(_newViewName) || _selectedProduct is null)
+            return;
+
+        try
+        {
+            var filterJson = JsonSerializer.Serialize(new { });
+            var sortJson = JsonSerializer.Serialize(new { });
+            var layout = _view switch
+            {
+                TracksView.ProductKanban or TracksView.EpicKanban or TracksView.FeatureKanban => "Kanban",
+                TracksView.Backlog => "Backlog",
+                TracksView.Timeline => "Timeline",
+                TracksView.Calendar => "Calendar",
+                TracksView.List => "List",
+                TracksView.Dashboard => "Dashboard",
+                _ => "Kanban"
+            };
+
+            await ApiClient.CreateCustomViewAsync(
+                _selectedProduct.Id, _newViewName.Trim(), filterJson, sortJson, null, layout, _newViewIsShared);
+
+            _showSaveViewDialog = false;
+            _customViewsSidebar?.LoadViewsAsync();
+        }
+        catch
+        {
+            // Save failed silently
+            _showSaveViewDialog = false;
+        }
+    }
+
+    private async Task HandleViewSelected(CustomViewDto view)
+    {
+        _selectedViewId = view.Id;
+
+        // Navigate to the appropriate view based on layout
+        _view = view.Layout switch
+        {
+            "Kanban" => GetKanbanView(),
+            "Backlog" => TracksView.Backlog,
+            "Timeline" => TracksView.Timeline,
+            "Calendar" => TracksView.Calendar,
+            "List" => TracksView.List,
+            "Dashboard" => TracksView.Dashboard,
+            _ => GetKanbanView()
+        };
+
+        StateHasChanged();
+    }
+
+    private void HandleSaveViewCancel()
+    {
+        _showSaveViewDialog = false;
+        _newViewName = "";
+    }
+
+    private async Task HandleSaveViewNameKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+            await HandleSaveViewConfirm();
+        else if (e.Key == "Escape")
+            HandleSaveViewCancel();
+    }
+
+    // ── Onboarding Tour ─────────────────────────────────────
+
+    private async Task ShowTour()
+    {
+        if (_onboardingTour is not null)
+            await _onboardingTour.ShowAsync();
+    }
+
+    // ── Real-time Event Subscriptions ───────────────────────
+
+    public void Dispose()
+    {
+        SignalRService.WorkItemActionReceived -= OnWorkItemActionReceived;
+        SignalRService.SwimlaneActionReceived -= OnSwimlaneActionReceived;
+        SignalRService.CommentActionReceived -= OnCommentActionReceived;
+        SignalRService.SprintActionReceived -= OnSprintActionReceived;
+        SignalRService.ProductMemberActionReceived -= OnProductMemberActionReceived;
+        SignalRService.ReviewSessionStateChanged -= OnReviewSessionStateChanged;
+        _jsRef?.Dispose();
+    }
+
+    // ── Keyboard Shortcuts ──────────────────────────────────
+
+    /// <summary>
+    /// Called from JavaScript when a key is pressed anywhere on the page.
+    /// Only handles shortcuts when the user is not typing in a text field
+    /// (except for Escape and ? which always work).
+    /// </summary>
+    [JSInvokable]
+    public async Task HandleKeyDownAsync(string key, bool ctrlKey, bool isInputFocused)
+    {
+        // Don't intercept when user is typing in a text field (except Escape and ?)
+        if (isInputFocused && key is not "Escape" and not "?")
+            return;
+
+        switch (key)
+        {
+            case "?":
+                _showShortcutsModal = !_showShortcutsModal;
+                StateHasChanged();
+                break;
+
+            case "Escape":
+                if (_showShortcutsModal)
+                {
+                    _showShortcutsModal = false;
+                    StateHasChanged();
+                }
+                else if (_selectedWorkItem is not null)
+                {
+                    CloseWorkItemDetail();
+                    StateHasChanged();
+                }
+                break;
+
+            case "n":
+            case "N":
+                // Open create wizard for current kanban view
+                if (_view is TracksView.ProductKanban or TracksView.EpicKanban or TracksView.FeatureKanban)
+                {
+                    // The kanban board has a "New" button — user can see the highlighted button
+                    // Press N to be reminded this shortcut exists
+                }
+                break;
+
+            case "/":
+                // Focus the search/filter input
+                await JS.InvokeVoidAsync("tracksKeyboard.focusSearch");
+                break;
+
+            case "ArrowLeft":
+                // Navigate up hierarchy: Feature → Epic → Product
+                if (_selectedFeature is not null && _selectedEpic is not null)
+                    await OpenEpicKanban(_selectedEpic.Id);
+                else if (_selectedEpic is not null)
+                    await SelectProduct(_selectedProduct!.Id);
+                break;
+
+            case "ArrowRight":
+                // Navigate down in hierarchy — handled contextually
+                break;
+
+            case "Enter" when ctrlKey:
+                // Ctrl+Enter — submit the currently focused form if any
+                await JS.InvokeVoidAsync("tracksKeyboard.submitActiveForm");
+                break;
+        }
+    }
+
+    private void SubscribeToRealtimeEvents()
+    {
+        SignalRService.WorkItemActionReceived += OnWorkItemActionReceived;
+        SignalRService.SwimlaneActionReceived += OnSwimlaneActionReceived;
+        SignalRService.CommentActionReceived += OnCommentActionReceived;
+        SignalRService.SprintActionReceived += OnSprintActionReceived;
+        SignalRService.ProductMemberActionReceived += OnProductMemberActionReceived;
+        SignalRService.ReviewSessionStateChanged += OnReviewSessionStateChanged;
+    }
+
+    private async void OnWorkItemActionReceived(Guid productId, Guid workItemId, string action)
+    {
+        if (_selectedProduct?.Id != productId)
+            return;
+        await InvokeAsync(async () =>
+        {
+            await RefreshCurrentKanbanAsync();
+        });
+    }
+
+    private async void OnSwimlaneActionReceived(Guid productId, Guid swimlaneId, string action)
+    {
+        if (_selectedProduct?.Id != productId)
+            return;
+        await InvokeAsync(async () =>
+        {
+            await RefreshCurrentKanbanAsync();
+        });
+    }
+
+    private async void OnCommentActionReceived(Guid productId, Guid workItemId, Guid commentId, string action)
+    {
+        if (_selectedWorkItem?.Id != workItemId)
+            return;
+        await InvokeAsync(async () =>
+        {
+            _selectedWorkItem = await ApiClient.GetWorkItemAsync(workItemId);
+            StateHasChanged();
+        });
+    }
+
+    private async void OnSprintActionReceived(Guid epicId, Guid sprintId, string action)
+    {
+        if (_selectedEpic?.Id != epicId)
+            return;
+        await InvokeAsync(async () => await RefreshSprintsAsync());
+    }
+
+    private async void OnProductMemberActionReceived(Guid productId, Guid userId, string action)
+    {
+        if (_selectedProduct?.Id != productId)
+            return;
+        await InvokeAsync(async () =>
+        {
+            await RefreshCurrentKanbanAsync();
+        });
+    }
+
+    private async void OnReviewSessionStateChanged(Guid sessionId, Guid epicId, string action)
+    {
+        if (_selectedEpic?.Id != epicId)
+            return;
+        await InvokeAsync(async () =>
+        {
+            if (action is "ended")
+            {
+                _activeReviewSession = null;
+                _isHost = false;
+                if (_view == TracksView.Review)
+                    _view = GetKanbanView();
+            }
+            else
+            {
+                try
+                {
+                    _activeReviewSession = await ApiClient.GetReviewSessionAsync(sessionId);
+                }
+                catch
+                {
+                    _activeReviewSession = null;
+                }
+            }
+            StateHasChanged();
+        });
+    }
+}

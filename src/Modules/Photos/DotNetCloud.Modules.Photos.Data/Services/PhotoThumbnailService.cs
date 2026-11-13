@@ -1,11 +1,11 @@
 using DotNetCloud.Core.Authorization;
 using DotNetCloud.Core.DTOs;
+using DotNetCloud.Core.Errors;
 using DotNetCloud.Modules.Photos.Models;
 using DotNetCloud.Modules.Photos.Services;
-using DotNetCloud.Modules.Files.Services;
+using DotNetCloud.Modules.Sdk.Api;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.Formats.Jpeg;
@@ -17,6 +17,13 @@ namespace DotNetCloud.Modules.Photos.Data.Services;
 /// Generates and stores photo thumbnails (grid 300px, detail 1200px) in the database
 /// using ImageSharp. Full-size requests return null (caller uses the original file).
 /// </summary>
+/// <remarks>
+/// A sandboxed module never touches the Files module or its storage: the original bytes are fetched
+/// through the core's module API (<see cref="IDncModuleApi.DownloadFileAsync"/>, capability
+/// <c>IFileDirectory</c>, per-user consent <c>files:read</c>), which resolves the acting user from the
+/// core-signed assertion attached by the reverse proxy. Thumbnails are produced on first request
+/// instead of by a background worker, because a background thread has no acting user to assert.
+/// </remarks>
 public sealed class PhotoThumbnailService : IPhotoThumbnailService
 {
     private static readonly HashSet<string> SupportedMimeTypes = new(StringComparer.OrdinalIgnoreCase)
@@ -26,36 +33,33 @@ public sealed class PhotoThumbnailService : IPhotoThumbnailService
     };
 
     private readonly PhotosDbContext _db;
-    private readonly IServiceProvider _serviceProvider;
+    private readonly IDncModuleApi? _coreApi;
     private readonly ILogger<PhotoThumbnailService> _logger;
-    private IFileStorageEngine? _storageEngine;
-    private IDownloadService? _downloadService;
-    private IThumbnailService? _filesThumbnailService;
     private readonly int _jpegQuality;
     private readonly int _detailMaxDimension;
     private readonly int _gridMaxDimension;
-    private readonly bool _useFilesCachedGridThumbnail;
 
     /// <summary>
     /// Initializes the photo thumbnail service.
-    /// Files module services (IFileStorageEngine, IDownloadService) are resolved lazily —
-    /// they are only needed for thumbnail generation, not for serving cached thumbnails.
-    /// This avoids a hard DI dependency from the Photos module host on Files module services.
     /// </summary>
     /// <param name="db">Photos database context.</param>
-    /// <param name="serviceProvider">Provider used to lazily resolve Files module services.</param>
     /// <param name="logger">Logger.</param>
     /// <param name="configuration">
     /// Optional configuration. Reads <c>Photos:Thumbnails:*</c>; when absent the defaults below apply.
     /// </param>
+    /// <param name="coreApi">
+    /// The core module API used to read the original image, or <see langword="null"/> when the host
+    /// was not launched by the supervisor (a local <c>dotnet run</c>): cached thumbnails still serve,
+    /// generation answers "unavailable" instead of failing.
+    /// </param>
     public PhotoThumbnailService(
         PhotosDbContext db,
-        IServiceProvider serviceProvider,
         ILogger<PhotoThumbnailService> logger,
-        IConfiguration? configuration = null)
+        IConfiguration? configuration = null,
+        IDncModuleApi? coreApi = null)
     {
         _db = db;
-        _serviceProvider = serviceProvider;
+        _coreApi = coreApi;
         _logger = logger;
 
         // Thumbnail payload and cost are dominated by the full-resolution resize and the JPEG
@@ -65,11 +69,6 @@ public sealed class PhotoThumbnailService : IPhotoThumbnailService
             configuration, "Photos:Thumbnails:DetailMaxDimension", (int)PhotoThumbnailSize.Detail, 256, 4096);
         _gridMaxDimension = ReadInt(
             configuration, "Photos:Thumbnails:GridMaxDimension", (int)PhotoThumbnailSize.Grid, 64, 1024);
-        // Reusing a cached Files thumbnail only pays off when the full-resolution decode is
-        // skipped entirely. Because the detail size still needs that decode, the extra thumbnail
-        // read was measured as neutral-to-slower on the production host, so it is opt-in.
-        _useFilesCachedGridThumbnail = string.Equals(
-            configuration?["Photos:Thumbnails:UseFilesCachedGridThumbnail"], "true", StringComparison.OrdinalIgnoreCase);
     }
 
     private static int ReadInt(IConfiguration? configuration, string key, int defaultValue, int min, int max)
@@ -85,6 +84,7 @@ public sealed class PhotoThumbnailService : IPhotoThumbnailService
     /// <inheritdoc />
     public async Task<(Stream? Data, string? ContentType)> GetThumbnailAsync(
         Guid photoId,
+        Guid actingUserId,
         PhotoThumbnailSize size,
         CancellationToken cancellationToken = default)
     {
@@ -93,16 +93,20 @@ public sealed class PhotoThumbnailService : IPhotoThumbnailService
             return (null, null);
         }
 
-        // Read only the specific thumbnail column to avoid loading the other blob
-        byte[]? data = size == PhotoThumbnailSize.Grid
-            ? await _db.Photos.IgnoreQueryFilters()
-                .Where(p => p.Id == photoId)
-                .Select(p => p.ThumbnailGrid)
-                .FirstOrDefaultAsync(cancellationToken)
-            : await _db.Photos.IgnoreQueryFilters()
-                .Where(p => p.Id == photoId)
-                .Select(p => p.ThumbnailDetail)
-                .FirstOrDefaultAsync(cancellationToken);
+        var data = await ReadThumbnailAsync(photoId, size, cancellationToken);
+
+        // First view of a newly indexed photo: produce the cache from the original while an acting
+        // user is asserting (a background worker has no user to assert, which is why generation
+        // happens here rather than when the row is indexed).
+        if (data is null || data.Length == 0)
+        {
+            if (!await GenerateThumbnailsAsync(photoId, actingUserId, cancellationToken))
+            {
+                return (null, null);
+            }
+
+            data = await ReadThumbnailAsync(photoId, size, cancellationToken);
+        }
 
         if (data is null || data.Length == 0)
         {
@@ -113,19 +117,29 @@ public sealed class PhotoThumbnailService : IPhotoThumbnailService
         return (stream, "image/jpeg");
     }
 
-    /// <inheritdoc />
-    public async Task GenerateThumbnailsAsync(
+    /// <summary>
+    /// Reads one cached thumbnail column without loading the other blob.
+    /// </summary>
+    private Task<byte[]?> ReadThumbnailAsync(
         Guid photoId,
-        string? storagePath,
-        string mimeType,
+        PhotoThumbnailSize size,
+        CancellationToken cancellationToken) =>
+        size == PhotoThumbnailSize.Grid
+            ? _db.Photos.IgnoreQueryFilters()
+                .Where(p => p.Id == photoId)
+                .Select(p => p.ThumbnailGrid)
+                .FirstOrDefaultAsync(cancellationToken)
+            : _db.Photos.IgnoreQueryFilters()
+                .Where(p => p.Id == photoId)
+                .Select(p => p.ThumbnailDetail)
+                .FirstOrDefaultAsync(cancellationToken);
+
+    /// <inheritdoc />
+    public async Task<bool> GenerateThumbnailsAsync(
+        Guid photoId,
+        Guid actingUserId,
         CancellationToken cancellationToken = default)
     {
-        if (!SupportedMimeTypes.Contains(mimeType))
-        {
-            _logger.LogDebug("Unsupported MIME type for photo thumbnail: {MimeType}", mimeType);
-            return;
-        }
-
         try
         {
             var photo = await _db.Photos.IgnoreQueryFilters()
@@ -134,7 +148,21 @@ public sealed class PhotoThumbnailService : IPhotoThumbnailService
             if (photo is null)
             {
                 _logger.LogWarning("Photo {PhotoId} not found for thumbnail generation", photoId);
-                return;
+                return false;
+            }
+
+            // Only the owner may read the original: the download runs under the caller's own
+            // assertion, so a user the photo is merely shared with cannot reach the owner's file.
+            if (photo.OwnerId != actingUserId)
+            {
+                _logger.LogDebug("Thumbnail generation refused for photo {PhotoId}: caller is not the owner", photoId);
+                return false;
+            }
+
+            if (!SupportedMimeTypes.Contains(photo.MimeType))
+            {
+                _logger.LogDebug("Unsupported MIME type for photo thumbnail: {MimeType}", photo.MimeType);
+                return false;
             }
 
             // Rescans and duplicate index events call this for photos that are already done.
@@ -142,141 +170,95 @@ public sealed class PhotoThumbnailService : IPhotoThumbnailService
             if (photo.ThumbnailGrid is { Length: > 0 } && photo.ThumbnailDetail is { Length: > 0 })
             {
                 _logger.LogDebug("Photo {PhotoId} already has thumbnails — skipping generation", photoId);
-                return;
+                return true;
             }
 
-            // A cached Files thumbnail is a fraction of the original's pixels, so using it as the
-            // grid source avoids paying for a second full-resolution resize.
-            var filesGridSource = await TryLoadFilesGridThumbnailAsync(photo.FileNodeId, cancellationToken);
-
-            // Resolve Files module services lazily — they may not be registered in the
-            // Photos module host (process-isolated) DI container.
-            _storageEngine ??= _serviceProvider.GetService<IFileStorageEngine>();
-            _downloadService ??= _serviceProvider.GetService<IDownloadService>();
-
-            using var sourceStream = await OpenSourceStreamAsync(photo, storagePath, cancellationToken);
+            using var sourceStream = await OpenSourceStreamAsync(photo, cancellationToken);
             if (sourceStream is null)
             {
-                return;
+                return false;
             }
 
             using var image = await Image.LoadAsync(sourceStream, cancellationToken);
 
-            // One full-resolution resize produces the detail thumbnail...
+            // One full-resolution resize produces the detail thumbnail; the grid is derived from
+            // that result instead of re-resizing the original a second time.
             using var detailImage = ResizeImage(image, _detailMaxDimension);
             var detailData = await EncodeJpegAsync(detailImage, cancellationToken);
 
-            // ...and the grid is derived from that result (or from the Files cache) instead of
-            // re-resizing the full-resolution original a second time.
-            byte[] gridData;
-            if (filesGridSource is not null)
-            {
-                using (filesGridSource)
-                using (var gridImage = ResizeImage(filesGridSource, _gridMaxDimension))
-                {
-                    gridData = await EncodeJpegAsync(gridImage, cancellationToken);
-                }
-            }
-            else
-            {
-                using var gridImage = ResizeImage(detailImage, _gridMaxDimension);
-                gridData = await EncodeJpegAsync(gridImage, cancellationToken);
-            }
+            using var gridImage = ResizeImage(detailImage, _gridMaxDimension);
+            var gridData = await EncodeJpegAsync(gridImage, cancellationToken);
 
             photo.ThumbnailGrid = gridData;
             photo.ThumbnailDetail = detailData;
             await _db.SaveChangesAsync(cancellationToken);
 
             _logger.LogDebug(
-                "Photo thumbnails generated and stored in DB for {PhotoId} (grid={GridSize}b, detail={DetailSize}b, gridSource={GridSource})",
-                photoId, gridData.Length, detailData.Length, filesGridSource is null ? "detail" : "files-cache");
+                "Photo thumbnails generated and stored in DB for {PhotoId} (grid={GridSize}b, detail={DetailSize}b)",
+                photoId, gridData.Length, detailData.Length);
+            return true;
+        }
+        catch (FilesConsentRequiredException)
+        {
+            // A missing consent is the user's to grant, not a generation failure (see OpenSourceStreamAsync).
+            throw;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to generate thumbnails for photo {PhotoId} from storage {Path}", photoId, storagePath);
+            _logger.LogError(ex, "Failed to generate thumbnails for photo {PhotoId}", photoId);
+            return false;
         }
     }
 
     /// <summary>
-    /// Opens the photo's original bytes: the direct content-addressable blob when available,
-    /// otherwise a chunk-reassembled stream from the Files module.
+    /// Opens the photo's original bytes through the core.
     /// </summary>
-    private async Task<Stream?> OpenSourceStreamAsync(
-        Photo photo,
-        string? storagePath,
-        CancellationToken cancellationToken)
+    /// <remarks>
+    /// The module never reaches the Files module or its storage: the core brokers the read for the
+    /// acting user (capability <c>IFileDirectory</c>, consent <c>files:read</c>). A host that was not
+    /// launched by the supervisor has no core API, so the result is "unavailable" rather than an
+    /// exception.
+    /// </remarks>
+    private async Task<Stream?> OpenSourceStreamAsync(Photo photo, CancellationToken cancellationToken)
     {
-        // Try the direct storage path first (fast path for whole-file blobs),
-        // then fall back to chunk reconstruction via IDownloadService.
-        if (!string.IsNullOrEmpty(storagePath) && _storageEngine is not null)
-        {
-            var direct = await _storageEngine.OpenReadStreamAsync(storagePath, cancellationToken);
-            if (direct is not null)
-            {
-                return direct;
-            }
-        }
-
-        if (_downloadService is null)
+        if (_coreApi is null)
         {
             _logger.LogWarning(
-                "Cannot reconstruct photo {PhotoId}: IDownloadService is not available. " +
-                "Ensure Files module services are registered in the host DI container.",
+                "Cannot read the original of photo {PhotoId}: the core module API is not available " +
+                "(the host was not launched by the supervisor).",
                 photo.Id);
             return null;
         }
 
         try
         {
-            var caller = new CallerContext(photo.OwnerId, [], CallerType.System);
-            return await _downloadService.DownloadCurrentAsync(photo.FileNodeId, caller, cancellationToken);
+            return await _coreApi.DownloadFileAsync(photo.FileNodeId.ToString(), cancellationToken);
+        }
+        catch (Grpc.Core.RpcException ex) when (IsConsentRequired(ex))
+        {
+            // A consent refusal is not a module failure: the user simply has not approved `files:read`.
+            // Surface it as a 403 the UI can act on (it asks the shell for consent) instead of letting
+            // the caller's catch-all turn it into "could not read the original".
+            _logger.LogInformation(
+                "Reading the original of photo {PhotoId} needs the files:read consent.",
+                photo.Id);
+
+            throw new FilesConsentRequiredException(
+                "Reading this photo's original needs permission to use your files.");
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Failed to reconstruct file from chunks for photo {PhotoId} (FileNode {FileNodeId})",
+            _logger.LogWarning(ex, "Failed to read the original of photo {PhotoId} (FileNode {FileNodeId}) through the core",
                 photo.Id, photo.FileNodeId);
             return null;
         }
     }
 
-    /// <summary>
-    /// Returns the Files module's cached large thumbnail (512 px) for the node, if one exists.
-    /// This is a cache-only lookup — it never generates a Files thumbnail.
-    /// </summary>
-    private async Task<Image?> TryLoadFilesGridThumbnailAsync(Guid fileNodeId, CancellationToken cancellationToken)
-    {
-        if (!_useFilesCachedGridThumbnail)
-        {
-            return null;
-        }
-
-        _filesThumbnailService ??= _serviceProvider.GetService<IThumbnailService>();
-        if (_filesThumbnailService is null)
-        {
-            return null;
-        }
-
-        try
-        {
-            var (data, _) = await _filesThumbnailService.GetThumbnailAsync(
-                fileNodeId, DotNetCloud.Modules.Files.Services.ThumbnailSize.Large, cancellationToken);
-
-            if (data is null)
-            {
-                return null;
-            }
-
-            await using (data)
-            {
-                return await Image.LoadAsync(data, cancellationToken);
-            }
-        }
-        catch (Exception ex)
-        {
-            _logger.LogDebug(ex, "Files cached thumbnail unavailable for FileNode {FileNodeId}", fileNodeId);
-            return null;
-        }
-    }
+    /// <summary>True when the core refused the call because the user has not consented.</summary>
+    private static bool IsConsentRequired(Grpc.Core.RpcException exception) =>
+        exception.StatusCode == Grpc.Core.StatusCode.PermissionDenied
+        && (string.Equals(exception.Trailers?.GetValue("error-code"), ErrorCodes.ModuleConsentRequired, StringComparison.Ordinal)
+            || (exception.Status.Detail?.Contains(ErrorCodes.ModuleConsentRequired, StringComparison.Ordinal) ?? false));
 
     /// <inheritdoc />
     public async Task DeleteThumbnailsAsync(Guid photoId, CancellationToken cancellationToken = default)
@@ -316,7 +298,7 @@ public sealed class PhotoThumbnailService : IPhotoThumbnailService
     }
 
     /// <inheritdoc />
-    public async Task<bool> SaveEditsAsync(Guid photoId, CancellationToken cancellationToken = default)
+    public async Task<bool> SaveEditsAsync(Guid photoId, Guid actingUserId, CancellationToken cancellationToken = default)
     {
         try
         {
@@ -327,6 +309,13 @@ public sealed class PhotoThumbnailService : IPhotoThumbnailService
             if (photo is null)
             {
                 _logger.LogWarning("SaveEdits: Photo {PhotoId} not found", photoId);
+                return false;
+            }
+
+            // Only the owner may rewrite the thumbnail cache from the original.
+            if (photo.OwnerId != actingUserId)
+            {
+                _logger.LogDebug("SaveEdits: caller is not the owner of photo {PhotoId}", photoId);
                 return false;
             }
 
@@ -344,23 +333,19 @@ public sealed class PhotoThumbnailService : IPhotoThumbnailService
 
             if (editRecords.Count == 0)
             {
-                _logger.LogDebug("SaveEdits: No edits to apply for photo {PhotoId}", photoId);
-                return true; // nothing to do
+                // Revert-all and undo arrive here with an empty stack: the previews still have to be
+                // rebuilt, because earlier "save" baked them and the point of the revert is to undo
+                // that. An empty stack therefore renders the untouched original.
+                _logger.LogDebug("SaveEdits: no queued edits for photo {PhotoId}; re-rendering the original", photoId);
             }
 
-            // 3. Reassemble original file from chunks via IDownloadService
-            //    (same pattern as Music module — files are stored as content-addressable
-            //    chunks, NOT single blobs, so we must reassemble before processing).
-            _downloadService ??= _serviceProvider.GetService<IDownloadService>();
-            if (_downloadService is null)
+            // 3. Read the original through the core (the module has no filesystem access to it).
+            using var sourceStream = await OpenSourceStreamAsync(photo, cancellationToken);
+            if (sourceStream is null)
             {
-                _logger.LogWarning("SaveEdits: IDownloadService not available — cannot edit photo {PhotoId}", photoId);
+                _logger.LogWarning("SaveEdits: the original of photo {PhotoId} could not be read", photoId);
                 return false;
             }
-
-            var caller = new CallerContext(photo.OwnerId, [], CallerType.System);
-            using var sourceStream = await _downloadService.DownloadCurrentAsync(
-                photo.FileNodeId, caller, cancellationToken);
 
             using var image = await Image.LoadAsync(sourceStream, cancellationToken);
 
@@ -396,6 +381,10 @@ public sealed class PhotoThumbnailService : IPhotoThumbnailService
                 editRecords.Count, photoId);
             return true;
         }
+        catch (FilesConsentRequiredException)
+        {
+            throw;
+        }
         catch (Exception ex)
         {
             _logger.LogError(ex, "SaveEdits: Failed to save edits for photo {PhotoId}", photoId);
@@ -403,49 +392,156 @@ public sealed class PhotoThumbnailService : IPhotoThumbnailService
         }
     }
 
+    /// <inheritdoc />
+    /// <remarks>
+    /// The same operation as <see cref="SaveEditsAsync"/> - render the current edit stack onto the
+    /// previews, with an empty stack rendering the unedited original. This name exists because "save"
+    /// reads wrong at the undo/revert call sites.
+    /// </remarks>
+    public Task<bool> RegeneratePreviewsAsync(Guid photoId, Guid actingUserId, CancellationToken cancellationToken = default)
+        => SaveEditsAsync(photoId, actingUserId, cancellationToken);
+
     private static void ApplyEditToImage(Image image, PhotoEditType editType, Dictionary<string, string> parameters)
     {
-        if (!parameters.TryGetValue("value", out var valueStr) || !int.TryParse(valueStr, out var value))
-            return;
-
-        image.Mutate(ctx =>
+        switch (editType)
         {
-            switch (editType)
-            {
-                case PhotoEditType.Rotate:
-                    ctx.Rotate(value);
-                    break;
+            case PhotoEditType.Rotate:
+                if (TryReadInt(parameters, "value", out var degrees))
+                {
+                    image.Mutate(ctx => ctx.Rotate(degrees));
+                }
 
-                case PhotoEditType.Flip:
-                    if (value == 0)
-                        ctx.Flip(FlipMode.Horizontal);
-                    else
-                        ctx.Flip(FlipMode.Vertical);
-                    break;
+                break;
 
-                case PhotoEditType.Brightness:
-                    // value is -100 to 100; ImageSharp expects a multiplier where 1.0 = no change
-                    ctx.Brightness(1.0f + (value / 100f));
-                    break;
+            case PhotoEditType.Flip:
+                if (TryReadInt(parameters, "value", out var flip))
+                {
+                    image.Mutate(ctx => ctx.Flip(flip == 0 ? FlipMode.Horizontal : FlipMode.Vertical));
+                }
 
-                case PhotoEditType.Contrast:
-                    ctx.Contrast(1.0f + (value / 100f));
-                    break;
+                break;
 
-                case PhotoEditType.Saturation:
-                    ctx.Saturate(1.0f + (value / 100f));
-                    break;
+            case PhotoEditType.Brightness:
+            case PhotoEditType.Contrast:
+            case PhotoEditType.Saturation:
+                // The API takes -100..100; ImageSharp takes a multiplier where 1.0 is no change.
+                if (TryReadFloat(parameters, "value", out var amount))
+                {
+                    var factor = 1.0f + (amount / 100f);
+                    image.Mutate(ctx =>
+                    {
+                        switch (editType)
+                        {
+                            case PhotoEditType.Brightness:
+                                ctx.Brightness(factor);
+                                break;
+                            case PhotoEditType.Contrast:
+                                ctx.Contrast(factor);
+                                break;
+                            default:
+                                ctx.Saturate(factor);
+                                break;
+                        }
+                    });
+                }
 
-                case PhotoEditType.Blur:
-                    if (value > 0)
-                        ctx.GaussianBlur(value);
-                    break;
+                break;
 
-                case PhotoEditType.Sharpen:
-                    if (value > 0)
-                        ctx.GaussianSharpen(value);
-                    break;
-            }
-        });
+            case PhotoEditType.Blur:
+            case PhotoEditType.Sharpen:
+                // `radius` is what the API validator accepts; `value` is what the first UI sent.
+                if (TryReadRadius(parameters, out var radius) && radius > 0)
+                {
+                    image.Mutate(ctx =>
+                    {
+                        if (editType == PhotoEditType.Blur)
+                        {
+                            ctx.GaussianBlur(radius);
+                        }
+                        else
+                        {
+                            ctx.GaussianSharpen(radius);
+                        }
+                    });
+                }
+
+                break;
+
+            case PhotoEditType.Crop:
+                ApplyCrop(image, parameters);
+                break;
+        }
     }
+
+    /// <summary>
+    /// Crops to the recorded rectangle, clamped to the image it is applied to.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Normalized fractions (nx/ny/nw/nh) win when present: they are resolved against the image the
+    /// pipeline is holding, so a crop works even when the photo has no recorded pixel size and stays
+    /// correct after an earlier operation changed the frame.
+    /// </para>
+    /// <para>
+    /// Absolute pixels (x/y/width/height) are the shape older stacks already store. Either way the
+    /// rectangle is clamped to the current image, which turns a stale rectangle into the largest legal
+    /// crop instead of throwing and losing the whole stack - which is why the old pipeline, whose
+    /// single int gate skipped Crop entirely, could never apply one.
+    /// </para>
+    /// </remarks>
+    private static void ApplyCrop(Image image, Dictionary<string, string> parameters)
+    {
+        if (TryReadFloat(parameters, "nx", out var nx)
+            && TryReadFloat(parameters, "ny", out var ny)
+            && TryReadFloat(parameters, "nw", out var nw)
+            && TryReadFloat(parameters, "nh", out var nh)
+            && nw > 0f
+            && nh > 0f)
+        {
+            var left = (int)Math.Round(Math.Clamp(nx, 0f, 1f) * image.Width);
+            var top = (int)Math.Round(Math.Clamp(ny, 0f, 1f) * image.Height);
+            var right = (int)Math.Round(Math.Clamp(nx + nw, 0f, 1f) * image.Width);
+            var bottom = (int)Math.Round(Math.Clamp(ny + nh, 0f, 1f) * image.Height);
+
+            left = Math.Clamp(left, 0, image.Width - 1);
+            top = Math.Clamp(top, 0, image.Height - 1);
+            var normalizedWidth = Math.Clamp(right - left, 1, image.Width - left);
+            var normalizedHeight = Math.Clamp(bottom - top, 1, image.Height - top);
+
+            image.Mutate(ctx => ctx.Crop(new Rectangle(left, top, normalizedWidth, normalizedHeight)));
+            return;
+        }
+
+        if (!TryReadInt(parameters, "x", out var x)
+            || !TryReadInt(parameters, "y", out var y)
+            || !TryReadInt(parameters, "width", out var width)
+            || !TryReadInt(parameters, "height", out var height))
+        {
+            return;
+        }
+
+        x = Math.Clamp(x, 0, image.Width - 1);
+        y = Math.Clamp(y, 0, image.Height - 1);
+        width = Math.Clamp(width, 1, image.Width - x);
+        height = Math.Clamp(height, 1, image.Height - y);
+
+        image.Mutate(ctx => ctx.Crop(new Rectangle(x, y, width, height)));
+    }
+
+    private static bool TryReadInt(Dictionary<string, string> parameters, string key, out int value)
+    {
+        value = 0;
+        return parameters.TryGetValue(key, out var raw)
+            && int.TryParse(raw, System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out value);
+    }
+
+    private static bool TryReadFloat(Dictionary<string, string> parameters, string key, out float value)
+    {
+        value = 0;
+        return parameters.TryGetValue(key, out var raw)
+            && float.TryParse(raw, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out value);
+    }
+
+    private static bool TryReadRadius(Dictionary<string, string> parameters, out float radius)
+        => TryReadFloat(parameters, "radius", out radius) || TryReadFloat(parameters, "value", out radius);
 }

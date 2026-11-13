@@ -1,0 +1,39 @@
+@page "/"
+@using DotNetCloud.Modules.Example.Web.UI
+
+<PageTitle>@(IsHelp ? "Example help" : "Example notes")</PageTitle>
+
+@* A single page with a view switch: the module proxy serves static files under
+   /apps/{moduleId}/**, so a path segment such as /help never reaches the WebAssembly router and a
+   reload of it 404s. The view therefore travels as a query parameter. *@
+<div class="sidebar" aria-label="Example module navigation">
+    <div class="sidebar-header">
+        <span class="sidebar-title">Example</span>
+    </div>
+
+    <ul class="sidebar-nav">
+        <li>
+            <button type="button" class="nav-link @(IsHelp ? null : "is-active")" @onclick="() => ShowAsync(help: false)">
+                Notes
+            </button>
+        </li>
+        <li>
+            <button type="button" class="nav-link @(IsHelp ? "is-active" : null)" @onclick="() => ShowAsync(help: true)">
+                Help
+            </button>
+        </li>
+    </ul>
+
+    <p class="sidebar-footnote">Reference module — not for production use.</p>
+</div>
+
+<main class="main">
+    @if (IsHelp)
+    {
+        <HelpPanel />
+    }
+    else
+    {
+        <NotesPanel />
+    }
+</main>

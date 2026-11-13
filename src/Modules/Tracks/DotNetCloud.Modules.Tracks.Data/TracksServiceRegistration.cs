@@ -63,7 +63,8 @@ public static class TracksServiceRegistration
         services.AddScoped<WebhookService>();
         services.AddScoped<WebhookDeliveryService>();
         services.AddScoped<IWebhookDispatchService, WebhookDispatchService>();
-        services.AddScoped<ICommandPaletteService, CommandPaletteService>();
+        // The command palette moved into the framed WASM UI (Tracks.Web.Services.BrowserCommandPalette);
+        // there is no core-side palette RPC, so the server implementation was dead code.
         services.AddScoped<AutomationRuleService>();
         services.AddScoped<GoalService>();
         services.AddScoped<IAutomationRuleExecutionService, AutomationRuleExecutionService>();
@@ -76,73 +77,6 @@ public static class TracksServiceRegistration
         services.AddHostedService<ProductCleanupBackgroundService>();
         services.AddHostedService<RecurringWorkItemBackgroundService>();
         services.AddHostedService<WebhookRetryBackgroundService>();
-
-        return services;
-    }
-
-    /// <summary>
-    /// Adds only the Tracks services needed by Blazor UI components rendered in Core.Server.
-    /// Excludes background services that should only run in the module host process.
-    /// Includes TracksDbContext registration for Blazor Server interactive rendering.
-    /// </summary>
-    public static IServiceCollection AddTracksUiServices(
-        this IServiceCollection services,
-        IConfiguration configuration,
-        DatabaseProvider provider,
-        string connectionString)
-    {
-        // Register TracksDbContext for Blazor Server interactive rendering
-        services.AddDbContext<TracksDbContext>(options =>
-            ModuleDbContextConfiguration.Configure(options, provider, connectionString, "DotNetCloud.Modules.Tracks.Data.SqlServer"),
-            ServiceLifetime.Transient);
-
-        // Real-time services (singletons)
-        services.AddSingleton<TracksInProcessSignalRService>();
-        services.AddSingleton<ITracksSignalRService>(sp => sp.GetRequiredService<TracksInProcessSignalRService>());
-        services.AddSingleton<ITracksRealtimeService, TracksRealtimeService>();
-
-        // Data services (scoped)
-        services.AddScoped<ProductService>();
-        services.AddScoped<WorkItemService>();
-        services.AddScoped<SprintService>();
-        services.AddScoped<SprintPlanningService>();
-        services.AddScoped<SwimlaneService>();
-        services.AddScoped<SwimlaneTransitionService>();
-        services.AddScoped<CommentService>();
-        services.AddScoped<ChecklistService>();
-        services.AddScoped<DependencyService>();
-        services.AddScoped<TimeTrackingService>();
-        services.AddScoped<AttachmentService>();
-        services.AddScoped<AnalyticsService>();
-        services.AddScoped<PokerService>();
-        services.AddScoped<ReviewSessionService>();
-        services.AddScoped<ActivityService>();
-        services.AddScoped<ItemTemplateService>();
-        services.AddScoped<ProductTemplateService>();
-        services.AddScoped<CustomViewService>();
-        services.AddScoped<CustomFieldService>();
-        services.AddScoped<MilestoneService>();
-        services.AddScoped<RecurringWorkItemService>();
-        services.AddScoped<ShareLinkService>();
-        services.AddScoped<GuestAccessService>();
-        services.AddScoped<TemplateSeedService>();
-        services.AddScoped<CsvImportService>();
-        services.AddScoped<ICsvImportUiService, CsvImportUiService>();
-        services.AddScoped<WebhookService>();
-        services.AddScoped<WebhookDeliveryService>();
-        services.AddScoped<IWebhookDispatchService, WebhookDispatchService>();
-        services.AddScoped<ICommandPaletteService, CommandPaletteService>();
-        services.AddScoped<AutomationRuleService>();
-        services.AddScoped<GoalService>();
-        services.AddScoped<IAutomationRuleExecutionService, AutomationRuleExecutionService>();
-        services.AddScoped<SprintDiscussionService>();
-
-        // Cross-module services
-        services.AddScoped<ICardAttachmentCleanupService, AttachmentCleanupService>();
-
-        // NOTE: Background services (ProductCleanupBackgroundService,
-        // RecurringWorkItemBackgroundService, WebhookRetryBackgroundService)
-        // are NOT registered here — they run only in the module host process.
 
         return services;
     }

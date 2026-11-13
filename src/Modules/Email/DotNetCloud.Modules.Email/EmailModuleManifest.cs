@@ -16,17 +16,13 @@ public sealed class EmailModuleManifest : IModuleManifest
     public string Name => "Email";
 
     /// <inheritdoc />
-    public string Version => "1.0.0";
+    public string Version => "1.1.0";
 
     /// <inheritdoc />
     public IReadOnlyCollection<string> RequiredCapabilities => new[]
     {
-        nameof(Core.Capabilities.INotificationService),
-        nameof(Core.Capabilities.ICurrentUserContext),
         nameof(Core.Capabilities.IAuditLogger),
-        nameof(Core.Capabilities.IContactDirectory),
-        nameof(Core.Capabilities.IFileDirectory),
-        nameof(Core.Capabilities.IStorageProvider)
+        nameof(Core.Capabilities.ISearchProvider)
     };
 
     /// <inheritdoc />
@@ -37,8 +33,7 @@ public sealed class EmailModuleManifest : IModuleManifest
         nameof(EmailThreadCreatedEvent),
         nameof(EmailMessageReceivedEvent),
         nameof(EmailSentEvent),
-        nameof(EmailRuleTriggeredEvent),
-        nameof(EmailAttachmentDetachedEvent)
+        nameof(EmailRuleTriggeredEvent)
     };
 
     /// <inheritdoc />

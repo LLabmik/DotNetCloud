@@ -87,3 +87,65 @@ jobs:
 
       - name: Build extension
         run: npm run build
+
+  # ===========================================================================
+  # Module package fixture (B1)
+  #   Packs the Example module as a .dncpkg, signs it with an ephemeral key,
+  #   verifies it, and stores the artifact. This is the fixture the installer
+  #   tests (B3) will consume, and it fails the build if the package format
+  #   regresses (nondeterminism, archive safety, manifest validation).
+  # ===========================================================================
+  module-package:
+    name: Module Package Fixture
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Restore dependencies
+        run: dotnet restore src/Tools/DotNetCloud.ModulePackaging/DotNetCloud.ModulePackaging.csproj
+
+      - name: Build packer
+        run: dotnet build src/Tools/DotNetCloud.ModulePackaging/DotNetCloud.ModulePackaging.csproj --no-restore --configuration Release
+
+      - name: Generate an ephemeral signing key
+        run: |
+          dotnet src/Tools/DotNetCloud.ModulePackaging/bin/Release/net10.0/dotnetcloud-pack.dll \
+            keygen --key-id ci-ephemeral --output "${RUNNER_TEMP}/ci.key.json"
+
+      - name: Pack the Example module
+        run: |
+          dotnet src/Tools/DotNetCloud.ModulePackaging/bin/Release/net10.0/dotnetcloud-pack.dll pack \
+            --project src/Modules/Example/DotNetCloud.Modules.Example.Host/DotNetCloud.Modules.Example.Host.csproj \
+            --rid linux-x64 \
+            --sign-key "${RUNNER_TEMP}/ci.key.json" \
+            --output "${RUNNER_TEMP}/package/dotnetcloud.example-1.0.0.dncpkg" \
+            --feed "${RUNNER_TEMP}/feed"
+
+      - name: Verify the package independently
+        run: |
+          dotnet src/Tools/DotNetCloud.ModulePackaging/bin/Release/net10.0/dotnetcloud-pack.dll verify \
+            "${RUNNER_TEMP}/package/dotnetcloud.example-1.0.0.dncpkg" \
+            --key-file "${RUNNER_TEMP}/ci.key.json"
+
+      - name: Inspect the package
+        run: |
+          dotnet src/Tools/DotNetCloud.ModulePackaging/bin/Release/net10.0/dotnetcloud-pack.dll inspect \
+            "${RUNNER_TEMP}/package/dotnetcloud.example-1.0.0.dncpkg"
+
+      - name: Upload package + local feed
+        uses: actions/upload-artifact@v4
+        with:
+          name: example-module-package
+          path: |
+            ${{ runner.temp }}/package/*.dncpkg
+            ${{ runner.temp }}/package/*.sig
+            ${{ runner.temp }}/feed/index.json
+          if-no-files-found: error
+          retention-days: 14

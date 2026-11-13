@@ -48,7 +48,11 @@ public sealed class FileSystemAttachmentStorage : IAttachmentStorage
         }
         else
         {
-            var dataDir = Environment.GetEnvironmentVariable("DOTNETCLOUD_DATA_DIR");
+            // A sandboxed module gets its own data directory (DOTNETCLOUD_MODULE_DATA_DIR) and must
+            // not write into the core's (DOTNETCLOUD_DATA_DIR), which it no longer receives.
+            var dataDir = Environment.GetEnvironmentVariable("DOTNETCLOUD_MODULE_DATA_DIR");
+            if (string.IsNullOrWhiteSpace(dataDir))
+                dataDir = Environment.GetEnvironmentVariable("DOTNETCLOUD_DATA_DIR");
             if (string.IsNullOrWhiteSpace(dataDir))
                 dataDir = "/var/lib/dotnetcloud";
             _basePath = Path.Combine(dataDir, "email-attachments");

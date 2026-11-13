@@ -2,14 +2,23 @@ using DotNetCloud.Core.DTOs;
 using DotNetCloud.Core.Errors;
 using DotNetCloud.Modules.Tracks.Models;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace DotNetCloud.Modules.Tracks.Data.Services;
 
 public sealed class SprintService
 {
     private readonly TracksDbContext _db;
+    private readonly DotNetCloud.Core.Capabilities.IUserDirectory? _userDirectory;
 
-    public SprintService(TracksDbContext db) => _db = db;
+    public SprintService(TracksDbContext db, IServiceProvider? serviceProvider = null)
+    {
+        _db = db;
+
+        // Optional capability, resolved with GetService so a test or minimal host container that
+        // has no user directory still resolves sprints (assignee names then stay blank).
+        _userDirectory = serviceProvider?.GetService<DotNetCloud.Core.Capabilities.IUserDirectory>();
+    }
 
     public async Task<SprintDto> CreateSprintAsync(Guid epicId, CreateSprintDto dto, CancellationToken ct)
     {
@@ -193,10 +202,13 @@ public sealed class SprintService
                 && !wi.IsDeleted
                 && !wi.IsArchived
                 && !assignedItemIds.Contains(wi.Id))
+            .Include(wi => wi.Assignments)
             .OrderBy(wi => wi.Position)
             .ToListAsync(ct);
 
-        return items.Select(MapWorkItemToDto).ToList();
+        var dtos = items.Select(MapWorkItemToDto).ToList();
+
+        return await UserDisplayNames.ResolveWorkItemsAsync(dtos, _userDirectory, ct);
     }
 
     private static SprintDto MapToDto(Sprint sprint, int? itemCountOverride = null)

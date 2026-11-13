@@ -1,0 +1,208 @@
+.module-app-host {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-height: 420px;
+  height: calc(100vh - 120px);
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--color-surface, #fff);
+}
+
+.module-app-frame {
+  flex: 1 1 auto;
+  width: 100%;
+  min-height: 0;
+  border: 0;
+  background: transparent;
+}
+
+.module-app-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 32px;
+  text-align: center;
+  color: var(--color-text-muted, #5f6368);
+  background: var(--color-surface, #fff);
+}
+
+.module-app-overlay--busy {
+  background: var(--color-surface, #fff);
+}
+
+.module-app-overlay-title {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--color-text, #202124);
+}
+
+.module-app-overlay-text {
+  margin: 0;
+  max-width: 32rem;
+  font-size: 0.9rem;
+}
+
+.module-app-spinner {
+  width: 32px;
+  height: 32px;
+  border: 3px solid var(--color-border, #dadce0);
+  border-top-color: var(--color-primary, #1a73e8);
+  border-radius: 50%;
+  animation: module-app-spin 0.9s linear infinite;
+}
+
+@keyframes module-app-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.module-app-retry {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border: 1px solid var(--color-border, #dadce0);
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.module-app-retry:hover {
+  background: var(--color-surface-hover, rgba(0, 0, 0, 0.04));
+}
+
+/* Permission bar: an inline band above the frame, not a floating overlay. A module owns the bottom
+   of its own page (the Music player is pinned there), so an overlay covered the app the user is
+   being asked about. Being in the flex column means the frame shrinks instead. */
+.module-app-consent {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin: 12px 12px 0;
+  padding: 12px 14px;
+  border: 1px solid var(--color-border, #dadce0);
+  border-left: 4px solid var(--color-primary, #1a73e8);
+  border-radius: 10px;
+  /* Tokens only: `--color-surface-elevated` does not exist, and its light fallback produced
+     light-on-light text in the dark theme (the title was invisible). */
+  background: var(--color-surface, #ffffff);
+  color: var(--color-text, #1e293b);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+.module-app-consent-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--color-primary, #3b82f6) 16%, transparent);
+  color: var(--color-primary, #3b82f6);
+}
+
+.module-app-consent-body {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.module-app-consent-title {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.module-app-consent-scopes {
+  margin: 2px 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: 0.85rem;
+  color: var(--color-text-secondary, #64748b);
+}
+
+.module-app-consent-scopes li::before {
+  content: "•";
+  margin-right: 6px;
+}
+
+.module-app-consent-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 0 0 auto;
+}
+
+.module-app-consent-review {
+  white-space: nowrap;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--color-primary, #3b82f6);
+}
+
+.module-app-consent-approve {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border: 1px solid var(--color-primary, #1a73e8);
+  border-radius: 8px;
+  background: var(--color-primary, #3b82f6);
+  color: #fff;
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.module-app-consent-approve:hover:not(:disabled) {
+  filter: brightness(1.05);
+}
+
+.module-app-consent-approve:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.module-app-consent-dismiss {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--color-text-secondary, #64748b);
+  cursor: pointer;
+}
+
+.module-app-consent-dismiss:hover {
+  background: color-mix(in srgb, var(--color-text, #1e293b) 8%, transparent);
+}
+
+@media (max-width: 768px) {
+  .module-app-host {
+    height: calc(100vh - 88px);
+  }
+
+  .module-app-consent {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .module-app-consent-actions {
+    width: 100%;
+    justify-content: flex-end;
+  }
+}

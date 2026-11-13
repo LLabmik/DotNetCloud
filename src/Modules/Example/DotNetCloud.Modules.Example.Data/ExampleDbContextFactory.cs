@@ -17,8 +17,7 @@ public class ExampleDbContextFactory : IDesignTimeDbContextFactory<ExampleDbCont
             ?? "Host=localhost;Database=dotnetcloud;Username=dotnetcloud";
 
         var optionsBuilder = new DbContextOptionsBuilder<ExampleDbContext>();
-        optionsBuilder.UseNpgsql(connectionString, npgsql =>
-            npgsql.MigrationsHistoryTable("__EFMigrationsHistory", "example"));
+        optionsBuilder.UseNpgsql(connectionString);
 
         return new ExampleDbContext(optionsBuilder.Options, new PostgreSqlNamingStrategy());
     }

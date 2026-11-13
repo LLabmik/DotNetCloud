@@ -7,6 +7,7 @@ using DotNetCloud.Modules.Photos.Data.Services;
 using DotNetCloud.Modules.Photos.Models;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
+using System.Text.Json;
 
 namespace DotNetCloud.Modules.Photos.Tests;
 
@@ -39,7 +40,7 @@ public class PhotoEditServiceTests
         var op = new PhotoEditOperationDto
         {
             OperationType = PhotoEditType.Rotate,
-            Parameters = new Dictionary<string, string> { ["degrees"] = "90" }
+            Parameters = new Dictionary<string, string> { ["value"] = "90" }
         };
 
         var result = await _service.ApplyEditAsync(photo.Id, op, _caller);
@@ -49,18 +50,81 @@ public class PhotoEditServiceTests
     }
 
     [TestMethod]
+    public async Task ApplyEdit_ReturnsABoundaryDtoNotTheEntityGraph()
+    {
+        // Regression: the endpoint used to return the PhotoEditRecord entity, whose loaded `Photo`
+        // navigation serialised every cached thumbnail as base64 — a 27 MB body for a tiny edit, which
+        // the UI proxy reset mid-stream (the browser reported ERR_HTTP2_PROTOCOL_ERROR).
+        var photo = await TestHelpers.SeedPhotoAsync(_db, _caller.UserId);
+        photo.ThumbnailGrid = new byte[512 * 1024];
+        photo.ThumbnailDetail = new byte[1024 * 1024];
+        await _db.SaveChangesAsync();
+
+        var op = new PhotoEditOperationDto
+        {
+            OperationType = PhotoEditType.Rotate,
+            Parameters = new Dictionary<string, string> { ["value"] = "90" }
+        };
+
+        var result = await _service.ApplyEditAsync(photo.Id, op, _caller);
+
+        Assert.IsInstanceOfType<PhotoEditRecordDto>(result);
+        Assert.AreEqual("Rotate", result.OperationType);
+        Assert.AreEqual("90", result.Parameters["value"]);
+        Assert.AreEqual(1, result.StackOrder);
+
+        var json = JsonSerializer.Serialize(result);
+        Assert.IsFalse(json.Contains("thumbnail", StringComparison.OrdinalIgnoreCase),
+            "The edit response must not carry the photo, and with it the thumbnail blobs.");
+        Assert.IsTrue(json.Length < 1024, $"The edit response should be tiny, was {json.Length} chars.");
+    }
+
+    [TestMethod]
+    public async Task ApplyEdit_Rotate270_Succeeds()
+    {
+        // Quarter turn anticlockwise. ImageSharp has no negative rotate mode, so this is 270 and not -90.
+        var photo = await TestHelpers.SeedPhotoAsync(_db, _caller.UserId);
+        var op = new PhotoEditOperationDto
+        {
+            OperationType = PhotoEditType.Rotate,
+            Parameters = new Dictionary<string, string> { ["value"] = "270" }
+        };
+
+        var result = await _service.ApplyEditAsync(photo.Id, op, _caller);
+
+        Assert.IsNotNull(result);
+    }
+
+    [TestMethod]
     public async Task ApplyEdit_Rotate45_ThrowsInvalidPhotoEdit()
     {
         var photo = await TestHelpers.SeedPhotoAsync(_db, _caller.UserId);
         var op = new PhotoEditOperationDto
         {
             OperationType = PhotoEditType.Rotate,
-            Parameters = new Dictionary<string, string> { ["degrees"] = "45" }
+            Parameters = new Dictionary<string, string> { ["value"] = "45" }
         };
 
         var ex = await Assert.ThrowsExactlyAsync<BusinessRuleException>(
             () => _service.ApplyEditAsync(photo.Id, op, _caller));
         Assert.AreEqual(ErrorCodes.InvalidPhotoEdit, ex.ErrorCode);
+    }
+
+    [TestMethod]
+    public async Task ApplyEdit_RotateWithoutValue_ThrowsInvalidPhotoEdit()
+    {
+        // A rotation with no value used to be stored and then silently skipped by the renderer.
+        var photo = await TestHelpers.SeedPhotoAsync(_db, _caller.UserId);
+        var op = new PhotoEditOperationDto
+        {
+            OperationType = PhotoEditType.Rotate,
+            Parameters = new Dictionary<string, string>()
+        };
+
+        var ex = await Assert.ThrowsExactlyAsync<BusinessRuleException>(
+            () => _service.ApplyEditAsync(photo.Id, op, _caller));
+        Assert.AreEqual(ErrorCodes.InvalidPhotoEdit, ex.ErrorCode);
+        Assert.AreEqual(0, _db.PhotoEditRecords.Count(), "A rejected edit must not be stored.");
     }
 
     [TestMethod]
@@ -100,13 +164,19 @@ public class PhotoEditServiceTests
     }
 
     [TestMethod]
-    public async Task ApplyEdit_FlipHorizontal_Succeeds()
+    public async Task ApplyEdit_CropNormalized_Succeeds()
     {
         var photo = await TestHelpers.SeedPhotoAsync(_db, _caller.UserId);
         var op = new PhotoEditOperationDto
         {
-            OperationType = PhotoEditType.Flip,
-            Parameters = new Dictionary<string, string> { ["direction"] = "horizontal" }
+            OperationType = PhotoEditType.Crop,
+            Parameters = new Dictionary<string, string>
+            {
+                ["nx"] = "0.1",
+                ["ny"] = "0.2",
+                ["nw"] = "0.5",
+                ["nh"] = "0.6"
+            }
         };
 
         var result = await _service.ApplyEditAsync(photo.Id, op, _caller);
@@ -115,13 +185,85 @@ public class PhotoEditServiceTests
     }
 
     [TestMethod]
-    public async Task ApplyEdit_FlipInvalidDirection_ThrowsInvalidPhotoEdit()
+    public async Task ApplyEdit_CropNormalizedOutOfRange_ThrowsInvalidPhotoEdit()
+    {
+        var photo = await TestHelpers.SeedPhotoAsync(_db, _caller.UserId);
+        var op = new PhotoEditOperationDto
+        {
+            OperationType = PhotoEditType.Crop,
+            Parameters = new Dictionary<string, string>
+            {
+                ["nx"] = "1.5",
+                ["ny"] = "0",
+                ["nw"] = "0.5",
+                ["nh"] = "0.5"
+            }
+        };
+
+        var ex = await Assert.ThrowsExactlyAsync<BusinessRuleException>(
+            () => _service.ApplyEditAsync(photo.Id, op, _caller));
+        Assert.AreEqual(ErrorCodes.InvalidPhotoEdit, ex.ErrorCode);
+    }
+
+    [TestMethod]
+    public async Task ApplyEdit_CropNormalizedZeroSize_ThrowsInvalidPhotoEdit()
+    {
+        var photo = await TestHelpers.SeedPhotoAsync(_db, _caller.UserId);
+        var op = new PhotoEditOperationDto
+        {
+            OperationType = PhotoEditType.Crop,
+            Parameters = new Dictionary<string, string>
+            {
+                ["nx"] = "0",
+                ["ny"] = "0",
+                ["nw"] = "0",
+                ["nh"] = "0.5"
+            }
+        };
+
+        var ex = await Assert.ThrowsExactlyAsync<BusinessRuleException>(
+            () => _service.ApplyEditAsync(photo.Id, op, _caller));
+        Assert.AreEqual(ErrorCodes.InvalidPhotoEdit, ex.ErrorCode);
+    }
+
+    [TestMethod]
+    public async Task ApplyEdit_FlipHorizontal_Succeeds()
     {
         var photo = await TestHelpers.SeedPhotoAsync(_db, _caller.UserId);
         var op = new PhotoEditOperationDto
         {
             OperationType = PhotoEditType.Flip,
-            Parameters = new Dictionary<string, string> { ["direction"] = "diagonal" }
+            Parameters = new Dictionary<string, string> { ["value"] = "0" }
+        };
+
+        var result = await _service.ApplyEditAsync(photo.Id, op, _caller);
+
+        Assert.IsNotNull(result);
+    }
+
+    [TestMethod]
+    public async Task ApplyEdit_FlipVertical_Succeeds()
+    {
+        var photo = await TestHelpers.SeedPhotoAsync(_db, _caller.UserId);
+        var op = new PhotoEditOperationDto
+        {
+            OperationType = PhotoEditType.Flip,
+            Parameters = new Dictionary<string, string> { ["value"] = "1" }
+        };
+
+        var result = await _service.ApplyEditAsync(photo.Id, op, _caller);
+
+        Assert.IsNotNull(result);
+    }
+
+    [TestMethod]
+    public async Task ApplyEdit_FlipInvalidValue_ThrowsInvalidPhotoEdit()
+    {
+        var photo = await TestHelpers.SeedPhotoAsync(_db, _caller.UserId);
+        var op = new PhotoEditOperationDto
+        {
+            OperationType = PhotoEditType.Flip,
+            Parameters = new Dictionary<string, string> { ["value"] = "diagonal" }
         };
 
         var ex = await Assert.ThrowsExactlyAsync<BusinessRuleException>(
@@ -195,7 +337,7 @@ public class PhotoEditServiceTests
         var op = new PhotoEditOperationDto
         {
             OperationType = PhotoEditType.Rotate,
-            Parameters = new Dictionary<string, string> { ["degrees"] = "90" }
+            Parameters = new Dictionary<string, string> { ["value"] = "90" }
         };
 
         await Assert.ThrowsExactlyAsync<BusinessRuleException>(
@@ -210,7 +352,7 @@ public class PhotoEditServiceTests
         var op1 = new PhotoEditOperationDto
         {
             OperationType = PhotoEditType.Rotate,
-            Parameters = new Dictionary<string, string> { ["degrees"] = "90" }
+            Parameters = new Dictionary<string, string> { ["value"] = "90" }
         };
         var op2 = new PhotoEditOperationDto
         {
@@ -235,7 +377,7 @@ public class PhotoEditServiceTests
         var op = new PhotoEditOperationDto
         {
             OperationType = PhotoEditType.Rotate,
-            Parameters = new Dictionary<string, string> { ["degrees"] = "180" }
+            Parameters = new Dictionary<string, string> { ["value"] = "180" }
         };
         await _service.ApplyEditAsync(photo.Id, op, _caller);
 
@@ -263,7 +405,7 @@ public class PhotoEditServiceTests
         var op = new PhotoEditOperationDto
         {
             OperationType = PhotoEditType.Rotate,
-            Parameters = new Dictionary<string, string> { ["degrees"] = "90" }
+            Parameters = new Dictionary<string, string> { ["value"] = "90" }
         };
         await _service.ApplyEditAsync(photo.Id, op, _caller);
 
@@ -290,7 +432,7 @@ public class PhotoEditServiceTests
             var op = new PhotoEditOperationDto
             {
                 OperationType = PhotoEditType.Rotate,
-                Parameters = new Dictionary<string, string> { ["degrees"] = "90" }
+                Parameters = new Dictionary<string, string> { ["value"] = "90" }
             };
             await _service.ApplyEditAsync(photo.Id, op, _caller);
         }

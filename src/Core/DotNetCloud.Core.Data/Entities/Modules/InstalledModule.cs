@@ -134,6 +134,24 @@ public class InstalledModule
     /// </remarks>
     public DateTime UpdatedAt { get; set; }
 
+    /// <summary>
+    /// How the module came to be installed. Derived from provenance at install time and persisted;
+    /// never inferred from <see cref="ModuleId"/>.
+    /// </summary>
+    public ModuleTrustTier TrustTier { get; set; } = ModuleTrustTier.Bundled;
+
+    /// <summary>Publisher id from a signed store package, when the module came from the store.</summary>
+    public string? PublisherId { get; set; }
+
+    /// <summary>Id of the signing key that verified the store package, when applicable.</summary>
+    public string? SignedByKeyId { get; set; }
+
+    /// <summary>How the module persists its own data.</summary>
+    public ModuleDataStoreMode DataStoreMode { get; set; } = ModuleDataStoreMode.None;
+
+    /// <summary>Sandbox state shown to operators.</summary>
+    public ModuleSandboxStatus SandboxStatus { get; set; } = ModuleSandboxStatus.Active;
+
     // ==================== Navigation Properties ====================
 
     /// <summary>
@@ -145,4 +163,14 @@ public class InstalledModule
     /// <para>Used to track which capabilities (IUserDirectory, IStorageProvider, etc.) are granted to this module.</para>
     /// </remarks>
     public virtual ICollection<ModuleCapabilityGrant> CapabilityGrants { get; set; } = new List<ModuleCapabilityGrant>();
+
+    /// <summary>
+    /// Navigation property to the per-user consent grants for this module.
+    /// </summary>
+    /// <remarks>
+    /// <para>Cascade delete enabled: uninstalling a module removes every user's consent for it.</para>
+    /// <para>Consent decides <em>whose</em> data the module may touch; the capability grant decides
+    /// whether the module may call the code path at all.</para>
+    /// </remarks>
+    public virtual ICollection<ModuleUserConsent> UserConsents { get; set; } = new List<ModuleUserConsent>();
 }

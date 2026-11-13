@@ -43,7 +43,6 @@ internal sealed class NotificationEventSubscriber : IHostedService
         await _eventBus.SubscribeAsync<PublicLinkAccessedEvent>(_producer, cancellationToken);
         await _eventBus.SubscribeAsync<ShareExpiringEvent>(_producer, cancellationToken);
         await _eventBus.SubscribeAsync<ResourceSharedEvent>(_producer, cancellationToken);
-        await _eventBus.SubscribeAsync<AlbumSharedEvent>(_producer, cancellationToken);
         await _eventBus.SubscribeAsync<UserMentionedEvent>(_producer, cancellationToken);
         await _eventBus.SubscribeAsync<ReminderTriggeredEvent>(_producer, cancellationToken);
 
@@ -64,7 +63,6 @@ internal sealed class NotificationEventSubscriber : IHostedService
             await _eventBus.UnsubscribeAsync<PublicLinkAccessedEvent>(_producer, cancellationToken);
             await _eventBus.UnsubscribeAsync<ShareExpiringEvent>(_producer, cancellationToken);
             await _eventBus.UnsubscribeAsync<ResourceSharedEvent>(_producer, cancellationToken);
-            await _eventBus.UnsubscribeAsync<AlbumSharedEvent>(_producer, cancellationToken);
             await _eventBus.UnsubscribeAsync<UserMentionedEvent>(_producer, cancellationToken);
             await _eventBus.UnsubscribeAsync<ReminderTriggeredEvent>(_producer, cancellationToken);
         }

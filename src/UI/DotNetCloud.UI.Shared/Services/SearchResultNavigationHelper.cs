@@ -62,11 +62,16 @@ public static class SearchResultNavigationHelper
                 : $"/apps/chat?messageId={item.EntityId}",
             "contacts" => $"/apps/contacts?contactId={item.EntityId}",
             "calendar" => $"/apps/calendar?eventId={item.EntityId}",
-            "photos" => $"/apps/photos?photoId={item.EntityId}",
+            // Photos serves its own framed UI (Track C); the shell forwards its query into the frame,
+            // so the hit opens that photo inside the module app.
+            "photos" => $"/modules/dotnetcloud.photos?photoId={item.EntityId}",
             "music" => $"/apps/music?trackId={item.EntityId}",
             "video" => $"/apps/video?videoId={item.EntityId}&_nav={navToken}",
-            "tracks" => $"/apps/tracks?cardId={item.EntityId}",
-            "ai" => $"/apps/ai?conversationId={item.EntityId}",
+            // Tracks serves its own framed UI (Track C); the shell forwards its query into the frame,
+            // so the hit opens that work item's detail panel inside the module app.
+            "tracks" => $"/modules/dotnetcloud.tracks?card={item.EntityId}",
+            // AI serves its own framed UI (Track C); the conversation id is forwarded into the frame.
+            "ai" => $"/modules/dotnetcloud.ai?conversationId={item.EntityId}",
             _ => $"/search?q={item.Title}"
         };
     }

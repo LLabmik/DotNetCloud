@@ -3,14 +3,402 @@
 > **Document Version:** 1.0  
 > **Purpose:** Comprehensive task breakdown for implementing the DotNetCloud architecture  
 > **Scope:** All phases from Foundation (Phase 0) through Auto-Updates (Phase 11)  
-> **Last Updated:** 2026-10-25
+> **Last Updated:** 2026-11-13
 > **Audience:** Development team, project managers, technical leads
+
+---
+
+## Recent Work — Sandbox/store live on production; module-manifest publication defect found and fixed (2026-11-13, `feature/third-party-modules`)
+
+The third-party module sandbox and store went live on the production SQL Server install at `2dbf1e29` (deploy verified:
+15/15 targets, 648 s, every assembly hash matched). Media playback broke immediately afterwards, which exposed a
+platform defect rather than a data problem.
+
+- ✓ **Containment step executed** — service stopped → `ALTER DATABASE [DotNetCloud] SET CONTAINMENT = PARTIAL` →
+  `deploy.sh --force --verify`. 14/14 modules healthy, `/health/ready` 200, 93 migrations, 5 contained `dnc_mod_*` users,
+  legacy schemas emptied, `dnc_*` schemas populated, data preserved (photos 1 060 / ai 67 / tracks 4 / bookmarks 6).
+- ✓ **Defect — v1 module manifests were never published.** Only the Tracks host project declared the `manifest.json`
+  content item, so eight v1 module hosts shipped **without** `manifest.json`. `ModuleManifestLoader.CreateDefaultManifest`
+  then returned a capability-free manifest, `EnsureManifestGrantsAsync` wrote no grants, and `ModuleAccessEvaluator`
+  denied every capability call — Music and Video failed with *FileNode … was not found*. Mitigated live by seeding 47
+  grants from the repo manifests; Music recovered immediately.
+- ✓ **Durable fix** — `<Content Include="..\manifest.json" Link="manifest.json" />` added to all eight v1 host projects
+  (About, Calendar, Chat, Contacts, Files, Music, Notes, Video); `scripts/deploy.sh` now fails the deploy if **any**
+  module directory is missing its `manifest.json` (previously only manifest-v2 modules were checked); new
+  `ModuleManifestPublicationTests` guards both facts.
+- ✓ **Second defect — Video was missing `ITeamDirectory`.** Serving a file out of a mounted admin shared folder
+  (`_dotnetcloud/movies`, `_dotnetcloud/tv`) goes through `ShareAccessMembershipResolver` → `GetGroupsForUser`, so Video
+  (and Music) must declare `ITeamDirectory`. Granted, playback confirmed (`StreamCopy`, HEVC/EAC3, HLS playlist served).
+- ✓ **`_dotnetcloud` virtual directories verified intact** — 4 admin shared folders, 4 grants, 34 849 mounted-node
+  entries, 4 167 video rows for the account (4 152 resolvable through `MountedNodeEntries`). Nothing was migrated away.
+- ✓ **Per-user consent isolation verified and pinned by tests** — consent is keyed `(ModuleId, UserId, Scope)` with a
+  unique index, every read filters the caller's own `UserId`, the cache key includes it, and both grant endpoints derive
+  the user from `ClaimTypes.NameIdentifier` (no `userId` in any request body). New tests
+  `GrantAsync_ForOneUser_DoesNotConsentAnotherUser` and `GrantAsync_SameScopeForTwoUsers_StoresOneRowPerUser`.
+
+---
+
+## Recent Work — Production upgrade rehearsal: SQL Server parity fix + pre-deploy backups (2026-11-13, `feature/third-party-modules`)
+
+The first install of the sandbox/store work on a **SQL Server** install (the dev server is PostgreSQL), rehearsed against a restored copy of the production database before any deploy decision.
+
+- ✓ **Pre-upgrade backup of the live install** — DB backup (copy-only, compressed, checksum, verified in `msdb` and md5-matched off-host), `/opt/dotnetcloud` binaries + all 14 module hosts, `/etc/dotnetcloud` config, and a byte-exact copy of `storage/` (**99,209,452,639 B / 36,288 files**, verified against a file manifest; the CAS blobs are `0600 dotnetcloud`, so the copy must run as root).
+- ✓ **Branch builds and tests** — `DotNetCloud.CI.slnf` 0 warnings / 0 errors; 8,582 tests pass. The only failures are the 6 `RunBackup_*` integration tests, which need `sqlcmd` on `PATH` (environmental).
+- ✓ **Migrations rehearsed on a restored copy of production** — the 4 new migrations apply cleanly; the 86 populated tables are row-identical to production afterwards, so nothing is touched at migration time.
+- ✓ **Sandbox adoption rehearsed on SQL Server** — after `contained database authentication` was enabled at the instance, all five converted modules adopted their legacy schemas: `ai` 2, `bookmarks` 3, `email` 9, `photos` 7, `tracks` 41 objects moved into generated `dnc_*` schemas; contained users created with their own default schema; legacy schemas left with **0** tables; row counts preserved (photos 1 060, ai 67 conversations / 330 messages, tracks 4 work items); `InstalledModules` → `Bundled / Active / Isolated`; **14/14 modules healthy** with per-module sockets and a sanitized `module.json` (no core connection string, TLS paths or WOPI key).
+- ✓ **Defect found and fixed — `AddModuleCapabilityDecisions_SqlServer` shipped empty.** The PostgreSQL migration adds 3 columns ( `RejectedAtUtc`, `RejectedByUserId`, `Status`), 2 indexes and an FK; the SQL Server twin was a `{ }` stub with an un-updated snapshot, so every `ModuleCapabilityGrants` insert failed with *Invalid column name 'RejectedAtUtc'*, the table stayed at **0 rows** and **no module could obtain a Restricted/Privileged capability on SQL Server** (Tracks organization directory, Photos/Email file access, AI settings). Regenerated the migration against SQL Server (`20261113052102_AddModuleCapabilityDecisions_SqlServer`) with the snapshot updated. Re-verified: **14 grants written, all `Granted`**, no `PendingModelChangesWarning`, no sync failure, 14/14 healthy.
+- ✓ **Guard tests** — new `SqlServerMigrationParityTests` (`Model_WithSqlServerNaming_HasNoPendingModelChanges` + `Migrations_AllEmitOperations_ExceptTheIntentionallyEmptyOnes`, with a reasoned allow-list for the two legitimately empty migrations). Both pass; the emptiness guard was proved to fail by generating a real empty migration and watching it go red.
+- ✓ **Tooling aligned** — `dotnet-ef` was 10.0.8 while the runtime packages are 10.0.14, and a 10.0.15 tool cannot load the 10.0.14 Design assembly. The tool is now 10.0.14 and pinned for the repo in `.config/dotnet-tools.json` (`dotnet tool restore`).
+- ✓ **Containment sequence executed** — adoption cannot set `CONTAINMENT = PARTIAL` itself while the server holds connection-pool connections (`ALTER DATABASE failed because a lock could not be placed`), so the sequence is: stop the service → `ALTER DATABASE [DotNetCloud] SET CONTAINMENT = PARTIAL` → `deploy.sh --force --verify`. Ran in that order in production; the database is `PARTIAL`, the five converted modules are `Isolated`, and their contained users authenticate successfully.
+
+---
+
+## Recent Work — Track C: Tracks module Stages A + B — sandbox-ready host and sandboxed UI (2026-11-11, `feature/third-party-modules`)
+
+Sixth Track C module and the largest surface in the program (~200 source files, 32 REST controllers, 148 gRPC RPCs,
+97 Blazor UI files). This stage makes the host ready for the sandbox **without changing live behaviour** — the
+in-core Blazor UI and the core's migration of the `tracks` schema keep working until the atomic flip.
+
+- ✓ **Sandboxed identity** — the host's cookie scheme (`Identity.Application`) and the controller-level `[Authorize]` are gone; identity comes only from the core-minted assertion (`AddModuleUserAssertionAccessor`), and a module-wide `TracksRequireUserAssertionFilter` gates every action so the seven actions that never resolve a caller (share links, guest access, product templates, sprint discussions, webhook deliveries, recurring-rule sweep) cannot be reached anonymously through the proxy.
+- ✓ **Error mapping** — `TracksExceptionFilter` answers **401** for a missing/expired assertion (was 500) and 403/404/409/400 for the domain exceptions, in the module's error envelope.
+- ✓ **Enum binding** — `AddModuleJsonOptions()` so a framed UI can send and read enum names (`InProgress`, `Rotate`).
+- ✓ **Module-private DataProtection ring** (`DOTNETCLOUD_MODULE_DATA_DIR`, app name `DotNetCloud.Modules.Tracks`); verified nothing else in the module uses DataProtection, so no stored payload becomes unreadable.
+- ✓ **Scoped database connection** — `DOTNETCLOUD_MODULE_DB_CONNECTION_STRING` first, legacy `config.json` only as fallback; `ITableNamingStrategy` registered and the SQL Server migrations assembly named for the provider.
+- ✓ **Account erasure (F12)** — `TracksUserErasureHandler`: products the account owns are torn down with the retention sweep's own routine; memberships, team roles, assignments, watchers, time entries, activity, comments + reactions, votes, review participation, sprint discussions, custom views, share links, templates, goals, automation rules, webhooks (+ deliveries), recurring rules, poker sessions and created teams are erased; soft-deleted rows included; audit columns cleared on surviving rows; idempotent. 4 tests.
+- ✓ **Baseline-aware initializer** — `TracksDbInitializer` now uses `ModuleSchemaInitializer` so an adopted `tracks.*` schema with an empty history is baselined instead of replayed. Deliberately not wired at startup yet: it would race the core, which still migrates Tracks.
+- ✓ **Model drift guard** — `TracksDbContextModelTests.Model_WithDesignTimeNaming_HasNoPendingModelChanges`; the schema-neutrality assertions land with the data-plane flip.
+- ✓ **Static UI plane ready** — `UseDefaultFiles`/`UseStaticFiles`, the version probe moved from `/` to `/api/info` (a mapped `/` shadows `index.html`), developer exception page limited to Development, startup template seeding degrades instead of crashing.
+- ✓ **UI technology decided — Blazor WebAssembly, not JavaScript** — `src/Modules/Tracks/DotNetCloud.Modules.Tracks.Web` (`Microsoft.NET.Sdk.BlazorWebAssembly`, referencing `DotNetCloud.Core` + `DotNetCloud.UI.Shared`) builds clean, so the existing 97 Razor components are reused rather than rewritten. Feasible because `DotNetCloud.Core` is browser-safe and the module UI proxy's CSP carries no `script-src` directive. No npm packages.
+- ✓ **Verification** — Tracks tests **210/210** pass; `DotNetCloud.CI.slnf` builds with 0 warnings / 0 errors. **Live (2026-11-11)**: `deploy --force --verify` **15/15 targets**, hashes verified, `/health/ready` **200** with **15/15** modules healthy (Tracks `Running`/`Active`/`Bundled`), unauthenticated real routes **401** via `TracksRequireUserAssertionFilter`, `/apps/tracks` still **302**. The first attempt crashed on a module-private DataProtection path under read-only `/opt` (legacy launches get no `DOTNETCLOUD_MODULE_DATA_DIR`); the fallback now keeps the shared `DOTNETCLOUD_DATA_DIR` ring until the flip.
+- ☐ **Next** — Stage C: atomic flip (schema-neutral model + re-stamped migrations + manifest v2 isolated + delete the in-core UI and core coupling); Stage D: pack, publish, live verify.
+
+### Stage B progress
+
+- ✓ **B1 — frame plumbing (2026-11-11)** — the SDK bridge is linked into the WASM `wwwroot` and started before Blazor, so its `window.fetch` patch attaches the frame ticket to every `HttpClient` call; a C# `ModuleBridge` exposes theme/locale, `mediaUrl` for browser-built subresources, navigate, title, toast and consent; `TracksApi` reads the module's `{ success, data }` / `{ success, error { code, message } }` envelopes with enum-name JSON; a `MainLayout` shell follows the core theme. Published assets verified (`js/dncModuleBridge.js`, `js/tracks-bridge.js`, `index.html`, `_framework/blazor.webassembly.js`); the published `wwwroot` is ~21 MB, which is what the package will grow by.
+- ✓ **B2 — data access (2026-11-11)** — `GetUserOrganizations` landed on both capability surfaces (legacy + canonical), implemented with the same subject binding as `GetTeamsForUser` and the `profile` consent scope, and mapped to `IOrganizationDirectory` in `CapabilityCatalog`; new `GrpcOrganizationDirectory` client for hosts plus `ModuleOrganizationDirectory` / `ModuleUserDirectory` for the frame. Host endpoints: `GET api/v1/organizations` (with the module's own product count), `GET api/v1/me`, `POST api/v1/users/display-names`, `GET api/v1/organizations/{orgId}/palette`; CSV import now honours a caller-supplied `mappingJson` (8 new tests).
+- ✓ **B3 — screens (2026-11-11)** — all **97** UI files moved into the WASM app and compile; a new browser-safe `DotNetCloud.Modules.Tracks.Shared` assembly holds the UI contracts (real-time feeds, palette, onboarding, CSV) so host and frame share one definition; the module's dead HTTP client became `TracksHttpApiClient`; core DI dependencies replaced by frame equivalents (`TracksAuthenticationStateProvider` → `api/v1/me`, in-memory onboarding, host-backed palette/CSV, `BrowserPreferenceStore` for storage that an opaque origin forbids); `Tracks.Host` references the WASM project so `publish` produces its `wwwroot` (**24 MB**). Verified in a browser against the published host: the real Tracks shell renders and reports "Authentication is required" when called without a core assertion. Two traps fixed: `@* … *@` in `wwwroot/index.html` is not Razor (served as visible text), and a `#blazor-error-ui` CSS rule keyed on `:not(:empty)` showed the error bar permanently.
+- ✓ **B3.5 — icons, deep link and client tests (2026-11-11)** — the ported UI carries no emoji or hand-rolled SVG: `UI/TracksIcons.cs` is the one map (work-item type, saved-view kind, palette category → Material icon name), the per-component emoji switches call it, `MaterialSvgIcons` gained the 15 missing paths, and a new `TracksPriorityIcon` renders priority as one Material dot coloured by CSS (native `<option>` stays plain text). The tour's `Emoji` parameter became `Icon`, and the palette's inline search `<svg>` is a `MaterialIcon`. Deep link contract: `?kanban=<id>` opens the board and `?card=<id>` opens the item panel (query, not path — the proxy only serves static files under `/apps/{id}/**`). The browser-side services moved to `DotNetCloud.Modules.Tracks.Web.Services` (plain `net10.0`, `PackageReference`s not `FrameworkReference` — see `NETSDK1082`), which made them testable: **42 new tests**, `Tracks.Tests` **260/260**, full CI build clean.
+
+### Stage C — atomic flip (2026-11-11)
+
+Tracks now owns its schema and runs with no in-process link to the core.
+
+- ✓ **Schema-neutral model and migrations** — `TracksDbContext` no longer names a schema (`HasDefaultSchema` removed), `CustomViews`/`WorkItemWatchers` lost their schema-qualified `ToTable`, and **both** provider migration sets (`Data/Migrations`, `Data.SqlServer/Migrations`) were re-stamped unqualified with their original ids preserved; the two `EnsureSchema` calls are gone and the migration that existed only to re-qualify every table into `tracks` is intentionally empty. `TracksDbContextModelTests` now asserts no pending model changes plus no `CREATE SCHEMA` / no schema-qualified DDL on PostgreSQL **and** SQL Server.
+- ✓ **Self-migration at startup** — `TracksDbInitializer` is called by the host after `UseModuleUserAssertion`, with 5 attempts of exponential backoff and degraded-not-crash behaviour; the core's `DbContextSchemaProvider` entry for Tracks was removed in the same change so two migrators cannot race.
+- ✓ **Manifest v2** — `dataStore: "isolated"`, `handlesUserErasure: true`, publisher `dotnetcloud`, capabilities narrowed to what the host resolves (`IAuditLogger`, `IUserDirectory`, `INotificationService`, `IOrganizationDirectory`, `IRealtimeBroadcaster`; the never-used `ICurrentUserContext` dropped), consent `profile` + `notifications:send`, the 13 events the module raises, an iframe `ui` block (nav icon `assignment`) and `ui.widget`. `ShippedTracksModuleManifestTests` loads the shipped file through the real v2 loader.
+- ✓ **Home-page widget** — new `wwwroot/widget/` frame (relative assets, the SDK bridge at `../js/dncModuleBridge.js`, `textContent`-only DOM, `role: "widget"`) fed by a new assertion-scoped `GET api/v1/widget/upcoming` (`WidgetController`); links open the frame at `?card=<workItemId>`. The widget project (`DotNetCloud.Modules.Tracks.Widget`) is deleted.
+- ✓ **Decoupled** — the in-core `UI/` (97 files), the widget project, the four `/apps/tracks*` shell/help pages, `AddTracksUiServices`, the `DbContextSchemaProvider` entry, the module/Data/Data.SqlServer/Widget references in `Core.Server`, the library reference in `UI.Web`, the descriptors in `ModuleUiRegistrationHostedService` / `WidgetUiRegistrationHostedService` and the `AddAdditionalAssemblies` entry are all gone; the library is a plain class library and the only remaining core link is the gRPC proto. Search results now open `/modules/dotnetcloud.tracks?card=…`.
+- ✓ **Tests** — `Tracks.Tests` **272/272** (model + both provider schema-neutrality guards, 4 widget-controller tests, 7 UI asset guards, the ported component test re-pointed at the WASM component), `Core.Server.Tests` **1690**, `Core.Data.Tests` **199**, `UI.Shared.Tests` **249**, Blazor standards gate green.
+- ✓ **Live (2026-11-11, dev server)** — `deploy --force --verify` **15/15 targets**, all assembly hashes verified; `/health/ready` **15/15** modules healthy with Tracks `Healthy`/`Running`/`Active`/`Isolated`/`Bundled`. Adoption moved **41 objects** from the legacy `tracks` schema into `dnc_dotnetcloud_tracks_10d1672d` under principal `dnc_mod_dotnetcloud_tracks_10d1672d`; the legacy schema now holds **0** relations, the module schema has **41** business tables and a 12-row `__EFMigrationsHistory` (`20260428111847_InitialCreate` … `20260803042940_AddSprintDiscussion`), and the principal has `createdb=false`/`superuser=false`, `schema_usage=true`, `create_on_db=false`. Routes: `/apps/dotnetcloud.tracks/` **401**, `/apps/dotnetcloud.tracks/widget/index.html` **401**, `/apps/dotnetcloud.tracks/api/v1/widget/upcoming` **401**, `/apps/tracks` **404**, `/modules/dotnetcloud.tracks` **302**; the published bundle serves (`blazor.webassembly.js` 60,682 B, `DotNetCloud.Modules.Tracks.Web.styles.css` 264,159 B, `js/tracks-bridge.js`, `widget/widget.js`, `widget/widget.css`). The dev database held no Tracks rows before the flip (every table 0), so adoption had no contents to move beyond the relations themselves.
+- ✓ **Signed-in browser click-through (2026-11-11)** — the framed Blazor WebAssembly app boots inside the sandbox, a product is created with its three default swimlanes, a work item is added with a due date and an assignee, and the Home card renders *"Widget smoke item / Nov 13"* from the manifest-declared widget. Eight defects no unit test could see were found and fixed: the proxy's `base-uri 'none'` broke the app's own `<base href>` (opaque origin ⇒ `about:blank` base ⇒ `import("./dotnet.js")` failed) and is now `base-uri *`; relative dynamic imports still failed so `js/tracks-boot.js` starts Blazor with `autostart="false"` + `loadBootResource` returning absolute URLs; the frame inherited no shell CSS so the design tokens and `.btn`/`.alert`/`.badge`/`form-group`/`help-*` classes were ported into the module's `app.css`; `MainLayout` wrote a second `data-theme` (`light`) onto `.tracks-root` while `<html>` was dark, which made the first-run tour white-on-white; `GrpcOrganizationDirectory`/`GrpcTeamDirectory` guarded on the lazy `_client` instead of `_coreEndpoint`, so every lookup claimed the core was unset; a missing `profile` consent was swallowed into `[]`, and now surfaces as **403 `PROFILE_CONSENT_REQUIRED`** with the `consent-scopes` trailer so the frame calls `bridge.requestConsent`; `ModuleBridge.RequestConsentAsync(params string[])` spread the array into `InvokeVoidAsync` arguments so the request was dropped (fixed with an `object` cast); and `TracksHttpApiClient` used `JsonSerializerDefaults.Web` against enum-name payloads, throwing `DeserializeUnableToConvertValue` when a product was created (now shares `TracksApi.JsonOptions`). Tests: `Tracks.Tests` **277/277**, `Core.Server.Tests` **1693 passed / 2 skipped**, Blazor standards gate green.
+- ✓ **Assignee chips resolved to names (2026-11-11)** — `WorkItemAssignmentDto.DisplayName` was always `null` (only the id is stored), so the framed UI rendered "User"/"?"; new `UserDisplayNames` helper batches one `IUserDirectory.GetDisplayNamesAsync` call per payload and degrades to a blank name when the capability is unavailable. Wired into `WorkItemService.GetWorkItemAsync`/`AssignUserAsync`, the swimlane + upcoming-due lists (which now include their assignments instead of an empty list), `SprintService`'s backlog and the controller's product list + CSV export (which had shipped the raw GUID as the name). Verified live: `displayName: "Ben Kimball"`, `BK` avatar on the card, name in the detail panel. Tests: Tracks **291/291**, Core.Server **1693 passed / 2 skipped**, Core.Tests **606**, CI build clean.
+- ✓ **Review participants + analytics names resolved (2026-11-11)** — `ReviewSessionService` mapped participants with `DisplayName = null` and `AnalyticsService` put the GUID in `WorkloadDto.DisplayName`, `RoadmapItemDto.AssigneeDisplayName` and `MemberCapacityDto.DisplayName`; all now resolve through `UserDisplayNames.LookupAsync` (batched), and the gRPC messages carry the names. Verified live: roadmap `assigneeDisplayName` and dashboard `workload[0].displayName` are "Ben Kimball". Tests: 3 analytics + 3 review-session cases; Tracks **297/297**, CI build clean.
+- ✓ **Legacy `/apps/tracks` cleanup (2026-11-12)** — the framed UI no longer references the deleted core route anywhere: the two "open in new tab" anchors are gone (a popup inherits the sandbox's opaque origin, so it could never carry the session cookie — opening the item in-frame via the card click is the equivalent), the unreachable `WorkItemFullscreenPage` (`@page`-less, referenced nowhere; its shared panel styles already ship in `TracksPage.razor.css`) is deleted, the 8 `TracksNotificationService` `ActionUrl`s now target `/modules/dotnetcloud.tracks?card=…`, and the dead server-side `CommandPaletteService` (the framed UI owns the palette) is removed. Tests: Tracks **302/302** (new `NotifyCardAssigned_ActionUrl_OpensTheFramedModuleApp`), `UI.Shared.Tests` **252** (new AI/Photos/Tracks search deep-link guards).
+- ✓ **Stage D — packaged, published and live (2026-11-11)** — `src/Modules/Tracks/` gained `LICENSE`/`README.md`/`CHANGELOG.md`; `dotnetcloud.tracks-2.0.0.dncpkg` is 778 entries / 69,307,503 B, sha256 `e96eb5f7…`, signed `dotnetcloud-official-2026`. Adding it exposed a catalogue-wide schema defect (both store schemas rejected the core's bare `profile` scope, so `verify-index` failed for *every* package) — fixed, with `StoreSchemaTests` guarding policy/schema drift. Store commit `1827af7` on `main`: catalogue **6 packages / 8 versions** signed with `store-2026` (`index.json` `08994eb3…`, `.sig` `2f4491c1…`). Live on `modules.dotnetcloud.net` (site root + served release + box clone, all SHA-256 checked): package and index fetch back byte-identical and `dotnetcloud-pack verify` is **OK**; the core's store listing shows 8 entries including `dotnetcloud.tracks@2.0.0`.
+- ✓ **Installed from the store (2026-11-11)** — `dotnetcloud module install dotnetcloud.tracks --from-store --version 2.0.0 --yes`: package reviewed (hash + trusted `dotnetcloud-official-2026` signature), bundled copy replaced, isolated data store provisioned; `module info` shows **Trust tier: Store**, **Sandbox: Active**, receipt `verified`. Two grants reverted to Pending under store-tier policy and were re-approved (`IUserDirectory`, `INotificationService`); frame + API verified afterwards (`displayName: "Ben Kimball"`), `/health/ready` 200.
+- ✓ **Bug-class audit (2026-11-11)** — `params`-array interop spread existed only in `ModuleBridge` (now pinned by `ModuleBridgeTests`, 4 tests); every UI/host pair agrees on enums (Photos/Tracks `AddModuleJsonOptions`, Email integers, Bookmarks normalises both); the unreferenced Email `EmailApiClient` (last self-configured JSON options) deleted; six UI asset guards made quote-agnostic (Email 63/63, Bookmarks 37/37); no lazy-`_client` guard remains in `Core.Grpc`.
+
+---
+
+Fifth Track C module, and the first whose **media path** had to change: the host used to reference the
+Files module's data layer and read image bytes straight off the shared storage root. Photos now owns
+its schema, reads originals only through the core's `IFileDirectory` capability on the signed-in
+user's behalf, serves its own framed UI, and the core keeps no code or project reference to it.
+
+**Data plane**
+
+- ✓ `PhotosDbContext` schema-neutral (`HasDefaultSchema` removed) and **both** migration sets stripped of `EnsureSchema`/`schema:`/`principalSchema:`, with their original migration ids preserved.
+- ✓ `PhotosDbInitializer` (shared `ModuleSchemaInitializer`: baselines an existing core-managed schema, then self-migrates).
+- ✓ `PhotosUserErasureHandler` — photos, albums, album links, metadata, tags, edit records and shares in both directions; soft-deleted rows included; idempotent; the account id is never logged.
+- ✓ Manifest v2 (`dataStore: "isolated"`, `handlesUserErasure: true`, consent `files:read`/`notifications:send`, iframe app + widget), version `2.0.0`, plus the module-root `LICENSE`/`README.md`/`CHANGELOG.md` the packer requires.
+
+**Media path (the part that made this module different)**
+
+- ✓ The host no longer constructs `FilesDbContext`/`LocalFileStorageEngine`. Thumbnails are generated **lazily on first view** through `IDncModuleApi.DownloadFileAsync` — a request carries the owner's assertion, a background worker has none — and only the owner may generate; `SaveEditsAsync` reads the same way.
+- ✓ Full-size download streams the original through the core and answers **404** when the file belongs to another account (a photo merely shared with the caller keeps its cached previews).
+- ✓ Core-initiated indexing: new `IndexPhoto`/`GetIndexedFileNodeIds`/`RemoveDeletedPhotos` RPCs, `ModuleUserAssertionGrpcInterceptor` (assertion adoption for gRPC, the twin of the HTTP middleware), and `IPhotoIndexingClient` in the core so the media-library import still works — **without** an in-process callback.
+- ✓ Removed rather than left broken: the `FileUploadedEvent` subscription (a sandboxed module never sees another module's events), the thumbnail queue/worker, and `PhotosSharedWithMeProvider` (in-process aggregation).
+
+**Host, UI and decoupling**
+
+- ✓ Sandboxed host: `module.json` topology, module-private DataProtection ring, `AddModuleUserAssertionAccessor()`, **no cookie scheme**, scoped `DOTNETCLOUD_MODULE_DB_CONNECTION_STRING`, erasure registration, static files, `/api/info` instead of mapping `/`.
+- ✓ `PhotosControllerBase` resolves the user from `IModuleUserAssertionAccessor`; `PhotosExceptionFilter` answers **401** for a missing/expired assertion (never 500).
+- ✓ Module-hosted UI: `wwwroot/index.html` + `assets/photos-ui.{js,css}` (paged library, favourites, timeline, search, albums, viewer with non-destructive rotate/flip + save, download, remove, shared-with-me, help) and `wwwroot/widget/` (five most recent photos).
+- ✓ Decoupled: project references (Core.Server, UI.Web, CLI), `DbContextSchemaProvider` entry, both UI registration services, `AddAdditionalAssemblies`, the in-core page/help/layout script and the widget project — all gone; the library is a plain class library.
+
+**Verification**
+
+- ✓ `dotnet build DotNetCloud.CI.slnf` clean; `Photos.Tests` **202 passed**; `Core.Server.Tests` **1673 passed / 2 skipped**; full CI run green apart from the two pre-existing `sqlcmd`-dependent backup integration tests.
+- ✓ **Deep links into the frame** — the shell forwards its query to the app (`ModuleAppUrls.NormalizeFrameQuery`, plain `key=value` pairs only), so `/modules/dotnetcloud.photos?photoId=…` / `?album=…` open one item; search hits and the Home widget use it again.
+- ✓ **Files "Shared with me → Photos" restored** — a `GetSharedWithMe` module RPC (assertion-scoped, titles resolved module-side) and a `PhotosSharedWithMeProvider` that talks gRPC through `IPhotosApiClient`.
+- ✓ **Notifications owned by the module** — album-share fan-out (including teams via `ITeamDirectory`) happens in the module and deep-links into the app; the core's duplicate `AlbumSharedEvent` producer is deleted.
+- ✓ **Least privilege** — `IUserDirectory`/`profile` dropped (never used); capabilities are `IAuditLogger`, `ISearchProvider`, `ITeamDirectory`, `IFileDirectory`, `INotificationService`, consent `files:read`/`notifications:send`.
+- ✓ **Packaged + published to the catalogue** — `dotnetcloud.photos` 2.0.0 (linux-x64 + win-x64, 31,955,574 B, sha256 `e4a0bd35…`) signed `dotnetcloud-official-2026`; store `validate` green (7 packages), catalogue rebuilt/signed `store-2026` (5 packages / 7 versions), `verify-index` clean; the store tool's `KnownScopes` gained `profile` so it tracks the core catalogue.
+- ✓ **Verified live (dev server, 2026-11-10)** — deploy 15/15 with assembly hashes; `/health/ready` **15/15**, `dotnetcloud.photos` `Running`/`Active`/`Bundled`/`Isolated`; adoption left the legacy `photos` schema **empty** and moved **107** photos into `dnc_dotnetcloud_photos_8ccb1097` (8 tables owned by the module principal, history = the five original ids, `USAGE` on its schema and **no `CREATE` on the database**); the host serves `/`, the JS/CSS, the widget and the bridge over its h2c socket; `/api/v1/photos` and `/api/v1/albums` answer **401** unauthenticated; `/apps/dotnetcloud.photos/` **401** and `/modules/dotnetcloud.photos` **302** → login.
+- ✓ **Live on `modules.dotnetcloud.net` (2026-11-10)** — release `20261110-224903` is `current`; all seven advertised `downloadUrl`s answer **200 `application/octet-stream`**; the published Photos package downloaded back over HTTPS is byte-identical (31,955,574 B, sha256 `e4a0bd35…`) and `dotnetcloud-pack verify --key-file …official-2026` reports **OK**.
+- ✓ **Collateral 404s found and fixed** — the deploy robocopy's the site box's _own_ store clone, which was missing the AI 2.0.0 and Bookmarks 1.2.0 bytes, so the first release advertised two packages that 404'd. Both were pushed up (per-file SHA-256) and the deploy re-run.
+- ✓ **Verified in a real browser (2026-11-10)** — signed-in click-through of the framed app and the widget on Home. Five defects found and fixed:
+  - ✓ **Images 401'd inside the frame.** Browser-built `<img>` requests carry neither the session cookie (opaque origin) nor the bridge's ticket header. New `bridge.mediaUrl(url)` (SDK) carries the ticket in the query string for browser-initiated subresources; every `src` in the app and widget goes through it, guarded by a test.
+  - ✓ **Edit API could not bind requests** — no module host configured a string-enum converter, so `"operationType": "Rotate"` was a 400. New shared `AddModuleJsonOptions()` in `Core.Grpc`.
+  - ✓ **Edit response serialised the EF entity** — the `Photo` navigation dragged every cached thumbnail in as base64 (27 MB for a tiny edit) and the proxy reset the stream. Now `PhotoEditRecordDto`, with a size/graph regression test.
+  - ✓ **Parameter contract unified** on `value` (clockwise degrees / 0-1 flip), matching what the image pipeline actually applies.
+  - ✓ **Consent refusal is actionable** — 403 `FILES_CONSENT_REQUIRED` → the app calls `bridge.requestConsent(["files:read"])` → the shell shows its permission band; previously a bare 500.
+  - ✓ **Queued edits preview instantly** — CSS transform derived from the stored stack (optimistic, with a stale-response guard), cleared once "Save edits" bakes the pixels.
+- ✓ **Edit flow completed (2026-11-12, verified live)** — `ApplyEditToImage` parses each operation's own parameters (so Crop applies and Sharpen/Blur honour `radius`); `SaveEditsAsync` re-renders on an empty stack and revert/undo call the new `RegeneratePreviewsAsync`; the UI exposes Brightness/Contrast/Saturation, Sharpen/Blur radius, drag-select Crop and **Revert all**; crop travels as normalized fractions so it no longer needs a recorded pixel size; frame tickets last 8 h. Live: 50% crop took the detail preview 1200×800 → 768×512 and Revert all restored it; Photos 225/225, Core.Server 1716 passed / 2 skipped.
+- ✓ **Modules frame handshake fixed (2026-11-12)** — the `dnc:ready` / `dnc:init` exchange was single-shot and the two posts crossed, so whichever side was late dropped the other's message and the shell showed "The app did not respond." Both sides now repeat until answered (host re-sends `dnc:init` every 400 ms, frame re-posts `dnc:ready` until it hears back) and the host adopts a re-rendered frame element. Guard test: `ModuleAppHostTicketStabilityTests.FrameHandshake_BothSidesRepeatUntilAnswered`.
+- ☐ **Outstanding (by decision)** — approving a consent request still reloads the frame and drops in-progress UI state (needs a `dnc:consent-granted` message plus per-module retry).
+- ☐ Commit the store repository.
+
+---
+
+## Recent Work — Track C: Music conversion withdrawn; two core capabilities kept (2026-11-09, `feature/third-party-modules`)
+
+The Music conversion was completed, deployed and exercised live, then **reverted**: Music stays a
+first-party module. The reason is architectural, not a defect — the module's value is the persistent
+global playbar, the 10-band equalizer and the Butterchurn visualizer, and all three are **core-chrome
+JavaScript** driven by an in-process module through JS interop. A sandboxed frame cannot reach them
+(the bridge offers only title/notify/navigate/resize/consent, and the frame has no storage or cookie).
+**Video is excluded for the same reason.** Details: `THIRD_PARTY_MODULE_SANDBOX_AND_STORE_PLAN.md` §7.
+
+**Reverted**
+
+- ✓ Module, host, widgets, UI, tests, `DbContextSchemaProvider` entry, both UI registration services, `AddAdditionalAssemblies`, CLI registration and the `Core.Server`/`UI.Web` project references restored to the committed first-party layout.
+- ✓ Music tables moved back from the provisioned `dnc_dotnetcloud_music_*` schema to the core-managed `music` schema (`scripts/move-music-schema-back.sh`), and the converted module's registry rows removed.
+- ✓ `dotnetcloud.music` 2.0.0 / 2.0.1 withdrawn from the store: recorded in `yanked.json` (deprecation) and the bytes deleted from `packages/` and the live site; the catalogue no longer lists the package.
+
+**Kept — both are module-agnostic and now available to every module**
+
+- ✓ **Manifest-declared default settings.** Manifest v2 gained an optional `settings` block (bounded, unique keys, description cap, and **secret defaults rejected** — anything shipped in a package is public). `ModuleSettingDefaultsSeeder` writes a key only when it has no value, at install (`ModulePackageInstaller`) and at start-up reconciliation (`ProcessSupervisor`), so an administrator's edit always wins and a reinstall never resets a module.
+- ✓ **Capability decisions with Grant/Reject.** `ModuleCapabilityGrant` carries `Status` (`Pending`/`Granted`/`Rejected`) plus `RejectedAtUtc`/`RejectedByUserId` (migration on both providers; existing rows default to `Granted`). Enforcement allows only `Granted`; reconciliation records bundled capabilities as granted and **store-tier ones as pending** and never resurrects a rejection; revoking records a rejection instead of deleting the row. The module page lists every gated capability the manifest requests, with its decision and **Grant**/**Reject** buttons; `POST …/capabilities/{capability}/reject` is audited.
+- ✓ **Plane fixes found while converting it:** `ModuleUiRegistry` is thread-safe (two hosted services wrote it concurrently, which silently dropped every iframe module's nav item), the consent permission bar is an inline top band named after the module, `MaterialSvgIcons` gained `shield`, and `ModuleAppProxy` exempts media/archive responses from the 32 MiB UI cap.
+
+---
+
+## Recent Work — Track C: the sandboxed module UI plane, verified live (2026-11-08, `feature/third-party-modules`)
+
+Opening the converted modules for the first time found that **no sandboxed module UI could load at
+all**: the shell framed a document that then 401'd on its own CSS/JS. Four independent defects plus
+four deployment defects had to be fixed before the file-brokering flow could be exercised.
+
+**The frame cannot use the session cookie**
+
+- ✓ A frame with `sandbox` and no `allow-same-origin` has an **opaque origin**, so the browser classifies its subresource and `fetch` requests as cross-site and withholds the `SameSite=Lax` identity cookie. Only the initial document navigation carried it. Assumption recorded in `ModuleAppProxy` ("the request is same-site, so that cookie travels") was wrong.
+- ✓ New `IModuleFrameTickets` / `ModuleFrameTicketService`: a short-lived (15 min) ticket bound to user **and** module, protected with the core key ring. `ModuleAppHost` and `ModuleWidgetFrame` append `?dncTicket=`, the SDK bridge copies it into the `dnc-frame-ticket` header on the module's own API calls and strips it from the address bar, and the proxy adopts it (header or query) as the request principal.
+- ✓ The frame's static assets (`.css`, `.js`, fonts, images — an explicit allow-list) are forwarded **anonymously**; the module's own API still requires the ticket or a cookie.
+- ✓ The ticket is stripped from the outgoing query and from forwarded headers; an undeclared/expired/mismatched ticket is refused.
+
+**Three more plane defects**
+
+- ✓ The global `UseCors` middleware answered the frame's preflights with 204 and no CORS headers, so the proxy's own preflight branch was unreachable — `app.UseWhen(!/apps, UseCors)` now leaves the module plane to the proxy.
+- ✓ `TransformResponseAsync` applied the response policy **after** the base transform copied the headers, so `Access-Control-Allow-Origin` never reached the browser (module answered 200, UI said "Could not reach the module").
+- ✓ The host only sent `dnc:init` from the iframe `load` event; a fast module host finished loading before the listener existed, so the handshake never completed ("Starting …" forever). It now also sends init immediately after mounting.
+
+**Deployment defects found by the same run**
+
+- ✓ Module hosts did not ship `manifest.json`, so the supervisor fell back to a v1 default manifest, withheld the module directories and the host died writing its DataProtection ring under the read-only `/opt` tree. Fixed in the three Host `.csproj` files plus a deploy-time guard (v2 manifests only).
+- ✓ Adoption skipped a just-converted module because it trusted the persisted `InstalledModule.DataStoreMode` (stale until the supervisor's later upsert); the deployed manifest is now authoritative.
+- ✓ Module self-migration replayed `InitialCreate` against an adopted schema whose history was empty (`42P07 relation … already exists`); the core's baseline recovery moved to `ModuleSchemaInitializer` and is shared by the core provider and every module host.
+- ✓ The registry upsert silently dropped every write because `CoreDbContext` is `NoTracking`; `ModuleRegistryReconciler` now loads with `AsTracking()` and reports real versions/data-store modes.
+- ✓ The consent banner had **no approve action**: new `POST /api/v1/core/account/consents/{moduleId}` (validates the request against the module's declared scopes) and an Approve button.
+- ✓ Bookmarks' `markView()` indexed `el["nav-all"]` while the map is camelCase, throwing on every view change and aborting the module's `start()` before its first API call.
+
+**Verification (live, browser)**
+
+- ✓ Consent prompt → Approve → browse → attach `Test2.txt` to a compose form; the stored blob, the source download and the attachment `contentHash` all agree (`sha256 e712bd15…`, 31 bytes). Save-back created a new file version (3 → 4) with identical content.
+- ✓ Denials: no consent and revoke both give `403 FILES_CONSENT_REQUIRED`; killing the Files host gives 22 consecutive `503 FILES_UNAVAILABLE` and recovery once the supervisor restarts it.
+- ✓ Media scan (the assertion-principal path): Photos 101/101 skipped/0 failed, Music 33/33/0 failed.
+- ✓ Store: `dotnetcloud.email` **1.2.0** packed (38,453,392 bytes, sha256 `f5b8421a545027e4…`), signed `dotnetcloud-official-2026`, indexed and catalogue-signed `store-2026`, verified, published to `https://modules.dotnetcloud.net` (served hashes match) and listed in the core's admin store view.
+- ✓ The publication exposed a store bug: the builder emitted `trustTier: "official"` without `publisher.official`, which the core rejects for the **whole** index. Fixed in `DotNetCloud.ModuleStore` (model, builder, validator, both schemas, 2 tests).
+- ✓ Tests: Core.Server 1624 (2 skipped), Core.Data 193, SDK 37, Bookmarks 24, Email 36, Example 81, store tooling 50; CI solution 0 warnings.
+- ☐ Install the published `1.2.0` package over a bundled deploy on a fresh test server; republish Bookmarks as 1.2.0.
+
+---
+
+## Recent Work — Track C: the user's files as a core capability (2026-11-08, `feature/third-party-modules`)
+
+A sandboxed module needed the user's real files (attach a document to an email, save an attachment back
+into the drive). The old code used the in-process `IFileDirectory` and dialled the Files module's
+socket, neither of which a sandboxed host may do — so the capability was made real instead of the
+feature staying deleted.
+
+**Core (module API)**
+
+- ✓ `module_api.proto` gains `ListFiles` (unary), `DownloadFile` (server-streaming) and `UploadFile` (client-streaming), each mapping to a capability in `CapabilityCatalog` (`ListFiles`/`DownloadFile` → `IFileDirectory`, `UploadFile` → `IFileWriter`).
+- ✓ Both capabilities are **Restricted** (explicit grant) and mapped in `ModuleCapabilityScopes` to `files:read` / `files:write`, so a module that only exports can be granted read-only access.
+- ✓ `ModuleFileAccessService` brokers to the Files module through `IFilesApiClient`, enforces the per-user consent scope (`MODULE_CONSENT_REQUIRED` + `consent-scopes` trailer), refuses module-scope calls (`UNAUTHENTICATED`), sanitizes the target file name to one path segment, caps a save at 100 MiB and a listing at 500 entries per page.
+- ✓ REST facade parity: `GET /internal/moduleapi/v1/files`, `GET …/files/{nodeId}/content` (streams the body) and `POST …/files` (body is the content), evaluated by the same interceptors as the gRPC surface.
+- ✓ The supervisor now exports `DOTNETCLOUD_CORE_REST_ENDPOINT` (single constant in `ModuleIdentityMetadata`, consumed by the SDK) so a language-agnostic backend can use the facade.
+- ✓ `ModuleUserAssertionMiddleware` adopts a verified assertion as `HttpContext.User` — the missing link that lets the **Files** host's existing permission checks authorize a core-originated call without trusting a payload identity.
+- ✓ Adversarial cases covered: another user's attachment (`Forbidden`), a consent-less module (`403` + scopes), a module-scope file call (`401`), and an upload stream whose first message is a chunk (`400`).
+
+**Files module**
+
+- ✓ `DownloadFile` implemented for real via `IDownloadService` (it previously streamed empty placeholders): whole-file and chunked storage both work, historic version numbers are rejected rather than silently answered with the latest content.
+- ✓ `IFilesApiClient` gained `ListChildrenAsync`, `OpenReadAsync` (spooled stream) and `UploadFileAsync` (4 MiB chunk manifest → initiate → missing chunks → complete); every call carries a core-minted assertion for the acting user.
+
+**SDK**
+
+- ✓ `IDncModuleApi` gained `ListFilesAsync`, `DownloadFileAsync` and `UploadFileAsync`, implemented over gRPC (streaming), over the REST facade, and in the in-memory test double.
+
+**Email module**
+
+- ✓ `GET /api/v1/email/files`, `POST /api/v1/email/attachments/from-file` and `POST /api/v1/email/attachments/{id}/save-to-files`; the attachment whitelist and 25 MB limit apply to files copied out of the drive as well (`IFileValidationService` gained a name+size overload).
+- ✓ Manifest `1.2.0` declares `IFileDirectory` + `IFileWriter` and the `files:read`/`files:write` scopes.
+- ✓ The UI gained a file browser (`<dialog>`) in compose (Attach → Browse files) and a “save to your files” action on every message attachment, with a consent prompt when the scope is missing.
+- ✓ The direct module→module `FilesService` client (`FilesGrpc:Address`, `AttachFromFilesModule`) is deleted together with its RPC and client method — the forbidden pattern is gone, not deprecated.
+- ✓ `ModuleBoundaryTests` guards it: a migrated module host may not import another module's host protos, and no host may reference another host's project.
+
+**Verification**
+
+- ✓ CI solution build 0 warnings; `Core.Server.Tests` 1590 (2 skipped), `Email` 62, `Files` 1012, `SDK` 37, plus the rest of the CI suite green. The two `Integration.Tests` backup failures are environmental (`sqlcmd` is not installed on this host).
+- ☐ Live end-to-end (core + Files + Email over a deployed instance) with a real consent grant, and publishing `1.2.0` to the store.
+
+---
+
+Third Track C module of `docs/THIRD_PARTY_MODULE_SANDBOX_AND_STORE_PLAN.md`, and the first with a
+long-lived credential store, an external consent flow (Gmail OAuth) and a large UI surface.
+
+**Data plane**
+
+- ✓ `EmailDbContext` and both provider migration sets are schema-neutral (no `HasDefaultSchema`, no `EnsureSchema`, no `schema:`/`principalSchema:` arguments), so unqualified DDL lands in the schema the core provisioned.
+- ✓ Repaired a latent model/snapshot drift: the JSON payload columns were declared `jsonb` in the snapshot but produced `text` by the model, so the module's first insert would have failed on PostgreSQL. They are now mapped explicitly (`HasColumnType("jsonb")`, swapped for `nvarchar(max)` for SQL Server by `FixColumnTypesForSqlServer`), and `EmailDbContextModelTests` guards both the snapshot match and schema-neutrality on both providers.
+- ✓ `EmailDbInitializer` applies the module's own migrations (`MigrateAsync`) with retry, then continues in degraded mode.
+- ✓ `EmailUserErasureHandler` deletes the user's accounts, mailboxes, threads, messages, attachments (including their blobs) and rules, in dependency order and with `IgnoreQueryFilters`.
+- ✓ Sandboxed host: `module.json` topology, module-private DataProtection ring, scoped connection string, attachments under `DOTNETCLOUD_MODULE_DATA_DIR`, no cookie scheme.
+
+**Manifest**
+
+- ✓ v2 with publisher, `dataStore: "isolated"`, `handlesUserErasure: true`, capabilities narrowed to `IAuditLogger` + `ISearchProvider`, consent scopes `mail:read`/`mail:write`, `ui` block (iframe, entry `/`, Material icon `mail`) and `ui.widget.path`. Version `1.1.0`.
+- ✓ The old manifest declared five capabilities the code never used and named events that did not exist (`EmailReceivedEvent`); the shipped list now matches the event types and the host's actual capability use.
+
+**UI plane**
+
+- ✓ `wwwroot/index.html` + `assets/email-ui.{js,css}`: accounts (IMAP/SMTP and Gmail), folders, thread list, thread detail with bodies, compose with uploads, a full rules editor (condition groups + actions), sync, delete-account confirmation (a `<dialog>` modal), and in-frame help.
+- ✓ Message HTML renders inside a nested `sandbox=""` frame (`srcdoc`) — injected handlers cannot run in the module's origin; attachments and the Gmail consent page open through `dnc:openExternal`.
+- ✓ `wwwroot/widget/`: Home-page card with the five most recent inbox threads, widget-role height reporting and a `?threadId=` deep link back into the app.
+- ✓ Gmail OAuth reworked for the plane: DataProtection-signed `state` bound to the asserted user (no cookie — the proxy strips `Set-Cookie`), redirect targets under `/apps/dotnetcloud.email/`, and `{configured:false}` instead of a 500 when unconfigured.
+
+**Plane fixes (core, not module)**
+
+- ✓ `allow-modals` added to `ModuleAppHost` and `ModuleWidgetFrame` — confirmation dialogs were impossible before; docs and the SDK bridge comment updated.
+- ✓ The proxy now answers a CORS preflight **before** its authentication gate and adds `Access-Control-Allow-Origin: null` + `Access-Control-Allow-Credentials: true` to every proxied response. Without this an opaque-origin frame cannot call its own module API at all. Example and Bookmarks UIs switched to `credentials: 'include'`.
+
+**Decoupling**
+
+- ✓ `Core.Server` drops the library/Data/Data.SqlServer/Widget references (the gRPC clients keep using the proto), `UI.Web` drops the library, the CLI drops the migration assembly, and the `EmailDbContext` registration, HTTP client, descriptor entries (`ModuleUiRegistrationHostedService`, `WidgetUiRegistrationHostedService`), `AddAdditionalAssemblies` entry and `DbContextSchemaProvider` mapping are gone.
+- ✓ The module `UI/` and `Widget/` projects and the `/apps/email` shell + help pages are deleted; the library is a plain class library; `EmailGrpcApiClient` no longer depends on module models.
+- ✓ Two Files-module integration endpoints (`attach-from-files`, `detach`) removed with the `IFileDirectory` capability they depended on — they could never work from a sandboxed host. **Superseded 2026-11-08:** both directions are back through the core-brokered `IFileDirectory`/`IFileWriter` RPCs (see the section above); the direct Files client stays deleted.
+
+**Defect found and fixed**
+
+- ✓ An unauthenticated call answered 500 rather than 401 (no filter translated `UnauthorizedAccessException`). Added `EmailExceptionFilter` + `[ResponseCache(NoStore = true)]` on the controller base.
+- ✓ **Legacy redirect (fixed 2026-11-12)** — three Gmail OAuth error branches still redirected to the deleted `/apps/email` shell page, so a failed token exchange landed on a 404; they now use the same `ModuleUrl()` helper as the other branches (`/apps/dotnetcloud.email/?gmail=…`).
+
+**Verification**
+
+- ✓ `DotNetCloud.Modules.Email.Tests` 53 passed (9 asset, 4 filter, 3 model/snapshot, plus the existing service tests); `DotNetCloud.Core.Server.Tests` 1570 passed / 2 skipped; Bookmarks 37, Example 81, SDK 33; CI solution build 0 warnings.
+- ✓ Published-host smoke test: `/`, `/widget/index.html`, `/assets/email-ui.{js,css}`, `/widget/widget.js`, `/dncModuleBridge.js` → 200 with correct content types; `/api/v1/email/accounts` → 401 with the standard envelope and `Cache-Control: no-store,no-cache`; `/api/v1/email/gmail/oauth/status` → 200 `{configured:false}`.
+- ☐ Iframe rendering through the live core proxy + bridge handshake (needs a deployed server), and publishing `1.2.0` to the store.
+
+---
+
+## Recent Work — Track C dogfood: Bookmarks module UI plane (2026-11-08, `feature/third-party-modules`)
+
+Second Track C module of `docs/THIRD_PARTY_MODULE_SANDBOX_AND_STORE_PLAN.md`. Bookmarks already owned
+its data store; this slice moves its UI out of the core.
+
+**Module-hosted UI (phase A5 plane)**
+
+- ✓ `wwwroot/index.html` + `assets/bookmarks-ui.{js,css}` served by the module's own host: sidebar (views, folders, tools), grid/list, search, detail with preview fetch, bookmark/folder forms, import, export and in-frame help; every asset and API reference relative.
+- ✓ The page uses the module's existing REST API (`api/v1/bookmarks…`) — no new endpoints, and the acting user still comes from the verified `dnc-user-assertion`. DOM is built with `textContent`/`createElement` only.
+- ✓ Export opens `api/v1/bookmarks/export` in a core-controlled tab via `dncModuleBridge.openExternal` (a sandboxed frame cannot download; the top-level navigation carries the cookie the proxy needs).
+- ✓ **New `ui.widget.path` manifest key** (core + SDK models and validation): the module contributes a sandboxed Home-page card, `wwwroot/widget/index.html` listing the five most recent bookmarks with widget-role height reporting. `ModuleAppRegistrationHostedService` registers it and unregisters it when the block is removed.
+- ✓ Manifest v2 declares `ui` (`iframe`, entry `/`, Material icon `bookmark`) and `ui.widget`; version bumped to `1.2.0` everywhere.
+
+**Decoupling**
+
+- ✓ `Core.Server` drops the module's library/Data/Data.SqlServer/Widget project references (the gRPC search client keeps using the proto); `UI.Web` and the CLI drop their references.
+- ✓ Removed from `ModuleUiRegistrationHostedService`, `WidgetUiRegistrationHostedService` and `AddAdditionalAssemblies`; the module's `UI/` and `Widget/` projects, the `/apps/bookmarks` shell page and `BookmarksHelp.razor` are deleted.
+- ✓ The module library is a plain `Microsoft.NET.Sdk` class library — no Razor SDK, no ASP.NET Core framework reference, no `DotNetCloud.UI.Shared`.
+
+**Defect found and fixed**
+
+- ✓ An unauthenticated API call answered **500** instead of 401: `GetAuthenticatedCaller()` throws `UnauthorizedAccessException`, and no action translated it. Added `BookmarksExceptionFilter` (401/404/403/400 mapping, unexpected exceptions left to the host) plus `[ResponseCache(NoStore = true)]` on the controller base.
+
+**Verification**
+
+- ✓ `DotNetCloud.Modules.Bookmarks.Tests` 37 passed (6 asset tests, 3 filter tests); `DotNetCloud.Modules.Sdk.Tests` 33; `DotNetCloud.Core.Server.Tests` 1563 passed / 2 skipped; `DotNetCloud.CLI.Tests` 240; CI solution build 0 warnings.
+- ✓ Published-host smoke test: `/`, `/widget/index.html`, `/assets/bookmarks-ui.{js,css}`, `/widget/widget.js` → 200; `/api/v1/bookmarks` → 401 with the standard envelope and `Cache-Control: no-store`.
+- ☐ Iframe rendering through the live core proxy + bridge handshake (needs a deployed server).
+
+---
+
+## Recent Work — Track C dogfood: Example module UI plane (2026-11-08, `feature/third-party-modules`)
+
+First Track C module of `docs/THIRD_PARTY_MODULE_SANDBOX_AND_STORE_PLAN.md`. The Example module already
+ran sandboxed with an isolated data store; this slice completes its dogfooding contract.
+
+**Module-hosted UI (phase A5 plane)**
+
+- ✓ `wwwroot/index.html` + `assets/example-ui.{js,css}` served by the module's own host (`UseDefaultFiles`/`UseStaticFiles`); the core frames `/apps/dotnetcloud.example/` and proxies it.
+- ✓ All asset and API references are relative — the proxy strips `/apps/<moduleId>`, so an absolute path would leave the module.
+- ✓ `dncModuleBridge.js` copied from the SDK at build time (one copy of the protocol; no npm, no bundler).
+- ✓ JSON API `GET/POST /api/notes`, `DELETE /api/notes/{id}` behind `ExampleNotesService`; the owner is the verified `dnc-user-assertion` user (never the payload), another user's note answers 404, responses are `no-store`, audit goes through `IDncModuleApi`.
+
+**Manifest and consent**
+
+- ✓ Manifest v2 declares `ui` (`iframe`, entry `/`, Material icon `note`) and `userConsentScopes: ["notifications:send"]` — the F18 capability→scope rule holds for `INotificationService`.
+- ✓ Least privilege: `IStorageProvider` (and its `files:read` scope) removed — the module never touched file storage, and store review requires a justification per capability. Note creation now really sends a notification, exercising the capability and the consent gate.
+- ✓ Version bumped to `1.1.0` (code manifest, packaged manifest and the host's version probe agree).
+
+**Decoupling**
+
+- ✓ `DotNetCloud.UI.Web` no longer references the Example module; `ExampleHelp.razor` and the module's in-core Blazor components are deleted.
+- ✓ The module library is a plain `Microsoft.NET.Sdk` class library — no `DotNetCloud.UI.Shared`, no ASP.NET Core framework reference.
+
+**Verification**
+
+- ✓ `DotNetCloud.Modules.Example.Tests` 81 passed (10 new notes-service tests, 6 new asset tests, new manifest UI/consent assertions).
+- ✓ `ShippedExampleModuleManifestTests` in `Core.Server.Tests` loads the packaged manifest through the real v2 loader (4 passed).
+- ✓ Published-host smoke test: `/` → 200 `text/html`, bridge and script → 200, `/api/info` → 200, `/api/notes` → 401 (no assertion and forged assertion).
+- ☐ Iframe rendering through the live core proxy + bridge handshake (needs a deployed server).
+
+---
+
+## Recent Work — Module store trust program (2026-11-08, `feature/third-party-modules`)
+
+Phase B5 of `docs/THIRD_PARTY_MODULE_SANDBOX_AND_STORE_PLAN.md`, implemented across this repository and
+`DotNetCloud.ModuleStore`.
+
+**Trust tiers**
+
+- ✓ Store derives the tier from the publisher registry (`official` flag → `official`, `verified` → `verified-publisher`, registered key only → `community`) and writes `trustTier` into every signed catalogue version.
+- ✓ `verify-index` recomputes the tier and fails on a contradiction (a re-signed hand edit cannot promote itself).
+- ✓ Core carries the tier through the store client → review DTO → install result → `install-receipt.json`; `unverified` is derived locally, never published.
+- ✓ Admin store list (**Trust** column), review panel (badge + community warning), CLI review output and the store site badge the tier.
+- ✓ Tests: derivation matrix, contradiction, registry `official`-without-`verified`, known/unknown wire values, previous-key acceptance, revoked-key refusal, local-feed tier, receipt tier.
+
+**Key management and provenance**
+
+- ✓ `DotNetCloud.ModuleStore/docs/KEY_MANAGEMENT.md` — generation, secret storage, offline backup, current+previous pinning, rotation and compromise response.
+- ✓ Publisher agreement codifies key custody, rotation overlap and build attestations; submission guide documents `actions/attest-build-provenance` + `gh attestation verify` (required for official, recommended otherwise).
+- ✓ Review checklist requires erasure **test evidence**, network/telemetry declaration, licence and provenance.
+
+**Takedown and revocation**
+
+- ✓ Store runbook §7 (yank → coordinate → remove → advise → record) cross-linked with `docs/security/VULNERABILITY_DISCLOSURE.md`, which now lists store packages in scope and owns triage/advisory.
+- ✓ The catalogue builder refuses to drop a published version that has no `yanked.json` record, so a takedown cannot be a silent directory delete.
+
+**Open follow-ups**
+
+- ✓ Automatic in-product warning for an installed copy of a security-yanked version — implemented: `yankedSeverity` in the catalogue, `/admin/store` withdrawal card with **Review upgrade**, `dotnetcloud module list` warnings and `GET admin/modules/store/revocations`.
+- ✓ `www.dotnetcloud.net` store page is live; the B4 pre-launch gate is **resolved as "no gate" (2026-11-09, D7)** — the store is public by design, with review + signatures + trust tiers as the controls (tracked in the store plan).
 
 ---
 
 ## Recent Fix — Calendar event times rendered in UTC (2026-11-05, `fix/calendar-event-times`)
 
-> Reported live: the TUE 3 cell read **5:00 PM** for an event whose *Edit Event* dialog showed **11:00 AM** (CST).
+> Reported live: the TUE 3 cell read **5:00 PM** for an event whose _Edit Event_ dialog showed **11:00 AM** (CST).
 
 - ✓ **Root cause** — `BrowserTimeProvider.EnsureInitializedAsync` invoked the JS identifier `Intl.DateTimeFormat().resolvedOptions().timeZone`. Blazor resolves identifiers as **dotted property paths only** (verified in the served `blazor.web.js`: `findObjectMember` splits on `.`), so `"DateTimeFormat()" in Intl` is false, the call throws `Could not find …`, and the `catch` latched onto **UTC** — every `ToLocal`/`FormatTime` became a no-op. 11:00 AM CST is stored as 17:00 UTC, so the badge printed **5:00 PM**, while the editor used `DateTime.ToLocalTime()` (server = `America/Chicago`) and printed 11:00 AM. Regression introduced by #207, which switched the badges from `ToLocalTime()` to `BrowserTimeProvider`.
 - ✓ **Fix** — `BrowserTimeProvider` now calls the existing helper `dotnetcloud.getTimezone` (`wwwroot/js/timezone.js`, already used by Profile/Admin/Register), falls back to `TimeZoneInfo.Local` (browser zone in WASM, process zone under server-interactive rendering) instead of raw UTC, retries after a prerender failure, formats `DateTimeOffset` through the resolved zone (no more process-local `LocalDateTime`), and adds `ToUtc(...)` for wall-clock → UTC with a DST-gap guard.
@@ -28,7 +416,7 @@
 - ✓ **Files share expiry** — `ShareExpiryNotificationService` raises `ShareExpiringEvent` through the publisher instead of the module-local bus with `CreateSystemContext()`; a share is only marked notified once the core accepts the event, so a failure retries instead of being dropped. The sweep is registered by the **Files host alone** (`AddShareExpiryNotifications`) — Photos/Music/Video reuse `AddFilesServices` and were silently mounting a second copy
 - ✓ **Email sync is core-driven** — the module's self-scheduling `EmailSyncBackgroundService` is replaced by `EmailSyncService` (no timer, owner predicate on every sync). New `ListSyncCandidates` RPC reports which accounts are due; `TriggerSync` now **requires** a core-signed user assertion, refuses a payload that names a different user, and syncs only the asserted user's account. Core-side `EmailSyncScheduler` lists candidates, confirms each owner against the identity store, mints a ≤60 s ECDSA assertion (`op = email.sync`) and invokes the module over `IModuleGrpcChannelProvider`. IMAP/SMTP/Gmail logic untouched
 - ✓ **Manual sync ownership (closes `email.sync.account-idor-missing-ownership-check`)** — `EmailController.SyncAccount` passes the authenticated caller and returns 404 for an account the caller does not own
-- ✓ **Contacts 503 (found live during verification)** — `ContactsGrpcApiClient` is registered scoped and disposed the manager-owned channel, so the first scope to end (a closed Blazor circuit — opening the Contacts page was enough) killed the contacts channel process-wide: every later call *and* the supervisor's health probe failed with `ObjectDisposedException: GrpcChannel` and the page returned 503 until restart. `Dispose()` is now a documented no-op; `ContactsGrpcApiClientTests` pins it (mutation-checked key: restoring the old body reproduces the production stack). Same bug class as the three Files clients fixed in batch 1
+- ✓ **Contacts 503 (found live during verification)** — `ContactsGrpcApiClient` is registered scoped and disposed the manager-owned channel, so the first scope to end (a closed Blazor circuit — opening the Contacts page was enough) killed the contacts channel process-wide: every later call _and_ the supervisor's health probe failed with `ObjectDisposedException: GrpcChannel` and the page returned 503 until restart. `Dispose()` is now a documented no-op; `ContactsGrpcApiClientTests` pins it (mutation-checked key: restoring the old body reproduces the production stack). Same bug class as the three Files clients fixed in batch 1
 - ✓ **Dead unauthenticated channel factories deleted** — `AdminController` and `AdminSystemController` each carried an unreferenced `CreateGrpcChannel(endpoint)`; both already use `IModuleGrpcChannelProvider`. Removed so the raw-channel path cannot be wired up later
 - ✓ Tests — 7 (Video HLS) + 9 (`ModuleEventInboxTests`) + 7 (`EmailSyncSchedulerTests`) + 5 (`EmailGrpcServiceSyncTests`) + 5 (`EmailSyncServiceTests`) new, plus the reminder wording and publish-failure cases and the rewritten Calendar/Files service tests
 - ✓ Live verification (mint22) — `ListSyncCandidates` reached the Email host over the authenticated channel (200); a seeded due reminder published via `PublishEvent`, appeared on the core event bus and produced a `Type=Reminder` notification; share-expiry cycles run in `dotnetcloud.files` only
@@ -3419,6 +3807,159 @@ Plan: `docs/SECURITY_AUDIT_REMEDIATION_PLAN.md` (workstreams 1–3, 11 findings)
 - ☐ Video controller regression test for the HLS entitlement check
 - ☐ Operator action: rotate the exposed TMDB key at the provider
 
+#### Security Hardening — Third-Party Module Sandbox A0 (2026-11-06)
+
+Plan: `docs/THIRD_PARTY_MODULE_SANDBOX_AND_STORE_PLAN.md` (phase A0). Branch `feature/third-party-modules`.
+
+- ✓ All 15 `CoreCapabilities` RPCs mapped to capabilities (`LogAudit`, `SubmitSearchIndex`, `GetGroupsForUser` previously unenforced); `BroadcastRealtimeEvent` re-tiered from Public to `IRealtimeBroadcaster`
+- ✓ Shared `CapabilityCatalog` replaces the dead `CapabilityValidator`; unknown capabilities fail closed
+- ✓ `GetCurrentUser` returns the verified caller context; `SubmitSearchIndex` uses the authenticated module id
+- ✓ `minCoreVersion` enforced at module start; all in-repo manifests corrected to `0.7.0`
+- ✓ Supervisor module-path containment uses `Path.GetFullPath` + `Path.GetRelativePath` (sibling-prefix bypass closed)
+- ✓ gRPC detailed errors limited to Development
+- ✓ Module transport documentation truth-passed (`CROSS_MODULE_TRUST.md`, `SECURITY_MODEL.md`, `ARCHITECTURE.md`, `MODULE_DEVELOPMENT.md`); remaining files recorded for Track D in the plan
+- ✓ Regression tests: capability mapping completeness, capability tiers, `minCoreVersion`, path containment, verified `GetCurrentUser`, search-index attribution
+- ✓ Phase A1 — isolation foundation (complete 2026-11-12)
+  - ✓ Manifest v2 model + strict validation; `schemaProvider` removed
+  - ✓ Sandbox entities (`ModuleDataStore`, `ModuleSetting`, `ModuleQuota`, `UserErasureRequest`, `ModuleUserErasure`) + `InstalledModule` extension + PostgreSQL and SQL Server migrations
+  - ✓ Module registry upsert (version, required flag, trust tier, data-store mode, sandbox state)
+  - ✓ Trust-tier gated manifest grants (store-tier modules are never auto-granted)
+  - ✓ Settings plane: `IModuleSettingsStore`/`ModuleSettingsStore`, working `GetSetting`/`SetSetting` namespaced by the authenticated module, `IModuleSettings` gRPC client
+  - ✓ Provisioning service: PostgreSQL role/schema and SQL Server contained user/schema, prerequisite detection with remediation, idempotent ensure, rotation, drop, DataProtection-encrypted connection strings
+  - ✓ Supervisor env split + per-module `{config,data,run}` directories + sanitized `module.json`; legacy v1 modules gated by `ProcessSupervisor:AllowLegacyAccess`
+  - ✓ Example host binds `DOTNETCLOUD_GRPC_ENDPOINT`, uses a private DataProtection ring and reads the sandbox connection string / module settings client
+  - ✓ Setup/restore create the PostgreSQL app role with `CREATEROLE`
+  - ✓ Setup wizard reports module data-store prerequisites after migrations with the exact remediation statement (actual role/database name), before any module can be held in `SandboxStatus = Error`
+  - ✓ Live provisioning/adoption integration tests on PostgreSQL and SQL Server (own-schema DDL allowed, sibling/core schema denied, adoption ownership incl. `__EFMigrationsHistory`, destroy, prerequisites)
+  - ✓ Launch-environment split extracted to `ModuleLaunchEnvironment` with unit tests (sandbox vs legacy directories, connection-string presence, override refusal)
+  - ✓ Admin/CLI `datastore` commands (status/provision/rotate/destroy, credential reset) and admin API (`GET/POST/DELETE admin/modules/{id}/datastore*`)
+  - ✓ Resource quotas (F10): policy + resolver, admin `GET/PUT modules/{id}/quota`, cgroup memory/cpu/pids, PG `CONNECTION LIMIT` + pool size, identity-keyed request/event/notification/audit limiters, and measured DB/data-dir usage with `QuotaExceeded` suspension + start refusal
+  - ✓ Storage namespacing (F5): `IStorageProvider` namespaced contract + `ModuleStorageNamespace` (module/user segment from verified identity, traversal/rooted/encoding rejection, containment re-check, 30 tests)
+  - ✓ Adoption/legacy-override service (§9): preflight report, in-place schema/object ownership transfer incl. `__EFMigrationsHistory`, startup migration service ordered before the supervisor, bundled-only audited `LegacyOverride`, `datastore preflight` CLI
+  - ✓ Manifest-authoritative schema mode (the A1 tail): `DbContextSchemaProvider.ModuleDbContextTypes` now only registers which DbContexts this process owns; `IsCoreManaged` = required module, or no manifest-declared data store (`IModuleDataStoreModeSource` → `ModuleManifestRegistry.GetDataStoreMode`, `null` for v1). A v2 `dataStore: "isolated"` module is skipped by the core pass, so the two migrators cannot race; a `none` module is skipped too. Converted modules have already left the table with their `.Data` references. Tests: `DbContextSchemaProviderSchemaModeTests` (7) + 4 registry cases
+- ✓ Phase A2 — module API v1 (complete)
+  - ✓ D2 transport-identity rename: `dnc-module-id` / `dnc-module-token` / `dnc-user-assertion` headers and `DOTNETCLOUD_MODULE_TOKEN` env var, cut over in one release (single source: `ModuleIdentityMetadata`); credential-store/supervisor terminology moved from secret to token; `CROSS_MODULE_TRUST.md`/`SECURITY_MODEL.md` updated
+  - ✓ Drift guard: producer↔consumer tests prove `ModuleIdentityMetadata.Create` output is accepted by `AuthenticationInterceptor` and `ModulePeerAuthenticationInterceptor`
+  - ✓ `module_api.proto` (`dotnetcloud.moduleapi.v1`, 17 RPCs) with identity-free requests (reserved caller slot, no `module_id`, empty `user_id` = acting user) and descriptor-level contract tests
+  - ✓ Legacy `module_capabilities` mapped onto `module_api` via `ModuleApiV1Service` (delegates to the legacy handlers; minimal profile without email; `ReportHealth` registry)
+  - ✓ `ModuleAccessEvaluator` + shared public `CapabilityCatalog` in `DotNetCloud.Core`: fully-qualified RPC mapping for both services, explicit self-service allow-list, fail-closed on unmapped module RPCs, 60 s grant cache invalidated on admin grant/revoke, `ModuleCapabilityDenied` audit on denials; `ModuleAccessInterceptor` replaces `CapabilityGrantInterceptor`
+  - ✓ Credential lifecycle (D1): `ModuleCredentialStore` issue/`Rotate`/`Revoke` plus a non-secret `ModuleCredentialStatus` (hint + issued/rotated/revoked timestamps), no table and no token in logs
+  - ✓ Authorization invariants F4/F5/F6/F7/F15 (+ auth-failure audit, manifest-validated events, introspection audience)
+  - ✓ Audience-bound `dnc-user-assertion`, event & audit authenticity, internal REST facade `/internal/moduleapi/v1/*`
+  - ✓ `DotNetCloud.Modules.Sdk` + Example module on the SDK
+- ✓ Phase A3 — user consent (hybrid authorization)
+  - ✓ Scope catalog in `DotNetCloud.Core` (`ModuleScopes` + `ModuleCapabilityScopes`) replacing the duplicated client-seeder literals
+  - ✓ Consent UI on `/connect/authorize` → `/connect/consent` (core chrome) with POST-only, anti-forgery-protected, non-frameable decision endpoints (F9); D3 first-party clients switched to `ConsentTypes.Implicit`
+  - ✓ `ModuleUserConsent` entity (both-provider migrations) + `IModuleConsentService` with expiry, cache invalidation and bulk revocation
+  - ✓ Consent enforcement: `MODULE_CONSENT_REQUIRED` + `consent-scopes` on user-scoped directory RPCs; email withheld without `profile` consent; notification recipients filtered by `notifications:send`
+  - ✓ Module OIDC clients (`dnc-module-<short>`, public PKCE, explicit) registered and reconciled
+  - ✓ F18 manifest validation (unknown scopes, identity scopes as consent, capability → scope completeness) in core and SDK
+  - ✓ User-erasure propagation (F12): `EraseUserData` RPC + handler seam, 72-hour retrying orchestrator, consent-row deletion, audited admin override, Files handler
+  - ✓ `CheckUserConsent` / `GetGrantedScopes` implemented; `TokenIntrospectionServiceImpl` scopes filtered to declared ∩ consented
+  - ✓ `/connected-apps` page + admin consent overview with revoke-on-behalf
+  - ✓ `docs/modules/MODULE_SECURITY.md`: permission mapping table, enforcement rules, consent flow, shared/team-data decision
+- ✓ Phase A4 — transport hardening (per-module sockets)
+  - ✓ Removed both forced `PreferTcpTransport = true` assignments; the option now defaults to `false` and a regression test proves `false` is honoured
+  - ✓ `ModuleTransportOptions` (`Modules:Transport` = `Auto`/`Sockets`/`Tcp`, socket-directory override, pipe prefix) + `ModuleTransportSelection` resolving the transport exactly once
+  - ✓ `ModuleEndpoint` (parse/format for `unix://`, `net.pipe://`, `http://`) replacing every `Replace("unix://","http://")` string hack
+  - ✓ `ModuleEndpointAllocator`: `<dataDir>/modules/<id>/run/module.sock`, named pipe `dotnetcloud-<id>`, TCP port probing; single authority shared with `ModuleEndpointProvider` (the duplicate allocator is gone)
+  - ✓ `ModuleRuntimeArtifacts`: `0700` runtime directory, `0600` socket file after bind, stale socket removed before spawn and after stop/crash, too-long path → TCP fallback
+  - ✓ Host binding helper `ModuleGrpcEndpointBinding` (`ListenUnixSocket`/`ListenNamedPipe`/loopback TCP, HTTP/2) adopted by all 14 module hosts + the extraction host; no loopback listener when a socket is assigned
+  - ✓ `GrpcChannelManager` and the YARP REST proxy dial sockets/pipes through `SocketsHttpHandler.ConnectCallback`; `ModuleHttpInvokerCache` gives each socket module its own invoker
+  - ✓ `ModulePeerAuthenticationInterceptor` retained on every transport (transport-agnostic, fails closed without the supervisor-issued credential)
+  - ✓ Tests: endpoint parsing/formatting, transport-selection matrix, allocator layout + fallback, socket permissions/cleanup, live gRPC over Unix socket, credential rejection over socket, TCP fallback round-trip
+  - ✓ `docs/modules/MODULE_SECURITY.md` §9: transport matrix, `Modules:Transport` reference, what the transport does/does not protect, Docker/deployment guidance
+- ✓ Phase A5 — iframe UI plane
+  - ✓ `ModuleAppRegistrationHostedService` reads `ui.type = "iframe"` from enabled, non-required v2 manifests and registers a `ModuleAppDescriptor` + nav items; required modules keep the static Blazor path
+  - ✓ Emoji nav literals replaced with Material icon names (`ModuleIconProvider` is the single mapping point) and `NavMenu` renders `<MaterialIcon>`
+  - ✓ `/apps/{moduleId}/{**catch-all}` proxy: auth-only (401), 503 when stopped, 404 without a declared UI, per-module UI rate limit (429), `Set-Cookie`/`Server`/`X-Powered-By` stripping, `frame-ancestors 'self'` + `nosniff` + `no-referrer`, `no-store` for HTML, 32 MiB response cap, `dnc-user-assertion` with the module audience
+  - ✓ `dncmoduleid` route constraint keeps `/apps/files`, `/apps/chat`, … out of the proxy
+  - ✓ `ModuleAppHost` (sandboxed iframe, no `allow-same-origin`), `ModuleAppPage` shell route at `/modules/{moduleId}`, loading/stopped/failed states, theme + locale propagation, core-rendered consent banner
+  - ✓ Widget plane first pass: nullable `WidgetDescriptor.ComponentType`, `RegisterIframeWidget`, `ModuleWidgetFrame` with the height contract
+  - ✓ SDK `dncModuleBridge.js` (identity-bound parent validation, direction-scoped allow-list, notify rate limit) + C#↔JS protocol drift test
+  - ✓ `ModuleAppProtocol`/`ModuleAppUrls` shared contract (message types, URL shapes, entry-path and external-URL validation)
+  - ✓ Core CSP gained `frame-src 'self'`
+  - ✓ Incidental fix: `ModuleUserConsent` had two cascading FKs from `Users` (SQL Server multiple-cascade-path); `GrantedByUserId` is now a plain indexed audit column and both migrations were regenerated
+- ✓ Phase A6 — lifecycle, ops, audit
+  - ✓ `ModuleDetail.razor` sections: trust tier, publisher, sandbox status, data-store state + provision/rotate/destroy, launch credential + rotate/revoke, quota editor with effective values, outstanding erasure rows, uninstall panel (keep-vs-destroy, remove-files)
+  - ✓ `ModuleList.razor` trust/sandbox columns; new `/admin/erasure` queue page (force-complete) + admin nav entry
+  - ✓ Admin API: `POST modules/{id}/uninstall`, `GET modules/{id}/credential`, `POST modules/{id}/credential/rotate|revoke`, `GET datastores/orphaned`
+  - ✓ Uninstall flow: stop → revoke credential → destroy or orphan the data store → cascade consents/quotas/settings → remove binaries (containment-checked) → delete installation; a failed drop aborts and keeps the installation
+  - ✓ `ModuleDataStore` FK removed so a kept store can outlive the module (`AddModuleDataStoreOrphanSupport`, PostgreSQL + SQL Server); `Orphaned` rows listed for cleanup
+  - ✓ `AuditAction`: `ModuleInstalled`, `ModuleUpdated`, `ModuleUninstalled`, `ModuleCredentialRotated`, `ModuleDataStoreProvisioned|Destroyed|Error`, `ModuleRateLimited`, `ModulePackageVerificationFailed`, `ModuleLegacyAccessUsed` — wired on the admin/CLI paths and the rate limiter
+  - ✓ `AuditTextSanitizer` strips control characters/newlines and caps module-supplied fields (F14); first rate-limit rejection per window is audited
+  - ✓ `ProcessSupervisorOptions.UnhealthyThreshold` honoured (consecutive failures → force-kill → restart policy); `Disabled` modules skipped at startup; `Disabled`/`Enabled`/`RestartPending` reconciled every 30 s
+  - ✓ `/health/ready` module rows report `sandboxStatus`, `trustTier`, `dataStoreMode`
+  - ✓ Backup/restore tests prove `<dataDir>/modules/*/data` + the DataProtection key ring are archived and restored; credential-reset recovery documented
+  - ✓ CLI: manifest-backed `module install`, `module uninstall --destroy-data|--keep-files`, `module restart` via `RestartPending`, `start|stop` applied by the supervisor
+  - ✓ Tests: uninstall matrix (keep/destroy/rollback/files), credential rotate/revoke, orphan list, audit sanitizer, backup+restore round-trip, health-failure counter, CLI option structure
+- ✓ Phase B1 — package format & tooling
+  - ✓ `docs/modules/MODULE_PACKAGING.md`: layout, determinism rules, signing scheme, verification pipeline, hardening limits, local feed, tool reference, authoring checklist
+  - ✓ `src/Tools/DotNetCloud.ModulePackaging` (`dotnetcloud-pack`) with `pack`, `verify`, `inspect`, `keygen` and `feed list|verify`; added to `DotNetCloud.sln` + `DotNetCloud.CI.slnf`
+  - ✓ Detached `<package>.sig` over `SHA-256(package)` (F8): the archive never signs its own bytes, the file name is bound, non-Ed25519 algorithms and untrusted key ids are rejected
+  - ✓ Ed25519 via BouncyCastle.Cryptography 2.7.0 (pinned centrally); key formats documented
+  - ✓ Deterministic zip (sorted ordinal entries, fixed 1980-01-01 timestamps, no directory entries) proven byte-identical by test
+  - ✓ Archive hardening (F13): absolute paths, traversal, backslashes, control chars, ADS, trailing dot/space, reserved device names, duplicates, case collisions, symlinks, path/size caps, 200:1 zip-bomb ratio; extraction re-checks containment
+  - ✓ Manifest validation reuses the core `ModuleManifestLoader` (strict v2, `minCoreVersion`, data-store/UI rules); v1 accepted with a `MANIFEST_LEGACY_V1` warning until Track C
+  - ✓ Local feed (`index.json` + packages) with containment checks and inline-signature fallback
+  - ✓ Single manifest source: duplicate RCL `manifest.json` copies (Bookmarks, Email, Tracks) and their `Content Remove` blocks deleted
+  - ✓ CI `module-package` job packs/signs/verifies the Example module and uploads `example-module-package` (`.dncpkg` + `.sig` + `index.json`)
+  - ✓ 52 packaging tests: determinism, signature/hash/tamper, untrusted keys, manifest failures, hostile archives, extraction, feed
+- ✓ Phase B2 — store repository (`DotNetCloud.ModuleStore`, separate repo)
+  - ✓ Repo scaffold: `packages/`, `index/`, `tools/` (`dotnetcloud-store`), `schemas/`, `policy/`, `site/`, `docs/`, `scripts/`, workflows, solution + central pins
+  - ✓ `build` / `validate` / `verify-index` / `yank` / `publishers add|list` / `keygen`
+  - ✓ Catalogue `index/v1/index.json` + per-package documents, **detached** `index.json.sig` over the index digest (inline signature superseded per F8)
+  - ✓ Append-only publication enforced as a build failure; `publishedAt` inherited so rebuilds are byte-identical
+  - ✓ Publisher registry `publishers.json` (public keys only, duplicate/format checks) and `yanked.json` (deprecation/security + reasons)
+  - ✓ JSON Schema for the catalogue, package documents and registry; validated with a private schema registry per run
+  - ✓ Validation workflow: secret scan, build, tooling tests, store validation, append-only check, vulnerable-dependency scan, SPDX SBOM
+  - ✓ `build-index` workflow: signs with `STORE_SIGNING_KEY` (runner temp, `umask 077`, deleted), commits the signed catalogue
+  - ✓ Policy set: `STORE_POLICY.md`, `REVIEW_CHECKLIST.md`, `PUBLISHER_AGREEMENT.md`, `REVOCATION_RUNBOOK.md`, `docs/SUBMISSION.md`, PR template
+  - ✓ Static store frontend (browse/search, package detail, publisher page) reusing the website's visual language; no npm, `textContent`-only rendering, URL scheme checks
+  - ✓ 20 tooling tests; local end-to-end pack → build → verify → yank → verify passes
+  - ✓ Unified the detached-signature field on `file` across the packer (B1) and the store
+- ✓ Phase B3 — core package installer + remote store client (decision D6)
+  - ✓ Packaging primitives moved into `DotNetCloud.Core.Server/Packaging` (BouncyCastle on the server) so the installer and the packer share one verifier without a project cycle
+  - ✓ `IModuleStoreService` + `LocalModuleFeedStoreService` (local feed `index.json`, containment-checked resolution, `yanked.json`)
+  - ✓ `RemoteModuleIndexStoreService`: signed index fetch (signature verified against pinned keys), 1 h disk cache with stale/offline fallback, mirrors, `generatedAt` replay protection (`AllowIndexRollback` escape hatch), origin-restricted downloads, size-capped streaming download, package cache, signature written from the signed entry
+  - ✓ `ModuleStoreServiceFactory` selects the source from `Modules:Store:IndexUrl` (server DI and CLI)
+  - ✓ `ModulePackageInstaller` state machine: verify → review → acknowledge → provision → stage → swap → record → start → health-check → rollback; `install-receipt.json` written per installed module
+  - ✓ Verification hardening on every install path: pinned trusted key ids with revocation, SHA-256 + Ed25519 re-verification, archive safety, staged-manifest identity check, `manifest.id` = install directory name
+  - ✓ Rollback: the replaced version is retained under `modules/.previous/<id>/<version>`, `module rollback` swaps it back, and a withdrawn (yanked) version is refused (F16); `.staging`/`.previous` are skipped by discovery
+  - ✓ Isolated data store provisioned before the swap; a provisioning failure leaves the previous install untouched; a failed health check restores the previous binaries and record (first-install failures remove both)
+  - ✓ CLI: `module install --file|--from-feed|--from-store [--version] [--allow-unverified] [--yes]`, `module verify`, `module info`, `module rollback`; the disk-only registration path is kept for bundled deployments
+  - ✓ Admin API: `GET modules/store`, `POST modules/store/{id}/inspect`, `POST modules/store/{id}/install` (JSON + reviewed hash + acknowledgements), `POST modules/install/inspect`, `POST modules/install` (multipart + reviewed hash + capability/scope acknowledgements), `POST modules/{id}/rollback`
+  - ✓ Admin UI `/admin/store` (upload → review → approve → install, plus a **Review** action per catalogue version for the configured source) with an explicit unverified acknowledgement; nav entry added
+  - ✓ Config `Modules:Store` — `LocalFeedPath`, `IndexUrl`, `Mirrors`, `CachePath`, `IndexCacheTtl`, `DownloadTimeout`, `DownloadBaseUrl`, `DownloadOrigins`, `AllowIndexRollback`, `TrustedKeys`, `RevokedKeyIds`, `AllowUnverified` (default false), `HealthCheckTimeout`, `KeepPreviousVersion`
+  - ✓ Audit: `ModuleInstalled`/`ModuleUpdated` on install and rollback, `ModulePackageVerificationFailed` on rejected and unverified installs
+  - ✓ Tests: 55 packaging/installer/store tests (review, trust gates, acknowledgements, hash binding, hostile archive, RID fallback selection, upgrade/rollback retention, health-failure rollback, data-store failure, remote index signature/cache/replay/mirror/download paths) + CLI command-structure coverage
+  - ✓ Live end-to-end verification against `https://modules.dotnetcloud.net` (2026-11-08): `module install dotnetcloud.example --from-store --version 1.0.0` verified the index signature, the 31,376,184-byte package hash and the `dotnetcloud-official-2026` package signature, provisioned the isolated schema/principal and started the module (gRPC health 200); `module list` shows it as the only `Trust = Store` row
+  - ✓ RID fallback fixed (found by that run): a portable `files/linux-x64` package now installs on a distro host (`ubuntu.24.04-x64`) via OS-family + architecture matching; 8 unit tests
+- 🔄 Phase B4 — websites (`www` + `modules`) on **self-hosted IIS (`portal6`)** — **both sites live on the release/`current` layout (2026-11-08)**: `DotNetCloud-Website` and `DotNetCloud-Modules` point at `<root>\current` junctions (`releases\20261108-081731`); Cloudflare Pages dropped (no Cloudflare account); TLS renewal is automated by Certify The Web. Remaining: the pre-launch gate choice; CI deploys deferred until chosen
+  - ✓ **Pre-launch gate decision (2026-11-09): no gate.** The store stays public — review + `store-2026` index signature + publisher signature/trust tier are the controls; an IIS IP/Domain Restrictions allow-list remains the one-config fallback. CI deploys still deferred (needs a deployment credential on the host)
+  - ✓ `modules.dotnetcloud.net` is live on `portal6` (IIS 10, Let's Encrypt, `C:\inetpub\Apps\DotNetCloud-Modules`): store frontend, signed catalogue, `.dncpkg`/`.sig` served as `application/octet-stream`
+  - ✓ The live catalogue is consumed by a real server end-to-end (index → signature → download → hash → package signature → provision → start), 2026-11-08
+  - ✓ `deploy/sites/www/web.config` + `deploy/sites/modules/web.config` — default document, compression, cache policy (no-cache root, 60 s catalogue, 30 d icons, 365 d packages), MIME maps for `.dncpkg`/`.sig`/`.json`/webp/woff/woff2/svg, `http`→`https` and apex→`www` 301s, security headers
+  - ✓ `scripts/deploy-sites.ps1` — `-Site www|modules|all`, configurable sources, `releases/<yyyyMMdd-HHmmss>/` + `current` junction swap, `robocopy /MIR`, `-Rollback`/`-RollbackTo`, `-ListReleases`, `-WhatIf`, `-Verify`/`-VerifyOnly`, `-KeepReleases`, non-zero exit on failure
+  - ✓ `docs/admin/SITES.md` — IIS site/app-pool/host-header creation, MIME maps, rewrite rules, Certify The Web renewal, deploy + rollback procedure, post-deploy smoke list, troubleshooting
+  - ✓ Smoke checks (2026-11-08, from an external host): every page 200 (incl. `modules.html`, `package.html`, `publisher.html`), catalogue + `.sig` + `publishers.json` + `yanked.json` 200, package probe `application/octet-stream` with the published SHA-256, `http`→`https` 301 on both sites, apex→`www` 301, cache policy per path (`no-cache` / 60 s / 30 d / 365 d), gzip on HTML
+  - ✓ URL Rewrite module installed (winget-published MSI, SHA-256 verified, `msiexec /qn` exit 0) — it had never been on the host, and deploying the rules without it made **every** request 500 for ~2 min (see plan finding 13)
+  - ✓ Both IIS physical paths moved to `<root>\current`; deploy is now `scripts/deploy-sites.ps1 -Site all` (verified end-to-end from the operator side over WinRM)
+  - ✓ `www` store page: `DotNetCloud-WebSite/modules.html` (isolation model, trust tiers, config/install/verify/rollback commands, what is published today, yanked-version note) + **Modules** nav entry and **Module Store** footer link on all six pages; verified locally in light and dark mode, and live
+  - ✓ Docs/link updates: `README.md` website line names both sites; `.github/copilot-instructions.md` "Domain Information" rewritten for the two live sites (instruction-file diff pending explicit user approval)
+  - ✓ Automated certificate renewal — handled by **Certify The Web** (`Certify Management Agent` service, owns `dotnetcloud.net`/`modules.dotnetcloud.net`/`llabmik.net`/`messagebase.net`), validating through its own HTTP challenge listener; current pair expires 2027-02-05. Note recorded that a webroot-based challenge would fail here (extensionless files are not served, `404.17`), so do not add a second ACME client or switch to webroot validation without testing
+  - ✓ First-party module packages published to the live store (2026-11-09): `dotnetcloud.ai` 2.0.0 and `dotnetcloud.bookmarks` 1.2.0 added alongside `dotnetcloud.email` 1.2.0 and `dotnetcloud.example` 1.0.0–1.0.2 (`trustTier: official`) — catalogue rebuilt and signed (`store-2026`), `validate` 6 packages OK, `verify-index` clean; site root + `current` junctions updated (index last), served `index.json`/`.sig` byte-identical to the verified local files, and both packages downloaded from the public URL pass `dotnetcloud module verify` ("signed by a trusted key `dotnetcloud-official-2026`")
+  - ✓ Pre-launch gate choice — **no gate** (2026-11-09, D7): the store is public by design; review + index/package signatures + derived trust tier are the controls
+- 🔄 Phase C — dogfood migration, **Example** module (started 2026-11-07)
+  - ✓ Sandboxed host: Kestrel endpoint, module-private DataProtection keys, `module.json` topology, `DOTNETCLOUD_MODULE_DB_CONNECTION_STRING`, self-migration with retry
+  - ✓ v2 manifest: publisher `dotnetcloud`, `dataStore: isolated`, `handlesUserErasure: true`, capabilities/events in v2 fields
+  - ✓ `ExampleUserErasureHandler` (one user's notes only, idempotent) + 7 tests; manifest-file guard tests
+  - ✓ First signed package published: `dotnetcloud.example` 1.0.0, sha256 `138ed9dedce9b9b7a0de15b47d484554e0c327368d9a5c268539eeb477e4961b`; catalogue signed with `store-2026`
+  - ☐ Iframe UI plane (RCL page still in-core)
+  - ☐ `userConsentScopes` declared (store currently reports "no personal data access")
+  - ☐ Decouple RCL/Data/Widget `ProjectReference`s from `Core.Server`
+- ☐ Phases B5 / C (remaining modules) / D per the plan
+
 ---
 
 ## Phase 2: Chat & Notifications
@@ -5078,7 +5619,7 @@ Deliver Contacts (CardDAV), Calendar (CalDAV), and Notes (Markdown) as process-i
   - ✓ **Enhancement (2026-10-13):** now-playing track shown in the browser tab title (`♪ Song — Band`, `⏸` when paused). The override survives Blazor page navigation (`MutationObserver` in `music-player.js`) and is cleared when playback stops or on logout (`GlobalMusicPlaybar`).
   - ✓ **Fix (2026-10-26):** the now-playing tab title is scoped to the Music module and to actual playback — `GlobalMusicPlaybar.UpdateTabTitleAsync` requires `Playback.IsPlaying` + `NowPlaying` + `MusicRoutes.IsMusicUrl(Navigation.Uri)` and follows `Navigation.LocationChanged`, so navigating to another module (or the queue finishing) restores that page's own title; `clearNowPlayingTitle` no longer stomps a title Blazor already wrote; the `⏸` paused variant is gone. Tests: `MusicRoutesTests` (11).
   - ✓ **Change (2026-11-03):** the `♪` glyph is no longer prefixed to the now-playing tab title — it is plain `{Song} — {Band}`.
-  - ✓ **Enhancement (2026-11-03):** every track row now exposes a visible **Add to playlist** action — new shared `TrackActionsMenu` component (`playlist_add` icon; `MaterialSvgIcons` entry) opens a dropdown headed *Add to playlist* listing the caller's own playlists with track counts, plus **New playlist…** (create-and-add) and **Add to queue**; replaces the previous `⋯` menu and adds a confirmation toast for added / already-in-playlist / failed outcomes.
+  - ✓ **Enhancement (2026-11-03):** every track row now exposes a visible **Add to playlist** action — new shared `TrackActionsMenu` component (`playlist_add` icon; `MaterialSvgIcons` entry) opens a dropdown headed _Add to playlist_ listing the caller's own playlists with track counts, plus **New playlist…** (create-and-add) and **Add to queue**; replaces the previous `⋯` menu and adds a confirmation toast for added / already-in-playlist / failed outcomes.
   - ✓ **Fix (2026-11-03):** the global playbar no longer covers the bottom of full-height pages — new `--global-player-height` variable (0 / 80px with `.has-global-player` / 64px ≤768px) is subtracted by `.chat-layout` (restores the Chat message composer), `.files-page-layout`, `.calendar-page-layout`, `.notes-page-layout` and `.contacts-page-layout`, and `.has-global-player .page-content` pads by it.
   - ✓ **Enhancement (2026-10-23):** `GlobalMusicPlaybar` repeat control is colour-coded by mode — Off = red, One = yellow, All = green — via `MaterialIcon` (`repeat` / `repeat_one`, added to `MaterialSvgIcons`) and the `gmp-repeat-mode-off/one/all` classes in `app.css`; icon and label share the mode colour
 
@@ -5520,6 +6061,9 @@ content-addressed chunks, so reads stream the blob directly with no temp-file re
 
 ### Step 9.5 — Blazor UI Chat Panel
 
+> **Superseded 2026-11-09 by Step 9.9:** the chat UI is now served by the module host inside a
+> sandboxed iframe (`/apps/dotnetcloud.ai/`); the in-core Blazor page was deleted.
+
 - ✓ Chat-style AI assistant panel component (`AiChatPage.razor`, mounted at `/apps/ai`)
 - ✓ Streaming response rendering (gRPC streaming via `SendMessageStreamingAsync`, "Generating…" indicator, live reasoning block)
 - ✓ Conversation history sidebar (list, new chat, rename, delete)
@@ -5528,6 +6072,10 @@ content-addressed chunks, so reads stream the blob directly with no temp-file re
 - ✓ Model selection moved to admin-configured `DefaultModel` — user-facing model selector intentionally removed (per `docs/AI_REQUEST_QUEUEING_PLAN.md`)
 
 ### Step 9.6 — Admin Settings & Multi-Provider Support
+
+> **Superseded 2026-11-09 by Step 9.9:** the settings now live in the core's module settings plane
+> (`dotnetcloud.ai`), encrypted at rest, and are edited from the module's admin page; the Blazor
+> admin component and the `SystemSettings` seeds were removed.
 
 - ✓ `AiAdminSettingsViewModel` — Settings model (Provider, ApiBaseUrl, ApiKey, OrgId, DefaultModel, MaxTokens, Timeout)
 - ✓ `AiAdminSettings.razor` / `.razor.cs` — Blazor admin settings page with provider-aware UI
@@ -5561,6 +6109,24 @@ content-addressed chunks, so reads stream the blob directly with no temp-file re
 - ✓ `MarkdownHtmlFormatterTests` — headings, lists, tables, fenced code, raw-HTML escaping, `NeedsHtmlRendering`
 - ✓ Stream-silence watchdog only arms after the first content/thinking chunk — a slow cold Ollama model load (gemma4:12b can take >60s to the first token) no longer cancels the request (mirrors Blazor `AiChatPage`; Android `AiViewModel`, 2026-09-01)
 - ✓ "Generating…" indicator now keyed on the **answer** text, not on thinking: with a reasoning model the thought-process block fills in within seconds, and the old `string.IsNullOrEmpty(StreamingThinking)` guard suppressed the indicator for the whole reasoning phase — the answer area sat blank for minutes with no sign of progress (2026-09-17)
+
+### Step 9.9 — Sandboxed module (Track C, 2026-11-09)
+
+- ✓ **Data plane:** `AiDbContext` is schema-neutral and both provider migration sets carry no schema qualification or `CREATE SCHEMA`; `AiDbInitializer` baselines an adopted schema with an empty history and then self-migrates into the provisioned schema.
+- ✓ **Sandboxed host:** `module.json` topology, module-private DataProtection ring under `DOTNETCLOUD_MODULE_DATA_DIR`, scoped connection string, no cookie scheme (identity is the core-signed `dnc-user-assertion`), `AiExceptionFilter` answers 401 (not 500) without an assertion, and the core database is no longer opened.
+- ✓ **Manifest v2:** publisher `dotnetcloud`, `dataStore: "isolated"`, `handlesUserErasure: true`, capabilities narrowed to `IAuditLogger`, no consent scopes (audit exposes no personal data), no cross-module events, iframe app + Home-page widget, Material icon `smart_toy`.
+- ✓ **Settings plane:** the seven provider settings now live in `ModuleSettings` (`dotnetcloud.ai`) and are read through the module API; secret `ApiKey` is encrypted by the core (`IModuleSettingCipher`) and never returned by a listing. Admin API `GET/PUT/DELETE api/v1/core/admin/modules/{id}/settings` + a module-detail settings panel edit them. The obsolete `SystemSettings` seeds were removed.
+- ✓ **Module-hosted UI:** `wwwroot/index.html` + `assets/ai-ui.js`/`.css` (streaming chat, queue position, thought-process block, abort, rename/delete, copy as Markdown/formatted, in-frame help) and `wwwroot/widget/` (conversation count + last activity via the new `GET api/v1/ai/conversations/stats`). The markdown renderer escapes everything and only emits text nodes and a fixed element set.
+- ✓ **Erasure:** `AiUserErasureHandler` deletes conversations (including soft-deleted ones) and their messages, idempotently per request id.
+- ✓ **Decoupled:** no `Core.Server`/`UI.Web`/CLI reference remains; the Blazor chat/admin/help components and the `DotNetCloud.Modules.AI.Widget` project are deleted and the library is a plain class library.
+- ✓ **Tests:** model-drift/schema-neutrality guards, erasure matrix, UI asset guards, shipped-manifest v2 assertions, settings-store secret/list/delete tests, admin module service tests — 53 AI tests and the full CI suite green.
+- ✓ **Packaged:** `dotnetcloud.ai` 2.0.0 packs deterministically and self-verifies (`pack` → `inspect`: manifest v2, LICENSE/README/CHANGELOG, both RIDs, wwwroot app + widget + bridge).
+- ✓ **Live install (2026-11-09, dev server):** startup adopted the legacy `ai` schema (`sandboxStatus: Active`, 1 conversation preserved) and 15/15 modules reported healthy; the signed 2.0.0 package then installed over the bundled copy (`trustTier: Store`) and stayed healthy.
+- ✓ **Capabilities:** the manifest declares `IAuditLogger` + `IModuleSettings` (`GetSetting` is capability-gated); a **Capabilities** panel (grant/revoke, audited) was added to the module detail page because store-tier modules are never auto-granted.
+- ✓ **Auth gate:** `AiRequireUserAssertionFilter` requires a verified assertion on every REST action; the live API answers 401 without one (this closed a regression where `health/ollama` and `settings` were anonymous after the cookie scheme was removed).
+- ✓ **Settings migration:** `ModuleSettingsPlaneMigrator` moves a converted module's existing `SystemSettings` values into the module settings plane at startup (credentials as secrets, no overwrite, empty values skipped) and removes the stale rows; live run copied 4 values and removed 7 rows, so the operator's `DefaultModel` and provider endpoint are honoured again. Six tests.
+- ✓ **Dark mode:** module frames now follow the shell's `dark-mode` class (the host read a `data-theme` attribute the shell never sets) and a `MutationObserver` pushes `dnc:theme` live; documented in `MODULE_UI_HOSTING.md` §4 with a drift-guard test.
+- ✓ **Full-bleed module pages:** `app.css` no longer caps the module iframe at the 1400px reading width (the opt-out only matched in-core layouts, which are invisible from the shell); guarded by `ModuleAppPageLayoutTests`.
 
 ---
 
@@ -8269,7 +8835,6 @@ block buttons replaced the highlighted block with a canned template.
 - ✓ Tests updated: `BrowserTimeProviderTests`, `RelativeTimeFormatterTests` and `MessageListFormatTimeTests`;
   `NotificationProducerTests` green
 
-
 ## Client Download Nav Items: Browser Extension + Android Client (2026-11-05)
 
 - ✓ Added **Browser Extension** sidebar item below Desktop Sync Client → `/apps/browser-extension` (login required)
@@ -8286,3 +8851,53 @@ block buttons replaced the highlighted block with a canned template.
   from `edge://extensions`, or Chrome Web Store via "Allow extensions from other stores")
 - ✓ `MaterialSvgIconsTests` covers `extension`, `smartphone`, `chat`, `description` and `lock`
 - ✓ `dotnet build src/UI/DotNetCloud.UI.Web` clean (0 warnings / 0 errors); `MaterialSvgIconsTests` 85/85 pass
+
+
+### Module WASM UI parity — Example, Bookmarks, Photos, AI, Email (2026-11-11)
+
+Every sandboxed module UI except Tracks was still a plain JavaScript document. All five are now Blazor
+WebAssembly apps served by their own module host, matching the Tracks shape.
+
+- ✓ **Shared browser SDK** — new `src/SDK/DotNetCloud.Modules.Sdk.Web` (plain `net10.0`, references only
+  `DotNetCloud.Core`): `ModuleFrameBridge` (theme/locale, media URLs, navigate, title, toast, open-external,
+  consent, clipboard, scroll, SSE pump), `ModuleApiClient` (envelope unwrapping, consent-refusal → exception,
+  enum names *and* numbers on read), `ModuleFrameAuthenticationStateProvider` (`GET api/v1/me`), and the shared
+  `wwwroot/dncModuleFrame.js` + `dncModuleBoot.js` (bridge started before Blazor; absolute boot URLs).
+- ✓ **Per module** — `DotNetCloud.Modules.<X>.Web` (`Microsoft.NET.Sdk.BlazorWebAssembly`, hosting the ported
+  Razor UI) plus `DotNetCloud.Modules.<X>.Web.Services` (plain library: typed API client, and for Email the whole
+  `EmailState`). The host references the Web project, so `dotnet publish` emits the UI into its `wwwroot`
+  (Example **21 MB**, Email **22 MB** with `_framework`); the old `wwwroot/index.html` + `assets/*` are deleted,
+  every manifest-declared widget is untouched, and each host gained `GET api/v1/me`.
+- ✓ **Example** — notes list/create/delete plus the help panel, one page with a `?view=` switch.
+- ✓ **Bookmarks** — sidebar (views, folders, tools), grid/list library with search and pager-free 200-row page,
+  detail view with preview metadata, bookmark and folder forms, import, export through a shell tab.
+- ✓ **Photos** — paged gallery (grid/list), favorites, timeline, search, albums, shared-with-me, viewer with
+  non-destructive edit stack previewed through a CSS transform, add/remove album, album dialog. Thumbnail and
+  download URLs are minted with the frame ticket (`bridge.mediaUrl`), and a refused `files:read` opens the
+  shell's consent band.
+- ✓ **AI Assistant** — conversation sidebar (create/rename/delete with an inline confirm), streaming chat over
+  Server-Sent Events pumped by `dncModuleFrame.stream`, thinking block, queue position, abort, watchdog,
+  Markdown rendering through the shared sanitising renderer, copy-as-Markdown / copy-as-formatted.
+- ✓ **Email** — accounts (IMAP form + Gmail OAuth through a shell tab), mailboxes, thread list, thread detail
+  with each message body in a nested `sandbox=""` frame, staged attachments (browser upload **and** the user's
+  cloud files), compose/send, rules list + full editor, `?threadId=` / `?gmail=` deep links, inline confirm
+  dialog and file browser overlays. Enum-valued payloads stay **numeric**, because this host binds MVC enums as
+  numbers.
+- ✓ **Tests** — `DotNetCloud.Modules.Sdk.Tests` **51** (8 new: envelope/consent/enum JSON, `params` consent
+  array), Example **90**, Bookmarks **47**, Photos **213**, AI **63**, Email **69** (new API-client and state
+  helper suites, rewritten WASM asset guards), `Core.Server.Tests` **1693 passed / 2 skipped**, Blazor standards
+  gate green, `DotNetCloud.CI.slnf` builds with 0 warnings / 0 errors.
+- ✓ **Browser click-through (2026-11-12, dev server)** — the framed Photos app loads and is interactive (library, viewer, all edit controls); the click-through found two defects unit tests could not see: the single-shot frame handshake (fixed, see the edit-flow entry above) and crop refusing to run for photos without a recorded pixel size (fixed by sending normalized fractions).
+- ☐ **Next** — click through the remaining frames (Email, AI, Bookmarks, Tracks) against a deployed host, then re-pack/re-publish the affected modules.
+
+#### Documentation — Third-Party Module Sandbox Track D (2026-11-12)
+
+Plan: `docs/THIRD_PARTY_MODULE_SANDBOX_AND_STORE_PLAN.md` (Track D).
+
+- ✓ `docs/guides/MODULE_DEVELOPMENT.md` rewritten around manifest v2, the SDK, packaging and the sandbox (567 → 919 lines); removed the loopback-TCP statement, `GetService<IStorageProvider>()` null-injection, the non-existent `dotnetcloud module grant` command, the `IXxxApiClient`-in-`Core.Server/Grpc/Clients` requirement and the "dynamically loaded Blazor components" section
+- ✓ `docs/architecture/ARCHITECTURE.md` §5 rewritten (manifest-v2 document, two independent decisions, `Required`/`Bundled`/`Store` trust tiers, what the sandbox contains, six principles), §12 (module proxy + assertion identity binding), §13 (sandbox entities, no `ModuleCredential` table), and §2's transport table + §3's schema/principal isolation corrected
+- ✓ `docs/security/CROSS_MODULE_TRUST.md` truth pass: A4 caveat removed, inter-module dependency map replaced ("no module-to-module dependency"; Contacts → Calendar ref gone), stale `FileUploaded` subscriber table replaced with the real state (`events.subscribes` has no delivery channel yet), consent row added, new browser-side boundary section
+- ✓ `docs/modules/{MODULE_SECURITY,MODULE_STORE,MODULE_UI_HOSTING,MODULE_PACKAGING}.md` re-verified against the code; the one gap (SQL Server containment prerequisite) added to `MODULE_STORE.md` §3
+- ✓ Deployment docs: PostgreSQL `CREATEROLE` + SQL Server containment + scoped DDL grants (`MODULE_STORE.md` §3), socket/pipe vs `Modules__Transport=Tcp` with Docker volume guidance (`MODULE_SECURITY.md` §9.4, `DEPLOYMENT_HARDENING.md` §9 rewritten), air-gapped `--file`/`--from-feed`/`--allow-unverified`, module-credential backup/restore (`MODULE_SECURITY.md` §11.5)
+- ✓ `docs/SECURITY_REVIEW_FINDINGS.md` M-5 (socket permissions undocumented) closed with a pointer to `MODULE_SECURITY.md` §9 and the residual same-OS-user limitation
+- ✓ A0 documentation inventory in the plan closed — all eight flagged files re-verified as accurate

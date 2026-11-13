@@ -19,8 +19,7 @@ internal sealed class NotificationProducer :
     IEventHandler<QuotaWarningEvent>,
     IEventHandler<QuotaCriticalEvent>,
     IEventHandler<PublicLinkAccessedEvent>,
-    IEventHandler<ShareExpiringEvent>,
-    IEventHandler<AlbumSharedEvent>
+    IEventHandler<ShareExpiringEvent>
 {
     private readonly IServiceScopeFactory _scopeFactory;
 
@@ -64,43 +63,6 @@ internal sealed class NotificationProducer :
                 actionUrl: BuildActionUrl(e.EntityType, e.EntityId),
                 relatedEntityType: MapEntityType(e.EntityType),
                 relatedEntityId: e.EntityId,
-                createdAtUtc: e.CreatedAt,
-                ct);
-        }
-    }
-
-    /// <inheritdoc />
-    public async Task HandleAsync(AlbumSharedEvent e, CancellationToken ct = default)
-    {
-        if (e.SharedWithUserId is { } userId)
-        {
-            await SendAsync(new NotificationDto
-            {
-                Id = Guid.CreateVersion7(),
-                UserId = userId,
-                SourceModuleId = "dotnetcloud.photos",
-                Type = NotificationType.Share,
-                Title = "Album shared with you",
-                Message = $"An album was shared with you (permission: {e.Permission}).",
-                Priority = NotificationPriority.Normal,
-                ActionUrl = $"/photos?album={e.AlbumId}",
-                RelatedEntityId = e.AlbumId,
-                CreatedAtUtc = e.CreatedAt
-            }, ct);
-            return;
-        }
-
-        if (e.SharedWithTeamId is { } teamId)
-        {
-            await SendTeamFanOutAsync(
-                teamId,
-                e.SharedByUserId,
-                "dotnetcloud.photos",
-                title: "Album shared with your team",
-                message: "An album was shared with your team.",
-                actionUrl: $"/photos?album={e.AlbumId}",
-                relatedEntityType: null,
-                relatedEntityId: e.AlbumId,
                 createdAtUtc: e.CreatedAt,
                 ct);
         }

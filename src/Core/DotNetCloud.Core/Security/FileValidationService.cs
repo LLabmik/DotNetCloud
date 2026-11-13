@@ -108,6 +108,59 @@ public sealed class FileValidationService : IFileValidationService
     }
 
     /// <inheritdoc />
+    public FileValidationResult Validate(
+        string fileName,
+        long length,
+        AllowedFileTypes.FileTypeDefinition[] allowedTypes,
+        long? maxSize = null)
+    {
+        ArgumentNullException.ThrowIfNull(allowedTypes);
+
+        if (allowedTypes.Length == 0)
+        {
+            return FileValidationResult.Failure(
+                "FILE_NO_ALLOWED_TYPES",
+                "No file types are configured as allowed.");
+        }
+
+        if (length <= 0)
+        {
+            return FileValidationResult.Failure("FILE_EMPTY", "The file is empty.");
+        }
+
+        var extension = Path.GetExtension(fileName ?? string.Empty);
+        if (string.IsNullOrWhiteSpace(extension))
+        {
+            return FileValidationResult.Failure(
+                "FILE_NO_EXTENSION",
+                "The file has no extension. Allowed extensions: " + GetAllowedExtensions(allowedTypes));
+        }
+
+        var matchedTypes = allowedTypes
+            .Where(type => type.Extensions.Any(e => e.Equals(extension, StringComparison.OrdinalIgnoreCase)))
+            .ToArray();
+
+        if (matchedTypes.Length == 0)
+        {
+            return FileValidationResult.Failure(
+                "FILE_EXTENSION_NOT_ALLOWED",
+                $"File extension '{extension}' is not allowed. Allowed extensions: {GetAllowedExtensions(allowedTypes)}");
+        }
+
+        var effectiveMaxSize = maxSize ?? matchedTypes.Max(type => type.MaxSize);
+        if (effectiveMaxSize.HasValue && length > effectiveMaxSize.Value)
+        {
+            var sizeMb = effectiveMaxSize.Value / (1024.0 * 1024.0);
+
+            return FileValidationResult.Failure(
+                "FILE_TOO_LARGE",
+                $"File size exceeds the maximum allowed size of {sizeMb:F1} MB.");
+        }
+
+        return FileValidationResult.Success();
+    }
+
+    /// <inheritdoc />
     public string SanitizeFileName(string fileName)
     {
         if (string.IsNullOrWhiteSpace(fileName))

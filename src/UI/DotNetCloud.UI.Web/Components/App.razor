@@ -13,7 +13,7 @@
     <link rel="icon" type="image/png" sizes="32x32" href="_content/DotNetCloud.UI.Web/favicon-32x32.png" />
     <link rel="apple-touch-icon" sizes="180x180" href="_content/DotNetCloud.UI.Web/apple-touch-icon.png" />
     <link rel="stylesheet" href="_content/DotNetCloud.UI.Web/css/material-icons.css" />
-    <link rel="stylesheet" href="_content/DotNetCloud.UI.Web/css/app.css?v=20261025-01" />
+    <link rel="stylesheet" href="_content/DotNetCloud.UI.Web/css/app.css?v=20261109-02" />
     <link rel="stylesheet" href="_content/DotNetCloud.UI.Web/css/widgets.variants.css?v=20260912-01" />
     <link rel="stylesheet" href="DotNetCloud.Core.Server.styles.css" />
     @* Scoped CSS for the WASM client project (src/UI/DotNetCloud.UI.Web.Client). The WASM SDK emits this
@@ -29,6 +29,8 @@
     <Routes @rendermode="InteractiveServer" />
     <script src="_content/DotNetCloud.UI.Web/js/timezone.js?v=20260429-01"></script>
     <script src="_content/DotNetCloud.UI.Web/js/theme.js?v=20260306-02"></script>
+    <!-- Module UI plane host bridge (sandboxed iframe + postMessage validation). -->
+    <script src="_content/DotNetCloud.UI.Web/js/module-app-host.js?v=20261112-02"></script>
     <script src="_content/DotNetCloud.UI.Web/js/files-drop-bridge.js?v=20260829-01"></script>
     <script src="_content/DotNetCloud.UI.Web/js/context-menu.js?v=20260323-01"></script>
     <script src="_content/DotNetCloud.UI.Web/js/files-bulk.js?v=20260316-01"></script>

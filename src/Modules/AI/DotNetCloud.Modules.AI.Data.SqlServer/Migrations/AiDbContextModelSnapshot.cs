@@ -17,7 +17,6 @@ namespace DotNetCloud.Modules.AI.Data.SqlServer.Migrations
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasDefaultSchema("ai")
                 .HasAnnotation("ProductVersion", "10.0.3")
                 .HasAnnotation("Relational:MaxIdentifierLength", 128);
 
@@ -70,7 +69,7 @@ namespace DotNetCloud.Modules.AI.Data.SqlServer.Migrations
                     b.HasIndex("OwnerId", "UpdatedAt")
                         .HasDatabaseName("ix_ai_conversations_owner_updated");
 
-                    b.ToTable("Conversations", "ai");
+                    b.ToTable("Conversations");
                 });
 
             modelBuilder.Entity("DotNetCloud.Modules.AI.Models.ConversationMessage", b =>
@@ -108,7 +107,7 @@ namespace DotNetCloud.Modules.AI.Data.SqlServer.Migrations
                     b.HasIndex("ConversationId", "CreatedAt")
                         .HasDatabaseName("ix_ai_messages_conversation_created");
 
-                    b.ToTable("ConversationMessages", "ai");
+                    b.ToTable("ConversationMessages");
                 });
 
             modelBuilder.Entity("DotNetCloud.Modules.AI.Models.ConversationMessage", b =>

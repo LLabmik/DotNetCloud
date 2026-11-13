@@ -18,8 +18,13 @@ namespace DotNetCloud.Core.Server.Supervisor;
 /// restart simply invalidates the outstanding ones and every module picks up the new public key
 /// when it is relaunched.
 /// </para>
+/// <para>
+/// Public so the core-to-module API clients (<c>FilesGrpcApiClient</c> and any future sibling) can
+/// take it as a constructor dependency; <c>DotNetCloud.Core.Server</c> is not shipped to modules, so
+/// this does not widen what a module can reach.
+/// </para>
 /// </remarks>
-internal sealed class ModuleAssertionKeyRing : IDisposable
+public sealed class ModuleAssertionKeyRing : IDisposable
 {
     /// <summary>How long a freshly minted assertion stays valid.</summary>
     public static readonly TimeSpan DefaultLifetime = TimeSpan.FromSeconds(60);

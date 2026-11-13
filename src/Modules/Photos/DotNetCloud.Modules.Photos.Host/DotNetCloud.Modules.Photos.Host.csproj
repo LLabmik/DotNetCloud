@@ -32,9 +32,24 @@
     <ProjectReference Include="..\DotNetCloud.Modules.Photos.Data\DotNetCloud.Modules.Photos.Data.csproj" />
     <ProjectReference Include="..\DotNetCloud.Modules.Photos.Data.SqlServer\DotNetCloud.Modules.Photos.Data.SqlServer.csproj" />
     <ProjectReference Include="..\..\..\Core\DotNetCloud.Core.Grpc\DotNetCloud.Core.Grpc.csproj" />
-    <!-- Cross-module: needed for IDownloadService to serve full-size originals -->
-    <ProjectReference Include="..\..\Files\DotNetCloud.Modules.Files.Data\DotNetCloud.Modules.Files.Data.csproj" />
-    <ProjectReference Include="..\..\Files\DotNetCloud.Modules.Files\DotNetCloud.Modules.Files.csproj" />
+    <ProjectReference Include="..\..\..\SDK\DotNetCloud.Modules.Sdk\DotNetCloud.Modules.Sdk.csproj" />
+    <!-- No cross-module reference: the user's files are read through the core (IFileDirectory). -->
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- A plain `dotnet publish` must ship the v2 manifest, or the supervisor falls back to a v1
+         default and withholds the module directories. -->
+    <Content Include="..\manifest.json"
+             Link="manifest.json"
+             CopyToOutputDirectory="PreserveNewest"
+             CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The module UI. This is the standard hosted-Blazor-WebAssembly shape: referencing the
+         WebAssembly project contributes its published files as this host's static web assets, so the
+         frame the core loads at /apps/dotnetcloud.photos/ is served by the module process itself. -->
+    <ProjectReference Include="..\DotNetCloud.Modules.Photos.Web\DotNetCloud.Modules.Photos.Web.csproj" />
   </ItemGroup>
 
 </Project>

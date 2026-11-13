@@ -2,23 +2,23 @@ using DotNetCloud.Core.Data.Extensions;
 using DotNetCloud.Core.Data.Naming;
 using DotNetCloud.Core.Events;
 using DotNetCloud.Core.Grpc;
-using DotNetCloud.Modules.Files.Data;
-using DotNetCloud.Modules.Files.Services;
+using DotNetCloud.Core.Grpc.Services;
 using DotNetCloud.Modules.Photos;
 using DotNetCloud.Modules.Photos.Data;
-using DotNetCloud.Modules.Photos.Data.Services;
+using DotNetCloud.Modules.Photos.Host.Controllers;
 using DotNetCloud.Modules.Photos.Host.Services;
-using Microsoft.AspNetCore.Server.Kestrel.Core;
+using DotNetCloud.Modules.Sdk;
+using DotNetCloud.Modules.Sdk.Api;
+using DotNetCloud.Modules.Sdk.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.HttpOverrides;
-using Microsoft.AspNetCore.Authentication.Cookies;
-using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.DataProtection;
-using Microsoft.AspNetCore.Diagnostics;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Load shared config from DOTNETCLOUD_CONFIG_DIR
+// Legacy shared config (DOTNETCLOUD_CONFIG_DIR) is only present when the supervisor still launches
+// this module in compatibility mode (ProcessSupervisor:AllowLegacyAccess). A sandboxed module gets
+// the non-secret topology in module.json instead.
 var configDir = Environment.GetEnvironmentVariable("DOTNETCLOUD_CONFIG_DIR");
 if (!string.IsNullOrEmpty(configDir))
 {
@@ -27,72 +27,66 @@ if (!string.IsNullOrEmpty(configDir))
         builder.Configuration.AddJsonFile(p, optional: true, reloadOnChange: false);
 }
 
-// Bind gRPC endpoint from DOTNETCLOUD_GRPC_ENDPOINT (set by ProcessSupervisor)
-var grpcEndpoint = Environment.GetEnvironmentVariable("DOTNETCLOUD_GRPC_ENDPOINT");
-if (!string.IsNullOrEmpty(grpcEndpoint))
+var moduleConfigDir = Environment.GetEnvironmentVariable("DOTNETCLOUD_MODULE_CONFIG_DIR");
+if (!string.IsNullOrEmpty(moduleConfigDir))
 {
-    var uri = new Uri(grpcEndpoint.Replace("unix://", "http://").Replace("net.pipe://", "http://"));
-    builder.WebHost.ConfigureKestrel(o =>
-        o.Listen(System.Net.IPAddress.Loopback, uri.Port, l => l.Protocols = HttpProtocols.Http2));
+    var moduleJsonPath = Path.Combine(moduleConfigDir, "module.json");
+    if (File.Exists(moduleJsonPath))
+        builder.Configuration.AddJsonFile(moduleJsonPath, optional: false, reloadOnChange: false);
 }
 
-// Share DataProtection keys with Core.Server so auth cookies from the proxy are valid.
-var dataProtectionDir = Environment.GetEnvironmentVariable("DOTNETCLOUD_DATA_DIR");
-var dpKeysPath = !string.IsNullOrWhiteSpace(dataProtectionDir)
-    ? Path.Combine(dataProtectionDir, "data-protection-keys")
+// Bind the endpoint the supervisor assigned: a Unix socket, a named pipe or loopback TCP.
+DotNetCloud.Core.Grpc.ModuleGrpcEndpointBinding.ConfigureModuleGrpcEndpoint(builder);
+
+// DataProtection keys are private to the module (F1/F4). A sandboxed host must never share the
+// core's key ring: sharing it would let the module mint core cookies, and the core's rotation would
+// silently break the module.
+var moduleDataDir = Environment.GetEnvironmentVariable("DOTNETCLOUD_MODULE_DATA_DIR");
+var dpKeysPath = !string.IsNullOrWhiteSpace(moduleDataDir)
+    ? Path.Combine(moduleDataDir, "data-protection-keys")
     : Path.Combine(builder.Environment.ContentRootPath, "data-protection-keys");
 Directory.CreateDirectory(dpKeysPath);
 builder.Services.AddDataProtection()
-    .SetApplicationName("DotNetCloud")
+    .SetApplicationName("DotNetCloud.Modules.Photos")
     .PersistKeysToFileSystem(new DirectoryInfo(dpKeysPath));
 
-// Cookie auth — same cookie name as Core.Server. SecurePolicy=None because
-// the YARP proxy forwards over HTTP (localhost) with X-Forwarded-Proto set by proxy.
-builder.Services.AddAuthentication("Identity.Application")
-    .AddCookie("Identity.Application", options =>
-    {
-        options.Cookie.Name = ".AspNetCore.Identity.Application";
-        options.Cookie.HttpOnly = true;
-        options.Cookie.SameSite = SameSiteMode.Lax;
-        options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
-        options.Cookie.IsEssential = true;
-        options.ExpireTimeSpan = TimeSpan.FromHours(24);
-        options.SlidingExpiration = true;
+// Identity (F4/F5): the core reverse-proxy strips the browser's session cookie and mints a
+// short-lived, module-audience assertion instead. The module therefore authenticates no user of its
+// own — no cookie scheme, no shared key ring — and every request's acting user comes from
+// IModuleUserAssertionAccessor (see PhotosControllerBase).
+builder.Services.AddModuleUserAssertionAccessor();
 
-        // Skip Identity user-store lookup — the cookie was already validated
-        // by Core.Server. Just accept the decrypted principal as-is.
-        options.Events.OnValidatePrincipal = static context =>
-        {
-            if (context.Principal?.Identity?.IsAuthenticated == true)
-                return Task.CompletedTask;
-            context.RejectPrincipal();
-            return Task.CompletedTask;
-        };
-
-        // Return 401 for API requests instead of redirecting to login.
-        options.Events.OnRedirectToLogin = context =>
-        {
-            context.Response.StatusCode = StatusCodes.Status401Unauthorized;
-            return Task.CompletedTask;
-        };
-        options.Events.OnRedirectToAccessDenied = context =>
-        {
-            context.Response.StatusCode = StatusCodes.Status403Forbidden;
-            return Task.CompletedTask;
-        };
-    });
-
-builder.Services.AddAuthorization();
+// The core module API: settings, audit, notifications, search submission and the acting user's
+// files (IFileDirectory). A host started without a supervisor environment (a local `dotnet run`)
+// gets the in-memory fake so the UI still loads.
+ModuleEnvironment.TryFromEnvironment(out var moduleEnvironment);
+if (moduleEnvironment is not null)
+{
+    builder.Services.AddSingleton(moduleEnvironment);
+    builder.Services.AddSingleton<IDncModuleApi>(_ => new DncModuleApiClient(moduleEnvironment));
+}
+else
+{
+    builder.Services.AddSingleton<IDncModuleApi, InMemoryDncModuleApi>();
+}
 
 // Register the gRPC-backed audit logger (SOC 2 CC4) — routes to Core.Server.
 builder.Services.AddAuditLogger();
 
+// Real-time search indexing bridge — forwards SearchIndexRequestEvent to Core.Server.
+builder.Services.AddSearchIndexBridge();
+
 // Register the module as singleton
 builder.Services.AddSingleton<PhotosModule>();
 
-// Register EF Core with the configured database provider (no in-memory fallback)
-var connectionString = builder.Configuration["connectionString"]
-    ?? builder.Configuration.GetConnectionString("DefaultConnection");
+// Register EF Core with the configured database provider. A sandboxed module is handed a scoped
+// connection string (its own principal, its own schema, search_path pinned); only a legacy launch
+// falls back to the shared config.json.
+var sandboxConnectionString = Environment.GetEnvironmentVariable("DOTNETCLOUD_MODULE_DB_CONNECTION_STRING");
+var connectionString = !string.IsNullOrEmpty(sandboxConnectionString)
+    ? sandboxConnectionString
+    : builder.Configuration["connectionString"]
+        ?? builder.Configuration.GetConnectionString("DefaultConnection");
 var dbProvider = builder.Configuration["databaseProvider"]
     ?? builder.Configuration["database:provider"];
 
@@ -103,25 +97,18 @@ if (string.IsNullOrEmpty(connectionString) || string.IsNullOrEmpty(dbProvider))
         "These are provided via config.json (DOTNETCLOUD_CONFIG_DIR) when launched by the core server.");
 }
 
-builder.Services.AddSingleton<ITableNamingStrategy>(
-    string.Equals(dbProvider, "PostgreSql", StringComparison.OrdinalIgnoreCase)
-        ? new PostgreSqlNamingStrategy()
-        : new SqlServerNamingStrategy());
-
 var provider = ResolveDatabaseProvider(dbProvider);
 
-void ConfigureDb(DbContextOptionsBuilder o) =>
-    DbResiliencePolicy.Configure(o, provider, connectionString);
+builder.Services.AddSingleton<ITableNamingStrategy>(
+    provider == DatabaseProvider.SqlServer ? new SqlServerNamingStrategy() : new PostgreSqlNamingStrategy());
 
-builder.Services.AddDbContext<PhotosDbContext>(ConfigureDb);
+builder.Services.AddDbContext<PhotosDbContext>(options =>
+    DbResiliencePolicy.Configure(
+        options,
+        provider,
+        connectionString,
+        provider == DatabaseProvider.SqlServer ? "DotNetCloud.Modules.Photos.Data.SqlServer" : null));
 
-// Register Files DbContext and storage engine so IDownloadService can be resolved.
-builder.Services.AddDbContextFactory<FilesDbContext>(ConfigureDb);
-builder.Services.AddDbContext<FilesDbContext>(ConfigureDb);
-builder.Services.AddSingleton<IFileStorageEngine>(
-    sp => new LocalFileStorageEngine(
-        builder.Configuration["Files:Storage:RootPath"] ?? "/var/lib/dotnetcloud/storage",
-        sp.GetRequiredService<ILogger<LocalFileStorageEngine>>()));
 
 // In-process event bus for standalone operation
 builder.Services.AddSingleton<IEventBus, InProcessEventBus>();
@@ -135,42 +122,99 @@ builder.Services.AddGrpcTeamDirectory();
 
 // gRPC
 builder.Services.AddGrpc(options =>
-    options.Interceptors.Add<DotNetCloud.Core.Grpc.ModulePeerAuthenticationInterceptor>());
-builder.Services.AddControllers();
+{
+    options.Interceptors.Add<DotNetCloud.Core.Grpc.ModulePeerAuthenticationInterceptor>();
+
+    // Core-initiated calls (media import, scheduled work) carry a core-signed user assertion; adopt
+    // it as the ambient user so a handler never has to trust a user id in the payload.
+    options.Interceptors.Add<DotNetCloud.Core.Grpc.ModuleUserAssertionGrpcInterceptor>();
+});
+builder.Services.AddControllers(options =>
+    // A request without a verified assertion must be a 401, never a 500 (see the filter's remarks).
+    options.Filters.Add<PhotosExceptionFilter>())
+    // The framed UI is JavaScript and sends enum names ("Rotate"), which MVC cannot bind on its own.
+    .AddModuleJsonOptions();
 builder.Services.AddHealthChecks()
     .AddCheck<PhotosHealthCheck>("photos_module");
+
+// Account erasure (F12): this module owns the photo library of a deleted account, so it owns their
+// deletion. The core calls EraseUserData and retries until the module acknowledges.
+builder.Services.AddModuleUserErasureHandler<PhotosUserErasureHandler>();
 
 var app = builder.Build();
 
 // Adopt the core-signed end-user assertion before anything can call back into the core.
 app.UseModuleUserAssertion();
 
-// Show full exception details for debugging; remove in production.
-app.UseDeveloperExceptionPage();
+// Initialize the database schema (creates tables if they don't exist).
+// Retries with exponential backoff so a database that is briefly unavailable at startup does not
+// crash the module — it continues running in degraded mode and resumes once the database recovers.
+{
+    const int maxAttempts = 5;
+    var delay = TimeSpan.FromSeconds(2);
+    var initLogger = app.Services.GetRequiredService<ILogger<Program>>();
+
+    for (var attempt = 1; attempt <= maxAttempts; attempt++)
+    {
+        try
+        {
+            using var scope = app.Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<PhotosDbContext>();
+            await PhotosDbInitializer.InitializeAsync(db, initLogger, CancellationToken.None);
+            break;
+        }
+        catch (Exception ex) when (attempt < maxAttempts)
+        {
+            initLogger.LogWarning(ex,
+                "Photos database initialization attempt {Attempt}/{MaxAttempts} failed. Retrying in {Delay}s...",
+                attempt, maxAttempts, delay.TotalSeconds);
+            await Task.Delay(delay);
+            delay *= 2;
+        }
+        catch (Exception ex)
+        {
+            initLogger.LogError(ex,
+                "Photos database initialization failed after {MaxAttempts} attempts. " +
+                "Continuing in degraded mode; retries will resume when the database recovers.",
+                maxAttempts);
+        }
+    }
+}
+
+// Show exception details only while developing; a sandboxed host must not leak stack traces.
+if (app.Environment.IsDevelopment())
+{
+    app.UseDeveloperExceptionPage();
+}
+
+// Serve this module's own web UI (phase A5). The core frames /apps/dotnetcloud.photos/ and proxies
+// it here, so the page and its assets are plain static files of this host — index.html is the default
+// document, and every reference in it is relative because the proxy strips the prefix.
+app.UseDefaultFiles();
+app.UseStaticFiles();
 
 // Map gRPC services
 app.MapGrpcService<PhotosGrpcServiceImpl>();
 app.MapGrpcService<PhotosLifecycleService>();
 
 // Map REST API controllers
-// Trust X-Forwarded-Proto from the YARP proxy so __Host- cookies work over HTTP.
+// Trust X-Forwarded-Proto from the YARP proxy so host derivation matches the public origin.
 app.UseForwardedHeaders(new ForwardedHeadersOptions
 {
     ForwardedHeaders = ForwardedHeaders.XForwardedProto,
     KnownProxies = { System.Net.IPAddress.Loopback, System.Net.IPAddress.IPv6Loopback },
 });
-app.UseAuthentication();
-app.UseAuthorization();
 app.MapControllers();
 
 // Health check endpoint
 app.MapHealthChecks("/health");
 
-// Minimal info endpoint
-app.MapGet("/", () => Results.Ok(new
+// Minimal info endpoint. Deliberately not mapped at "/": a mapped route there would shadow
+// wwwroot/index.html, which static files skip once endpoint routing has matched.
+app.MapGet("/api/info", () => Results.Ok(new
 {
     module = "dotnetcloud.photos",
-    version = "1.0.0",
+    version = "2.0.0",
     status = "running"
 }));
 

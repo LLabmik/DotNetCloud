@@ -20,8 +20,7 @@ namespace DotNetCloud.Modules.Bookmarks.Data.Migrations
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasDefaultSchema("bookmarks")
-                .HasAnnotation("ProductVersion", "10.0.3")
+                .HasAnnotation("ProductVersion", "10.0.14")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
@@ -76,7 +75,7 @@ namespace DotNetCloud.Modules.Bookmarks.Data.Migrations
                     b.HasIndex("OwnerId", "ParentId")
                         .HasDatabaseName("ix_bookmark_folders_owner_parent");
 
-                    b.ToTable("BookmarkFolders", "bookmarks");
+                    b.ToTable("BookmarkFolders");
                 });
 
             modelBuilder.Entity("DotNetCloud.Modules.Bookmarks.Models.BookmarkItem", b =>
@@ -118,7 +117,7 @@ namespace DotNetCloud.Modules.Bookmarks.Data.Migrations
                         .HasColumnType("uuid");
 
                     b.Property<string>("TagsJson")
-                        .HasColumnType("jsonb");
+                        .HasColumnType("text");
 
                     b.Property<string>("Title")
                         .IsRequired()
@@ -148,7 +147,7 @@ namespace DotNetCloud.Modules.Bookmarks.Data.Migrations
                     b.HasIndex("OwnerId", "FolderId")
                         .HasDatabaseName("ix_bookmarks_owner_folder");
 
-                    b.ToTable("Bookmarks", "bookmarks");
+                    b.ToTable("Bookmarks");
                 });
 
             modelBuilder.Entity("DotNetCloud.Modules.Bookmarks.Models.BookmarkPreview", b =>
@@ -228,7 +227,7 @@ namespace DotNetCloud.Modules.Bookmarks.Data.Migrations
                     b.HasIndex("Status")
                         .HasDatabaseName("ix_bookmark_previews_status");
 
-                    b.ToTable("BookmarkPreviews", "bookmarks");
+                    b.ToTable("BookmarkPreviews");
                 });
 
             modelBuilder.Entity("DotNetCloud.Modules.Bookmarks.Models.BookmarkFolder", b =>
@@ -236,7 +235,7 @@ namespace DotNetCloud.Modules.Bookmarks.Data.Migrations
                     b.HasOne("DotNetCloud.Modules.Bookmarks.Models.BookmarkFolder", "Parent")
                         .WithMany("Children")
                         .HasForeignKey("ParentId")
-                        .OnDelete(DeleteBehavior.SetNull);
+                        .OnDelete(DeleteBehavior.NoAction);
 
                     b.Navigation("Parent");
                 });

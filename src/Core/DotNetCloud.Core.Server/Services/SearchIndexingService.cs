@@ -76,6 +76,14 @@ public sealed class SearchIndexingService : IDisposable
     /// <summary>Gets the number of pending items in the queue.</summary>
     public int PendingCount => _channel.Reader.Count;
 
+    /// <summary>
+    /// Peeks at the next queued request without dequeuing it.
+    /// </summary>
+    /// <param name="request">The next queued request, when one exists.</param>
+    /// <returns><see langword="true"/> when an item is available.</returns>
+    internal bool TryPeekPending(out SearchIndexRequestEvent? request) =>
+        _channel.Reader.TryPeek(out request);
+
     /// <summary>Gets the total number of successfully processed indexing requests.</summary>
     public long TotalProcessed => Interlocked.Read(ref _totalProcessed);
 

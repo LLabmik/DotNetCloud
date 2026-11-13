@@ -5,7 +5,7 @@ using DotNetCloud.Core.DTOs.Media;
 using DotNetCloud.Core.Events;
 using DotNetCloud.Core.Services;
 using DotNetCloud.Modules.Music.Events;
-using DotNetCloud.Modules.Photos.Events;
+using DotNetCloud.Core.Server.Services.Media;
 using DotNetCloud.Modules.Video.Events;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -182,7 +182,7 @@ public sealed class AdminSharedFolderCleanupService : IEventHandler<AdminSharedF
 
         var musicCallback = scope.ServiceProvider.GetService<IMusicIndexingCallback>();
         var videoCallback = scope.ServiceProvider.GetService<IVideoIndexingCallback>();
-        var photoCallback = scope.ServiceProvider.GetService<IPhotoIndexingCallback>();
+        var photoCallback = scope.ServiceProvider.GetService<IPhotoIndexingClient>();
 
         var totalRemoved = 0;
         var usersCleaned = 0;

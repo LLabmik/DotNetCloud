@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk.Razor">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
@@ -19,24 +19,12 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\DotNetCloud.Modules.Tracks.Shared\DotNetCloud.Modules.Tracks.Shared.csproj" />
     <ProjectReference Include="..\..\..\Core\DotNetCloud.Core\DotNetCloud.Core.csproj" />
-    <ProjectReference Include="..\..\..\UI\DotNetCloud.UI.Shared\DotNetCloud.UI.Shared.csproj" />
     <!-- Cross-module: needed for FileDeletedEvent type in event handler. At runtime, events flow via serialized event bus. -->
     <ProjectReference Include="..\..\Files\DotNetCloud.Modules.Files\DotNetCloud.Modules.Files.csproj" />
     <!-- Cross-module: needed for MessageSentEvent, ChannelCreatedEvent, ChannelDeletedEvent types in ChatMessageTracksHandler. -->
     <ProjectReference Include="..\..\Chat\DotNetCloud.Modules.Chat\DotNetCloud.Modules.Chat.csproj" />
-  </ItemGroup>
-
-  <!-- UI adaptation complete (Steps 9-11) -->
-
-  <!-- Exclude manifest.json from publish: modules are discovered via a separate
-       modules/ directory at runtime, not from the server publish output root. -->
-  <ItemGroup>
-    <Content Remove="manifest.json" />
-    <None Include="manifest.json">
-      <CopyToOutputDirectory>Never</CopyToOutputDirectory>
-      <CopyToPublishDirectory>Never</CopyToPublishDirectory>
-    </None>
   </ItemGroup>
 
 </Project>

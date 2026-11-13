@@ -6,20 +6,37 @@ using Microsoft.Extensions.Logging;
 namespace DotNetCloud.Modules.Photos.Events;
 
 /// <summary>
-/// Handles AlbumSharedEvent to send notifications to the recipient user.
+/// Handles AlbumSharedEvent to send notifications to the recipient user, or to every member of a
+/// team the album was shared with.
 /// </summary>
+/// <remarks>
+/// The event never leaves this process (a sandboxed module owns its own bus), so this handler is the
+/// only notification path — the core's in-process producer no longer sees Photos events. Recipients
+/// are told to open the module's framed app, not a core route.
+/// </remarks>
 public sealed class AlbumSharedNotificationHandler : IEventHandler<AlbumSharedEvent>
 {
+    /// <summary>Shell path the notification opens (the core frames the module app around it).</summary>
+    private const string ModuleShellPath = "/modules/dotnetcloud.photos";
+
     private readonly INotificationService? _notificationService;
+    private readonly ITeamDirectory? _teamDirectory;
     private readonly ILogger<AlbumSharedNotificationHandler> _logger;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="AlbumSharedNotificationHandler"/> class.
     /// </summary>
-    public AlbumSharedNotificationHandler(ILogger<AlbumSharedNotificationHandler> logger, INotificationService? notificationService = null)
+    /// <param name="logger">Logger.</param>
+    /// <param name="notificationService">Notification capability, when granted.</param>
+    /// <param name="teamDirectory">Team directory capability, used to fan out a team share.</param>
+    public AlbumSharedNotificationHandler(
+        ILogger<AlbumSharedNotificationHandler> logger,
+        INotificationService? notificationService = null,
+        ITeamDirectory? teamDirectory = null)
     {
         _logger = logger;
         _notificationService = notificationService;
+        _teamDirectory = teamDirectory;
     }
 
     /// <inheritdoc />
@@ -31,39 +48,61 @@ public sealed class AlbumSharedNotificationHandler : IEventHandler<AlbumSharedEv
             return;
         }
 
-        // Team shares are fanned out per member by the core notification producer
-        // (Phase 6); this handler only notifies the direct recipient of a user share.
-        if (@event.SharedWithUserId is not { } recipientUserId)
-        {
-            _logger.LogDebug("Team-targeted album share — skipping direct user notification");
-            return;
-        }
-
         try
         {
-            var notification = new NotificationDto
+            foreach (var recipient in await ResolveRecipientsAsync(@event, cancellationToken))
             {
-                Id = Guid.CreateVersion7(),
-                UserId = recipientUserId,
-                SourceModuleId = "dotnetcloud.photos",
-                Type = NotificationType.Share,
-                Title = "A photo album was shared with you",
-                Message = $"Album '{@event.AlbumId}' was shared with you ({@event.Permission})",
-                Priority = NotificationPriority.Normal,
-                ActionUrl = $"/photos/albums/{@event.AlbumId}",
-                RelatedEntityId = @event.AlbumId,
-                CreatedAtUtc = DateTime.UtcNow
-            };
+                var notification = new NotificationDto
+                {
+                    Id = Guid.CreateVersion7(),
+                    UserId = recipient,
+                    SourceModuleId = "dotnetcloud.photos",
+                    Type = NotificationType.Share,
+                    Title = "A photo album was shared with you",
+                    Message = $"An album was shared with you ({@event.Permission}).",
+                    Priority = NotificationPriority.Normal,
+                    ActionUrl = $"{ModuleShellPath}?album={@event.AlbumId}",
+                    RelatedEntityId = @event.AlbumId,
+                    CreatedAtUtc = DateTime.UtcNow
+                };
 
-            await _notificationService.SendAsync(recipientUserId, notification, cancellationToken);
+                await _notificationService.SendAsync(recipient, notification, cancellationToken);
+            }
 
-            _logger.LogInformation(
-                "Notification sent for album share: Album {AlbumId} shared with user {UserId}",
-                @event.AlbumId, recipientUserId);
+            _logger.LogInformation("Notifications sent for album {AlbumId}", @event.AlbumId);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to send notification for album share: Album {AlbumId}", @event.AlbumId);
         }
+    }
+
+    /// <summary>
+    /// Returns who should be notified: the direct recipient, or every member of the target team
+    /// except the user who shared it.
+    /// </summary>
+    private async Task<IReadOnlyList<Guid>> ResolveRecipientsAsync(
+        AlbumSharedEvent @event,
+        CancellationToken cancellationToken)
+    {
+        if (@event.SharedWithUserId is { } recipientUserId)
+        {
+            return [recipientUserId];
+        }
+
+        if (@event.SharedWithTeamId is not { } teamId || _teamDirectory is null)
+        {
+            // A team share with no team directory (capability not granted) is not fanned out: better
+            // to notify nobody than to guess at membership.
+            _logger.LogDebug("Team-targeted album share skipped: no team directory available");
+            return [];
+        }
+
+        var members = await _teamDirectory.GetTeamMembersAsync(teamId, cancellationToken);
+        return members
+            .Select(member => member.UserId)
+            .Where(userId => userId != @event.SharedByUserId)
+            .Distinct()
+            .ToArray();
     }
 }

@@ -1,21 +1,37 @@
 {
+  "manifestVersion": 2,
   "id": "dotnetcloud.ai",
   "name": "AI Assistant",
-  "version": "1.0.0",
-  "description": "LLM-powered AI assistant with chat, summarization, and content generation. Supports local (Ollama) and cloud providers.",
-  "author": "DotNetCloud",
-  "requiredCapabilities": [
-    "ICurrentUserContext",
-    "IAuditLogger",
-    "IUserDirectory",
-    "INotificationService",
-    "ILlmProvider"
-  ],
-  "publishedEvents": [
-    "ConversationCreatedEvent",
-    "ConversationMessageEvent"
-  ],
-  "subscribedEvents": [],
-  "minCoreVersion": "1.0.0",
-  "schemaProvider": "core"
+  "version": "2.0.1",
+  "description": "LLM-powered AI assistant with streaming chat, conversation history and content generation. Supports local (Ollama) and cloud providers configured by the administrator.",
+  "publisher": {
+    "id": "dotnetcloud",
+    "name": "DotNetCloud",
+    "url": "https://dotnetcloud.net"
+  },
+  "moduleApiVersion": 1,
+  "minCoreVersion": "0.7.0",
+  "dataStore": "isolated",
+  "handlesUserErasure": true,
+  "capabilities": ["IAuditLogger", "IModuleSettings"],
+  "userConsentScopes": [],
+  "events": {
+    "publishes": [],
+    "subscribes": []
+  },
+  "ui": {
+    "type": "iframe",
+    "entryPath": "/",
+    "navItems": [
+      {
+        "id": "assistant",
+        "label": "AI Assistant",
+        "icon": "smart_toy",
+        "path": "/"
+      }
+    ],
+    "widget": {
+      "path": "/widget/index.html"
+    }
+  }
 }

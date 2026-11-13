@@ -12,14 +12,12 @@ namespace DotNetCloud.Modules.Photos.Data.Migrations
         {
             migrationBuilder.AddColumn<byte[]>(
                 name: "ThumbnailDetail",
-                schema: "photos",
                 table: "Photos",
                 type: "bytea",
                 nullable: true);
 
             migrationBuilder.AddColumn<byte[]>(
                 name: "ThumbnailGrid",
-                schema: "photos",
                 table: "Photos",
                 type: "bytea",
                 nullable: true);
@@ -30,12 +28,10 @@ namespace DotNetCloud.Modules.Photos.Data.Migrations
         {
             migrationBuilder.DropColumn(
                 name: "ThumbnailDetail",
-                schema: "photos",
                 table: "Photos");
 
             migrationBuilder.DropColumn(
                 name: "ThumbnailGrid",
-                schema: "photos",
                 table: "Photos");
         }
     }

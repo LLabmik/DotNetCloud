@@ -18,10 +18,6 @@
     "ContactDeletedEvent",
     "ResourceSharedEvent"
   ],
-  "subscribedEvents": [
-    "CalendarEventCreatedEvent",
-    "NoteCreatedEvent"
-  ],
-  "minCoreVersion": "1.0.0",
-  "schemaProvider": "core"
+  "subscribedEvents": ["CalendarEventCreatedEvent", "NoteCreatedEvent"],
+  "minCoreVersion": "0.7.0"
 }

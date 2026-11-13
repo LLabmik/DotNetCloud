@@ -30,6 +30,7 @@
 
   <ItemGroup>
     <Using Include="Microsoft.VisualStudio.TestTools.UnitTesting" />
+    <Using Include="DotNetCloud.Core.Server.Tests.Consent" />
   </ItemGroup>
 
   <ItemGroup>

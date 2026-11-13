@@ -26,6 +26,15 @@ service ModuleLifecycle {
 
   // Gets the module host's background service run status (admin System page).
   rpc GetBackgroundServices (GetBackgroundServicesRequest) returns (GetBackgroundServicesResponse);
+
+  // Erases every trace of a deleted user from the module's own data store (F12).
+  //
+  // The core calls this for every installed module when an account is deleted and retries until
+  // the module acknowledges or the 72-hour window expires. The call must be idempotent per
+  // request_id: a retry after a partial failure may arrive with the same id, and answering
+  // "acknowledged" more than once must be harmless. A module that holds no per-user data answers
+  // with not_applicable = true rather than failing.
+  rpc EraseUserData (EraseUserDataRequest) returns (EraseUserDataResponse);
 }
 
 message InitializeRequest {
@@ -111,4 +120,30 @@ message BackgroundServiceInfo {
 
 message GetBackgroundServicesResponse {
   repeated BackgroundServiceInfo services = 1;
+}
+
+message EraseUserDataRequest {
+  // Stable id of the erasure request. Repeated calls with the same id must be idempotent.
+  string request_id = 1;
+
+  // The user whose data must be removed. Audit entries may keep this pseudonymous id.
+  string user_id = 2;
+
+  // Scopes the module held consent for. Advisory: a module erases everything it holds for the
+  // user, not only the data covered by these scopes.
+  repeated string scopes = 3;
+}
+
+message EraseUserDataResponse {
+  // True when the module has erased everything it holds for the user.
+  bool acknowledged = 1;
+
+  // Rows/objects deleted, per scope (or a single "all" key). For operator visibility only.
+  map<string, int32> deleted_counts = 2;
+
+  // Human-readable reason when acknowledged = false.
+  string error = 3;
+
+  // True when the module holds no per-user data at all.
+  bool not_applicable = 4;
 }
