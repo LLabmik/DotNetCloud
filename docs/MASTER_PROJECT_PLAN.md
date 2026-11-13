@@ -2129,6 +2129,29 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 
 ---
 
+### Step: third-party-module-sandbox-sqlserver-parity-2026-11-13 - SQL Server parity fix found by the production upgrade rehearsal
+
+**Status:** completed ✅
+**Duration:** ~1 day (rehearsal + fix + re-verification)
+**Description:** Rehearsed the sandbox/store build against a restored copy of the production **SQL Server** database before deciding on a deploy, and fixed the one defect that rehearsal exposed: the SQL Server half of the `AddModuleCapabilityDecisions` migration was an empty stub, which silently disabled capability enforcement on the only production provider.
+
+**Deliverables:**
+
+- ✓ **Pre-deploy backup** — copy-only compressed DB backup (md5-verified off-host), `/opt/dotnetcloud` binaries + module hosts, `/etc/dotnetcloud` config, and a byte-exact `storage/` copy (99,209,452,639 B / 36,288 files, verified against a manifest).
+- ✓ **Migrations rehearsed** — 4 new migrations applied to a restored copy; 86 populated tables row-identical afterwards.
+- ✓ **Adoption rehearsed on SQL Server** — five modules adopted (`ai` 2, `bookmarks` 3, `email` 9, `photos` 7, `tracks` 41 objects), contained users provisioned, legacy schemas emptied, rows preserved, `InstalledModules` `Bundled/Active/Isolated`, **14/14 healthy**.
+- ✓ **`AddModuleCapabilityDecisions_SqlServer` regenerated** — the shipped migration had empty `Up`/`Down` (PostgreSQL twin: 3 columns, 2 indexes, 1 FK) and the SQL Server snapshot was never updated, so `Insert` on `ModuleCapabilityGrants` threw *Invalid column name 'RejectedAtUtc'* and capability grants could not be written at all. New `20261113052102_AddModuleCapabilityDecisions_SqlServer` matches the PostgreSQL migration; snapshot updated (+27 lines, no unrelated drift).
+- ✓ **Verified after the fix** — `ModuleCapabilityGrants` now holds **14 rows, all `Granted`**; no `PendingModelChangesWarning`; no "Failed to sync discovered modules"; data intact (photos 1 060, tracks 4, ai 67); 14/14 modules healthy.
+- ✓ **Guard tests** — `tests/DotNetCloud.Core.Data.Tests/Migrations/SqlServerMigrationParityTests.cs`: SQL Server model/snapshot drift guard (`HasPendingModelChanges`) plus "every SQL Server migration emits operations" (explicit allow-list for the two intentionally empty migrations). The emptiness guard was validated by generating a real empty migration and confirming the test fails.
+- ✓ **Tooling** — `dotnet-ef` aligned to the runtime (`10.0.14`; a `10.0.15` tool cannot load the `10.0.14` Design assembly) and pinned in `.config/dotnet-tools.json`.
+- ☐ **Production sequence documented, not yet executed** — stop service → `ALTER DATABASE [DotNetCloud] SET CONTAINMENT = PARTIAL` → `deploy.sh --force --verify`; adoption cannot flip containment itself while the app holds pooled connections.
+
+**Dependencies:** `third-party-module-track-c-photos-2026-11-10`, `third-party-module-track-c-example-2026-11-08` (the adoption path being rehearsed)
+**Blocking Issues:** None
+**Notes:** `Core.Data.Tests` **201/201**; `DotNetCloud.CI.slnf` builds clean. The rehearsal ran with a throwaway install (published server + all 14 module hosts, ports 5081/5444, scratch data directory) against `DotNetCloud-PreFlight`, a restored copy of production. Two findings only a SQL Server rehearsal could produce: (1) the empty provider migration above, and (2) adoption cannot switch the database to partial containment while the application is connected, so the operator must do it while the service is stopped — the legacy-access fallback is not a safe interim state on SQL Server because the now schema-neutral module models would resolve to `dbo` and hide their data in the legacy schema. Production was never touched during the rehearsal.
+
+---
+
 ### Step: phase-2.1 - Chat Core Abstractions & Data Models
 
 **Status:** completed ✅

@@ -3,8 +3,23 @@
 > **Document Version:** 1.0  
 > **Purpose:** Comprehensive task breakdown for implementing the DotNetCloud architecture  
 > **Scope:** All phases from Foundation (Phase 0) through Auto-Updates (Phase 11)  
-> **Last Updated:** 2026-11-11
+> **Last Updated:** 2026-11-13
 > **Audience:** Development team, project managers, technical leads
+
+---
+
+## Recent Work — Production upgrade rehearsal: SQL Server parity fix + pre-deploy backups (2026-11-13, `feature/third-party-modules`)
+
+The first install of the sandbox/store work on a **SQL Server** install (the dev server is PostgreSQL), rehearsed against a restored copy of the production database before any deploy decision.
+
+- ✓ **Pre-upgrade backup of the live install** — DB backup (copy-only, compressed, checksum, verified in `msdb` and md5-matched off-host), `/opt/dotnetcloud` binaries + all 14 module hosts, `/etc/dotnetcloud` config, and a byte-exact copy of `storage/` (**99,209,452,639 B / 36,288 files**, verified against a file manifest; the CAS blobs are `0600 dotnetcloud`, so the copy must run as root).
+- ✓ **Branch builds and tests** — `DotNetCloud.CI.slnf` 0 warnings / 0 errors; 8,582 tests pass. The only failures are the 6 `RunBackup_*` integration tests, which need `sqlcmd` on `PATH` (environmental).
+- ✓ **Migrations rehearsed on a restored copy of production** — the 4 new migrations apply cleanly; the 86 populated tables are row-identical to production afterwards, so nothing is touched at migration time.
+- ✓ **Sandbox adoption rehearsed on SQL Server** — after `contained database authentication` was enabled at the instance, all five converted modules adopted their legacy schemas: `ai` 2, `bookmarks` 3, `email` 9, `photos` 7, `tracks` 41 objects moved into generated `dnc_*` schemas; contained users created with their own default schema; legacy schemas left with **0** tables; row counts preserved (photos 1 060, ai 67 conversations / 330 messages, tracks 4 work items); `InstalledModules` → `Bundled / Active / Isolated`; **14/14 modules healthy** with per-module sockets and a sanitized `module.json` (no core connection string, TLS paths or WOPI key).
+- ✓ **Defect found and fixed — `AddModuleCapabilityDecisions_SqlServer` shipped empty.** The PostgreSQL migration adds 3 columns ( `RejectedAtUtc`, `RejectedByUserId`, `Status`), 2 indexes and an FK; the SQL Server twin was a `{ }` stub with an un-updated snapshot, so every `ModuleCapabilityGrants` insert failed with *Invalid column name 'RejectedAtUtc'*, the table stayed at **0 rows** and **no module could obtain a Restricted/Privileged capability on SQL Server** (Tracks organization directory, Photos/Email file access, AI settings). Regenerated the migration against SQL Server (`20261113052102_AddModuleCapabilityDecisions_SqlServer`) with the snapshot updated. Re-verified: **14 grants written, all `Granted`**, no `PendingModelChangesWarning`, no sync failure, 14/14 healthy.
+- ✓ **Guard tests** — new `SqlServerMigrationParityTests` (`Model_WithSqlServerNaming_HasNoPendingModelChanges` + `Migrations_AllEmitOperations_ExceptTheIntentionallyEmptyOnes`, with a reasoned allow-list for the two legitimately empty migrations). Both pass; the emptiness guard was proved to fail by generating a real empty migration and watching it go red.
+- ✓ **Tooling aligned** — `dotnet-ef` was 10.0.8 while the runtime packages are 10.0.14, and a 10.0.15 tool cannot load the 10.0.14 Design assembly. The tool is now 10.0.14 and pinned for the repo in `.config/dotnet-tools.json` (`dotnet tool restore`).
+- ☐ **Outstanding before the deploy** — adoption cannot set `CONTAINMENT = PARTIAL` itself while the server holds connection-pool connections (`ALTER DATABASE failed because a lock could not be placed`), so the production sequence must be: stop the service → `ALTER DATABASE [DotNetCloud] SET CONTAINMENT = PARTIAL` → `deploy.sh --force --verify`.
 
 ---
 

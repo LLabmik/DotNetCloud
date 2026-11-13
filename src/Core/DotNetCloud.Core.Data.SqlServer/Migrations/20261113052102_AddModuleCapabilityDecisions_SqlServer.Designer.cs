@@ -13,7 +13,7 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace DotNetCloud.Core.Data.Migrations
 {
     [DbContext(typeof(CoreDbContext))]
-    [Migration("20261109215027_AddModuleCapabilityDecisions_SqlServer")]
+    [Migration("20261113052102_AddModuleCapabilityDecisions_SqlServer")]
     partial class AddModuleCapabilityDecisions_SqlServer
     {
         /// <inheritdoc />
@@ -748,6 +748,19 @@ namespace DotNetCloud.Core.Data.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");
 
+                    b.Property<DateTime?>("RejectedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid?>("RejectedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)")
+                        .HasDefaultValue("Granted");
+
                     b.HasKey("Id");
 
                     b.HasIndex("CapabilityName")
@@ -759,9 +772,15 @@ namespace DotNetCloud.Core.Data.Migrations
                     b.HasIndex("ModuleId")
                         .HasDatabaseName("ix_module_capability_grants_module_id");
 
+                    b.HasIndex("RejectedByUserId")
+                        .HasDatabaseName("ix_module_capability_grants_rejected_by_user_id");
+
                     b.HasIndex("ModuleId", "CapabilityName")
                         .IsUnique()
                         .HasDatabaseName("uq_module_capability_grants_module_id_capability_name");
+
+                    b.HasIndex("ModuleId", "Status")
+                        .HasDatabaseName("ix_module_capability_grants_module_id_status");
 
                     b.ToTable("ModuleCapabilityGrants");
                 });
@@ -1926,9 +1945,17 @@ namespace DotNetCloud.Core.Data.Migrations
                         .IsRequired()
                         .HasConstraintName("fk_module_capability_grants_module_id");
 
+                    b.HasOne("DotNetCloud.Core.Data.Entities.Identity.ApplicationUser", "RejectedByUser")
+                        .WithMany()
+                        .HasForeignKey("RejectedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("fk_module_capability_grants_rejected_by_user_id");
+
                     b.Navigation("GrantedByUser");
 
                     b.Navigation("Module");
+
+                    b.Navigation("RejectedByUser");
                 });
 
             modelBuilder.Entity("DotNetCloud.Core.Data.Entities.Modules.ModuleQuota", b =>

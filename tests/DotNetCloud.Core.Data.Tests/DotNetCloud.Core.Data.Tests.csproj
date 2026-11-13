@@ -23,6 +23,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\Core\DotNetCloud.Core.Data\DotNetCloud.Core.Data.csproj" />
+    <ProjectReference Include="..\..\src\Core\DotNetCloud.Core.Data.SqlServer\DotNetCloud.Core.Data.SqlServer.csproj" />
     <ProjectReference Include="..\..\src\Core\DotNetCloud.Core\DotNetCloud.Core.csproj" />
   </ItemGroup>
 
