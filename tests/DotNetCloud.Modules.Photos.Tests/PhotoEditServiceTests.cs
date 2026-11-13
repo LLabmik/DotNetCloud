@@ -164,6 +164,69 @@ public class PhotoEditServiceTests
     }
 
     [TestMethod]
+    public async Task ApplyEdit_CropNormalized_Succeeds()
+    {
+        var photo = await TestHelpers.SeedPhotoAsync(_db, _caller.UserId);
+        var op = new PhotoEditOperationDto
+        {
+            OperationType = PhotoEditType.Crop,
+            Parameters = new Dictionary<string, string>
+            {
+                ["nx"] = "0.1",
+                ["ny"] = "0.2",
+                ["nw"] = "0.5",
+                ["nh"] = "0.6"
+            }
+        };
+
+        var result = await _service.ApplyEditAsync(photo.Id, op, _caller);
+
+        Assert.IsNotNull(result);
+    }
+
+    [TestMethod]
+    public async Task ApplyEdit_CropNormalizedOutOfRange_ThrowsInvalidPhotoEdit()
+    {
+        var photo = await TestHelpers.SeedPhotoAsync(_db, _caller.UserId);
+        var op = new PhotoEditOperationDto
+        {
+            OperationType = PhotoEditType.Crop,
+            Parameters = new Dictionary<string, string>
+            {
+                ["nx"] = "1.5",
+                ["ny"] = "0",
+                ["nw"] = "0.5",
+                ["nh"] = "0.5"
+            }
+        };
+
+        var ex = await Assert.ThrowsExactlyAsync<BusinessRuleException>(
+            () => _service.ApplyEditAsync(photo.Id, op, _caller));
+        Assert.AreEqual(ErrorCodes.InvalidPhotoEdit, ex.ErrorCode);
+    }
+
+    [TestMethod]
+    public async Task ApplyEdit_CropNormalizedZeroSize_ThrowsInvalidPhotoEdit()
+    {
+        var photo = await TestHelpers.SeedPhotoAsync(_db, _caller.UserId);
+        var op = new PhotoEditOperationDto
+        {
+            OperationType = PhotoEditType.Crop,
+            Parameters = new Dictionary<string, string>
+            {
+                ["nx"] = "0",
+                ["ny"] = "0",
+                ["nw"] = "0",
+                ["nh"] = "0.5"
+            }
+        };
+
+        var ex = await Assert.ThrowsExactlyAsync<BusinessRuleException>(
+            () => _service.ApplyEditAsync(photo.Id, op, _caller));
+        Assert.AreEqual(ErrorCodes.InvalidPhotoEdit, ex.ErrorCode);
+    }
+
+    [TestMethod]
     public async Task ApplyEdit_FlipHorizontal_Succeeds()
     {
         var photo = await TestHelpers.SeedPhotoAsync(_db, _caller.UserId);

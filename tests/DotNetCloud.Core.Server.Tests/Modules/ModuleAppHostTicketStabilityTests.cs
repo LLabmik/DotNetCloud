@@ -40,6 +40,33 @@ public class ModuleAppHostTicketStabilityTests
             "the host needs the element reference for the mount bridge");
     }
 
+    [TestMethod]
+    public void FrameHandshake_BothSidesRepeatUntilAnswered()
+    {
+        var host = ReadSource("src/UI/DotNetCloud.UI.Web/wwwroot/js/module-app-host.js");
+        var bridge = ReadSource("src/SDK/DotNetCloud.Modules.Sdk/wwwroot/dncModuleBridge.js");
+
+        // The host mounts the frame and registers its listener asynchronously; the frame boots
+        // asynchronously too. Whichever side is late drops the other's single message, leaving the
+        // shell on "Starting ..." until the handshake times out. Both sides must therefore repeat.
+        StringAssert.Contains(
+            host,
+            "function beginHandshake()",
+            "the host must be able to repeat dnc:init");
+        StringAssert.Contains(
+            host,
+            "INIT_RETRY_MS",
+            "the host repeats dnc:init on an interval instead of sending it once");
+        StringAssert.Contains(
+            bridge,
+            "function announceReady()",
+            "the frame must repeat dnc:ready until the host answers");
+        StringAssert.Contains(
+            bridge,
+            "stopReadyRetries()",
+            "repeated announcements must stop as soon as the host is heard from");
+    }
+
     private static string ReadSource(string relativePath)
     {
         var root = FindRepositoryRoot();

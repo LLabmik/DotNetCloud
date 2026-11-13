@@ -477,13 +477,41 @@ public sealed class PhotoThumbnailService : IPhotoThumbnailService
     /// Crops to the recorded rectangle, clamped to the image it is applied to.
     /// </summary>
     /// <remarks>
-    /// The rectangle is recorded in original pixels, but earlier operations in the stack (a rotate, or
-    /// another crop) change the frame it refers to. Clamping turns a stale rectangle into the largest
-    /// legal crop instead of throwing and losing the whole stack - which is why the old pipeline, whose
+    /// <para>
+    /// Normalized fractions (nx/ny/nw/nh) win when present: they are resolved against the image the
+    /// pipeline is holding, so a crop works even when the photo has no recorded pixel size and stays
+    /// correct after an earlier operation changed the frame.
+    /// </para>
+    /// <para>
+    /// Absolute pixels (x/y/width/height) are the shape older stacks already store. Either way the
+    /// rectangle is clamped to the current image, which turns a stale rectangle into the largest legal
+    /// crop instead of throwing and losing the whole stack - which is why the old pipeline, whose
     /// single int gate skipped Crop entirely, could never apply one.
+    /// </para>
     /// </remarks>
     private static void ApplyCrop(Image image, Dictionary<string, string> parameters)
     {
+        if (TryReadFloat(parameters, "nx", out var nx)
+            && TryReadFloat(parameters, "ny", out var ny)
+            && TryReadFloat(parameters, "nw", out var nw)
+            && TryReadFloat(parameters, "nh", out var nh)
+            && nw > 0f
+            && nh > 0f)
+        {
+            var left = (int)Math.Round(Math.Clamp(nx, 0f, 1f) * image.Width);
+            var top = (int)Math.Round(Math.Clamp(ny, 0f, 1f) * image.Height);
+            var right = (int)Math.Round(Math.Clamp(nx + nw, 0f, 1f) * image.Width);
+            var bottom = (int)Math.Round(Math.Clamp(ny + nh, 0f, 1f) * image.Height);
+
+            left = Math.Clamp(left, 0, image.Width - 1);
+            top = Math.Clamp(top, 0, image.Height - 1);
+            var normalizedWidth = Math.Clamp(right - left, 1, image.Width - left);
+            var normalizedHeight = Math.Clamp(bottom - top, 1, image.Height - top);
+
+            image.Mutate(ctx => ctx.Crop(new Rectangle(left, top, normalizedWidth, normalizedHeight)));
+            return;
+        }
+
         if (!TryReadInt(parameters, "x", out var x)
             || !TryReadInt(parameters, "y", out var y)
             || !TryReadInt(parameters, "width", out var width)

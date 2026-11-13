@@ -27,6 +27,10 @@
   var MAX_HEIGHT = 20000;
   var NOTIFY_PER_MINUTE = 5;
 
+  // How often the host repeats dnc:init while waiting for the frame's dnc:ready. Both sides announce
+  // until the other answers, so this only has to be short enough to feel instant.
+  var INIT_RETRY_MS = 400;
+
   // The shell applies the user's theme with the `dark-mode` class (see theme.js), not a data-theme
   // attribute. Reading only data-theme left every module frame stuck in light mode. data-theme stays
   // as a fallback for a host that sets the attribute instead.
@@ -72,6 +76,7 @@
       var notifyTimestamps = [];
       var disposed = false;
       var handshakeTimer = null;
+      var initTimer = null;
       var ready = false;
 
       function post(message) {
@@ -103,13 +108,39 @@
           window.clearTimeout(handshakeTimer);
           handshakeTimer = null;
         }
+        stopInitRetries();
+      }
+
+      function stopInitRetries() {
+        if (initTimer !== null) {
+          window.clearInterval(initTimer);
+          initTimer = null;
+        }
+      }
+
+      // mount() and the frame's own boot are two asynchronous races: the app can post its dnc:ready
+      // before this listener exists (that message is dropped), and this dnc:init can arrive before the
+      // bridge started (that one is dropped too). Whichever order they land in, one message is lost and
+      // the shell would sit on "Starting ..." until it timed out. Repeating init until the frame
+      // answers closes the window without needing to know which side was late.
+      function beginHandshake() {
+        sendInit();
+        if (initTimer === null && !ready && !disposed) {
+          initTimer = window.setInterval(function () {
+            if (disposed || ready) {
+              stopInitRetries();
+              return;
+            }
+            sendInit();
+          }, INIT_RETRY_MS);
+        }
       }
 
       function onLoad() {
         if (disposed) {
           return;
         }
-        sendInit();
+        beginHandshake();
 
         // Start the budget from the load event, not from mount(): a cold WebAssembly bundle can take
         // far longer than the timeout to fetch, and timing the document fetch as if it were the app's
@@ -140,9 +171,15 @@
           return;
         }
 
-        // Identity check — the only usable peer authentication for an opaque-origin frame.
+        // Identity check — the only usable peer authentication for an opaque-origin frame. A re-render
+        // can replace the element while the app inside is booting; adopt the live one instead of
+        // dropping every message that app sends.
         if (event.source !== frame.contentWindow) {
-          return;
+          var liveFrame = document.querySelector('iframe.module-app-frame');
+          if (!liveFrame || event.source !== liveFrame.contentWindow) {
+            return;
+          }
+          frame = liveFrame;
         }
 
         var data = event.data;
@@ -167,6 +204,10 @@
 
         switch (data.type) {
           case 'dnc:ready':
+            // The frame repeats this until it hears from the host, so most of these are duplicates.
+            if (ready) {
+              return;
+            }
             ready = true;
             clearHandshake();
             dotNetRef.invokeMethodAsync('OnReady');

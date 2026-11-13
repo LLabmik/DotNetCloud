@@ -204,6 +204,30 @@ public sealed class PhotoEditService : IPhotoEditService
                 break;
 
             case PhotoEditType.Crop:
+                // Two shapes are accepted. The UI sends normalized fractions (nx/ny/nw/nh) because it
+                // cannot know a photo's original pixels when no size was recorded at upload; older
+                // stacks already store absolute pixels (x/y/width/height) and still have to replay.
+                if (operation.Parameters.ContainsKey("nx"))
+                {
+                    foreach (var param in new[] { "nx", "ny", "nw", "nh" })
+                    {
+                        if (!operation.Parameters.TryGetValue(param, out var raw)
+                            || !float.TryParse(raw, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var fraction)
+                            || fraction < 0f || fraction > 1f)
+                        {
+                            throw new BusinessRuleException(ErrorCodes.InvalidPhotoEdit, $"Crop operation requires a '{param}' fraction between 0 and 1.");
+                        }
+                    }
+
+                    if (float.Parse(operation.Parameters["nw"], System.Globalization.CultureInfo.InvariantCulture) <= 0f
+                        || float.Parse(operation.Parameters["nh"], System.Globalization.CultureInfo.InvariantCulture) <= 0f)
+                    {
+                        throw new BusinessRuleException(ErrorCodes.InvalidPhotoEdit, "Crop width and height must be greater than zero.");
+                    }
+
+                    break;
+                }
+
                 var requiredParams = new[] { "x", "y", "width", "height" };
                 foreach (var param in requiredParams)
                 {

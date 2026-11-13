@@ -317,6 +317,46 @@ public sealed class PhotoThumbnailServiceSaveEditsTests
     }
 
     [TestMethod]
+    public async Task SaveEditsAsync_NormalizedCropEdit_BakesTheFractionOfTheImage()
+    {
+        // Fractions are what the UI records: a photo uploaded before sizes were captured has no pixel
+        // size to multiply, so the render pipeline has to resolve the rectangle itself.
+        var ownerId = Guid.CreateVersion7();
+        var photo = await SeedPhotoWithEditsAsync(
+            ownerId,
+            "image/jpeg",
+            ("Crop", """{"nx":"0.25","ny":"0.25","nw":"0.5","nh":"0.5"}"""));
+
+        var service = CreateService(new FakeFileModuleApi(CreateTestImage(400, 300)));
+
+        Assert.IsTrue(await service.SaveEditsAsync(photo.Id, ownerId));
+
+        using var detail = Image.Load(_db.Photos.Single(p => p.Id == photo.Id).ThumbnailDetail!);
+        Assert.AreEqual(200, detail.Width);
+        Assert.AreEqual(150, detail.Height);
+    }
+
+    [TestMethod]
+    public async Task SaveEditsAsync_NormalizedAndPixelCrop_EditWinsOverTheStalePixels()
+    {
+        // A stack can carry both shapes; the fractions describe what the user actually dragged, so they
+        // must not be overridden by a pixel rectangle computed from a size that has since changed.
+        var ownerId = Guid.CreateVersion7();
+        var photo = await SeedPhotoWithEditsAsync(
+            ownerId,
+            "image/jpeg",
+            ("Crop", """{"nx":"0.5","ny":"0.5","nw":"0.5","nh":"0.5","x":"0","y":"0","width":"400","height":"300"}"""));
+
+        var service = CreateService(new FakeFileModuleApi(CreateTestImage(400, 300)));
+
+        Assert.IsTrue(await service.SaveEditsAsync(photo.Id, ownerId));
+
+        using var detail = Image.Load(_db.Photos.Single(p => p.Id == photo.Id).ThumbnailDetail!);
+        Assert.AreEqual(200, detail.Width);
+        Assert.AreEqual(150, detail.Height);
+    }
+
+    [TestMethod]
     public async Task SaveEditsAsync_BlurWithRadiusOnly_ChangesThePreview()
     {
         // Same source, same pipeline: if the blur were skipped (the old `value`-only gate), the

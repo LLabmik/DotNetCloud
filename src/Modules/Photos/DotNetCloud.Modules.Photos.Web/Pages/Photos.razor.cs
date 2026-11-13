@@ -715,36 +715,38 @@ public partial class Photos : ComponentBase
             return;
         }
 
-        if (photo.Width is not { } sourceWidth || photo.Height is not { } sourceHeight
-            || sourceWidth <= 0 || sourceHeight <= 0)
+        // The selection is a fraction of the preview, so it travels as fractions: the browser has no
+        // reliable way to know the original pixel size (a photo uploaded before sizes were recorded
+        // has none), and the render pipeline resolves fractions against the image it is holding.
+        var culture = System.Globalization.CultureInfo.InvariantCulture;
+        var normalized = new Dictionary<string, string>
         {
-            SetStatus("This photo has no recorded pixel size, so it cannot be cropped yet.", isError: true);
-            return;
+            ["nx"] = _cropStartX.ToString("0.####", culture),
+            ["ny"] = _cropStartY.ToString("0.####", culture),
+            ["nw"] = _cropWidth.ToString("0.####", culture),
+            ["nh"] = _cropHeight.ToString("0.####", culture),
+        };
+
+        // Keep the pixel rectangle too when the size is known: it makes stored stacks readable and
+        // keeps older readers working. Fractions stay authoritative.
+        if (photo.Width is { } sourceWidth && photo.Height is { } sourceHeight
+            && sourceWidth > 0 && sourceHeight > 0)
+        {
+            var x = Math.Clamp((int)Math.Round(_cropStartX * sourceWidth), 0, sourceWidth - 1);
+            var y = Math.Clamp((int)Math.Round(_cropStartY * sourceHeight), 0, sourceHeight - 1);
+            var width = Math.Clamp((int)Math.Round(_cropWidth * sourceWidth), 1, sourceWidth - x);
+            var height = Math.Clamp((int)Math.Round(_cropHeight * sourceHeight), 1, sourceHeight - y);
+
+            normalized["x"] = x.ToString(culture);
+            normalized["y"] = y.ToString(culture);
+            normalized["width"] = width.ToString(culture);
+            normalized["height"] = height.ToString(culture);
         }
-
-        // The selection is a fraction of the preview; the stack records original pixels.
-        var x = (int)Math.Round(_cropStartX * sourceWidth);
-        var y = (int)Math.Round(_cropStartY * sourceHeight);
-        var width = (int)Math.Round(_cropWidth * sourceWidth);
-        var height = (int)Math.Round(_cropHeight * sourceHeight);
-
-        x = Math.Clamp(x, 0, sourceWidth - 1);
-        y = Math.Clamp(y, 0, sourceHeight - 1);
-        width = Math.Clamp(width, 1, sourceWidth - x);
-        height = Math.Clamp(height, 1, sourceHeight - y);
 
         _cropActive = false;
         _cropSelecting = false;
 
-        await ApplyOperationAsync(
-            PhotoEditType.Crop,
-            new Dictionary<string, string>
-            {
-                ["x"] = x.ToString(System.Globalization.CultureInfo.InvariantCulture),
-                ["y"] = y.ToString(System.Globalization.CultureInfo.InvariantCulture),
-                ["width"] = width.ToString(System.Globalization.CultureInfo.InvariantCulture),
-                ["height"] = height.ToString(System.Globalization.CultureInfo.InvariantCulture),
-            });
+        await ApplyOperationAsync(PhotoEditType.Crop, normalized);
 
         _cropWidth = 0;
         _cropHeight = 0;

@@ -144,6 +144,44 @@
     }
   }
 
+  //
+  // Readiness announcements
+  //
+  // The host mounts the frame and registers its message listener asynchronously, and its dnc:init can
+  // arrive before this bridge started - either way one message in the crossing is lost and the shell
+  // sits on "Starting ..." until it times out. Repeating dnc:ready until the host says anything closes
+  // that window without needing to know which side was late; the host repeats dnc:init for the same
+  // reason, so the two converge whichever order they land in.
+  //
+  var READY_RETRY_MS = 400;
+  var READY_RETRY_LIMIT = 50;
+  var readyTimer = null;
+  var readyAttempts = 0;
+
+  function stopReadyRetries() {
+    if (readyTimer !== null) {
+      window.clearInterval(readyTimer);
+      readyTimer = null;
+    }
+  }
+
+  function announceReady() {
+    post({ type: 'dnc:ready' });
+
+    if (readyTimer !== null || state.disposed) {
+      return;
+    }
+
+    readyTimer = window.setInterval(function () {
+      readyAttempts++;
+      if (state.disposed || readyAttempts >= READY_RETRY_LIMIT) {
+        stopReadyRetries();
+        return;
+      }
+      post({ type: 'dnc:ready' });
+    }, READY_RETRY_MS);
+  }
+
   function onMessage(event) {
     if (state.disposed) {
       return;
@@ -162,6 +200,9 @@
     if (TO_FRAME.indexOf(data.type) < 0) {
       return;
     }
+
+    // The host answered; further announcements are noise.
+    stopReadyRetries();
 
     var serialized;
     try {
@@ -262,7 +303,8 @@
         }
       }
 
-      post({ type: 'dnc:ready' });
+      // Announce readiness, and keep announcing until the host answers (see announceReady).
+      announceReady();
       return bridge;
     },
 

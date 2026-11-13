@@ -99,7 +99,9 @@ user's behalf, serves its own framed UI, and the core keeps no code or project r
   - ✓ **Parameter contract unified** on `value` (clockwise degrees / 0-1 flip), matching what the image pipeline actually applies.
   - ✓ **Consent refusal is actionable** — 403 `FILES_CONSENT_REQUIRED` → the app calls `bridge.requestConsent(["files:read"])` → the shell shows its permission band; previously a bare 500.
   - ✓ **Queued edits preview instantly** — CSS transform derived from the stored stack (optimistic, with a stale-response guard), cleared once "Save edits" bakes the pixels.
-- ☐ **Outstanding (found while testing)** — `Revert all edits` leaves the baked previews (no regenerate-from-original path); Crop/Brightness/Contrast/Saturation/Sharpen/Blur are unreachable from the UI and `ApplyEditToImage` needs a `value` parameter; the frame ticket expires after 15 min; approving consent reloads the frame and drops in-progress state.
+- ✓ **Edit flow completed (2026-11-12, verified live)** — `ApplyEditToImage` parses each operation's own parameters (so Crop applies and Sharpen/Blur honour `radius`); `SaveEditsAsync` re-renders on an empty stack and revert/undo call the new `RegeneratePreviewsAsync`; the UI exposes Brightness/Contrast/Saturation, Sharpen/Blur radius, drag-select Crop and **Revert all**; crop travels as normalized fractions so it no longer needs a recorded pixel size; frame tickets last 8 h. Live: 50% crop took the detail preview 1200×800 → 768×512 and Revert all restored it; Photos 225/225, Core.Server 1716 passed / 2 skipped.
+- ✓ **Modules frame handshake fixed (2026-11-12)** — the `dnc:ready` / `dnc:init` exchange was single-shot and the two posts crossed, so whichever side was late dropped the other's message and the shell showed "The app did not respond." Both sides now repeat until answered (host re-sends `dnc:init` every 400 ms, frame re-posts `dnc:ready` until it hears back) and the host adopts a re-rendered frame element. Guard test: `ModuleAppHostTicketStabilityTests.FrameHandshake_BothSidesRepeatUntilAnswered`.
+- ☐ **Outstanding (by decision)** — approving a consent request still reloads the frame and drops in-progress UI state (needs a `dnc:consent-granted` message plus per-module retry).
 - ☐ Commit the store repository.
 
 ---
@@ -8840,8 +8842,8 @@ WebAssembly apps served by their own module host, matching the Tracks shape.
   array), Example **90**, Bookmarks **47**, Photos **213**, AI **63**, Email **69** (new API-client and state
   helper suites, rewritten WASM asset guards), `Core.Server.Tests` **1693 passed / 2 skipped**, Blazor standards
   gate green, `DotNetCloud.CI.slnf` builds with 0 warnings / 0 errors.
-- ☐ **Next** — browser click-through of each frame against a deployed host (the Tracks click-through found eight
-  defects unit tests could not see), then re-pack/re-publish the five modules.
+- ✓ **Browser click-through (2026-11-12, dev server)** — the framed Photos app loads and is interactive (library, viewer, all edit controls); the click-through found two defects unit tests could not see: the single-shot frame handshake (fixed, see the edit-flow entry above) and crop refusing to run for photos without a recorded pixel size (fixed by sending normalized fractions).
+- ☐ **Next** — click through the remaining frames (Email, AI, Bookmarks, Tracks) against a deployed host, then re-pack/re-publish the affected modules.
 
 #### Documentation — Third-Party Module Sandbox Track D (2026-11-12)
 
