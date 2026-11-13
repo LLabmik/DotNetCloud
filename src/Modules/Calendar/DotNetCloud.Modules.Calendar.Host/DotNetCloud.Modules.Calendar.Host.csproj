@@ -46,4 +46,14 @@
     <ProjectReference Include="..\..\..\Core\DotNetCloud.Core.Grpc\DotNetCloud.Core.Grpc.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- The supervisor only learns a module's capabilities from this file. Without it the module runs
+         on a default manifest with no capabilities, so no grants are created and every capability call
+         is denied at runtime (ModuleAccessEvaluator). -->
+    <Content Include="..\manifest.json"
+             Link="manifest.json"
+             CopyToOutputDirectory="PreserveNewest"
+             CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
+
 </Project>

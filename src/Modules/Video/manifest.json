@@ -9,7 +9,8 @@
         "IUserDirectory",
         "ICurrentUserContext",
         "IAuditLogger",
-        "ISearchProvider"
+        "ISearchProvider",
+        "ITeamDirectory"
     ],
     "publishedEvents": [
         "VideoUploadedEvent"

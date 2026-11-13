@@ -8,6 +8,36 @@
 
 ---
 
+## Recent Work — Sandbox/store live on production; module-manifest publication defect found and fixed (2026-11-13, `feature/third-party-modules`)
+
+The third-party module sandbox and store went live on the production SQL Server install at `2dbf1e29` (deploy verified:
+15/15 targets, 648 s, every assembly hash matched). Media playback broke immediately afterwards, which exposed a
+platform defect rather than a data problem.
+
+- ✓ **Containment step executed** — service stopped → `ALTER DATABASE [DotNetCloud] SET CONTAINMENT = PARTIAL` →
+  `deploy.sh --force --verify`. 14/14 modules healthy, `/health/ready` 200, 93 migrations, 5 contained `dnc_mod_*` users,
+  legacy schemas emptied, `dnc_*` schemas populated, data preserved (photos 1 060 / ai 67 / tracks 4 / bookmarks 6).
+- ✓ **Defect — v1 module manifests were never published.** Only the Tracks host project declared the `manifest.json`
+  content item, so eight v1 module hosts shipped **without** `manifest.json`. `ModuleManifestLoader.CreateDefaultManifest`
+  then returned a capability-free manifest, `EnsureManifestGrantsAsync` wrote no grants, and `ModuleAccessEvaluator`
+  denied every capability call — Music and Video failed with *FileNode … was not found*. Mitigated live by seeding 47
+  grants from the repo manifests; Music recovered immediately.
+- ✓ **Durable fix** — `<Content Include="..\manifest.json" Link="manifest.json" />` added to all eight v1 host projects
+  (About, Calendar, Chat, Contacts, Files, Music, Notes, Video); `scripts/deploy.sh` now fails the deploy if **any**
+  module directory is missing its `manifest.json` (previously only manifest-v2 modules were checked); new
+  `ModuleManifestPublicationTests` guards both facts.
+- ✓ **Second defect — Video was missing `ITeamDirectory`.** Serving a file out of a mounted admin shared folder
+  (`_dotnetcloud/movies`, `_dotnetcloud/tv`) goes through `ShareAccessMembershipResolver` → `GetGroupsForUser`, so Video
+  (and Music) must declare `ITeamDirectory`. Granted, playback confirmed (`StreamCopy`, HEVC/EAC3, HLS playlist served).
+- ✓ **`_dotnetcloud` virtual directories verified intact** — 4 admin shared folders, 4 grants, 34 849 mounted-node
+  entries, 4 167 video rows for the account (4 152 resolvable through `MountedNodeEntries`). Nothing was migrated away.
+- ✓ **Per-user consent isolation verified and pinned by tests** — consent is keyed `(ModuleId, UserId, Scope)` with a
+  unique index, every read filters the caller's own `UserId`, the cache key includes it, and both grant endpoints derive
+  the user from `ClaimTypes.NameIdentifier` (no `userId` in any request body). New tests
+  `GrantAsync_ForOneUser_DoesNotConsentAnotherUser` and `GrantAsync_SameScopeForTwoUsers_StoresOneRowPerUser`.
+
+---
+
 ## Recent Work — Production upgrade rehearsal: SQL Server parity fix + pre-deploy backups (2026-11-13, `feature/third-party-modules`)
 
 The first install of the sandbox/store work on a **SQL Server** install (the dev server is PostgreSQL), rehearsed against a restored copy of the production database before any deploy decision.
@@ -19,7 +49,7 @@ The first install of the sandbox/store work on a **SQL Server** install (the dev
 - ✓ **Defect found and fixed — `AddModuleCapabilityDecisions_SqlServer` shipped empty.** The PostgreSQL migration adds 3 columns ( `RejectedAtUtc`, `RejectedByUserId`, `Status`), 2 indexes and an FK; the SQL Server twin was a `{ }` stub with an un-updated snapshot, so every `ModuleCapabilityGrants` insert failed with *Invalid column name 'RejectedAtUtc'*, the table stayed at **0 rows** and **no module could obtain a Restricted/Privileged capability on SQL Server** (Tracks organization directory, Photos/Email file access, AI settings). Regenerated the migration against SQL Server (`20261113052102_AddModuleCapabilityDecisions_SqlServer`) with the snapshot updated. Re-verified: **14 grants written, all `Granted`**, no `PendingModelChangesWarning`, no sync failure, 14/14 healthy.
 - ✓ **Guard tests** — new `SqlServerMigrationParityTests` (`Model_WithSqlServerNaming_HasNoPendingModelChanges` + `Migrations_AllEmitOperations_ExceptTheIntentionallyEmptyOnes`, with a reasoned allow-list for the two legitimately empty migrations). Both pass; the emptiness guard was proved to fail by generating a real empty migration and watching it go red.
 - ✓ **Tooling aligned** — `dotnet-ef` was 10.0.8 while the runtime packages are 10.0.14, and a 10.0.15 tool cannot load the 10.0.14 Design assembly. The tool is now 10.0.14 and pinned for the repo in `.config/dotnet-tools.json` (`dotnet tool restore`).
-- ☐ **Outstanding before the deploy** — adoption cannot set `CONTAINMENT = PARTIAL` itself while the server holds connection-pool connections (`ALTER DATABASE failed because a lock could not be placed`), so the production sequence must be: stop the service → `ALTER DATABASE [DotNetCloud] SET CONTAINMENT = PARTIAL` → `deploy.sh --force --verify`.
+- ✓ **Containment sequence executed** — adoption cannot set `CONTAINMENT = PARTIAL` itself while the server holds connection-pool connections (`ALTER DATABASE failed because a lock could not be placed`), so the sequence is: stop the service → `ALTER DATABASE [DotNetCloud] SET CONTAINMENT = PARTIAL` → `deploy.sh --force --verify`. Ran in that order in production; the database is `PARTIAL`, the five converted modules are `Isolated`, and their contained users authenticate successfully.
 
 ---
 

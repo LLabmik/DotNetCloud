@@ -2144,11 +2144,52 @@ Location: src/Core/DotNetCloud.Core.Data/Entities/Modules/
 - ✓ **Verified after the fix** — `ModuleCapabilityGrants` now holds **14 rows, all `Granted`**; no `PendingModelChangesWarning`; no "Failed to sync discovered modules"; data intact (photos 1 060, tracks 4, ai 67); 14/14 modules healthy.
 - ✓ **Guard tests** — `tests/DotNetCloud.Core.Data.Tests/Migrations/SqlServerMigrationParityTests.cs`: SQL Server model/snapshot drift guard (`HasPendingModelChanges`) plus "every SQL Server migration emits operations" (explicit allow-list for the two intentionally empty migrations). The emptiness guard was validated by generating a real empty migration and confirming the test fails.
 - ✓ **Tooling** — `dotnet-ef` aligned to the runtime (`10.0.14`; a `10.0.15` tool cannot load the `10.0.14` Design assembly) and pinned in `.config/dotnet-tools.json`.
-- ☐ **Production sequence documented, not yet executed** — stop service → `ALTER DATABASE [DotNetCloud] SET CONTAINMENT = PARTIAL` → `deploy.sh --force --verify`; adoption cannot flip containment itself while the app holds pooled connections.
+- ✓ **Production sequence executed** — stop service → `ALTER DATABASE [DotNetCloud] SET CONTAINMENT = PARTIAL` → `deploy.sh --force --verify`; adoption cannot flip containment itself while the app holds pooled connections.
 
 **Dependencies:** `third-party-module-track-c-photos-2026-11-10`, `third-party-module-track-c-example-2026-11-08` (the adoption path being rehearsed)
 **Blocking Issues:** None
 **Notes:** `Core.Data.Tests` **201/201**; `DotNetCloud.CI.slnf` builds clean. The rehearsal ran with a throwaway install (published server + all 14 module hosts, ports 5081/5444, scratch data directory) against `DotNetCloud-PreFlight`, a restored copy of production. Two findings only a SQL Server rehearsal could produce: (1) the empty provider migration above, and (2) adoption cannot switch the database to partial containment while the application is connected, so the operator must do it while the service is stopped — the legacy-access fallback is not a safe interim state on SQL Server because the now schema-neutral module models would resolve to `dbo` and hide their data in the legacy schema. Production was never touched during the rehearsal.
+
+---
+
+### Step: third-party-module-manifest-publication-2026-11-13 - Deploy manifest publication defect (capability grants silently disabled)
+
+**Status:** completed ✅
+**Duration:** ~4 hours (diagnosis + live mitigation + durable fix)
+**Description:** The sandbox/store build went to production (`2dbf1e29`), and within minutes Music and Video stopped serving
+files. The cause was not the sandbox: eight v1 module hosts had never published their `manifest.json`, so the supervisor
+loaded a capability-free default manifest, wrote no capability grants, and `ModuleAccessEvaluator` denied every core
+capability call. Fix the publishing path so the failure cannot recur silently.
+
+**Deliverables:**
+
+- ✓ **Diagnosis** — `ModuleManifestLoader.CreateDefaultManifest` returns `Id/Name/Version/Description` with no
+  capabilities; only the Tracks host `.csproj` declared the `manifest.json` content item, so `/opt/dotnetcloud/modules/<id>/`
+  held no manifest for the other eight v1 modules. `EnsureManifestGrantsAsync` therefore created no rows and every
+  `ITeamDirectory`/`IStorageProvider`/… call was rejected.
+- ✓ **Live mitigation** — 47 grants seeded from the repo manifests (all `Granted`); Music playback recovered immediately.
+- ✓ **Durable fix** — `<Content Include="..\manifest.json" Link="manifest.json" CopyToOutputDirectory="PreserveNewest"
+  CopyToPublishDirectory="PreserveNewest" />` added to the About, Calendar, Chat, Contacts, Files, Music, Notes and Video
+  host projects (Tracks already had it).
+- ✓ **Deploy guard widened** — `scripts/deploy.sh` previously verified the deployed manifest only for modules whose
+  manifest declared `"manifestVersion": 2`; it now checks **every** module with a `src/Modules/<M>/manifest.json` and
+  fails the deploy when `/opt/dotnetcloud/modules/<id>/manifest.json` is absent.
+- ✓ **Video `ITeamDirectory`** — serving from a mounted admin shared folder resolves share membership through
+  `ShareAccessMembershipResolver` → `GetGroupsForUser`, so Video (and Music) must declare `ITeamDirectory`; both manifests
+  updated. Playback confirmed: `StreamCopy`, HEVC/EAC3, HLS playlist served.
+- ✓ **Guard tests** — `tests/DotNetCloud.Core.Server.Tests/ModuleLoading/ModuleManifestPublicationTests.cs`:
+  `EveryModuleWithAManifest_PublishesItFromItsHostProject` and `MediaModules_DeclareTeamDirectory`.
+- ✓ **Per-user consent isolation** — added `GrantAsync_ForOneUser_DoesNotConsentAnotherUser` and
+  `GrantAsync_SameScopeForTwoUsers_StoresOneRowPerUser`, pinning that consent is per `(module, user, scope)` and that
+  revoking one user never affects another.
+
+**Dependencies:** `third-party-module-sandbox-sqlserver-parity-2026-11-13` (the deploy that exposed it)
+**Blocking Issues:** None
+**Notes:** A missing `manifest.json` degraded silently to "this module may use no capabilities", which reads like a data
+or path bug at the feature layer — Video reported *FileNode … was not found* because the share-membership lookup behind a
+mounted folder returned null. The deploy guard and the publication test now make that state impossible to ship. Verification
+after the grants: 14/14 modules healthy; Music and Video both stream from the mounted `_dotnetcloud` virtual directories,
+which were confirmed intact (4 admin shares, 34 849 mounted-node entries). `Core.Server.Tests` consent suite 14/14.
 
 ---
 

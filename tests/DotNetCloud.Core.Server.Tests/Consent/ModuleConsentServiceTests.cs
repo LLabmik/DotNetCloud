@@ -250,4 +250,59 @@ public class ModuleConsentServiceTests
         Assert.AreEqual(2, overview.ScopeCounts.Single(count => count.Scope == "files:read").UserCount);
         Assert.AreEqual(1, overview.ScopeCounts.Single(count => count.Scope == "profile").UserCount);
     }
+
+    /// <summary>
+    /// Consent is per user, not per module: one user approving a scope must never let the core serve
+    /// another user's data under that scope. The cache is keyed by (module, user) too, so a warm
+    /// entry for one user must not answer for another.
+    /// </summary>
+    [TestMethod]
+    public async Task GrantAsync_ForOneUser_DoesNotConsentAnotherUser()
+    {
+        var (service, db) = CreateService();
+        var alice = SeedModule(db);
+        var bob = Guid.CreateVersion7();
+
+        await service.GrantAsync(ModuleId, alice, ["files:read"]);
+
+        // Warm the cache for Alice first, so a leaked/shared cache entry would show up as a false
+        // positive for Bob rather than being masked by a cold read.
+        Assert.IsTrue(await service.HasConsentAsync(ModuleId, alice, "files:read"));
+        Assert.AreEqual(1, (await service.GetGrantedScopesAsync(ModuleId, alice)).Count);
+
+        Assert.AreEqual(0, (await service.GetGrantedScopesAsync(ModuleId, bob)).Count,
+            "Bob must not inherit Alice's consent.");
+        Assert.IsFalse(await service.HasConsentAsync(ModuleId, bob, "files:read"),
+            "Bob's calls must be refused with MODULE_CONSENT_REQUIRED until Bob consents himself.");
+
+        var missing = await service.GetMissingScopesAsync(ModuleId, bob, ["files:read"]);
+        CollectionAssert.AreEqual(new[] { "files:read" }, missing.ToArray());
+    }
+
+    /// <summary>
+    /// The unique index is (module, user, scope), so the same scope granted by two users is two
+    /// independent rows — never one row that covers everybody.
+    /// </summary>
+    [TestMethod]
+    public async Task GrantAsync_SameScopeForTwoUsers_StoresOneRowPerUser()
+    {
+        var (service, db) = CreateService();
+        var alice = SeedModule(db);
+        var bob = Guid.CreateVersion7();
+
+        await service.GrantAsync(ModuleId, alice, ["files:read"]);
+        await service.GrantAsync(ModuleId, bob, ["files:read"]);
+
+        var rows = db.ModuleUserConsents.Where(row => row.Scope == "files:read").ToList();
+
+        Assert.AreEqual(2, rows.Count);
+        CollectionAssert.AreEquivalent(new[] { alice, bob }, rows.Select(row => row.UserId).ToArray());
+
+        // Revoking one user leaves the other untouched.
+        await service.RevokeAsync(ModuleId, alice, "files:read");
+
+        Assert.IsFalse(await service.HasConsentAsync(ModuleId, alice, "files:read"));
+        Assert.IsTrue(await service.HasConsentAsync(ModuleId, bob, "files:read"),
+            "Revoking Alice's consent must not touch Bob's.");
+    }
 }
