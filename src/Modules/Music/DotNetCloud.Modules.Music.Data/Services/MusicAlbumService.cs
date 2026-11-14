@@ -125,8 +125,19 @@ public sealed class MusicAlbumService : IMusicAlbumService
         var canonicalAlbum = await _db.CanonicalAlbums.FindAsync([albumId], cancellationToken);
         if (canonicalAlbum is null)
             return null;
-        if (canonicalAlbum.CoverArtHash is not null && _contentStorage.Exists(canonicalAlbum.CoverArtHash))
-            return _contentStorage.ResolvePath(canonicalAlbum.CoverArtHash);
+        if (canonicalAlbum.CoverArtHash is not null)
+        {
+            if (_contentStorage.Exists(canonicalAlbum.CoverArtHash))
+                return _contentStorage.ResolvePath(canonicalAlbum.CoverArtHash);
+
+            // The stored reference outlives the cached file (cache pruned, restart with a different
+            // cache root, or art written by the other process). Keep the reference: clearing it here
+            // permanently discarded the cover an administrator had chosen manually. Enrichment
+            // re-fetches whenever the hash has no file, and a manual selection can be re-applied.
+            _logger.LogWarning(
+                "Cached cover art file for album {AlbumId} is missing from the media cache; keeping the stored reference",
+                albumId);
+        }
 
         var anyUserTrack = await _db.UserTracks
             .Include(ut => ut.CanonicalTrack)
@@ -156,13 +167,9 @@ public sealed class MusicAlbumService : IMusicAlbumService
         {
             _logger.LogDebug(ex, "Failed to extract cover art for album {AlbumId}", albumId);
         }
-        if (canonicalAlbum.HasCoverArt)
-        {
-            canonicalAlbum.HasCoverArt = false;
-            canonicalAlbum.CoverArtHash = null;
-            canonicalAlbum.UpdatedAt = DateTime.UtcNow;
-            await _db.SaveChangesAsync(cancellationToken);
-        }
+
+        // Deliberately no flag reset here: a missing cache file or unreadable source is a
+        // recoverable condition, not evidence that the album has no cover.
         return null;
     }
 

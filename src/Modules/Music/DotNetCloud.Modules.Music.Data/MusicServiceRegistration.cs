@@ -43,10 +43,12 @@ public static class MusicServiceRegistration
         services.AddScoped<IRecommendationService>(sp => sp.GetRequiredService<RecommendationService>());
         services.AddScoped<EqPresetService>();
         services.AddScoped<IEqPresetService>(sp => sp.GetRequiredService<EqPresetService>());
-        // Content-addressed storage for binary assets (album art)
-        var storageRoot = configuration["Files:Storage:RootPath"] ?? Path.GetTempPath();
-        var mediaCachePath = configuration["Files:Storage:MediaCachePath"] ?? Path.Combine(storageRoot, ".media-cache");
-        services.AddSingleton(new ContentAddressedStorage(mediaCachePath));
+        // Content-addressed storage for binary assets (album art).
+        // Resolved lazily: the path is read on first use so a host that propagates
+        // Files:Storage:RootPath after registration (Core.Server does) still gets the
+        // persistent location instead of the ephemeral temp directory.
+        services.AddSingleton(sp => new ContentAddressedStorage(
+            MediaCachePathResolver.ResolveMediaCachePath(sp.GetRequiredService<IConfiguration>())));
 
         services.AddScoped<LibraryScanService>();
         services.AddScoped<MusicMetadataService>();
@@ -133,10 +135,12 @@ public static class MusicServiceRegistration
         services.AddScoped<EqPresetService>();
         services.AddScoped<IEqPresetService>(sp => sp.GetRequiredService<EqPresetService>());
 
-        // Content-addressed storage for binary assets (album art)
-        var storageRoot = configuration["Files:Storage:RootPath"] ?? Path.GetTempPath();
-        var mediaCachePath = configuration["Files:Storage:MediaCachePath"] ?? Path.Combine(storageRoot, ".media-cache");
-        services.AddSingleton(new ContentAddressedStorage(mediaCachePath));
+        // Content-addressed storage for binary assets (album art).
+        // Resolved lazily so the storage root Core.Server propagates after this registration
+        // (Files:Storage:RootPath) is honoured. A registration-time read fell back to the
+        // temp directory, so covers chosen in the Blazor UI vanished with the process.
+        services.AddSingleton(sp => new ContentAddressedStorage(
+            MediaCachePathResolver.ResolveMediaCachePath(sp.GetRequiredService<IConfiguration>())));
 
         services.AddScoped<LibraryScanService>();
         services.AddScoped<MusicMetadataService>();

@@ -184,6 +184,9 @@ public partial class MusicPage : IAsyncDisposable
     private string _fetchArtArtistName = string.Empty;
     private int? _fetchArtYear;
 
+    /// <summary>Bumped whenever an album's cover changes, to bust cached cover URLs.</summary>
+    private int _artRevision;
+
     // Album art lightbox (click any cover to see it larger)
     private bool _showAlbumArtModal;
     private Guid _albumArtModalAlbumId;
@@ -1239,7 +1242,11 @@ public partial class MusicPage : IAsyncDisposable
 
     private static string FormatDuration(TimeSpan duration) => MusicPlaybackState.FormatDuration(duration);
 
-    private static string GetAlbumArtUrl(Guid albumId) => MusicPlaybackState.GetAlbumArtUrl(albumId);
+    /// <summary>
+    /// URL of an album's cover art. Carries a per-page revision so a newly applied cover is not
+    /// masked by an image the browser already cached for the same album.
+    /// </summary>
+    private string GetAlbumArtUrl(Guid albumId) => $"{MusicPlaybackState.GetAlbumArtUrl(albumId)}?v={_artRevision}";
 
     private static string GetInitials(string name)
     {
@@ -2712,15 +2719,9 @@ public partial class MusicPage : IAsyncDisposable
         {
             await EnrichmentService.EnrichAlbumAsync(albumId, _caller, force: false);
             // Reload album to get updated cover art status
-            var updated = await AlbumService.GetAlbumAsync(albumId, _caller);
+            var updated = await RefreshAlbumAfterArtChangeAsync(albumId);
             if (updated is not null)
             {
-                if (_selectedAlbum?.Id == albumId)
-                    _selectedAlbum = updated;
-                ReplaceInList(_albums, updated);
-                ReplaceInList(_recentAlbums, updated);
-                ReplaceInList(_artistAlbums, updated);
-
                 if (updated.HasCoverArt)
                 {
                     _enrichmentToast = "Cover art fetched from MusicBrainz!";
@@ -2728,11 +2729,7 @@ public partial class MusicPage : IAsyncDisposable
                 else
                 {
                     // No art found — show the Fetch Art modal with editable search fields
-                    _fetchArtAlbumId = albumId;
-                    _fetchArtAlbumTitle = updated.Title;
-                    _fetchArtArtistName = updated.ArtistName;
-                    _fetchArtYear = updated.Year;
-                    _showFetchArtModal = true;
+                    ShowFetchArtModal(updated);
                 }
             }
         }
@@ -2780,24 +2777,62 @@ public partial class MusicPage : IAsyncDisposable
         if (result.Success)
         {
             _enrichmentToast = "Cover art applied!";
-            // Reload album to display new art
-            if (_selectedAlbum is not null)
-            {
-                var updated = await AlbumService.GetAlbumAsync(_selectedAlbum.Id, _caller!);
-                if (updated is not null)
-                {
-                    _selectedAlbum = updated;
-                    ReplaceInList(_albums, updated);
-                    ReplaceInList(_recentAlbums, updated);
-                    ReplaceInList(_artistAlbums, updated);
-                }
-            }
+            // Reload the album the modal applied art to — not whichever album happens to be
+            // selected, which is null when the modal was not opened from the album detail view.
+            await RefreshAlbumAfterArtChangeAsync(_fetchArtAlbumId);
         }
         else
         {
             _enrichmentToast = "No cover art was applied.";
         }
         StateHasChanged();
+    }
+
+    /// <summary>
+    /// Shows the manual cover-art search for an album. Exposed for testing.
+    /// </summary>
+    /// <param name="album">Album whose cover should be fetched.</param>
+    internal void ShowFetchArtModal(MusicAlbumDto album)
+    {
+        _fetchArtAlbumId = album.Id;
+        _fetchArtAlbumTitle = album.Title;
+        _fetchArtArtistName = album.ArtistName;
+        _fetchArtYear = album.Year;
+        _showFetchArtModal = true;
+    }
+
+    /// <summary>Whether the manual cover-art search modal is open. Exposed for testing.</summary>
+    internal bool IsFetchArtModalOpen => _showFetchArtModal;
+
+    /// <summary>The album the manual cover-art search applies to. Exposed for testing.</summary>
+    internal Guid FetchArtAlbumId => _fetchArtAlbumId;
+
+    /// <summary>
+    /// Reloads an album whose cover art changed and replaces it in every list that may be on screen.
+    /// </summary>
+    /// <param name="albumId">Album that received new artwork.</param>
+    /// <returns>The refreshed album, or <see langword="null"/> when it could not be loaded.</returns>
+    private async Task<MusicAlbumDto?> RefreshAlbumAfterArtChangeAsync(Guid albumId)
+    {
+        var caller = _caller;
+        if (caller is null)
+            return null;
+
+        var updated = await AlbumService.GetAlbumAsync(albumId, caller);
+        if (updated is null)
+            return null;
+
+        if (_selectedAlbum?.Id == albumId)
+            _selectedAlbum = updated;
+        ReplaceInList(_albums, updated);
+        ReplaceInList(_recentAlbums, updated);
+        ReplaceInList(_artistAlbums, updated);
+        ReplaceInList(_starredAlbums, updated);
+
+        // Cover URLs are per album, not per artwork, so bump the revision to bypass any
+        // cached image (or cached 404) the browser still holds for the old cover.
+        _artRevision++;
+        return updated;
     }
 
     private async Task EnrichArtistAsync(Guid artistId)

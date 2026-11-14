@@ -440,6 +440,22 @@ Phase B5 of `docs/THIRD_PARTY_MODULE_SANDBOX_AND_STORE_PLAN.md`, implemented acr
 
 ---
 
+## Recent Fix — Manually picked album art did not stick + video posters cached in the service's private temp dir (2026-11-13, `fix/several-things`)
+
+> Reported live: fetch cover art manually, pick a result, and the cover appears briefly then reverts to the `♫` placeholder — the album keeps looking artless.
+
+- ✓ **Root cause** — `MusicServiceRegistration` read `Files:Storage:RootPath` **at DI registration time** and fell back to `Path.GetTempPath()`. `Core.Server` sets that key *after* `AddMusicUiServices`, and module hosts never receive it (`config.json` has no `Files:*` key), so the Blazor UI (which writes the chosen cover) and the music module host (which serves `GET /api/v1/music/albums/{id}/cover`) both cached art in `/tmp/.media-cache`. The systemd unit runs `PrivateTmp=true`, so every service restart wiped the cache; `GetCoverArtPathAsync` then read "hash stored, file missing" as "no art" and **cleared `HasCoverArt` + `CoverArtHash`**, permanently discarding the manual choice. Evidence: `/var/lib/dotnetcloud/storage/.media-cache/images` and `.album-art` were **empty** on an instance running for a day.
+- ✓ **Fix — persistent cache root** — new `MediaCachePathResolver` (`DotNetCloud.Core.Storage`): `Files:Storage:MediaCachePath` → `{Files:Storage:RootPath}/.media-cache` → `{DOTNETCLOUD_DATA_DIR}/storage/.media-cache` → temp (dev only). `AddMusicServices`/`AddMusicUiServices` register `ContentAddressedStorage` through a **lazy factory** so the root is read on first use, after `Core.Server` propagates the key; `Music.Host/Program.cs` resolves `Files:Storage:RootPath` (`Files:StoragePath` → `DOTNETCLOUD_DATA_DIR/storage` → `/var/lib/dotnetcloud/storage`) before registering services; `LibraryScanService`'s `.album-art` uses the same resolver.
+- ✓ **Fix — never destroy the record** — `GetCoverArtPathAsync` no longer clears `HasCoverArt`/`CoverArtHash` when the cached file is missing (warns instead); enrichment already re-fetches because it checks `!Exists(hash)`.
+- ✓ **Fix — refresh and revalidate** — `MusicController.GetAlbumCover` sends `Cache-Control: no-cache` plus a content-hash `ETag`; `MusicPage.RefreshAlbumAfterArtChangeAsync` reloads the album the modal was opened for (`_fetchArtAlbumId`, previously only `_selectedAlbum`), replaces it in every list and bumps `_artRevision` so `?v=` busts a cached cover/404.
+- ✓ **Tests** — new `MediaCachePathResolverTests` (7), `MusicPageFetchArtModalTests` (2) and `MusicAlbumServiceTests.GetCoverArtPath_CachedFileMissing_KeepsStoredCoverArtReference`; Music **454**, Video **227**, Core **613** pass, `DotNetCloud.CI.slnf` builds 0 warnings / 0 errors.
+- ✓ **Video, same defect fixed** — `MediaCachePathResolver` now lives in `DotNetCloud.Core.Storage` (shared by core and modules). `VideoThumbnailService` (posters + `.video-screenshots`), `VideoEnrichmentService`, `VideoSeriesService` and `VideoIndexingCallback.ResetCollectionAsync` all resolve the persistent root, `Video.Host/Program.cs` propagates `Files:Storage:RootPath` before registering services, and the series-thumbnail `MapGet` uses the resolver. Latent bug fixed on the way: `VideoSeriesService.GetSeriesThumbnailAsync` searched `{root}/images/<prefix>/` (missing `.media-cache`) so a cached series poster was **never** found; it now resolves through the content-addressed store (`GetSeriesThumbnailAsync_PosterCached_ReturnsPosterBytes`).
+- ✓ **Deployed** — `sudo ./scripts/deploy.sh --force --verify`: 15/15 targets, all assembly hashes verified, `dotnetcloud.music` + `dotnetcloud.video` restarted with the new build, `/health/ready` Healthy.
+- ☐ Browser E2E (album → Fetch Art → pick result → reload page) awaiting user confirmation; albums whose flags were wiped by the old code need the cover re-applied once
+- ☐ Commit/push awaiting approval
+
+---
+
 ## Recent Fix — Music playbar lost all controls and blew up the album art (2026-10-25, `fix/music-playbar`)
 
 > Reported live: after the code/style-separation refactor (`56b80e9f`), the global playbar on `/apps/music` showed an oversized cover and **no** transport buttons, progress bar, or queue/EQ/volume controls.

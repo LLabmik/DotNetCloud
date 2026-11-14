@@ -136,9 +136,23 @@ builder.Services.AddDbContext<FilesDbContext>(options =>
         warnings.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.PendingModelChangesWarning);
     });
 });
+// Resolve the persistent storage root before any service reads it, exactly as Core.Server does.
+// Module hosts are not given Files:StoragePath in config.json, so without this every media cache
+// (posters, screenshots) falls back to the ephemeral system temp directory and disappears on restart.
+var filesStoragePath = builder.Configuration.GetValue<string>("Files:StoragePath");
+if (string.IsNullOrWhiteSpace(filesStoragePath))
+{
+    var dataDirForStorage = Environment.GetEnvironmentVariable("DOTNETCLOUD_DATA_DIR");
+    filesStoragePath = !string.IsNullOrWhiteSpace(dataDirForStorage)
+        ? Path.Combine(dataDirForStorage, "storage")
+        : "/var/lib/dotnetcloud/storage";
+}
+
+builder.Configuration["Files:Storage:RootPath"] = filesStoragePath;
+
 builder.Services.AddSingleton<IFileStorageEngine>(
     sp => new LocalFileStorageEngine(
-        builder.Configuration["Files:Storage:RootPath"] ?? "/var/lib/dotnetcloud/storage",
+        filesStoragePath,
         sp.GetRequiredService<ILogger<LocalFileStorageEngine>>()));
 
 // In-process event bus for standalone operation
@@ -199,9 +213,7 @@ app.MapGet("/api/v1/videos/{videoId:guid}/thumbnail", async (Guid videoId, IVide
 
 app.MapGet("/api/v1/series/{seriesId:guid}/thumbnail", async (Guid seriesId, VideoDbContext db, IConfiguration config) =>
 {
-    var storageRoot = config["Files:Storage:RootPath"] ?? "/var/lib/dotnetcloud/storage";
-    var mediaCachePath = config["Files:Storage:MediaCachePath"]
-        ?? Path.Combine(storageRoot, ".media-cache");
+    var mediaCachePath = DotNetCloud.Core.Storage.MediaCachePathResolver.ResolveMediaCachePath(config);
     // Try canonical series poster hash in content-addressed storage
     var canonicalPosterHash = await db.CanonicalVideoSeries
         .Where(s => s.Id == seriesId)

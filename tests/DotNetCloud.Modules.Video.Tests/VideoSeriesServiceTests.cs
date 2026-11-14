@@ -250,4 +250,52 @@ public class VideoSeriesServiceTests
         // Assert
         Assert.IsNull(result);
     }
+
+    [TestMethod]
+    public async Task GetSeriesThumbnailAsync_PosterCached_ReturnsPosterBytes()
+    {
+        // Arrange — the poster lives in the persistent content-addressed media cache
+        // ({storage root}/.media-cache/images/<prefix>/<hash>.jpg). The service previously looked
+        // in {storage root}/images/... and never found it.
+        var root = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "dnc-video-series-" + Guid.NewGuid().ToString("N"));
+        var hash = new string('b', 64);
+        var posterDir = System.IO.Path.Combine(root, ".media-cache", "images", hash[..2]);
+        System.IO.Directory.CreateDirectory(posterDir);
+        var expected = new byte[] { 1, 2, 3, 4 };
+        await System.IO.File.WriteAllBytesAsync(System.IO.Path.Combine(posterDir, hash + ".jpg"), expected);
+
+        try
+        {
+            var config = new ConfigurationBuilder()
+                .AddInMemoryCollection(new Dictionary<string, string?>
+                {
+                    ["Files:Storage:RootPath"] = root
+                })
+                .Build();
+            var service = new VideoSeriesService(_db, Mock.Of<ITmdbClient>(), Mock.Of<ILogger<VideoSeriesService>>(), config);
+
+            var series = new Models.CanonicalVideoSeries
+            {
+                Name = "Cached Poster Series",
+                Type = Models.SeriesType.TvSeries,
+                PosterHash = hash
+            };
+            _db.CanonicalVideoSeries.Add(series);
+            await _db.SaveChangesAsync();
+
+            // Act
+            var result = await service.GetSeriesThumbnailAsync(series.Id, _caller);
+
+            // Assert
+            Assert.IsNotNull(result);
+            CollectionAssert.AreEqual(expected, result);
+        }
+        finally
+        {
+            if (System.IO.Directory.Exists(root))
+            {
+                System.IO.Directory.Delete(root, recursive: true);
+            }
+        }
+    }
 }

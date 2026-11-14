@@ -151,9 +151,25 @@ builder.Services.AddDbContext<MusicDbContext>(ConfigureDb);
 // Register Files DbContext and storage engine so IDownloadService can be resolved.
 builder.Services.AddDbContextFactory<FilesDbContext>(ConfigureDb);
 builder.Services.AddDbContext<FilesDbContext>(ConfigureDb);
+
+// Resolve the persistent storage root before any service reads it, exactly as Core.Server does.
+// Module hosts are not given Files:StoragePath in config.json, so without this every media cache
+// (album art) falls back to the ephemeral system temp directory: covers chosen in the Blazor UI
+// are then invisible to this host and disappear on the next restart.
+var filesStoragePath = builder.Configuration.GetValue<string>("Files:StoragePath");
+if (string.IsNullOrWhiteSpace(filesStoragePath))
+{
+    var dataDirForStorage = Environment.GetEnvironmentVariable("DOTNETCLOUD_DATA_DIR");
+    filesStoragePath = !string.IsNullOrWhiteSpace(dataDirForStorage)
+        ? Path.Combine(dataDirForStorage, "storage")
+        : "/var/lib/dotnetcloud/storage";
+}
+
+builder.Configuration["Files:Storage:RootPath"] = filesStoragePath;
+
 builder.Services.AddSingleton<IFileStorageEngine>(
     sp => new LocalFileStorageEngine(
-        builder.Configuration["Files:Storage:RootPath"] ?? "/var/lib/dotnetcloud/storage",
+        filesStoragePath,
         sp.GetRequiredService<ILogger<LocalFileStorageEngine>>()));
 
 // In-process event bus for standalone operation

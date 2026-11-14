@@ -4,6 +4,7 @@ using DotNetCloud.Core.DTOs;
 using DotNetCloud.Core.Events;
 using DotNetCloud.Core.Events.Search;
 using DotNetCloud.Core.Services;
+using DotNetCloud.Core.Storage;
 using DotNetCloud.Modules.Music.Models;
 using DotNetCloud.Modules.Music.Services;
 using Microsoft.EntityFrameworkCore;
@@ -66,7 +67,9 @@ public sealed class LibraryScanService
         _enrichmentService = enrichmentService;
         _namingStrategy = namingStrategy;
         _logger = logger;
-        var storageRoot = configuration["Files:Storage:RootPath"] ?? Path.GetTempPath();
+        // Same persistent storage root the media cache uses — never the ephemeral temp directory,
+        // which the module host and the core process would not necessarily share.
+        var storageRoot = MediaCachePathResolver.ResolveStorageRoot(configuration);
         _artCacheDir = Path.Combine(storageRoot, ".album-art");
         Directory.CreateDirectory(_artCacheDir);
 

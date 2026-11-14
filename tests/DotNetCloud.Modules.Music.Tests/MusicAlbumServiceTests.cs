@@ -17,17 +17,19 @@ public class MusicAlbumServiceTests
     private MusicDbContext _db;
     private MusicAlbumService _service;
     private CallerContext _caller;
+    private Mock<IDownloadService> _downloadService = null!;
+    private ContentAddressedStorage _contentStorage = null!;
 
     [TestInitialize]
     public void Setup()
     {
         _db = TestHelpers.CreateDb();
         var metadataService = new MusicMetadataService(NullLogger<MusicMetadataService>.Instance);
-        var contentStorage = new ContentAddressedStorage(Path.GetTempPath());
-        var albumArtService = new AlbumArtService(metadataService, contentStorage, NullLogger<AlbumArtService>.Instance);
-        var downloadService = new Mock<IDownloadService>();
+        _contentStorage = new ContentAddressedStorage(Path.GetTempPath());
+        var albumArtService = new AlbumArtService(metadataService, _contentStorage, NullLogger<AlbumArtService>.Instance);
+        _downloadService = new Mock<IDownloadService>();
         var config = new ConfigurationBuilder().AddInMemoryCollection().Build();
-        _service = new MusicAlbumService(_db, albumArtService, downloadService.Object, contentStorage, config, NullLogger<MusicAlbumService>.Instance);
+        _service = new MusicAlbumService(_db, albumArtService, _downloadService.Object, _contentStorage, config, NullLogger<MusicAlbumService>.Instance);
         _caller = TestHelpers.CreateCaller();
     }
 
@@ -225,5 +227,54 @@ public class MusicAlbumServiceTests
         var result = await _service.GetCoverArtPathAsync(album.Id);
 
         Assert.IsNull(result);
+    }
+
+    [TestMethod]
+    public async Task GetCoverArtPath_ArtCached_ReturnsCachedFile()
+    {
+        var artist = await TestHelpers.SeedArtistAsync(_db, ownerId: _caller.UserId);
+        var album = await TestHelpers.SeedAlbumAsync(_db, artist.Id, ownerId: _caller.UserId);
+        var hash = _contentStorage.Store([1, 2, 3, 4], ".jpg");
+        album.HasCoverArt = true;
+        album.CoverArtHash = hash;
+        await _db.SaveChangesAsync();
+
+        var result = await _service.GetCoverArtPathAsync(album.Id);
+
+        try
+        {
+            Assert.IsNotNull(result);
+            Assert.AreEqual(_contentStorage.ResolvePath(hash), result);
+        }
+        finally
+        {
+            _contentStorage.Delete(hash);
+        }
+    }
+
+    [TestMethod]
+    public async Task GetCoverArtPath_CachedFileMissing_KeepsStoredCoverArtReference()
+    {
+        var artist = await TestHelpers.SeedArtistAsync(_db, ownerId: _caller.UserId);
+        var album = await TestHelpers.SeedAlbumAsync(_db, artist.Id, ownerId: _caller.UserId);
+        await TestHelpers.SeedTrackAsync(_db, albumId: album.Id, ownerId: _caller.UserId);
+
+        // Art was applied earlier (e.g. chosen manually in the UI) but the cached image is gone
+        // — a pruned cache, or a cache root that is not shared with the serving process.
+        var hash = new string('a', 64);
+        album.HasCoverArt = true;
+        album.CoverArtHash = hash;
+        await _db.SaveChangesAsync();
+
+        _downloadService
+            .Setup(d => d.DownloadCurrentAsync(It.IsAny<Guid>(), It.IsAny<CallerContext>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(() => new MemoryStream([0, 1, 2, 3]));
+
+        var result = await _service.GetCoverArtPathAsync(album.Id);
+
+        Assert.IsNull(result);
+        var stored = await _db.CanonicalAlbums.AsNoTracking().FirstAsync(a => a.Id == album.Id);
+        Assert.IsTrue(stored.HasCoverArt, "A missing cache file must not erase the album's cover-art flag.");
+        Assert.AreEqual(hash, stored.CoverArtHash, "A missing cache file must not erase the stored cover hash.");
     }
 }

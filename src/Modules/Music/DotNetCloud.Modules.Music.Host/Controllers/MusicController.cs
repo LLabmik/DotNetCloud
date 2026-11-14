@@ -200,7 +200,16 @@ public class MusicController : MusicControllerBase
         var mimeType = artPath.EndsWith(".png", StringComparison.OrdinalIgnoreCase)
             ? "image/png"
             : "image/jpeg";
-        return PhysicalFile(artPath, mimeType);
+
+        // The URL is per album, not per artwork, so a browser that cached the previous cover
+        // (or a 404 from before one was applied) would keep showing it. Revalidate every time;
+        // the content-addressed file name is a stable, collision-free ETag.
+        Response.Headers.CacheControl = "no-cache";
+        var lastModified = new DateTimeOffset(System.IO.File.GetLastWriteTimeUtc(artPath), TimeSpan.Zero);
+        var etag = new Microsoft.Net.Http.Headers.EntityTagHeaderValue(
+            $"\"{Path.GetFileNameWithoutExtension(artPath)}\"");
+
+        return PhysicalFile(artPath, mimeType, lastModified, etag);
     }
 
     /// <summary>Downloads an album as a ZIP archive with minimal compression.</summary>

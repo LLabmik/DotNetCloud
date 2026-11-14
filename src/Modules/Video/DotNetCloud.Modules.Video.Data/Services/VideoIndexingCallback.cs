@@ -1,5 +1,6 @@
 using System.Text.RegularExpressions;
 using DotNetCloud.Core.Authorization;
+using DotNetCloud.Core.Storage;
 using DotNetCloud.Modules.Video.Events;
 using DotNetCloud.Modules.Video.Services;
 using Microsoft.EntityFrameworkCore;
@@ -101,7 +102,7 @@ public sealed class VideoIndexingCallback : IVideoIndexingCallback
         _logger.LogWarning("RESET: Deleting video library metadata for owner {OwnerId}", ownerId);
 
         // Clean up screenshot and poster cache directories
-        var storageRoot = _configuration["Files:Storage:RootPath"] ?? Path.GetTempPath();
+        var storageRoot = MediaCachePathResolver.ResolveStorageRoot(_configuration);
         foreach (var dir in new[] { ".video-screenshots", ".video-posters" })
         {
             var path = Path.Combine(storageRoot, dir);

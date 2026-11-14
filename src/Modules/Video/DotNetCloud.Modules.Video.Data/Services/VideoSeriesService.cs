@@ -21,7 +21,6 @@ public sealed class VideoSeriesService : IVideoSeriesService
     private readonly ITmdbClient _tmdbClient;
     private readonly ContentAddressedStorage _contentStorage;
     private readonly ILogger<VideoSeriesService> _logger;
-    private readonly string _storageRoot;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="VideoSeriesService"/> class.
@@ -31,10 +30,8 @@ public sealed class VideoSeriesService : IVideoSeriesService
         _db = db;
         _tmdbClient = tmdbClient;
         _logger = logger;
-        _storageRoot = configuration["Files:Storage:RootPath"] ?? Path.GetTempPath();
-        var mediaCachePath = configuration["Files:Storage:MediaCachePath"]
-            ?? Path.Combine(_storageRoot, ".media-cache");
-        _contentStorage = new ContentAddressedStorage(mediaCachePath);
+        _contentStorage = new ContentAddressedStorage(
+            MediaCachePathResolver.ResolveMediaCachePath(configuration));
     }
 
     // ─── Series CRUD ─────────────────────────────────────────────────
@@ -748,23 +745,18 @@ public sealed class VideoSeriesService : IVideoSeriesService
 
         if (!string.IsNullOrEmpty(canonicalPosterHash))
         {
-            // Read poster from content-addressed storage
-            var prefixDir = canonicalPosterHash.Length >= 2 ? canonicalPosterHash[..2] : canonicalPosterHash;
-            var posterDir = Path.Combine(_storageRoot, "images", prefixDir);
-
-            if (Directory.Exists(posterDir))
+            // Read the poster from the content-addressed media cache (the previous path omitted
+            // the .media-cache segment, so it never found the file).
+            var posterPath = _contentStorage.ResolvePath(canonicalPosterHash);
+            if (posterPath is not null)
             {
-                var files = Directory.GetFiles(posterDir, $"{canonicalPosterHash}.*");
-                if (files.Length > 0)
+                try
                 {
-                    try
-                    {
-                        return await File.ReadAllBytesAsync(files[0], cancellationToken);
-                    }
-                    catch (Exception ex)
-                    {
-                        _logger.LogWarning(ex, "Failed to read canonical poster for series {SeriesId}", seriesId);
-                    }
+                    return await File.ReadAllBytesAsync(posterPath, cancellationToken);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Failed to read canonical poster for series {SeriesId}", seriesId);
                 }
             }
 
