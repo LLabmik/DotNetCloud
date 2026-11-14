@@ -141,9 +141,9 @@ The 2026-09-15 review's corrections remain the basis of this plan. Re-verifying 
 
 ### 3.3 What stays unchanged
 
-For **required modules only** — `dotnetcloud.files`, `dotnetcloud.chat`, `dotnetcloud.contacts`, `dotnetcloud.calendar`, `dotnetcloud.notes`, `dotnetcloud.about` (`RequiredModules.cs`):
+For **required modules only** — `dotnetcloud.files`, `dotnetcloud.chat`, `dotnetcloud.contacts`, `dotnetcloud.calendar`, `dotnetcloud.notes`, `dotnetcloud.about`, `dotnetcloud.extraction` (`RequiredModules.cs`):
 
-- Shared `core` schema, core-managed migrations, current connection-string delivery.
+- Shared `core` schema, core-managed migrations, current connection-string delivery. The extraction worker is the exception in form only: it is required so search cannot lose its parser process, but it owns no data, so the schema bullet is moot for it (it declares neither `dataStore` nor `ui`).
 - In-core Blazor pages and home widgets.
 - They DO receive the A2 hardening (credential auth + runtime capability enforcement) because those are transport/authorization changes to the core API, not access-model changes.
 

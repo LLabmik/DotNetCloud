@@ -12,6 +12,18 @@
 
 ---
 
+> **Module hygiene (2026-11-14, `fix/more-things`): the extraction worker is a required module.** `dotnetcloud.extraction`
+> (the out-of-process parser worker behind the core search capability) is added to `RequiredModules.ModuleIds`. That
+> single list is what makes it unstoppable: `AdminModuleService.StopModuleAsync` throws, the CLI refuses `module disable`
+> / `module uninstall`, the reconciler pins `TrustTier = Required` and `SandboxStatus = Active`, quota/data-store
+> provisioning skips it, and `ModulePackageInstaller` rejects any package claiming the id (`MODULE_REQUIRED`). The v1
+> manifest already satisfies the required-module rules (no `dataStore`, no `ui`), so no manifest change was needed. New
+> `RequiredModulesTests` pins the seven-id set and the optional set. Core.Tests 626/626, CLI.Tests 240/240,
+> Core.Server.Tests (ModuleLoading/Supervisor/Sandbox/AdminModuleService) 334/334. Live check after deploy: disabling the
+> worker must be refused and `/health/ready` must report it as `Required`.
+
+---
+
 > **UI fix (2026-11-14, `fix/more-things`): AI page icons.** The assistant avatar and both copy buttons rendered the raw
 > icon names (`assistant`, `copy`) as text because `MaterialSvgIcons` had no path for them and `MaterialIcon` falls back
 > to printing the name. Both paths added (aliases of `smart_toy` / `content_copy`). The repo-wide Razor icon gate only

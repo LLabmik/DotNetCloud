@@ -8,6 +8,31 @@
 
 ---
 
+## Recent Work — Extraction worker promoted to a required module (2026-11-14, `fix/more-things`)
+
+`dotnetcloud.extraction` (the out-of-process content-extraction worker) is now in `RequiredModules.ModuleIds`,
+so the core search capability cannot lose its parser half.
+
+- ✓ **Promoted** — `RequiredModules.ModuleIds` gains `dotnetcloud.extraction`. Required status is derived from this
+  list only (never from a manifest id claim), and it now buys the worker: no stop/disable from the admin UI
+  (`AdminModuleService.StopModuleAsync` throws) or the CLI (`module disable`/`module uninstall` refuse), a
+  `TrustTier = Required` + `SandboxStatus = Active` registry row on every reconcile, no quota/data-store provisioning,
+  and `MODULE_REQUIRED` rejection if a package claims that id.
+- ✓ **Manifest stays legal** — the v1 manifest declares neither `dataStore` nor `ui`, which are exactly the two things a
+  required module may not declare; the loader's required-module rules pass unchanged. `ModuleLegacySchema.TryResolve`
+  now short-circuits it with "Required module — its schema stays core-managed" (moot: the worker has no DbContext).
+- ✓ **Tests** — new `RequiredModulesTests` pins the required set exactly (7 ids), proves `extraction` resolves in full,
+  short and mixed-case form, and keeps the seven optional modules optional. Core.Tests **626/626**, CLI.Tests
+  **240/240** (incl. `OptionalModules_ExcludesAllRequiredModules`), Core.Server.Tests ModuleLoading + Supervisor +
+  Sandbox + AdminModuleService **334/334**.
+- ✓ **Docs/comment truth pass** — the stale `setup` comment ("Files, Chat, Search, …") no longer names the removed Search
+  module and now states the list is driven by `RequiredModules.ModuleIds`; `ARCHITECTURE.md` §25 and the sandbox plan
+  §3.3 record the promotion and why a required module can legitimately own no schema.
+- ☐ **Live verification pending** — after deploy, `dotnetcloud module disable dotnetcloud.extraction` must be refused and
+  `/health/ready` must show it as `Required`.
+
+---
+
 ## Recent Work — AI page rendered raw icon names instead of glyphs (2026-11-14, `fix/more-things`)
 
 The AI assistant page showed the word **assistant** where the avatar glyph belongs and the word **copy** in front of

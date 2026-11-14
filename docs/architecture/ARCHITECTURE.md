@@ -1385,6 +1385,7 @@ Search is a **core capability** (it has no user-owned domain of its own — it r
 3. **Permission-scoped** — Every query is filtered by `OwnerId`. Users only see their own content.
 4. **Process-isolated document pull** — Core pulls searchable documents from each module over gRPC via `IModuleSearchDocumentClient` (no in-process `ISearchableModule`).
 5. **Out-of-process extraction** — Parser libraries (PdfPig, NPOI, DocumentFormat.OpenXml) live only in the `dotnetcloud.extraction` worker process.
+6. **Required module** — the worker is listed in `RequiredModules.ModuleIds`, so it cannot be disabled, uninstalled or replaced by a store package. It declares no `dataStore` and no `ui` (a required module may not declare either), which is exactly right for a stateless parser process: it owns no schema and has no page of its own.
 
 ### Module Structure
 
@@ -1395,7 +1396,7 @@ src/Core/
 ├── DotNetCloud.Core.Search/             # Query service, parser, snippet generator, providers (CoreDbContext)
 ├── DotNetCloud.Core.Search.Extraction/  # ContentExtractionService + 10 extractors (parser NuGets ONLY here)
 ├── DotNetCloud.Core.Search.Extraction.Contracts/   # extraction_service.proto (client types)
-├── DotNetCloud.Core.Search.Extraction.Host/        # dotnetcloud.extraction worker (gRPC exe)
+├── DotNetCloud.Core.Search.Extraction.Host/        # dotnetcloud.extraction worker (required, gRPC exe)
 └── DotNetCloud.Core.Server/             # SearchController (api/v1/search), SearchEventSubscriber,
                                          #   SearchReindexHostedService, SearchIndexingService,
                                          #   ExtractionGrpcClient (worker client)
