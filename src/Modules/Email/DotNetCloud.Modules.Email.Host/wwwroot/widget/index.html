@@ -14,7 +14,10 @@
       <ul id="items" class="widget-list" hidden></ul>
     </div>
 
-    <script src="../dncModuleBridge.js"></script>
+    <!-- The SDK bridge is published at js/dncModuleBridge.js by the module's Web project (one copy of
+         the protocol); the widget document sits one directory below it. Without the bridge the frame
+         carries no ticket and every API call answers 401. -->
+    <script src="../js/dncModuleBridge.js"></script>
     <script src="widget.js"></script>
   </body>
 </html>

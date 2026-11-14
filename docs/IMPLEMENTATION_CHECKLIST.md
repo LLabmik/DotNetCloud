@@ -8,6 +8,31 @@
 
 ---
 
+## Recent Work — Module widgets loaded the SDK bridge from a path that 404s (2026-11-14, `fix/more-things`)
+
+The Bookmarks home-page widget showed **"Unable to load bookmarks."** The widget document loaded the SDK bridge as
+`../dncModuleBridge.js`, which resolves to `/apps/dotnetcloud.bookmarks/dncModuleBridge.js` — a **404** (probed live).
+Without the bridge the frame carries no `dnc-frame-ticket`, so its `api/v1/bookmarks` call is rejected as anonymous and
+the widget falls back to its generic error text.
+
+- ✓ **Root cause** — the bridge is published at `wwwroot/js/dncModuleBridge.js` by each module's `.Web` project; only
+  Bookmarks and Tracks lack the SDK package's incidental `contentFiles` copy at the wwwroot root, so the short path
+  `../dncModuleBridge.js` happened to work for Photos/Email/AI and failed for Bookmarks. Probed live:
+  `/apps/dotnetcloud.bookmarks/dncModuleBridge.js` **404**, `/apps/dotnetcloud.bookmarks/js/dncModuleBridge.js` **200**.
+- ✓ **Fix** — all four affected widget documents (Bookmarks, Photos, Email, AI) now load `../js/dncModuleBridge.js`, the
+  one path every module publishes; Tracks already did. Photos/Email/AI keep working but no longer depend on the
+  accidental root copy.
+- ✓ **Guard** — new `WidgetFrameAssetsTests` (SDK tests) walks every `src/Modules/*/*.Host/wwwroot/widget/index.html`, and
+  for each one requires the bridge at `../js/dncModuleBridge.js`, every other reference relative, and a matching
+  `wwwroot/js/dncModuleBridge.js` content item in that module's `.Web` project. Proved red against the pre-fix Bookmarks
+  document (reported exactly that file and path) and green after.
+- ✓ **Verification** — `DotNetCloud.CI.slnf` build 0 warnings / 0 errors; `Sdk.Tests` **52/52**; UI asset tests
+  Bookmarks **8/8**, Photos **7/7**, Email **8/8**, AI **7/7**, Tracks **8/8**.
+- ☐ **Live verification pending** — needs a redeploy of the module hosts; the Bookmarks card must render bookmarks
+  instead of the error text.
+
+---
+
 ## Recent Work — Extraction worker promoted to a required module (2026-11-14, `fix/more-things`)
 
 `dotnetcloud.extraction` (the out-of-process content-extraction worker) is now in `RequiredModules.ModuleIds`,

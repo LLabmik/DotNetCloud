@@ -12,6 +12,19 @@
 
 ---
 
+> **Widget fix (2026-11-14, `fix/more-things`): the bridge path.** The Bookmarks home-page widget failed with "Unable to
+> load bookmarks." because its document loaded `../dncModuleBridge.js`, which 404s (confirmed live: the root path is 404,
+> `js/dncModuleBridge.js` is 200). No bridge means no `dnc-frame-ticket`, so the widget's API call is anonymous and the
+> generic error text wins. The bridge is published at `wwwroot/js/dncModuleBridge.js` by every module's `.Web` project;
+> Photos/Email/AI only appeared to work because the SDK package's incidental `contentFiles` copy lands at the wwwroot root
+> of those hosts. All four documents (Bookmarks, Photos, Email, AI) now use `../js/dncModuleBridge.js` (Tracks already
+> did). New `WidgetFrameAssetsTests` scans every module widget, requires that exact bridge path, requires all other
+> references to be relative, and requires the module's `.Web` project to publish the file — proved red against the pre-fix
+> document. CI build 0 warnings / 0 errors; Sdk.Tests 52/52; module UI asset tests 8/7/8/7/8. Live verification needs a
+> redeploy of the module hosts.
+
+---
+
 > **Module hygiene (2026-11-14, `fix/more-things`): the extraction worker is a required module.** `dotnetcloud.extraction`
 > (the out-of-process parser worker behind the core search capability) is added to `RequiredModules.ModuleIds`. That
 > single list is what makes it unstoppable: `AdminModuleService.StopModuleAsync` throws, the CLI refuses `module disable`
