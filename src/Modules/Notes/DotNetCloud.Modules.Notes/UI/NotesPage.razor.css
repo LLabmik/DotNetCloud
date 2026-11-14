@@ -437,6 +437,13 @@
   padding: 8px 16px;
 }
 
+/* Print keeps the icon and label on one line like the other action buttons. */
+.notes-print-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
 .notes-version-panel {
   padding: 12px;
   background: var(--color-bg);

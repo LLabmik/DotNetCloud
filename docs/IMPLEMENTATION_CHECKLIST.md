@@ -440,6 +440,20 @@ Phase B5 of `docs/THIRD_PARTY_MODULE_SANDBOX_AND_STORE_PLAN.md`, implemented acr
 
 ---
 
+## Recent Feature — Notes: Print button (note content only, formatted) (2026-11-13, `fix/several-things`)
+
+> Requested: a Print button that prints only the note content, with the content formatted.
+
+- ✓ **Print** button in the note detail action bar (`<MaterialIcon Icon="print" />`, tooltip "Print this note — title and formatted content only"). It is shown to readers as well as editors, because printing never mutates the note.
+- ✓ `NotePrintDocument.Create(note, renderer)` builds the payload: Markdown goes through the sanitizing `IMarkdownRenderer`; `NoteContentFormat.PlainText` notes are HTML-encoded into `.print-plaintext` (print CSS keeps the line breaks); a blank title falls back to `Note`; a null renderer throws.
+- ✓ `dom-helpers.js` gains `printHtml(html, title)` — writes a standalone document (note title + print typography for headings, lists, blockquotes, code, tables and images) into a hidden iframe and calls `window.print()`. Only the note reaches the printer, the app page is never reprinted, and the frame is removed on `afterprint`. CSP-safe: no `eval`, inline `<style>` is allowed by `style-src 'unsafe-inline'`. Script tag bumped to `dom-helpers.js?v=20261113-01`.
+- ✓ `print` icon path added to `MaterialSvgIcons` (the `EveryLiteralIconInRazor_ResolvesToPathData` gate covers the new usage).
+- ✓ **Tests** — `NotePrintDocumentTests` (7: Markdown formatting, title trimming/fallback, empty content, plain-text escaping, `<script>` sanitization, null renderer); Notes **166**, UI.Shared **252** pass; Core.Server builds 0 warnings / 0 errors.
+- ☐ Not deployed yet — needs `deploy.sh --force --verify` before the button can be checked in the browser
+- ✓ Committed and pushed — `fix/several-things`
+
+---
+
 ## Recent Feature — Clear button for the play queue (2026-11-13, `fix/several-things`)
 
 > Requested: the current playlist (the play queue) needs a one-click way to be cleared.

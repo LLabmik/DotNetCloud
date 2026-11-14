@@ -10,6 +10,7 @@ using DotNetCloud.UI.Shared.Services;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Forms;
 using Microsoft.AspNetCore.Components.Web;
+using Microsoft.Extensions.Logging;
 using Microsoft.JSInterop;
 
 namespace DotNetCloud.Modules.Notes.UI;
@@ -22,6 +23,10 @@ public partial class NotesPage : ComponentBase
     /// </summary>
     [Parameter]
     public string? NoteId { get; set; }
+
+    /// <summary>Logger for UI actions that fail silently in the browser (e.g. printing).</summary>
+    [Inject]
+    private ILogger<NotesPage> Logger { get; set; } = default!;
 
     private Guid? _lastHandledNoteId;
 
@@ -180,6 +185,30 @@ public partial class NotesPage : ComponentBase
     {
         _sidebarCollapsed = !_sidebarCollapsed;
         await SaveSidebarCollapsedStateAsync();
+    }
+
+    /// <summary>
+    /// Prints the selected note: only its title and formatted content are sent to the printer,
+    /// never the surrounding app chrome. The browser assembles the print document in a hidden
+    /// iframe (see <c>dom-helpers.js</c>), so this page itself is left untouched.
+    /// </summary>
+    private async Task PrintSelectedNoteAsync()
+    {
+        var note = _selectedNote;
+        if (note is null)
+        {
+            return;
+        }
+
+        var payload = NotePrintDocument.Create(note, MarkdownRenderer);
+        try
+        {
+            await JSRuntime.InvokeVoidAsync(NotePrintDocument.JavaScriptFunction, payload.Html, payload.Title);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to open the print view for note {NoteId}", note.Id);
+        }
     }
 
     private async Task SaveSidebarCollapsedStateAsync()
