@@ -446,7 +446,7 @@ Phase B5 of `docs/THIRD_PARTY_MODULE_SANDBOX_AND_STORE_PLAN.md`, implemented acr
 - ✓ Conventions section documents the ✓/☐ checklist format, the plan-vs-reference split, the evidence standard for closing a plan, and the no-private-topology rule for committed documents.
 - ✓ Completeness verified mechanically: every `*.md` under `docs/` is linked (only the index itself is unlinked) and every relative link resolves on disk (`broken=0`).
 - ✓ The project [`README.md`](../README.md) Quick Start now points at the index.
-- ✓ Committed and pushed — `fix/several-things`
+- ✓ Committed, pushed and deployed — `fix/several-things` (`deploy.sh --force --verify`: 15/15 targets)
 
 ---
 
@@ -459,7 +459,8 @@ Phase B5 of `docs/THIRD_PARTY_MODULE_SANDBOX_AND_STORE_PLAN.md`, implemented acr
 - ✓ `dom-helpers.js` gains `printHtml(html, title)` — writes a standalone document (note title + print typography for headings, lists, blockquotes, code, tables and images) into a hidden iframe and calls `window.print()`. Only the note reaches the printer, the app page is never reprinted, and the frame is removed on `afterprint`. CSP-safe: no `eval`, inline `<style>` is allowed by `style-src 'unsafe-inline'`. Script tag bumped to `dom-helpers.js?v=20261113-01`.
 - ✓ `print` icon path added to `MaterialSvgIcons` (the `EveryLiteralIconInRazor_ResolvesToPathData` gate covers the new usage).
 - ✓ **Tests** — `NotePrintDocumentTests` (7: Markdown formatting, title trimming/fallback, empty content, plain-text escaping, `<script>` sanitization, null renderer); Notes **166**, UI.Shared **252** pass; Core.Server builds 0 warnings / 0 errors.
-- ☐ Not deployed yet — needs `deploy.sh --force --verify` before the button can be checked in the browser
+- ✓ **Deployed** — `deploy.sh --force --verify`: 15/15 targets, all assembly hashes verified, `dotnetcloud.notes` restarted, `/health/ready` Healthy.
+- ☐ Browser check (note → Print → print preview shows title + formatted content only) awaiting user confirmation
 - ✓ Committed and pushed — `fix/several-things`
 
 ---
@@ -488,7 +489,8 @@ Phase B5 of `docs/THIRD_PARTY_MODULE_SANDBOX_AND_STORE_PLAN.md`, implemented acr
 - ✓ **Tests** — new `MediaCachePathResolverTests` (7), `MusicPageFetchArtModalTests` (2) and `MusicAlbumServiceTests.GetCoverArtPath_CachedFileMissing_KeepsStoredCoverArtReference`; Music **454**, Video **227**, Core **613** pass, `DotNetCloud.CI.slnf` builds 0 warnings / 0 errors.
 - ✓ **Video, same defect fixed** — `MediaCachePathResolver` now lives in `DotNetCloud.Core.Storage` (shared by core and modules). `VideoThumbnailService` (posters + `.video-screenshots`), `VideoEnrichmentService`, `VideoSeriesService` and `VideoIndexingCallback.ResetCollectionAsync` all resolve the persistent root, `Video.Host/Program.cs` propagates `Files:Storage:RootPath` before registering services, and the series-thumbnail `MapGet` uses the resolver. Latent bug fixed on the way: `VideoSeriesService.GetSeriesThumbnailAsync` searched `{root}/images/<prefix>/` (missing `.media-cache`) so a cached series poster was **never** found; it now resolves through the content-addressed store (`GetSeriesThumbnailAsync_PosterCached_ReturnsPosterBytes`).
 - ✓ **Deployed (music half only)** — `sudo ./scripts/deploy.sh --force --verify`: 15/15 targets, all assembly hashes verified, `dotnetcloud.music` restarted with the new build, `/health/ready` Healthy.
-- ☐ **Video half not deployed yet** — the build is committed but the instance still runs the previous `dotnetcloud.video`; deploy before testing posters
+- ✓ **Video half deployed** — later full deploy (same command) rebuilt 15/15 targets, restarted `dotnetcloud.video`, all assembly hashes verified, `/health/ready` Healthy.
+- ✓ **Live proof of the persistent root** — `/var/lib/dotnetcloud/storage/.media-cache/images` (empty for the whole previous day) now holds three content-addressed cover files, all written after the fixed build went live; the old code wrote them under the service's private temp directory.
 - ☐ Browser E2E (album → Fetch Art → pick result → reload page) awaiting user confirmation; albums whose flags were wiped by the old code need the cover re-applied once
 - ✓ Committed and pushed — `6dec5cf7` on `fix/several-things`
 
