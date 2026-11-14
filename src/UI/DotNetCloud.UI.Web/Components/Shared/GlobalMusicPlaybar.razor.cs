@@ -204,6 +204,29 @@ public partial class GlobalMusicPlaybar : ComponentBase, IAsyncDisposable
         }
     }
 
+    /// <summary>
+    /// Empties the play queue and stops the audio element. The queue panel closes with the
+    /// playbar because a cleared queue leaves nothing playing.
+    /// </summary>
+    private async Task ClearQueueAsync()
+    {
+        _showSaveQueueMenu = false;
+        _queueItemMenuIndex = null;
+        Playback.ClearQueue();
+
+        if (_jsInitialized)
+        {
+            try
+            {
+                await Js.InvokeVoidAsync("dotnetcloudMusicPlayer.stop");
+            }
+            catch (Exception ex)
+            {
+                Logger.LogWarning(ex, "Failed to stop the global music player after clearing the queue");
+            }
+        }
+    }
+
     private async Task ToggleShuffleAsync()
     {
         Playback.ToggleShuffle();

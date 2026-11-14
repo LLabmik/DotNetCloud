@@ -440,6 +440,19 @@ Phase B5 of `docs/THIRD_PARTY_MODULE_SANDBOX_AND_STORE_PLAN.md`, implemented acr
 
 ---
 
+## Recent Feature — Clear button for the play queue (2026-11-13, `fix/several-things`)
+
+> Requested: the current playlist (the play queue) needs a one-click way to be cleared.
+
+- ✓ `MusicPlaybackState.ClearQueue()` — empties `Queue`, resets `QueueIndex` to `-1`, clears `NowPlaying`, stops playback and resets the position; raises `OnChange` once and is a no-op (no event) when the queue is already empty.
+- ✓ **Clear** button in the play-queue panel header of the global playbar (`<MaterialIcon Icon="delete_sweep" />`, tooltip states it removes every track and stops playback). The handler also closes the Save menu / per-item menu and calls `dotnetcloudMusicPlayer.stop`, so audio actually halts. The playbar hides itself afterwards because nothing is playing.
+- ✓ Styles added in `app.css` (`.gmp-clear-queue`) and the stylesheet cache-buster bumped to `20261113-01`.
+- ✓ **Tests** — `MusicPlaybackStateTests.ClearQueue_*` (4 cases); Music suite **458** pass; `DotNetCloud.CI.slnf` builds 0 warnings / 0 errors.
+- ☐ Not deployed yet — needs `deploy.sh --force --verify` (the video media-cache fix is also still undeployed) so the button can be checked in the browser
+- ✓ Committed and pushed — `fix/several-things`
+
+---
+
 ## Recent Fix — Manually picked album art did not stick + video posters cached in the service's private temp dir (2026-11-13, `fix/several-things`)
 
 > Reported live: fetch cover art manually, pick a result, and the cover appears briefly then reverts to the `♫` placeholder — the album keeps looking artless.

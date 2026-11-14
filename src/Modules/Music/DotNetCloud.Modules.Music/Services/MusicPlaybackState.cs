@@ -345,6 +345,23 @@ public sealed class MusicPlaybackState
         }
     }
 
+    /// <summary>
+    /// Clears the play queue and stops playback. Removes every queued track including the one
+    /// that is currently playing, so the player returns to its idle (hidden) state.
+    /// </summary>
+    public void ClearQueue()
+    {
+        if (Queue.Count == 0 && NowPlaying is null)
+            return;
+
+        Queue.Clear();
+        QueueIndex = -1;
+        NowPlaying = null;
+        IsPlaying = false;
+        PlaybackPosition = TimeSpan.Zero;
+        NotifyChanged();
+    }
+
     /// <summary>Jumps to and plays a specific index in the queue.</summary>
     public void PlayQueueAt(int index)
     {

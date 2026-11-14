@@ -178,6 +178,11 @@
                                     </div>
                                 }
                             </div>
+                            <button class="gmp-btn gmp-btn-sm gmp-clear-queue" @onclick="ClearQueueAsync"
+                                    title="Clear the play queue — removes every track and stops playback">
+                                <MaterialIcon Icon="delete_sweep" Size="MaterialIconSize.Sm" />
+                                <span>Clear</span>
+                            </button>
                         }
                         <button class="btn-icon" @onclick="Playback.ToggleQueue">✕</button>
                     </div>

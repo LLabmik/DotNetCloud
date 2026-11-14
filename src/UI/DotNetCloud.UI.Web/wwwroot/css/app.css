@@ -6781,6 +6781,15 @@ textarea.form-control {
   position: relative;
 }
 
+/* "Clear" — empties the play queue and stops playback. */
+.gmp-clear-queue {
+  gap: 4px;
+}
+
+.gmp-clear-queue:hover {
+  color: var(--color-danger, #dc2626);
+}
+
 .gmp-queue-save-dropdown {
   position: absolute;
   top: 100%;
