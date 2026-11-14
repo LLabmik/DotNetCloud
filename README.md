@@ -76,6 +76,8 @@ See [MASTER_PROJECT_PLAN.md](docs/MASTER_PROJECT_PLAN.md) for the full phased im
 
 ## Quick Start
 
+> **Documentation index:** [docs/README.md](docs/README.md) — every architecture note, admin/API/user guide and implementation plan in one place.
+
 > **Full installation guide:** [docs/admin/server/INSTALLATION.md](docs/admin/server/INSTALLATION.md) — covers Linux, Windows, and Docker with manual and automated install paths, reverse proxy setup, TLS, and troubleshooting.
 
 > **User documentation:** [docs/user/README.md](docs/user/README.md) — guides for every feature, written for end users.

@@ -28,9 +28,7 @@ public sealed partial class VideoEnrichmentService : IVideoEnrichmentService
         _settingsProvider = settingsProvider;
         _logger = logger;
 
-        var storageRoot = configuration["Files:Storage:RootPath"] ?? Path.GetTempPath();
-        var mediaCachePath = configuration["Files:Storage:MediaCachePath"]
-            ?? Path.Combine(storageRoot, ".media-cache");
+        var mediaCachePath = MediaCachePathResolver.ResolveMediaCachePath(configuration);
         _contentStorage = new ContentAddressedStorage(mediaCachePath);
     }
 

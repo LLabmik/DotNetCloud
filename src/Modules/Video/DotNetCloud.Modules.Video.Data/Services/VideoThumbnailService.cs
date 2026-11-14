@@ -43,11 +43,12 @@ public sealed class VideoThumbnailService : IVideoThumbnailService
         _ffmpegPath = configuration["Video:Thumbnails:FfmpegPath"] ?? "ffmpegthumbnailer";
         _logger = logger;
 
-        var storageRoot = configuration["Files:Storage:RootPath"] ?? Path.GetTempPath();
-        var mediaCachePath = configuration["Files:Storage:MediaCachePath"]
-            ?? Path.Combine(storageRoot, ".media-cache");
+        // Persistent storage root shared with the core process and the video host — never the
+        // ephemeral temp directory, which loses every poster on a service restart.
+        var storageRoot = MediaCachePathResolver.ResolveStorageRoot(configuration);
         _screenshotCacheDir = Path.Combine(storageRoot, ".video-screenshots");
-        _contentStorage = new ContentAddressedStorage(mediaCachePath);
+        _contentStorage = new ContentAddressedStorage(
+            MediaCachePathResolver.ResolveMediaCachePath(configuration));
     }
 
     /// <inheritdoc />

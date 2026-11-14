@@ -741,6 +741,56 @@ public class MusicPlaybackStateTests
         Assert.IsTrue(raised);
     }
 
+    [TestMethod]
+    public void ClearQueue_WithQueuedTracks_EmptiesQueueAndStopsPlayback()
+    {
+        _state.PlayQueue(MakeTracks(3));
+        _state.PlayNext();
+
+        _state.ClearQueue();
+
+        Assert.AreEqual(0, _state.Queue.Count);
+        Assert.AreEqual(-1, _state.QueueIndex);
+        Assert.IsNull(_state.NowPlaying, "Clearing the queue must stop the current track.");
+        Assert.IsFalse(_state.IsPlaying);
+        Assert.AreEqual(TimeSpan.Zero, _state.PlaybackPosition);
+    }
+
+    [TestMethod]
+    public void ClearQueue_RaisesOnChange()
+    {
+        _state.PlayQueue(MakeTracks(2));
+        var raised = 0;
+        _state.OnChange += () => raised++;
+
+        _state.ClearQueue();
+
+        Assert.AreEqual(1, raised);
+    }
+
+    [TestMethod]
+    public void ClearQueue_WhenAlreadyEmpty_DoesNotRaiseOnChange()
+    {
+        var raised = false;
+        _state.OnChange += () => raised = true;
+
+        _state.ClearQueue();
+
+        Assert.IsFalse(raised);
+        Assert.AreEqual(0, _state.Queue.Count);
+        Assert.IsNull(_state.NowPlaying);
+    }
+
+    [TestMethod]
+    public void ClearQueue_ThenPlayNext_ReturnsNull()
+    {
+        _state.PlayQueue(MakeTracks(2));
+
+        _state.ClearQueue();
+
+        Assert.IsNull(_state.PlayNext());
+    }
+
     // ═══════════════════════════════════════════════════════
     //  Equalizer
     // ═══════════════════════════════════════════════════════

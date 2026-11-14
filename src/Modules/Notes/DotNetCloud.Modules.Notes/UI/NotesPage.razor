@@ -253,6 +253,11 @@
                         <button class="btn btn-outline-secondary" @onclick="ToggleVersionPanel">
                             @(_showVersionPanel ? "Hide History" : "History")
                         </button>
+                        <button class="btn btn-outline-secondary notes-print-btn" @onclick="PrintSelectedNoteAsync"
+                                title="Print this note — title and formatted content only">
+                            <MaterialIcon Icon="print" Size="MaterialIconSize.Sm" />
+                            <span>Print</span>
+                        </button>
                         @if (IsOwner(_selectedNote))
                         {
                             <button class="btn btn-outline-danger" @onclick="DeleteNoteFromDetailAsync">Delete</button>

@@ -440,6 +440,62 @@ Phase B5 of `docs/THIRD_PARTY_MODULE_SANDBOX_AND_STORE_PLAN.md`, implemented acr
 
 ---
 
+## Recent Work — Documentation index for the `docs` folder (2026-11-13, `fix/several-things`)
+
+- ✓ New [`docs/README.md`](README.md) indexes **all 222 documents** in this folder: start-here table, architecture, modules, API, administration, user guides, clients, development, security/compliance, distribution, and every implementation plan grouped by theme (foundation/phases, platform, files & sharing, media, Tracks, chat/notifications, PIM, Android, SyncTray, admin UI, search/AI, code quality).
+- ✓ Conventions section documents the ✓/☐ checklist format, the plan-vs-reference split, the evidence standard for closing a plan, and the no-private-topology rule for committed documents.
+- ✓ Completeness verified mechanically: every `*.md` under `docs/` is linked (only the index itself is unlinked) and every relative link resolves on disk (`broken=0`).
+- ✓ The project [`README.md`](../README.md) Quick Start now points at the index.
+- ✓ Committed, pushed and deployed — `fix/several-things` (`deploy.sh --force --verify`: 15/15 targets)
+
+---
+
+## Recent Feature — Notes: Print button (note content only, formatted) (2026-11-13, `fix/several-things`)
+
+> Requested: a Print button that prints only the note content, with the content formatted.
+
+- ✓ **Print** button in the note detail action bar (`<MaterialIcon Icon="print" />`, tooltip "Print this note — title and formatted content only"). It is shown to readers as well as editors, because printing never mutates the note.
+- ✓ `NotePrintDocument.Create(note, renderer)` builds the payload: Markdown goes through the sanitizing `IMarkdownRenderer`; `NoteContentFormat.PlainText` notes are HTML-encoded into `.print-plaintext` (print CSS keeps the line breaks); a blank title falls back to `Note`; a null renderer throws.
+- ✓ `dom-helpers.js` gains `printHtml(html, title)` — writes a standalone document (note title + print typography for headings, lists, blockquotes, code, tables and images) into a hidden iframe and calls `window.print()`. Only the note reaches the printer, the app page is never reprinted, and the frame is removed on `afterprint`. CSP-safe: no `eval`, inline `<style>` is allowed by `style-src 'unsafe-inline'`. Script tag bumped to `dom-helpers.js?v=20261113-01`.
+- ✓ `print` icon path added to `MaterialSvgIcons` (the `EveryLiteralIconInRazor_ResolvesToPathData` gate covers the new usage).
+- ✓ **Tests** — `NotePrintDocumentTests` (7: Markdown formatting, title trimming/fallback, empty content, plain-text escaping, `<script>` sanitization, null renderer); Notes **166**, UI.Shared **252** pass; Core.Server builds 0 warnings / 0 errors.
+- ✓ **Deployed** — `deploy.sh --force --verify`: 15/15 targets, all assembly hashes verified, `dotnetcloud.notes` restarted, `/health/ready` Healthy.
+- ☐ Browser check (note → Print → print preview shows title + formatted content only) awaiting user confirmation
+- ✓ Committed and pushed — `fix/several-things`
+
+---
+
+## Recent Feature — Clear button for the play queue (2026-11-13, `fix/several-things`)
+
+> Requested: the current playlist (the play queue) needs a one-click way to be cleared.
+
+- ✓ `MusicPlaybackState.ClearQueue()` — empties `Queue`, resets `QueueIndex` to `-1`, clears `NowPlaying`, stops playback and resets the position; raises `OnChange` once and is a no-op (no event) when the queue is already empty.
+- ✓ **Clear** button in the play-queue panel header of the global playbar (`<MaterialIcon Icon="delete_sweep" />`, tooltip states it removes every track and stops playback). The handler also closes the Save menu / per-item menu and calls `dotnetcloudMusicPlayer.stop`, so audio actually halts. The playbar hides itself afterwards because nothing is playing.
+- ✓ Styles added in `app.css` (`.gmp-clear-queue`) and the stylesheet cache-buster bumped to `20261113-01`.
+- ✓ **Tests** — `MusicPlaybackStateTests.ClearQueue_*` (4 cases); Music suite **458** pass; `DotNetCloud.CI.slnf` builds 0 warnings / 0 errors.
+- ☐ Not deployed yet — needs `deploy.sh --force --verify` (the video media-cache fix is also still undeployed) so the button can be checked in the browser
+- ✓ Committed and pushed — `fix/several-things`
+
+---
+
+## Recent Fix — Manually picked album art did not stick + video posters cached in the service's private temp dir (2026-11-13, `fix/several-things`)
+
+> Reported live: fetch cover art manually, pick a result, and the cover appears briefly then reverts to the `♫` placeholder — the album keeps looking artless.
+
+- ✓ **Root cause** — `MusicServiceRegistration` read `Files:Storage:RootPath` **at DI registration time** and fell back to `Path.GetTempPath()`. `Core.Server` sets that key *after* `AddMusicUiServices`, and module hosts never receive it (`config.json` has no `Files:*` key), so the Blazor UI (which writes the chosen cover) and the music module host (which serves `GET /api/v1/music/albums/{id}/cover`) both cached art in `/tmp/.media-cache`. The systemd unit runs `PrivateTmp=true`, so every service restart wiped the cache; `GetCoverArtPathAsync` then read "hash stored, file missing" as "no art" and **cleared `HasCoverArt` + `CoverArtHash`**, permanently discarding the manual choice. Evidence: `/var/lib/dotnetcloud/storage/.media-cache/images` and `.album-art` were **empty** on an instance running for a day.
+- ✓ **Fix — persistent cache root** — new `MediaCachePathResolver` (`DotNetCloud.Core.Storage`): `Files:Storage:MediaCachePath` → `{Files:Storage:RootPath}/.media-cache` → `{DOTNETCLOUD_DATA_DIR}/storage/.media-cache` → temp (dev only). `AddMusicServices`/`AddMusicUiServices` register `ContentAddressedStorage` through a **lazy factory** so the root is read on first use, after `Core.Server` propagates the key; `Music.Host/Program.cs` resolves `Files:Storage:RootPath` (`Files:StoragePath` → `DOTNETCLOUD_DATA_DIR/storage` → `/var/lib/dotnetcloud/storage`) before registering services; `LibraryScanService`'s `.album-art` uses the same resolver.
+- ✓ **Fix — never destroy the record** — `GetCoverArtPathAsync` no longer clears `HasCoverArt`/`CoverArtHash` when the cached file is missing (warns instead); enrichment already re-fetches because it checks `!Exists(hash)`.
+- ✓ **Fix — refresh and revalidate** — `MusicController.GetAlbumCover` sends `Cache-Control: no-cache` plus a content-hash `ETag`; `MusicPage.RefreshAlbumAfterArtChangeAsync` reloads the album the modal was opened for (`_fetchArtAlbumId`, previously only `_selectedAlbum`), replaces it in every list and bumps `_artRevision` so `?v=` busts a cached cover/404.
+- ✓ **Tests** — new `MediaCachePathResolverTests` (7), `MusicPageFetchArtModalTests` (2) and `MusicAlbumServiceTests.GetCoverArtPath_CachedFileMissing_KeepsStoredCoverArtReference`; Music **454**, Video **227**, Core **613** pass, `DotNetCloud.CI.slnf` builds 0 warnings / 0 errors.
+- ✓ **Video, same defect fixed** — `MediaCachePathResolver` now lives in `DotNetCloud.Core.Storage` (shared by core and modules). `VideoThumbnailService` (posters + `.video-screenshots`), `VideoEnrichmentService`, `VideoSeriesService` and `VideoIndexingCallback.ResetCollectionAsync` all resolve the persistent root, `Video.Host/Program.cs` propagates `Files:Storage:RootPath` before registering services, and the series-thumbnail `MapGet` uses the resolver. Latent bug fixed on the way: `VideoSeriesService.GetSeriesThumbnailAsync` searched `{root}/images/<prefix>/` (missing `.media-cache`) so a cached series poster was **never** found; it now resolves through the content-addressed store (`GetSeriesThumbnailAsync_PosterCached_ReturnsPosterBytes`).
+- ✓ **Deployed (music half only)** — `sudo ./scripts/deploy.sh --force --verify`: 15/15 targets, all assembly hashes verified, `dotnetcloud.music` restarted with the new build, `/health/ready` Healthy.
+- ✓ **Video half deployed** — later full deploy (same command) rebuilt 15/15 targets, restarted `dotnetcloud.video`, all assembly hashes verified, `/health/ready` Healthy.
+- ✓ **Live proof of the persistent root** — `/var/lib/dotnetcloud/storage/.media-cache/images` (empty for the whole previous day) now holds three content-addressed cover files, all written after the fixed build went live; the old code wrote them under the service's private temp directory.
+- ☐ Browser E2E (album → Fetch Art → pick result → reload page) awaiting user confirmation; albums whose flags were wiped by the old code need the cover re-applied once
+- ✓ Committed and pushed — `6dec5cf7` on `fix/several-things`
+
+---
+
 ## Recent Fix — Music playbar lost all controls and blew up the album art (2026-10-25, `fix/music-playbar`)
 
 > Reported live: after the code/style-separation refactor (`56b80e9f`), the global playbar on `/apps/music` showed an oversized cover and **no** transport buttons, progress bar, or queue/EQ/volume controls.
