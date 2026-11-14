@@ -450,9 +450,10 @@ Phase B5 of `docs/THIRD_PARTY_MODULE_SANDBOX_AND_STORE_PLAN.md`, implemented acr
 - ✓ **Fix — refresh and revalidate** — `MusicController.GetAlbumCover` sends `Cache-Control: no-cache` plus a content-hash `ETag`; `MusicPage.RefreshAlbumAfterArtChangeAsync` reloads the album the modal was opened for (`_fetchArtAlbumId`, previously only `_selectedAlbum`), replaces it in every list and bumps `_artRevision` so `?v=` busts a cached cover/404.
 - ✓ **Tests** — new `MediaCachePathResolverTests` (7), `MusicPageFetchArtModalTests` (2) and `MusicAlbumServiceTests.GetCoverArtPath_CachedFileMissing_KeepsStoredCoverArtReference`; Music **454**, Video **227**, Core **613** pass, `DotNetCloud.CI.slnf` builds 0 warnings / 0 errors.
 - ✓ **Video, same defect fixed** — `MediaCachePathResolver` now lives in `DotNetCloud.Core.Storage` (shared by core and modules). `VideoThumbnailService` (posters + `.video-screenshots`), `VideoEnrichmentService`, `VideoSeriesService` and `VideoIndexingCallback.ResetCollectionAsync` all resolve the persistent root, `Video.Host/Program.cs` propagates `Files:Storage:RootPath` before registering services, and the series-thumbnail `MapGet` uses the resolver. Latent bug fixed on the way: `VideoSeriesService.GetSeriesThumbnailAsync` searched `{root}/images/<prefix>/` (missing `.media-cache`) so a cached series poster was **never** found; it now resolves through the content-addressed store (`GetSeriesThumbnailAsync_PosterCached_ReturnsPosterBytes`).
-- ✓ **Deployed** — `sudo ./scripts/deploy.sh --force --verify`: 15/15 targets, all assembly hashes verified, `dotnetcloud.music` + `dotnetcloud.video` restarted with the new build, `/health/ready` Healthy.
+- ✓ **Deployed (music half only)** — `sudo ./scripts/deploy.sh --force --verify`: 15/15 targets, all assembly hashes verified, `dotnetcloud.music` restarted with the new build, `/health/ready` Healthy.
+- ☐ **Video half not deployed yet** — the build is committed but the instance still runs the previous `dotnetcloud.video`; deploy before testing posters
 - ☐ Browser E2E (album → Fetch Art → pick result → reload page) awaiting user confirmation; albums whose flags were wiped by the old code need the cover re-applied once
-- ☐ Commit/push awaiting approval
+- ✓ Committed and pushed — `6dec5cf7` on `fix/several-things`
 
 ---
 
