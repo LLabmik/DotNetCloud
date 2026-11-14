@@ -440,6 +440,16 @@ Phase B5 of `docs/THIRD_PARTY_MODULE_SANDBOX_AND_STORE_PLAN.md`, implemented acr
 
 ---
 
+## Recent Work — Documentation index for the `docs` folder (2026-11-13, `fix/several-things`)
+
+- ✓ New [`docs/README.md`](README.md) indexes **all 222 documents** in this folder: start-here table, architecture, modules, API, administration, user guides, clients, development, security/compliance, distribution, and every implementation plan grouped by theme (foundation/phases, platform, files & sharing, media, Tracks, chat/notifications, PIM, Android, SyncTray, admin UI, search/AI, code quality).
+- ✓ Conventions section documents the ✓/☐ checklist format, the plan-vs-reference split, the evidence standard for closing a plan, and the no-private-topology rule for committed documents.
+- ✓ Completeness verified mechanically: every `*.md` under `docs/` is linked (only the index itself is unlinked) and every relative link resolves on disk (`broken=0`).
+- ✓ The project [`README.md`](../README.md) Quick Start now points at the index.
+- ✓ Committed and pushed — `fix/several-things`
+
+---
+
 ## Recent Feature — Notes: Print button (note content only, formatted) (2026-11-13, `fix/several-things`)
 
 > Requested: a Print button that prints only the note content, with the content formatted.
