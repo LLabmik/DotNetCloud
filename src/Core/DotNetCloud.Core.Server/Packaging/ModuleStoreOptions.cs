@@ -122,6 +122,17 @@ public sealed class ModuleStoreOptions
     public bool KeepPreviousVersion { get; set; } = true;
 
     /// <summary>
+    /// Creates a copy of these options so a runtime override (the admin store URL) can be applied
+    /// without mutating the configuration-bound instance.
+    /// </summary>
+    /// <remarks>
+    /// Arrays and dictionaries are shared with the original, so the copy must be treated as
+    /// read-only — which is exactly how the store clients consume it.
+    /// </remarks>
+    /// <returns>A shallow copy of these options.</returns>
+    public ModuleStoreOptions Clone() => (ModuleStoreOptions)MemberwiseClone();
+
+    /// <summary>
     /// The trusted keys with <see cref="RevokedKeyIds"/> removed.
     /// </summary>
     /// <returns>The effective key id → base64 public key map.</returns>

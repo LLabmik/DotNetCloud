@@ -26,7 +26,9 @@ only adds *acquisition* (fetch, cache, download), never trust of its own.
   — or whose bytes do not match the signed SHA-256 — is rejected outright and nothing is cached.
 - The verified index is cached under `Modules:Store:CachePath` for `Modules:Store:IndexCacheTtl`
   (default one hour), so restarts do not refetch. A failed refresh keeps serving the cached copy and
-  logs a warning; it never breaks the admin store page.
+  logs a warning; it never breaks the admin store page. The cache is tied to the index URL that
+  produced it: changing the store URL (configuration or Admin Settings) discards the previous
+  source's catalogue instead of serving it, so the new URL takes effect immediately.
 - An index whose `generatedAt` is **older** than the cached one is refused (replay protection). An
   operator who deliberately wants to undo a publish sets `Modules:Store:AllowIndexRollback`.
 - A package is downloaded only when its `<id>/<version>` directory has no file with the published
@@ -176,6 +178,20 @@ Bundle modules are never checked: only installs whose provenance is `Store` come
 
 The trusted key list is the whole trust root: a feed and an index are data, so keys they carry are
 ignored. Pin both the store index key and every publisher key you intend to accept.
+
+### Setting the store URL in Admin Settings
+
+Administrators can set (or clear) the store index URL at **Admin → Settings → Module store**
+(`/admin/settings`). It is stored as `dotnetcloud.core`/`ModuleStoreIndexUrl` in the core
+`SystemSettings` table and layered over `Modules:Store:IndexUrl`; an empty value means "use the
+configuration". The store re-reads the effective value within about 30 seconds, so a change needs
+**no restart** — the admin store page and `dotnetcloud module install --from-store` both use the
+same effective source.
+
+Only the URL is editable there: `TrustedKeys` stays in configuration, so an administrator (or a
+compromised browser session) can never change which signing keys are trusted. A value that is not an
+absolute `https` URL (loopback `http` is accepted for development) is ignored with a warning and the
+configured URL is used instead.
 
 ### Key rotation
 

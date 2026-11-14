@@ -447,6 +447,14 @@ public sealed class RemoteModuleIndexStoreService : IModuleStoreService
             UriFormat.Unescaped,
             StringComparison.OrdinalIgnoreCase) == 0;
 
+    private static bool SameIndexSource(Uri left, Uri right) =>
+        Uri.Compare(
+            left,
+            right,
+            UriComponents.HttpRequestUrl,
+            UriFormat.Unescaped,
+            StringComparison.OrdinalIgnoreCase) == 0;
+
     private static bool IsAllowedScheme(Uri uri) =>
         string.Equals(uri.Scheme, Uri.UriSchemeHttps, StringComparison.Ordinal)
         || (string.Equals(uri.Scheme, Uri.UriSchemeHttp, StringComparison.Ordinal) && uri.IsLoopback);
@@ -627,6 +635,17 @@ public sealed class RemoteModuleIndexStoreService : IModuleStoreService
             var sourceUri = Uri.TryCreate(state.SourceUrl, UriKind.Absolute, out var parsed)
                 ? parsed
                 : GetIndexUrls()[0];
+
+            // The cache belongs to the source that produced it. An administrator can change the
+            // store URL at runtime, and serving another store's catalogue from this directory
+            // would make the new URL look like it did nothing until IndexCacheTtl expired.
+            if (!GetIndexUrls().Any(configured => SameIndexSource(configured, sourceUri)))
+            {
+                _logger.LogInformation(
+                    "The cached module store index at {Path} belongs to a different store source; it will be refetched.",
+                    indexPath);
+                return null;
+            }
 
             return (index, GetDownloadBaseUri(sourceUri), state.FetchedAtUtc);
         }

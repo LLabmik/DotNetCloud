@@ -285,6 +285,34 @@ public class RemoteModuleIndexStoreServiceTests
     }
 
     [TestMethod]
+    public async Task ListPackagesAsync_ChangedIndexUrl_IgnoresCacheFromThePreviousSource()
+    {
+        // An administrator can change the store URL at runtime. The cache directory is shared, so
+        // the previous store's catalogue must not be served as if it were the new one.
+        var handler = new StubHttpHandler();
+        _fixture.PublishIndex(handler);
+
+        var first = await CreateService(handler).ListPackagesAsync();
+        Assert.AreEqual(RemoteIndexFixture.PackageSha256, first[0].Sha256);
+
+        var secondOptions = _fixture.CreateOptions();
+        secondOptions.IndexUrl = RemoteIndexFixture.SecondIndexUrl;
+        secondOptions.Mirrors = [];
+        _fixture.PublishIndex(
+            handler,
+            indexUrl: RemoteIndexFixture.SecondIndexUrl,
+            sha256Override: RemoteIndexFixture.OtherSha256);
+
+        handler.Requests.Clear();
+        var second = await CreateService(handler, secondOptions).ListPackagesAsync();
+
+        Assert.AreEqual(RemoteIndexFixture.OtherSha256, second[0].Sha256);
+        Assert.IsTrue(
+            handler.Requests.Any(request => request.StartsWith(RemoteIndexFixture.SecondIndexUrl, StringComparison.Ordinal)),
+            "the new store URL must be fetched instead of serving the previous source's cached index");
+    }
+
+    [TestMethod]
     public async Task ResolveAsync_DownloadsPackageAndWritesSignature()
     {
         var handler = new StubHttpHandler();
@@ -458,6 +486,8 @@ public class RemoteModuleIndexStoreServiceTests
     private sealed class RemoteIndexFixture : IDisposable
     {
         public const string MirrorUrl = "https://mirror.test/index/v1/index.json";
+
+        public const string SecondIndexUrl = "https://second.test/index/v1/index.json";
 
         public static readonly byte[] PackageBytes =
             Encoding.UTF8.GetBytes("pretend this is a deterministic package archive");

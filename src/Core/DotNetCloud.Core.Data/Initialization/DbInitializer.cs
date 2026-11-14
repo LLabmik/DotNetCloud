@@ -487,6 +487,13 @@ public class DbInitializer
                 Value = "3",
                 Description = "Presence idle threshold in minutes — a connected user with no real interaction for this long shows as Away/yellow (clamp 1-60)"
             },
+            new SystemSetting
+            {
+                Module = "dotnetcloud.core",
+                Key = "ModuleStoreIndexUrl",
+                Value = "",
+                Description = "Module store index URL (https). Empty uses Modules:Store:IndexUrl from server configuration; a saved value takes effect without a restart"
+            },
 
             // Files module settings
             new SystemSetting

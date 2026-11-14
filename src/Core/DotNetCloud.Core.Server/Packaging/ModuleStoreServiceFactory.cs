@@ -15,6 +15,12 @@ namespace DotNetCloud.ModulePackaging;
 /// signed index is used, otherwise the local feed directory. Both implement
 /// <see cref="IModuleStoreService"/>, so the installer, the CLI and the admin API never know which
 /// one is active — and a server cannot end up silently installing from a feed nobody configured.
+/// <para>
+/// The admin settings page can override the index URL at runtime
+/// (<c>dotnetcloud.core</c>/<see cref="DotNetCloud.Core.Constants.SystemSettingKeys.ModuleStoreIndexUrl"/>).
+/// When the host registers a <see cref="ModuleStoreSettingsProvider"/> the returned client
+/// re-resolves the source on each operation, so a saved URL takes effect without a restart.
+/// </para>
 /// </remarks>
 public static class ModuleStoreServiceFactory
 {
@@ -33,25 +39,35 @@ public static class ModuleStoreServiceFactory
 
         var options = services.GetRequiredService<IOptions<ModuleStoreOptions>>();
         var loggerFactory = services.GetService<ILoggerFactory>();
+        var timeProvider = services.GetService<TimeProvider>() ?? TimeProvider.System;
 
-        if (!string.IsNullOrWhiteSpace(options.Value.IndexUrl))
+        IModuleStoreService Build(ModuleStoreOptions effective)
         {
-            var http = services.GetService<IHttpClientFactory>()
-                ?.CreateClient(RemoteModuleIndexStoreService.HttpClientName)
-                ?? SharedHttpClient;
+            if (!string.IsNullOrWhiteSpace(effective.IndexUrl))
+            {
+                var http = services.GetService<IHttpClientFactory>()
+                    ?.CreateClient(RemoteModuleIndexStoreService.HttpClientName)
+                    ?? SharedHttpClient;
 
-            return new RemoteModuleIndexStoreService(
-                http,
-                options,
-                services.GetService<TimeProvider>() ?? TimeProvider.System,
-                loggerFactory?.CreateLogger<RemoteModuleIndexStoreService>()
-                ?? NullLogger<RemoteModuleIndexStoreService>.Instance);
+                return new RemoteModuleIndexStoreService(
+                    http,
+                    Options.Create(effective),
+                    timeProvider,
+                    loggerFactory?.CreateLogger<RemoteModuleIndexStoreService>()
+                    ?? NullLogger<RemoteModuleIndexStoreService>.Instance);
+            }
+
+            return new LocalModuleFeedStoreService(
+                Options.Create(effective),
+                services.GetRequiredService<IOptions<ProcessSupervisorOptions>>(),
+                loggerFactory?.CreateLogger<LocalModuleFeedStoreService>()
+                ?? NullLogger<LocalModuleFeedStoreService>.Instance);
         }
 
-        return new LocalModuleFeedStoreService(
-            options,
-            services.GetRequiredService<IOptions<ProcessSupervisorOptions>>(),
-            loggerFactory?.CreateLogger<LocalModuleFeedStoreService>()
-            ?? NullLogger<LocalModuleFeedStoreService>.Instance);
+        var settings = services.GetService<ModuleStoreSettingsProvider>();
+
+        return settings is null
+            ? Build(options.Value)
+            : new ConfiguredModuleStoreService(Build, settings, options.Value);
     }
 }

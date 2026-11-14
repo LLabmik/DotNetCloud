@@ -21,6 +21,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Microsoft.AspNetCore.DataProtection;
 
 namespace DotNetCloud.CLI.Infrastructure;
@@ -148,6 +149,12 @@ internal static class ServiceProviderFactory
         {
             services.AddOptions<ModuleStoreOptions>().Bind(configuration.GetSection(ModuleStoreOptions.SectionName));
             services.AddOptions<ProcessSupervisorOptions>().Bind(configuration.GetSection(ProcessSupervisorOptions.SectionName));
+            // The CLI reads the same effective store source as the server: the admin-editable URL
+            // (SystemSettings) layered over Modules:Store:IndexUrl.
+            services.AddSingleton(sp => new ModuleStoreSettingsProvider(
+                sp.GetRequiredService<IDbContextFactory>(),
+                TimeProvider.System,
+                sp.GetRequiredService<ILogger<ModuleStoreSettingsProvider>>()));
             services.AddSingleton<IModuleStoreService>(ModuleStoreServiceFactory.Create);
             services.AddSingleton<IModuleInstallRunner>(OfflineModuleInstallRunner.Instance);
             services.AddScoped<IModulePackageInstaller, ModulePackageInstaller>();

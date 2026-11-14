@@ -55,13 +55,109 @@ public partial class Settings : ComponentBase
 
     private int _presenceIdleMinutes = PresenceIdleMinutesDefault;
 
+    // Dedicated "Module store" field (system setting dotnetcloud.core / ModuleStoreIndexUrl).
+    // Empty means "use the server configuration (Modules:Store:IndexUrl)".
+    private const string StoreIndexUrlKey = "ModuleStoreIndexUrl";
+    private const string StoreIndexUrlDescription =
+        "Module store index URL (https). Empty uses Modules:Store:IndexUrl from server configuration; a saved value takes effect without a restart";
+    private string _storeIndexUrl = string.Empty;
+
     protected override async Task OnInitializedAsync()
     {
         await TimeProvider.EnsureInitializedAsync();
         await LoadSettingsAsync();
         await LoadOidcKeyRotationStatusAsync();
         await LoadPresenceIdleAsync();
+        await LoadStoreIndexUrlAsync();
     }
+
+    private async Task LoadStoreIndexUrlAsync()
+    {
+        try
+        {
+            var setting = await Api.GetSettingAsync(PresenceModule, StoreIndexUrlKey);
+            _storeIndexUrl = setting?.Value ?? string.Empty;
+        }
+        catch
+        {
+            // A missing row (404) or an unreachable API leaves the field empty: the store then uses
+            // the server configuration, which is the documented default.
+            _storeIndexUrl = string.Empty;
+        }
+    }
+
+    private async Task SaveStoreIndexUrlAsync()
+    {
+        var value = _storeIndexUrl.Trim();
+
+        if (!IsUsableStoreUrl(value))
+        {
+            Toast.ShowError("Enter an absolute https URL for the store index (http is allowed only for loopback addresses).");
+            return;
+        }
+
+        _actionInProgress = true;
+        try
+        {
+            var dto = new UpsertSystemSettingDto
+            {
+                Value = value,
+                Description = StoreIndexUrlDescription
+            };
+
+            if (await Api.UpsertSettingAsync(PresenceModule, StoreIndexUrlKey, dto))
+            {
+                _storeIndexUrl = value;
+                Toast.ShowSuccess("Module store URL saved. The store uses it within about 30 seconds — no restart needed.");
+                await LoadSettingsAsync();
+            }
+            else
+            {
+                Toast.ShowError("Failed to save the module store URL.");
+            }
+        }
+        finally
+        {
+            _actionInProgress = false;
+        }
+    }
+
+    private async Task ClearStoreIndexUrlAsync()
+    {
+        _actionInProgress = true;
+        try
+        {
+            var dto = new UpsertSystemSettingDto
+            {
+                Value = string.Empty,
+                Description = StoreIndexUrlDescription
+            };
+
+            if (await Api.UpsertSettingAsync(PresenceModule, StoreIndexUrlKey, dto))
+            {
+                _storeIndexUrl = string.Empty;
+                Toast.ShowSuccess("The module store now uses the server configuration (Modules:Store:IndexUrl).");
+                await LoadSettingsAsync();
+            }
+            else
+            {
+                Toast.ShowError("Failed to clear the module store URL.");
+            }
+        }
+        finally
+        {
+            _actionInProgress = false;
+        }
+    }
+
+    /// <summary>
+    /// The store client only fetches an absolute <c>https</c> index (plain <c>http</c> is accepted
+    /// for a loopback address in development), so the UI rejects anything it would refuse.
+    /// </summary>
+    private static bool IsUsableStoreUrl(string value) =>
+        Uri.TryCreate(value, UriKind.Absolute, out var uri)
+        && (string.Equals(uri.Scheme, Uri.UriSchemeHttps, StringComparison.Ordinal)
+            || (string.Equals(uri.Scheme, Uri.UriSchemeHttp, StringComparison.Ordinal) && uri.IsLoopback));
 
     private async Task LoadPresenceIdleAsync()
     {
