@@ -231,6 +231,32 @@ public class MaterialSvgIconsTests
         Assert.IsTrue(path!.Length > 10, $"Icon '{icon}' path data is unexpectedly short.");
     }
 
+    /// <summary>
+    /// Icons referenced by the AI assistant page: the sidebar new-chat / rename / delete
+    /// controls, the welcome robot, the per-message avatar (user and assistant), the copy
+    /// buttons and their "copied" confirmation, and the composer send button. A missing path
+    /// renders the raw icon name as text — the assistant avatar showed the word "assistant"
+    /// and each copy button showed "copy" next to its label.
+    /// </summary>
+    [TestMethod]
+    [DataRow("add")]
+    [DataRow("edit")]
+    [DataRow("delete")]
+    [DataRow("help")]
+    [DataRow("smart_toy")]
+    [DataRow("person")]
+    [DataRow("assistant")]
+    [DataRow("copy")]
+    [DataRow("check")]
+    [DataRow("send")]
+    public void GetPath_IconUsedByAiAssistantPage_ReturnsPathData(string icon)
+    {
+        Assert.IsTrue(MaterialSvgIcons.HasPath(icon), $"Icon '{icon}' has no SVG path and would render as text.");
+        var path = MaterialSvgIcons.GetPath(icon);
+        Assert.IsNotNull(path, $"Icon '{icon}' returned a null path.");
+        Assert.IsTrue(path!.Length > 10, $"Icon '{icon}' path data is unexpectedly short.");
+    }
+
     [TestMethod]
     public void GetPath_UnknownIcon_ReturnsNull()
     {
@@ -254,11 +280,17 @@ public class MaterialSvgIconsTests
     /// <see cref="MaterialIcon"/> renders an unknown name as the literal text of that name, so a typo
     /// or a forgotten entry ships as the word "shield" on screen — which is exactly what happened in
     /// the consent bar. This walks the tree instead of trusting a hand-maintained list: it catches new
-    /// usages anywhere in <c>src/</c>, including module UIs. Only literal values are checked; an
-    /// <c>Icon="@…"</c> expression cannot be resolved without running the component.
+    /// usages anywhere in <c>src/</c>, including module UIs.
+    /// <para>
+    /// Both forms are checked: a plain literal (<c>Icon="home"</c>) and the icon names inside a bound
+    /// expression (<c>Icon="@(flag ? "check" : "copy")"</c>). The second form is why the AI page
+    /// showed the words "assistant" and "copy" — the earlier gate skipped every <c>@…</c> value.
+    /// Only the ternary result branches are inspected (everything after the first <c>?</c>), so
+    /// comparison operands such as <c>_goal.Type == "objective"</c> are not mistaken for icon names.
+    /// </para>
     /// </remarks>
     [TestMethod]
-    public void EveryLiteralIconInRazor_ResolvesToPathData()
+    public void EveryIconNameUsedInRazor_ResolvesToPathData()
     {
         var repoRoot = FindRepositoryRoot();
         var razorFiles = Directory
@@ -268,27 +300,33 @@ public class MaterialSvgIconsTests
         Assert.IsTrue(razorFiles.Length > 20, $"Expected to scan the Razor tree, found {razorFiles.Length} file(s).");
 
         var literal = new Regex("\\bIcon\\s*=\\s*\"(?<name>[^\"@{}]+)\"", RegexOptions.CultureInvariant);
+        var bound = new Regex("\\bIcon\\s*=\\s*\"@\\((?<expr>.*?)\\)\"", RegexOptions.CultureInvariant | RegexOptions.Singleline);
+        var iconName = new Regex("\"(?<name>[a-z][a-z0-9_]*)\"", RegexOptions.CultureInvariant);
         var missing = new SortedDictionary<string, SortedSet<string>>(StringComparer.Ordinal);
 
         foreach (var file in razorFiles)
         {
             var relative = Path.GetRelativePath(repoRoot, file).Replace('\\', '/');
+            var content = File.ReadAllText(file);
 
-            foreach (Match match in literal.Matches(File.ReadAllText(file)))
+            foreach (Match match in literal.Matches(content))
             {
-                var name = match.Groups["name"].Value.Trim();
-                if (name.Length == 0 || MaterialSvgIcons.HasPath(name))
+                Record(match.Groups["name"].Value.Trim(), relative);
+            }
+
+            foreach (Match match in bound.Matches(content))
+            {
+                var expression = match.Groups["expr"].Value;
+                var firstQuestion = expression.IndexOf('?', StringComparison.Ordinal);
+                if (firstQuestion < 0)
                 {
                     continue;
                 }
 
-                if (!missing.TryGetValue(name, out var files))
+                foreach (Match name in iconName.Matches(expression[firstQuestion..]))
                 {
-                    files = new SortedSet<string>(StringComparer.Ordinal);
-                    missing[name] = files;
+                    Record(name.Groups["name"].Value, relative);
                 }
-
-                files.Add(relative);
             }
         }
 
@@ -297,6 +335,22 @@ public class MaterialSvgIconsTests
             missing.Count,
             "These icon names have no SVG path and would render as text. Add them to MaterialSvgIcons:"
             + string.Concat(missing.Select(pair => $"{Environment.NewLine}  {pair.Key} ({string.Join(", ", pair.Value)})")));
+
+        void Record(string name, string source)
+        {
+            if (name.Length == 0 || MaterialSvgIcons.HasPath(name))
+            {
+                return;
+            }
+
+            if (!missing.TryGetValue(name, out var files))
+            {
+                files = new SortedSet<string>(StringComparer.Ordinal);
+                missing[name] = files;
+            }
+
+            files.Add(source);
+        }
     }
 
     private static string FindRepositoryRoot()

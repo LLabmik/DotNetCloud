@@ -12,6 +12,16 @@
 
 ---
 
+> **UI fix (2026-11-14, `fix/more-things`): AI page icons.** The assistant avatar and both copy buttons rendered the raw
+> icon names (`assistant`, `copy`) as text because `MaterialSvgIcons` had no path for them and `MaterialIcon` falls back
+> to printing the name. Both paths added (aliases of `smart_toy` / `content_copy`). The repo-wide Razor icon gate only
+> validated plain literals and skipped every bound `Icon="@…"` value, so it is widened to also check the result branches
+> of a ternary and renamed `EveryIconNameUsedInRazor_ResolvesToPathData`; a pre-fix run of the widened gate reports
+> exactly those two names. New `GetPath_IconUsedByAiAssistantPage_ReturnsPathData` case list covers all ten icons the AI
+> page binds. `UI.Shared.Tests` 262/262, `UI.Shared` + `AI.Web` build clean.
+
+---
+
 > **Documentation (2026-11-12, `feature/third-party-modules`): Track D complete — the sandbox and store are documented, and A1 is closed.**
 > **Track D:** `docs/guides/MODULE_DEVELOPMENT.md` is rewritten around manifest v2 (567 → 919 lines): three planes, project
 > layout and the SDK, a full field-by-field manifest-v2 reference with the validation rules that catch real mistakes, the

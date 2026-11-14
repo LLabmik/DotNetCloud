@@ -8,6 +8,26 @@
 
 ---
 
+## Recent Work — AI page rendered raw icon names instead of glyphs (2026-11-14, `fix/more-things`)
+
+The AI assistant page showed the word **assistant** where the avatar glyph belongs and the word **copy** in front of
+both copy buttons, because the two icon names it binds through `Icon="@(…)"` ternaries had no SVG path in
+`MaterialSvgIcons`. `MaterialIcon` falls back to rendering the icon name as text, so the missing entries were visible
+on screen.
+
+- ✓ `assistant` and `copy` paths added to `MaterialSvgIcons` (both are aliases of the existing `smart_toy` robot and
+  `content_copy` glyphs, so the assistant avatar matches the welcome-screen robot).
+- ✓ **Gate widened** — `EveryLiteralIconInRazor_ResolvesToPathData` only scanned plain literals and explicitly skipped
+  every `Icon="@…"` value, which is exactly the hole these two names fell through. It is now
+  `EveryIconNameUsedInRazor_ResolvesToPathData` and also inspects the result branches of a bound ternary (everything
+  after the first `?`), so a comparison operand such as `_goal.Type == "objective"` is not mistaken for an icon.
+  Verified the widened gate reports exactly `assistant` and `copy` against the pre-fix page.
+- ✓ New `GetPath_IconUsedByAiAssistantPage_ReturnsPathData` allow-list test (10 icons: `add`, `edit`, `delete`, `help`,
+  `smart_toy`, `person`, `assistant`, `copy`, `check`, `send`).
+- ✓ `UI.Shared` builds 0 warnings / 0 errors, `DotNetCloud.Modules.AI.Web` builds clean, `UI.Shared.Tests` **262/262**.
+
+---
+
 ## Recent Work — Sandbox/store live on production; module-manifest publication defect found and fixed (2026-11-13, `feature/third-party-modules`)
 
 The third-party module sandbox and store went live on the production SQL Server install at `2dbf1e29` (deploy verified:
