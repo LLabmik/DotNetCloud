@@ -14,8 +14,7 @@ public sealed class ProductConfiguration : IEntityTypeConfiguration<Product>
             .IsRequired()
             .HasMaxLength(200);
 
-        builder.Property(p => p.Description)
-            .HasColumnType("text");
+        builder.Property(p => p.Description);
 
         builder.Property(p => p.Color)
             .HasMaxLength(20);

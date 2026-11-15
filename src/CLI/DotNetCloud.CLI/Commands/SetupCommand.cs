@@ -498,7 +498,8 @@ internal static class SetupCommand
         // ───────────────────────────────────────────────
         ConsoleOutput.WriteStep(7, TotalSteps, "Module Selection");
 
-        // Required modules (Files, Chat, Search, Contacts, Calendar, Notes, About) are always enabled.
+        // Required modules (Files, Chat, Contacts, Calendar, Notes, About and the out-of-process
+        // extraction worker) are always enabled; RequiredModules.ModuleIds is the source of truth.
         var requiredModules = DotNetCloud.Core.Modules.RequiredModules.ModuleIds;
         var optionalModules = OptionalModules;
 

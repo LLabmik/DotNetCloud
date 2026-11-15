@@ -2,7 +2,8 @@ namespace DotNetCloud.Core.Modules;
 
 /// <summary>
 /// Static registry of architecturally required modules. Required modules cannot be
-/// disabled or uninstalled at runtime, and they share the <c>core</c> database schema.
+/// disabled or uninstalled at runtime, cannot be replaced by a store package, and keep
+/// their data in the <c>core</c> database schema when they have any.
 /// </summary>
 public static class RequiredModules
 {
@@ -17,7 +18,10 @@ public static class RequiredModules
         "dotnetcloud.contacts",
         "dotnetcloud.calendar",
         "dotnetcloud.notes",
-        "dotnetcloud.about"
+        "dotnetcloud.about",
+        // The out-of-process content-extraction worker. It owns no data of its own — it is the
+        // parser half of the core search capability, so search must not be able to lose it.
+        "dotnetcloud.extraction"
     };
 
     /// <summary>

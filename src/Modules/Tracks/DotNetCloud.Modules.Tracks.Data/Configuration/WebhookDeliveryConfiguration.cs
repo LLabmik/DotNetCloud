@@ -18,13 +18,11 @@ public sealed class WebhookDeliveryConfiguration : IEntityTypeConfiguration<Webh
             .HasMaxLength(100);
 
         builder.Property(d => d.PayloadJson)
-            .IsRequired()
-            .HasColumnType("text");
+            .IsRequired();
 
         builder.Property(d => d.ResponseStatusCode);
 
-        builder.Property(d => d.ResponseBody)
-            .HasColumnType("text");
+        builder.Property(d => d.ResponseBody);
 
         builder.Property(d => d.ErrorMessage)
             .HasMaxLength(2000);

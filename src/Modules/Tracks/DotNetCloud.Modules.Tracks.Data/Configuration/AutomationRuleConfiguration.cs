@@ -21,12 +21,10 @@ public sealed class AutomationRuleConfiguration : IEntityTypeConfiguration<Model
             .HasMaxLength(50);
 
         builder.Property(ar => ar.ConditionsJson)
-            .IsRequired()
-            .HasColumnType("text");
+            .IsRequired();
 
         builder.Property(ar => ar.ActionsJson)
-            .IsRequired()
-            .HasColumnType("text");
+            .IsRequired();
 
         builder.Property(ar => ar.CreatedAt)
             .IsRequired()

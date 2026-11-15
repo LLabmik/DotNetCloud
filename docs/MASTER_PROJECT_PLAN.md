@@ -12,6 +12,65 @@
 
 ---
 
+> **Cross-provider schema (2026-11-14, `fix/more-things`): no more SQL Server `text` columns.** All 27 `HasColumnType("text")`
+> sites across Notes, Email, Photos, Bookmarks, AI and Tracks are gone; leaving the type unconfigured gives
+> `nvarchar(max)` on SQL Server and `text` on PostgreSQL (so the PostgreSQL schema is unchanged). Each module got a SQL
+> Server migration `UseNvarcharMaxForTextColumns` (Notes 2 columns, Email 3, Photos 2, Bookmarks 1, AI 2, Tracks 17) and an
+> intentionally-empty PostgreSQL migration that only keeps the snapshot in step. Rehearsed on the production database:
+> `core.Notes.Content` altered to `nvarchar(max)` inside a transaction, all 39 rows / 143,669 characters read back, then
+> rolled back. New `CrossProviderColumnTypeTests` fails on any reintroduced `text`/`ntext`/`image` mapping (proved red).
+> Module suites pass (AI 63, Bookmarks 47, Email 73, Notes 166, Photos 225, Tracks 302), CI build clean. Deploy applies the
+> six migrations.
+
+---
+
+> **Bug fix (2026-11-14, `fix/more-things`): opening a contact answered 500.** `ContactRelatedEntitiesService.GetRelatedAsync`
+> de-duplicated matched events and notes with `DISTINCT` over the **whole entity**, and `core.Notes.Content` is a `text`
+> column on SQL Server, which is not comparable — `SqlException 80131904: The text data type cannot be selected as DISTINCT`.
+> Both branches now project the values the card renders, `Distinct()` over those scalars, then order and take 50, so the
+> note body is never selected. Replaying the old SQL shape against the live database reproduces the error; the new shapes
+> run clean. New `ContactRelatedEntitiesServiceTests` (5) cover duplicate attendee matches, ordering, long bodies and empty
+> cases; `Contacts.Tests` 159/159, CI build clean. Follow-up recorded, not done: 26 `HasColumnType("text")` sites across Notes,
+> Email, Tracks, Photos, Bookmarks and AI still create non-comparable `text` columns on SQL Server — dropping the explicit
+> type gives `nvarchar(max)` there and `text` on PostgreSQL, but that needs one migration per module.
+
+---
+
+> **Widget fix (2026-11-14, `fix/more-things`): the bridge path.** The Bookmarks home-page widget failed with "Unable to
+> load bookmarks." because its document loaded `../dncModuleBridge.js`, which 404s (confirmed live: the root path is 404,
+> `js/dncModuleBridge.js` is 200). No bridge means no `dnc-frame-ticket`, so the widget's API call is anonymous and the
+> generic error text wins. The bridge is published at `wwwroot/js/dncModuleBridge.js` by every module's `.Web` project;
+> Photos/Email/AI only appeared to work because the SDK package's incidental `contentFiles` copy lands at the wwwroot root
+> of those hosts. All four documents (Bookmarks, Photos, Email, AI) now use `../js/dncModuleBridge.js` (Tracks already
+> did). New `WidgetFrameAssetsTests` scans every module widget, requires that exact bridge path, requires all other
+> references to be relative, and requires the module's `.Web` project to publish the file — proved red against the pre-fix
+> document. CI build 0 warnings / 0 errors; Sdk.Tests 52/52; module UI asset tests 8/7/8/7/8. Live verification needs a
+> redeploy of the module hosts.
+
+---
+
+> **Module hygiene (2026-11-14, `fix/more-things`): the extraction worker is a required module.** `dotnetcloud.extraction`
+> (the out-of-process parser worker behind the core search capability) is added to `RequiredModules.ModuleIds`. That
+> single list is what makes it unstoppable: `AdminModuleService.StopModuleAsync` throws, the CLI refuses `module disable`
+> / `module uninstall`, the reconciler pins `TrustTier = Required` and `SandboxStatus = Active`, quota/data-store
+> provisioning skips it, and `ModulePackageInstaller` rejects any package claiming the id (`MODULE_REQUIRED`). The v1
+> manifest already satisfies the required-module rules (no `dataStore`, no `ui`), so no manifest change was needed. New
+> `RequiredModulesTests` pins the seven-id set and the optional set. Core.Tests 626/626, CLI.Tests 240/240,
+> Core.Server.Tests (ModuleLoading/Supervisor/Sandbox/AdminModuleService) 334/334. Live check after deploy: disabling the
+> worker must be refused and `/health/ready` must report it as `Required`.
+
+---
+
+> **UI fix (2026-11-14, `fix/more-things`): AI page icons.** The assistant avatar and both copy buttons rendered the raw
+> icon names (`assistant`, `copy`) as text because `MaterialSvgIcons` had no path for them and `MaterialIcon` falls back
+> to printing the name. Both paths added (aliases of `smart_toy` / `content_copy`). The repo-wide Razor icon gate only
+> validated plain literals and skipped every bound `Icon="@…"` value, so it is widened to also check the result branches
+> of a ternary and renamed `EveryIconNameUsedInRazor_ResolvesToPathData`; a pre-fix run of the widened gate reports
+> exactly those two names. New `GetPath_IconUsedByAiAssistantPage_ReturnsPathData` case list covers all ten icons the AI
+> page binds. `UI.Shared.Tests` 262/262, `UI.Shared` + `AI.Web` build clean.
+
+---
+
 > **Documentation (2026-11-12, `feature/third-party-modules`): Track D complete — the sandbox and store are documented, and A1 is closed.**
 > **Track D:** `docs/guides/MODULE_DEVELOPMENT.md` is rewritten around manifest v2 (567 → 919 lines): three planes, project
 > layout and the SDK, a full field-by-field manifest-v2 reference with the validation rules that catch real mistakes, the

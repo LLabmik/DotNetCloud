@@ -17,7 +17,7 @@ namespace DotNetCloud.Modules.Tracks.Data.SqlServer.Migrations
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasAnnotation("ProductVersion", "10.0.10")
+                .HasAnnotation("ProductVersion", "10.0.14")
                 .HasAnnotation("Relational:MaxIdentifierLength", 128);
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
@@ -40,7 +40,7 @@ namespace DotNetCloud.Modules.Tracks.Data.SqlServer.Migrations
                         .HasDefaultValueSql("CURRENT_TIMESTAMP");
 
                     b.Property<string>("Details")
-                        .HasColumnType("text");
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<Guid>("EntityId")
                         .HasColumnType("uniqueidentifier");
@@ -79,11 +79,11 @@ namespace DotNetCloud.Modules.Tracks.Data.SqlServer.Migrations
 
                     b.Property<string>("ActionsJson")
                         .IsRequired()
-                        .HasColumnType("text");
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("ConditionsJson")
                         .IsRequired()
-                        .HasColumnType("text");
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<DateTime>("CreatedAt")
                         .ValueGeneratedOnAdd()
@@ -331,7 +331,7 @@ namespace DotNetCloud.Modules.Tracks.Data.SqlServer.Migrations
                     b.HasIndex("ProductId", "UserId", "Name")
                         .IsUnique();
 
-                    b.ToTable("CustomViews");
+                    b.ToTable("CustomViews", (string)null);
                 });
 
             modelBuilder.Entity("DotNetCloud.Modules.Tracks.Models.Goal", b =>
@@ -353,7 +353,7 @@ namespace DotNetCloud.Modules.Tracks.Data.SqlServer.Migrations
                         .HasColumnType("float");
 
                     b.Property<string>("Description")
-                        .HasColumnType("text");
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<DateTime?>("DueDate")
                         .HasColumnType("datetime2");
@@ -523,7 +523,7 @@ namespace DotNetCloud.Modules.Tracks.Data.SqlServer.Migrations
                         .HasDefaultValueSql("NEWSEQUENTIALID()");
 
                     b.Property<string>("ChecklistsJson")
-                        .HasColumnType("text");
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<DateTime>("CreatedAt")
                         .ValueGeneratedOnAdd()
@@ -534,10 +534,10 @@ namespace DotNetCloud.Modules.Tracks.Data.SqlServer.Migrations
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<string>("Description")
-                        .HasColumnType("text");
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("LabelIdsJson")
-                        .HasColumnType("text");
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("Name")
                         .IsRequired()
@@ -675,7 +675,7 @@ namespace DotNetCloud.Modules.Tracks.Data.SqlServer.Migrations
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<string>("CustomScaleValues")
-                        .HasColumnType("text");
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<Guid>("EpicId")
                         .HasColumnType("uniqueidentifier");
@@ -785,7 +785,7 @@ namespace DotNetCloud.Modules.Tracks.Data.SqlServer.Migrations
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<string>("Description")
-                        .HasColumnType("text");
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("ETag")
                         .IsRequired()
@@ -887,10 +887,10 @@ namespace DotNetCloud.Modules.Tracks.Data.SqlServer.Migrations
 
                     b.Property<string>("DefinitionJson")
                         .IsRequired()
-                        .HasColumnType("text");
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("Description")
-                        .HasColumnType("text");
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<bool>("IsBuiltIn")
                         .HasColumnType("bit");
@@ -1079,7 +1079,7 @@ namespace DotNetCloud.Modules.Tracks.Data.SqlServer.Migrations
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<string>("Goal")
-                        .HasColumnType("text");
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<int?>("PlannedOrder")
                         .HasColumnType("int");
@@ -1313,7 +1313,7 @@ namespace DotNetCloud.Modules.Tracks.Data.SqlServer.Migrations
                     b.HasIndex("Name")
                         .HasDatabaseName("ix_tracks_teams_name");
 
-                    b.ToTable("TracksTeams");
+                    b.ToTable("TracksTeams", (string)null);
                 });
 
             modelBuilder.Entity("DotNetCloud.Modules.Tracks.Models.TeamRole", b =>
@@ -1437,10 +1437,10 @@ namespace DotNetCloud.Modules.Tracks.Data.SqlServer.Migrations
 
                     b.Property<string>("PayloadJson")
                         .IsRequired()
-                        .HasColumnType("text");
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("ResponseBody")
-                        .HasColumnType("text");
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<int?>("ResponseStatusCode")
                         .HasColumnType("int");
@@ -1479,7 +1479,7 @@ namespace DotNetCloud.Modules.Tracks.Data.SqlServer.Migrations
 
                     b.Property<string>("EventsJson")
                         .IsRequired()
-                        .HasColumnType("text");
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<int>("FailedDeliveryCount")
                         .HasColumnType("int");
@@ -1543,7 +1543,7 @@ namespace DotNetCloud.Modules.Tracks.Data.SqlServer.Migrations
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<string>("Description")
-                        .HasColumnType("text");
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<DateTime?>("DueDate")
                         .HasColumnType("datetime2");
@@ -1739,7 +1739,7 @@ namespace DotNetCloud.Modules.Tracks.Data.SqlServer.Migrations
 
                     b.Property<string>("Content")
                         .IsRequired()
-                        .HasColumnType("text");
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<DateTime>("CreatedAt")
                         .ValueGeneratedOnAdd()
@@ -1931,7 +1931,7 @@ namespace DotNetCloud.Modules.Tracks.Data.SqlServer.Migrations
 
                     b.HasKey("WorkItemId", "UserId");
 
-                    b.ToTable("WorkItemWatchers");
+                    b.ToTable("WorkItemWatchers", (string)null);
                 });
 
             modelBuilder.Entity("DotNetCloud.Modules.Tracks.Models.Activity", b =>

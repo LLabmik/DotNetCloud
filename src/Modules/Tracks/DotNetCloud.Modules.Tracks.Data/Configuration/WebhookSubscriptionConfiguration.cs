@@ -22,8 +22,7 @@ public sealed class WebhookSubscriptionConfiguration : IEntityTypeConfiguration<
             .HasMaxLength(256);
 
         builder.Property(w => w.EventsJson)
-            .IsRequired()
-            .HasColumnType("text");
+            .IsRequired();
 
         builder.Property(w => w.IsActive)
             .IsRequired()

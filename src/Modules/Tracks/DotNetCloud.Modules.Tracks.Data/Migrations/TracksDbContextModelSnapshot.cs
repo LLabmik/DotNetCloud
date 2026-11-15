@@ -17,7 +17,7 @@ namespace DotNetCloud.Modules.Tracks.Data.Migrations
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasAnnotation("ProductVersion", "10.0.10")
+                .HasAnnotation("ProductVersion", "10.0.14")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
@@ -325,7 +325,7 @@ namespace DotNetCloud.Modules.Tracks.Data.Migrations
                     b.HasIndex("ProductId", "UserId", "Name")
                         .IsUnique();
 
-                    b.ToTable("CustomViews");
+                    b.ToTable("CustomViews", (string)null);
                 });
 
             modelBuilder.Entity("DotNetCloud.Modules.Tracks.Models.Goal", b =>
@@ -1288,7 +1288,7 @@ namespace DotNetCloud.Modules.Tracks.Data.Migrations
                     b.HasIndex("Name")
                         .HasDatabaseName("ix_tracks_teams_name");
 
-                    b.ToTable("TracksTeams");
+                    b.ToTable("TracksTeams", (string)null);
                 });
 
             modelBuilder.Entity("DotNetCloud.Modules.Tracks.Models.TeamRole", b =>
@@ -1895,7 +1895,7 @@ namespace DotNetCloud.Modules.Tracks.Data.Migrations
 
                     b.HasKey("WorkItemId", "UserId");
 
-                    b.ToTable("WorkItemWatchers");
+                    b.ToTable("WorkItemWatchers", (string)null);
                 });
 
             modelBuilder.Entity("DotNetCloud.Modules.Tracks.Models.Activity", b =>

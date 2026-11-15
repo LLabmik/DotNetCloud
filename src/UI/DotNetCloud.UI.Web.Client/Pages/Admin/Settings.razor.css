@@ -4,3 +4,10 @@
     align-items: center;
     flex-shrink: 0;
 }
+
+.settings-actions {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+}

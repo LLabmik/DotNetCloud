@@ -46,13 +46,25 @@ public sealed class ContactRelatedEntitiesService : IContactRelatedEntitiesServi
         var relatedEvents = new List<CalendarEventSummaryDto>();
         if (_calendarDb is not null && emailSet.Count > 0)
         {
+            // Project the four values the contact card shows *before* de-duplicating. A contact can
+            // match more than one attendee row on the same event (one row per invited address), so a
+            // DISTINCT over the matched events is needed — but over the whole CalendarEvent entity it
+            // asks the database to compare every column, and SQL Server refuses to compare `text`
+            // columns ("The text data type cannot be selected as DISTINCT because it is not
+            // comparable"), which turned opening a contact into a 500.
             relatedEvents = await _calendarDb.EventAttendees
                 .AsNoTracking()
-                .Include(a => a.Event)
-                .Where(a => a.Event != null && emailSet.Contains(a.Email.ToLower()))
-                .Select(a => a.Event!)
+                .Where(a => emailSet.Contains(a.Email.ToLower()))
+                .Select(a => new
+                {
+                    a.Event!.Id,
+                    a.Event!.Title,
+                    a.Event!.StartUtc,
+                    a.Event!.EndUtc
+                })
                 .Distinct()
                 .OrderByDescending(e => e.StartUtc)
+                .Take(50)
                 .Select(e => new CalendarEventSummaryDto
                 {
                     Id = e.Id,
@@ -60,27 +72,32 @@ public sealed class ContactRelatedEntitiesService : IContactRelatedEntitiesServi
                     StartUtc = e.StartUtc,
                     EndUtc = e.EndUtc
                 })
-                .Take(50)
                 .ToListAsync(cancellationToken);
         }
 
         var relatedNotes = new List<NoteSummaryDto>();
         if (_notesDb is not null)
         {
+            // Same shape as the events query: `core.Notes.Content` is a `text` column on SQL Server, so
+            // de-duplicating the note entity could never be evaluated. Three scalar columns can.
             relatedNotes = await _notesDb.NoteLinks
                 .AsNoTracking()
-                .Include(l => l.Note)
-                .Where(l => l.LinkType == NoteLinkType.Contact && l.TargetId == contactId && l.Note != null)
-                .Select(l => l.Note!)
+                .Where(l => l.LinkType == NoteLinkType.Contact && l.TargetId == contactId)
+                .Select(l => new
+                {
+                    l.Note!.Id,
+                    l.Note!.Title,
+                    l.Note!.UpdatedAt
+                })
                 .Distinct()
                 .OrderByDescending(n => n.UpdatedAt)
+                .Take(50)
                 .Select(n => new NoteSummaryDto
                 {
                     Id = n.Id,
                     Title = n.Title,
                     UpdatedAt = n.UpdatedAt
                 })
-                .Take(50)
                 .ToListAsync(cancellationToken);
         }
 

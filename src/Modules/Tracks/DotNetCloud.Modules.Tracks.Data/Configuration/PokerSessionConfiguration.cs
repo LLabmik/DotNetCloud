@@ -15,8 +15,7 @@ public sealed class PokerSessionConfiguration : IEntityTypeConfiguration<PokerSe
             .HasConversion<string>()
             .HasMaxLength(20);
 
-        builder.Property(ps => ps.CustomScaleValues)
-            .HasColumnType("text");
+        builder.Property(ps => ps.CustomScaleValues);
 
         builder.Property(ps => ps.Status)
             .IsRequired()

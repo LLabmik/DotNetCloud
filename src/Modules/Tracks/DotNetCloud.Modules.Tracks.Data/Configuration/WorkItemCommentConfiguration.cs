@@ -11,8 +11,7 @@ public sealed class WorkItemCommentConfiguration : IEntityTypeConfiguration<Work
         builder.HasKey(c => c.Id);
 
         builder.Property(c => c.Content)
-            .IsRequired()
-            .HasColumnType("text");
+            .IsRequired();
 
         builder.Property(c => c.CreatedAt)
             .IsRequired()

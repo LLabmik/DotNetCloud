@@ -18,19 +18,16 @@ public sealed class ItemTemplateConfiguration : IEntityTypeConfiguration<ItemTem
         builder.Property(it => it.TitlePattern)
             .HasMaxLength(500);
 
-        builder.Property(it => it.Description)
-            .HasColumnType("text");
+        builder.Property(it => it.Description);
 
         builder.Property(it => it.Priority)
             .IsRequired()
             .HasConversion<string>()
             .HasMaxLength(20);
 
-        builder.Property(it => it.LabelIdsJson)
-            .HasColumnType("text");
+        builder.Property(it => it.LabelIdsJson);
 
-        builder.Property(it => it.ChecklistsJson)
-            .HasColumnType("text");
+        builder.Property(it => it.ChecklistsJson);
 
         builder.Property(it => it.CreatedAt)
             .IsRequired()

@@ -161,4 +161,24 @@ public static class SystemSettingKeys
     /// Default value for <see cref="PresenceIdleTimeoutMinutes"/>.
     /// </summary>
     public const string PresenceIdleTimeoutMinutesDefault = "3";
+
+    // ──────────────────────────────────────────────
+    //  Module Store Settings
+    // ──────────────────────────────────────────────
+
+    /// <summary>
+    /// Setting key for the module store index URL, editable on the admin settings page. When set it
+    /// overrides <c>Modules:Store:IndexUrl</c> from server configuration; when blank the configured
+    /// value (or the local feed) applies. Read at operation time, so a change takes effect without a
+    /// restart.
+    /// </summary>
+    /// <remarks>
+    /// <b>Module:</b> <see cref="CoreModule"/><br/>
+    /// <b>Type:</b> <c>string</c> — an absolute <c>https</c> URL (plain <c>http</c> is accepted only
+    /// for a loopback address, for development)<br/>
+    /// <b>Default:</b> empty (use <c>Modules:Store:IndexUrl</c>)<br/>
+    /// <b>Effect:</b> Switches the store client to that signed index. Signing trust always comes from
+    /// <c>Modules:Store:TrustedKeys</c> in server configuration, never from this value.
+    /// </remarks>
+    public const string ModuleStoreIndexUrl = "ModuleStoreIndexUrl";
 }

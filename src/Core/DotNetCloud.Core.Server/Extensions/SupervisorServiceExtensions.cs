@@ -1,3 +1,4 @@
+using DotNetCloud.Core.Data.Context;
 using DotNetCloud.Core.Modules;
 using DotNetCloud.Core.Modules.Store;
 using DotNetCloud.Core.Modules.Supervisor;
@@ -16,6 +17,7 @@ using DotNetCloud.ModulePackaging;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 
 namespace DotNetCloud.Core.Server.Extensions;
 
@@ -121,9 +123,15 @@ internal static class SupervisorServiceExtensions
 
         // Module store client + package installer (B3). A local feed directory or an explicit
         // .dncpkg file by default; setting Modules:Store:IndexUrl switches the client to the remote
-        // signed index (module store) without changing the installer or the admin API.
+        // signed index (module store) without changing the installer or the admin API. The provider
+        // layers the admin-editable store URL (SystemSettings) on top of that configuration and is
+        // re-read at operation time, so saving a URL on /admin/settings needs no restart.
         services.AddOptions<ModuleStoreOptions>().BindConfiguration(ModuleStoreOptions.SectionName);
         services.AddHttpClient();
+        services.AddSingleton(sp => new ModuleStoreSettingsProvider(
+            sp.GetRequiredService<IDbContextFactory>(),
+            sp.GetService<TimeProvider>() ?? TimeProvider.System,
+            sp.GetRequiredService<ILogger<ModuleStoreSettingsProvider>>()));
         services.AddSingleton<IModuleStoreService>(ModuleStoreServiceFactory.Create);
         services.AddSingleton<IModuleInstallRunner, SupervisorModuleInstallRunner>();
         services.AddScoped<IModulePackageInstaller, ModulePackageInstaller>();

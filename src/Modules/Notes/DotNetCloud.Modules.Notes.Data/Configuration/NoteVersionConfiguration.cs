@@ -18,8 +18,7 @@ public sealed class NoteVersionConfiguration : IEntityTypeConfiguration<NoteVers
             .IsRequired()
             .HasMaxLength(500);
 
-        builder.Property(v => v.Content)
-            .HasColumnType("text");
+        builder.Property(v => v.Content);
 
         builder.Property(v => v.CreatedAt)
             .IsRequired()

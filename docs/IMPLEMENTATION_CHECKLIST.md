@@ -8,6 +8,131 @@
 
 ---
 
+## Recent Work — SQL Server `text` columns eliminated across modules (2026-11-14, `fix/more-things`)
+
+Follow-up to the Contacts 500: **27** `HasColumnType("text")` sites in **21** entity-configuration files pinned columns to
+SQL Server's deprecated, non-comparable `text` LOB type, so any `DISTINCT`/`GROUP BY`/`ORDER BY`/`=` over them would have
+failed the same way.
+
+- ✓ **Every explicit `text` mapping removed** (Notes, Email, Photos, Bookmarks, AI, Tracks). Leaving the type unconfigured
+  is correct on both engines: EF maps an unbounded `string` to `nvarchar(max)` on SQL Server and `text` on PostgreSQL, so
+  the PostgreSQL schema is unchanged. PostgreSQL-native types with no SQL Server equivalent (`jsonb`, `bytea`, …) stay
+  explicit and keep going through `ModelBuilderExtensions.FixColumnTypesForSqlServer`.
+- ✓ **Six SQL Server migrations** — `UseNvarcharMaxForTextColumns`, one per module: Notes (`core.Notes`, `core.NoteVersions`),
+  Email (`BodyPreview`, `BodyHtml`, `EncryptedCredentialBlob`), Photos (`ParametersJson`, `Albums.Description`), Bookmarks
+  (`Bookmarks.Notes`), AI (`Content`, `SystemPrompt`), Tracks (17 columns across work items/comments/goals/sprints/
+  templates/automation/webhooks/poker/activity). Each emits `ALTER TABLE … ALTER COLUMN … nvarchar(max)` with a matching
+  `Down`.
+- ✓ **Six PostgreSQL migrations, intentionally empty** — PostgreSQL already stores unbounded strings as comparable `text`;
+  they exist only so the model snapshots stay in step with the model. Each carries a comment saying exactly that.
+- ✓ **Live DDL rehearsal on the production database** — `core.Notes.Content` was altered to `nvarchar(max)` inside a
+  transaction, all **39** rows (**143,669** characters) read back afterwards, then `ROLLBACK` restored `text`. Nothing was
+  left changed.
+- ✓ **Guard** — new `CrossProviderColumnTypeTests` scans every non-migration source file and fails on `HasColumnType("text"|"ntext"|
+  "image")`, naming file and line. Proved red by re-adding one mapping.
+- ✓ **Tests** — AI **63**, Bookmarks **47**, Email **73**, Notes **166**, Photos **225**, Tracks **302**, Core.Data
+  provider guard **1/1**; `DotNetCloud.CI.slnf` build 0 warnings / 0 errors.
+- ☐ **Live verification pending** — the deploy applies the six SQL Server migrations (module hosts migrate themselves;
+  Notes is migrated by the core) and the existing pages must keep working.
+
+---
+
+## Recent Work — Opening a contact answered 500 (SQL Server cannot DISTINCT over a `text` column) (2026-11-14, `fix/more-things`)
+
+Opening any contact whose e-mail matched an invited event, or that had a linked note, returned **500**. The contacts host
+logged `Microsoft.Data.SqlClient.SqlException (0x80131904): The text data type cannot be selected as DISTINCT because it is
+not comparable.`
+
+- ✓ **Root cause** — `ContactRelatedEntitiesService.GetRelatedAsync` de-duplicated by selecting the **whole entity**
+  (`.Select(a => a.Event!).Distinct()` and `.Select(l => l.Note!).Distinct()`). EF emits `SELECT DISTINCT` with every
+  column, and `core.Notes.Content` is a `text` column on SQL Server (`NoteConfiguration` hard-codes `HasColumnType("text")`), which
+  SQL Server refuses to compare in `DISTINCT`, `GROUP BY`, `ORDER BY` or `=`. The events branch only survived because no
+  `CalendarEvents` column happens to be `text` yet.
+- ✓ **Fix** — both branches now project the values the card renders (4 for an event, 3 for a note), `Distinct()` over those
+  scalars, then order and `Take(50)`; the note body is no longer selected at all. The result is identical (one row per
+  event/note even when a contact matches two attendee rows) and cheaper.
+- ✓ **Evidence on the live SQL Server** — replaying the old shape reproduces `Msg 421` ("The text data type cannot be
+  selected as DISTINCT…"); both new shapes execute cleanly.
+- ✓ **Tests** — new `ContactRelatedEntitiesServiceTests` (5): one event invited to two of the contact's addresses collapses
+  to one entry, newest-first ordering, duplicate note links collapse to one entry with a 5 000-character body, unknown
+  contact and contact-without-email return empty. `Contacts.Tests` **159/159**, CI build clean.
+- ✓ **Follow-up done (same branch)** — all **27** `HasColumnType("text")` sites across the six modules were removed and each module
+got a SQL Server migration altering the columns to `nvarchar(max)`; see *SQL Server `text` columns eliminated across
+modules* below. The column type is no longer a landmine for any future query.
+- ☐ **Live verification pending** — needs a redeploy of the contacts host; opening a contact must render the page.
+
+---
+
+## Recent Work — Module widgets loaded the SDK bridge from a path that 404s (2026-11-14, `fix/more-things`)
+
+The Bookmarks home-page widget showed **"Unable to load bookmarks."** The widget document loaded the SDK bridge as
+`../dncModuleBridge.js`, which resolves to `/apps/dotnetcloud.bookmarks/dncModuleBridge.js` — a **404** (probed live).
+Without the bridge the frame carries no `dnc-frame-ticket`, so its `api/v1/bookmarks` call is rejected as anonymous and
+the widget falls back to its generic error text.
+
+- ✓ **Root cause** — the bridge is published at `wwwroot/js/dncModuleBridge.js` by each module's `.Web` project; only
+  Bookmarks and Tracks lack the SDK package's incidental `contentFiles` copy at the wwwroot root, so the short path
+  `../dncModuleBridge.js` happened to work for Photos/Email/AI and failed for Bookmarks. Probed live:
+  `/apps/dotnetcloud.bookmarks/dncModuleBridge.js` **404**, `/apps/dotnetcloud.bookmarks/js/dncModuleBridge.js` **200**.
+- ✓ **Fix** — all four affected widget documents (Bookmarks, Photos, Email, AI) now load `../js/dncModuleBridge.js`, the
+  one path every module publishes; Tracks already did. Photos/Email/AI keep working but no longer depend on the
+  accidental root copy.
+- ✓ **Guard** — new `WidgetFrameAssetsTests` (SDK tests) walks every `src/Modules/*/*.Host/wwwroot/widget/index.html`, and
+  for each one requires the bridge at `../js/dncModuleBridge.js`, every other reference relative, and a matching
+  `wwwroot/js/dncModuleBridge.js` content item in that module's `.Web` project. Proved red against the pre-fix Bookmarks
+  document (reported exactly that file and path) and green after.
+- ✓ **Verification** — `DotNetCloud.CI.slnf` build 0 warnings / 0 errors; `Sdk.Tests` **52/52**; UI asset tests
+  Bookmarks **8/8**, Photos **7/7**, Email **8/8**, AI **7/7**, Tracks **8/8**.
+- ☐ **Live verification pending** — needs a redeploy of the module hosts; the Bookmarks card must render bookmarks
+  instead of the error text.
+
+---
+
+## Recent Work — Extraction worker promoted to a required module (2026-11-14, `fix/more-things`)
+
+`dotnetcloud.extraction` (the out-of-process content-extraction worker) is now in `RequiredModules.ModuleIds`,
+so the core search capability cannot lose its parser half.
+
+- ✓ **Promoted** — `RequiredModules.ModuleIds` gains `dotnetcloud.extraction`. Required status is derived from this
+  list only (never from a manifest id claim), and it now buys the worker: no stop/disable from the admin UI
+  (`AdminModuleService.StopModuleAsync` throws) or the CLI (`module disable`/`module uninstall` refuse), a
+  `TrustTier = Required` + `SandboxStatus = Active` registry row on every reconcile, no quota/data-store provisioning,
+  and `MODULE_REQUIRED` rejection if a package claims that id.
+- ✓ **Manifest stays legal** — the v1 manifest declares neither `dataStore` nor `ui`, which are exactly the two things a
+  required module may not declare; the loader's required-module rules pass unchanged. `ModuleLegacySchema.TryResolve`
+  now short-circuits it with "Required module — its schema stays core-managed" (moot: the worker has no DbContext).
+- ✓ **Tests** — new `RequiredModulesTests` pins the required set exactly (7 ids), proves `extraction` resolves in full,
+  short and mixed-case form, and keeps the seven optional modules optional. Core.Tests **626/626**, CLI.Tests
+  **240/240** (incl. `OptionalModules_ExcludesAllRequiredModules`), Core.Server.Tests ModuleLoading + Supervisor +
+  Sandbox + AdminModuleService **334/334**.
+- ✓ **Docs/comment truth pass** — the stale `setup` comment ("Files, Chat, Search, …") no longer names the removed Search
+  module and now states the list is driven by `RequiredModules.ModuleIds`; `ARCHITECTURE.md` §25 and the sandbox plan
+  §3.3 record the promotion and why a required module can legitimately own no schema.
+- ☐ **Live verification pending** — after deploy, `dotnetcloud module disable dotnetcloud.extraction` must be refused and
+  `/health/ready` must show it as `Required`.
+
+---
+
+## Recent Work — AI page rendered raw icon names instead of glyphs (2026-11-14, `fix/more-things`)
+
+The AI assistant page showed the word **assistant** where the avatar glyph belongs and the word **copy** in front of
+both copy buttons, because the two icon names it binds through `Icon="@(…)"` ternaries had no SVG path in
+`MaterialSvgIcons`. `MaterialIcon` falls back to rendering the icon name as text, so the missing entries were visible
+on screen.
+
+- ✓ `assistant` and `copy` paths added to `MaterialSvgIcons` (both are aliases of the existing `smart_toy` robot and
+  `content_copy` glyphs, so the assistant avatar matches the welcome-screen robot).
+- ✓ **Gate widened** — `EveryLiteralIconInRazor_ResolvesToPathData` only scanned plain literals and explicitly skipped
+  every `Icon="@…"` value, which is exactly the hole these two names fell through. It is now
+  `EveryIconNameUsedInRazor_ResolvesToPathData` and also inspects the result branches of a bound ternary (everything
+  after the first `?`), so a comparison operand such as `_goal.Type == "objective"` is not mistaken for an icon.
+  Verified the widened gate reports exactly `assistant` and `copy` against the pre-fix page.
+- ✓ New `GetPath_IconUsedByAiAssistantPage_ReturnsPathData` allow-list test (10 icons: `add`, `edit`, `delete`, `help`,
+  `smart_toy`, `person`, `assistant`, `copy`, `check`, `send`).
+- ✓ `UI.Shared` builds 0 warnings / 0 errors, `DotNetCloud.Modules.AI.Web` builds clean, `UI.Shared.Tests` **262/262**.
+
+---
+
 ## Recent Work — Sandbox/store live on production; module-manifest publication defect found and fixed (2026-11-13, `feature/third-party-modules`)
 
 The third-party module sandbox and store went live on the production SQL Server install at `2dbf1e29` (deploy verified:
@@ -3979,6 +4104,7 @@ Plan: `docs/THIRD_PARTY_MODULE_SANDBOX_AND_STORE_PLAN.md` (phase A0). Branch `fe
   - ✓ `IModuleStoreService` + `LocalModuleFeedStoreService` (local feed `index.json`, containment-checked resolution, `yanked.json`)
   - ✓ `RemoteModuleIndexStoreService`: signed index fetch (signature verified against pinned keys), 1 h disk cache with stale/offline fallback, mirrors, `generatedAt` replay protection (`AllowIndexRollback` escape hatch), origin-restricted downloads, size-capped streaming download, package cache, signature written from the signed entry
   - ✓ `ModuleStoreServiceFactory` selects the source from `Modules:Store:IndexUrl` (server DI and CLI)
+  - ✓ Admin-editable store URL (2026-11-14): **Admin → Settings → Module store** writes `dotnetcloud.core`/`ModuleStoreIndexUrl`; `ModuleStoreSettingsProvider` layers it over `Modules:Store:IndexUrl` (30 s cache, invalid values ignored) and `ConfiguredModuleStoreService` re-resolves the source per operation, so a saved URL applies to the admin store page and `module install --from-store` **without a restart**. The disk index cache is tied to the source URL (a changed URL is not served the previous store's catalogue). Trust keys stay configuration-only. 10 new tests (`ModuleStoreSettingsProviderTests` + the cache-source guard)
   - ✓ `ModulePackageInstaller` state machine: verify → review → acknowledge → provision → stage → swap → record → start → health-check → rollback; `install-receipt.json` written per installed module
   - ✓ Verification hardening on every install path: pinned trusted key ids with revocation, SHA-256 + Ed25519 re-verification, archive safety, staged-manifest identity check, `manifest.id` = install directory name
   - ✓ Rollback: the replaced version is retained under `modules/.previous/<id>/<version>`, `module rollback` swaps it back, and a withdrawn (yanked) version is refused (F16); `.staging`/`.previous` are skipped by discovery

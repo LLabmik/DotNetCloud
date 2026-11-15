@@ -35,6 +35,31 @@
             <button class="btn btn-primary btn-sm" @onclick="SavePresenceIdleAsync"
                     disabled="@_actionInProgress">Save</button>
         </section>
+
+        <section class="settings-section">
+            <h2>Module store</h2>
+            <div class="form-group">
+                <label for="store-index-url">Store index URL</label>
+                <input id="store-index-url" type="url" class="input" placeholder="https://modules.dotnetcloud.net/index/v1/index.json"
+                       @bind="_storeIndexUrl" @bind:event="oninput" />
+                <span class="hint">
+                    The signed <code>index.json</code> published by the module store. Must be an
+                    absolute <code>https</code> URL (<code>http</code> is accepted only for a loopback
+                    address). Leave empty to use the server configuration
+                    (<code>Modules:Store:IndexUrl</code>). The store picks up a change within about
+                    30 seconds — no restart needed. Signing trust still comes from
+                    <code>Modules:Store:TrustedKeys</code> in server configuration.
+                </span>
+            </div>
+            <div class="settings-actions">
+                <button class="btn btn-primary btn-sm" @onclick="SaveStoreIndexUrlAsync"
+                        disabled="@_actionInProgress">Save</button>
+                <button class="btn btn-outline btn-sm" @onclick="ClearStoreIndexUrlAsync"
+                        disabled="@_actionInProgress"
+                        title="Clear the override so the server configuration applies again">Use server configuration</button>
+                <a class="btn btn-outline btn-sm" href="/admin/store">Open module store</a>
+            </div>
+        </section>
     </div>
 
     @if (_rotationStatus?.RestartPending == true && !_restartBannerDismissed)

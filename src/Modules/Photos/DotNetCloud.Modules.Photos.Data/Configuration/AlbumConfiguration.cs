@@ -18,8 +18,7 @@ public sealed class AlbumConfiguration : IEntityTypeConfiguration<Album>
             .IsRequired()
             .HasMaxLength(200);
 
-        builder.Property(a => a.Description)
-            .HasColumnType("text");
+        builder.Property(a => a.Description);
 
         builder.Property(a => a.CreatedAt)
             .IsRequired()
