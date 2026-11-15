@@ -110,7 +110,7 @@ namespace DotNetCloud.Modules.Bookmarks.Data.SqlServer.Migrations
                         .HasColumnType("nvarchar(2048)");
 
                     b.Property<string>("Notes")
-                        .HasColumnType("text");
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<Guid>("OwnerId")
                         .HasColumnType("uniqueidentifier");

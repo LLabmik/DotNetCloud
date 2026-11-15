@@ -17,7 +17,7 @@ namespace DotNetCloud.Modules.Email.Data.SqlServer.Migrations
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasAnnotation("ProductVersion", "10.0.3")
+                .HasAnnotation("ProductVersion", "10.0.14")
                 .HasAnnotation("Relational:MaxIdentifierLength", 128);
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
@@ -48,7 +48,7 @@ namespace DotNetCloud.Modules.Email.Data.SqlServer.Migrations
                         .HasColumnType("nvarchar(320)");
 
                     b.Property<string>("EncryptedCredentialBlob")
-                        .HasColumnType("text");
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("bit");
@@ -190,10 +190,10 @@ namespace DotNetCloud.Modules.Email.Data.SqlServer.Migrations
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("BodyHtml")
-                        .HasColumnType("text");
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("BodyPreview")
-                        .HasColumnType("text");
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("CcJson")
                         .IsRequired()

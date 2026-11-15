@@ -8,6 +8,61 @@
 
 ---
 
+## Recent Work — SQL Server `text` columns eliminated across modules (2026-11-14, `fix/more-things`)
+
+Follow-up to the Contacts 500: **27** `HasColumnType("text")` sites in **21** entity-configuration files pinned columns to
+SQL Server's deprecated, non-comparable `text` LOB type, so any `DISTINCT`/`GROUP BY`/`ORDER BY`/`=` over them would have
+failed the same way.
+
+- ✓ **Every explicit `text` mapping removed** (Notes, Email, Photos, Bookmarks, AI, Tracks). Leaving the type unconfigured
+  is correct on both engines: EF maps an unbounded `string` to `nvarchar(max)` on SQL Server and `text` on PostgreSQL, so
+  the PostgreSQL schema is unchanged. PostgreSQL-native types with no SQL Server equivalent (`jsonb`, `bytea`, …) stay
+  explicit and keep going through `ModelBuilderExtensions.FixColumnTypesForSqlServer`.
+- ✓ **Six SQL Server migrations** — `UseNvarcharMaxForTextColumns`, one per module: Notes (`core.Notes`, `core.NoteVersions`),
+  Email (`BodyPreview`, `BodyHtml`, `EncryptedCredentialBlob`), Photos (`ParametersJson`, `Albums.Description`), Bookmarks
+  (`Bookmarks.Notes`), AI (`Content`, `SystemPrompt`), Tracks (17 columns across work items/comments/goals/sprints/
+  templates/automation/webhooks/poker/activity). Each emits `ALTER TABLE … ALTER COLUMN … nvarchar(max)` with a matching
+  `Down`.
+- ✓ **Six PostgreSQL migrations, intentionally empty** — PostgreSQL already stores unbounded strings as comparable `text`;
+  they exist only so the model snapshots stay in step with the model. Each carries a comment saying exactly that.
+- ✓ **Live DDL rehearsal on the production database** — `core.Notes.Content` was altered to `nvarchar(max)` inside a
+  transaction, all **39** rows (**143,669** characters) read back afterwards, then `ROLLBACK` restored `text`. Nothing was
+  left changed.
+- ✓ **Guard** — new `CrossProviderColumnTypeTests` scans every non-migration source file and fails on `HasColumnType("text"|"ntext"|
+  "image")`, naming file and line. Proved red by re-adding one mapping.
+- ✓ **Tests** — AI **63**, Bookmarks **47**, Email **73**, Notes **166**, Photos **225**, Tracks **302**, Core.Data
+  provider guard **1/1**; `DotNetCloud.CI.slnf` build 0 warnings / 0 errors.
+- ☐ **Live verification pending** — the deploy applies the six SQL Server migrations (module hosts migrate themselves;
+  Notes is migrated by the core) and the existing pages must keep working.
+
+---
+
+## Recent Work — Opening a contact answered 500 (SQL Server cannot DISTINCT over a `text` column) (2026-11-14, `fix/more-things`)
+
+Opening any contact whose e-mail matched an invited event, or that had a linked note, returned **500**. The contacts host
+logged `Microsoft.Data.SqlClient.SqlException (0x80131904): The text data type cannot be selected as DISTINCT because it is
+not comparable.`
+
+- ✓ **Root cause** — `ContactRelatedEntitiesService.GetRelatedAsync` de-duplicated by selecting the **whole entity**
+  (`.Select(a => a.Event!).Distinct()` and `.Select(l => l.Note!).Distinct()`). EF emits `SELECT DISTINCT` with every
+  column, and `core.Notes.Content` is a `text` column on SQL Server (`NoteConfiguration` hard-codes `HasColumnType("text")`), which
+  SQL Server refuses to compare in `DISTINCT`, `GROUP BY`, `ORDER BY` or `=`. The events branch only survived because no
+  `CalendarEvents` column happens to be `text` yet.
+- ✓ **Fix** — both branches now project the values the card renders (4 for an event, 3 for a note), `Distinct()` over those
+  scalars, then order and `Take(50)`; the note body is no longer selected at all. The result is identical (one row per
+  event/note even when a contact matches two attendee rows) and cheaper.
+- ✓ **Evidence on the live SQL Server** — replaying the old shape reproduces `Msg 421` ("The text data type cannot be
+  selected as DISTINCT…"); both new shapes execute cleanly.
+- ✓ **Tests** — new `ContactRelatedEntitiesServiceTests` (5): one event invited to two of the contact's addresses collapses
+  to one entry, newest-first ordering, duplicate note links collapse to one entry with a 5 000-character body, unknown
+  contact and contact-without-email return empty. `Contacts.Tests` **159/159**, CI build clean.
+- ✓ **Follow-up done (same branch)** — all **27** `HasColumnType("text")` sites across the six modules were removed and each module
+got a SQL Server migration altering the columns to `nvarchar(max)`; see *SQL Server `text` columns eliminated across
+modules* below. The column type is no longer a landmine for any future query.
+- ☐ **Live verification pending** — needs a redeploy of the contacts host; opening a contact must render the page.
+
+---
+
 ## Recent Work — Module widgets loaded the SDK bridge from a path that 404s (2026-11-14, `fix/more-things`)
 
 The Bookmarks home-page widget showed **"Unable to load bookmarks."** The widget document loaded the SDK bridge as

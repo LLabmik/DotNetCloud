@@ -14,15 +14,13 @@ public sealed class ProductTemplateConfiguration : IEntityTypeConfiguration<Prod
             .IsRequired()
             .HasMaxLength(200);
 
-        builder.Property(pt => pt.Description)
-            .HasColumnType("text");
+        builder.Property(pt => pt.Description);
 
         builder.Property(pt => pt.Category)
             .HasMaxLength(100);
 
         builder.Property(pt => pt.DefinitionJson)
-            .IsRequired()
-            .HasColumnType("text");
+            .IsRequired();
 
         builder.Property(pt => pt.CreatedAt)
             .IsRequired()

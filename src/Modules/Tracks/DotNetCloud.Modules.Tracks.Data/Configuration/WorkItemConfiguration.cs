@@ -23,8 +23,7 @@ public sealed class WorkItemConfiguration : IEntityTypeConfiguration<WorkItem>
             .IsRequired()
             .HasMaxLength(500);
 
-        builder.Property(wi => wi.Description)
-            .HasColumnType("text");
+        builder.Property(wi => wi.Description);
 
         builder.Property(wi => wi.Position)
             .IsRequired();

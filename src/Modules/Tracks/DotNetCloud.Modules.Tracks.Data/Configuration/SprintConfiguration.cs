@@ -14,8 +14,7 @@ public sealed class SprintConfiguration : IEntityTypeConfiguration<Sprint>
             .IsRequired()
             .HasMaxLength(200);
 
-        builder.Property(s => s.Goal)
-            .HasColumnType("text");
+        builder.Property(s => s.Goal);
 
         builder.Property(s => s.Status)
             .IsRequired()

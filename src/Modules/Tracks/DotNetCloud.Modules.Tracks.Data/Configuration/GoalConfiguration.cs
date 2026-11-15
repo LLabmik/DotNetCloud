@@ -16,8 +16,7 @@ public sealed class GoalConfiguration : IEntityTypeConfiguration<Models.Goal>
             .IsRequired()
             .HasMaxLength(300);
 
-        builder.Property(g => g.Description)
-            .HasColumnType("text");
+        builder.Property(g => g.Description);
 
         builder.Property(g => g.Type)
             .IsRequired()

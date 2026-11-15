@@ -22,8 +22,7 @@ public sealed class ConversationConfiguration : IEntityTypeConfiguration<Convers
             .IsRequired()
             .HasMaxLength(200);
 
-        builder.Property(c => c.SystemPrompt)
-            .HasColumnType("text");
+        builder.Property(c => c.SystemPrompt);
 
         builder.Property(c => c.CreatedAt)
             .IsRequired()

@@ -18,8 +18,7 @@ public sealed class ActivityConfiguration : IEntityTypeConfiguration<Activity>
             .IsRequired()
             .HasMaxLength(50);
 
-        builder.Property(a => a.Details)
-            .HasColumnType("text");
+        builder.Property(a => a.Details);
 
         builder.Property(a => a.CreatedAt)
             .IsRequired()

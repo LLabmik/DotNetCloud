@@ -19,8 +19,7 @@ public sealed class ConversationMessageConfiguration : IEntityTypeConfiguration<
             .HasMaxLength(20);
 
         builder.Property(m => m.Content)
-            .IsRequired()
-            .HasColumnType("text");
+            .IsRequired();
 
         builder.Property(m => m.CreatedAt)
             .IsRequired()

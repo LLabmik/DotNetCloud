@@ -19,8 +19,7 @@ public sealed class PhotoEditRecordConfiguration : IEntityTypeConfiguration<Phot
             .HasMaxLength(50);
 
         builder.Property(e => e.ParametersJson)
-            .IsRequired()
-            .HasColumnType("text");
+            .IsRequired();
 
         builder.Property(e => e.CreatedAt)
             .IsRequired()

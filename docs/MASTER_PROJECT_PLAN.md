@@ -12,6 +12,30 @@
 
 ---
 
+> **Cross-provider schema (2026-11-14, `fix/more-things`): no more SQL Server `text` columns.** All 27 `HasColumnType("text")`
+> sites across Notes, Email, Photos, Bookmarks, AI and Tracks are gone; leaving the type unconfigured gives
+> `nvarchar(max)` on SQL Server and `text` on PostgreSQL (so the PostgreSQL schema is unchanged). Each module got a SQL
+> Server migration `UseNvarcharMaxForTextColumns` (Notes 2 columns, Email 3, Photos 2, Bookmarks 1, AI 2, Tracks 17) and an
+> intentionally-empty PostgreSQL migration that only keeps the snapshot in step. Rehearsed on the production database:
+> `core.Notes.Content` altered to `nvarchar(max)` inside a transaction, all 39 rows / 143,669 characters read back, then
+> rolled back. New `CrossProviderColumnTypeTests` fails on any reintroduced `text`/`ntext`/`image` mapping (proved red).
+> Module suites pass (AI 63, Bookmarks 47, Email 73, Notes 166, Photos 225, Tracks 302), CI build clean. Deploy applies the
+> six migrations.
+
+---
+
+> **Bug fix (2026-11-14, `fix/more-things`): opening a contact answered 500.** `ContactRelatedEntitiesService.GetRelatedAsync`
+> de-duplicated matched events and notes with `DISTINCT` over the **whole entity**, and `core.Notes.Content` is a `text`
+> column on SQL Server, which is not comparable — `SqlException 80131904: The text data type cannot be selected as DISTINCT`.
+> Both branches now project the values the card renders, `Distinct()` over those scalars, then order and take 50, so the
+> note body is never selected. Replaying the old SQL shape against the live database reproduces the error; the new shapes
+> run clean. New `ContactRelatedEntitiesServiceTests` (5) cover duplicate attendee matches, ordering, long bodies and empty
+> cases; `Contacts.Tests` 159/159, CI build clean. Follow-up recorded, not done: 26 `HasColumnType("text")` sites across Notes,
+> Email, Tracks, Photos, Bookmarks and AI still create non-comparable `text` columns on SQL Server — dropping the explicit
+> type gives `nvarchar(max)` there and `text` on PostgreSQL, but that needs one migration per module.
+
+---
+
 > **Widget fix (2026-11-14, `fix/more-things`): the bridge path.** The Bookmarks home-page widget failed with "Unable to
 > load bookmarks." because its document loaded `../dncModuleBridge.js`, which 404s (confirmed live: the root path is 404,
 > `js/dncModuleBridge.js` is 200). No bridge means no `dnc-frame-ticket`, so the widget's API call is anonymous and the
