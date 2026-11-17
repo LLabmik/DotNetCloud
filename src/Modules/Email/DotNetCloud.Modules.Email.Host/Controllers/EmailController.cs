@@ -1,3 +1,4 @@
+using DotNetCloud.Core;
 using DotNetCloud.Core.Errors;
 using DotNetCloud.Core.Security;
 using DotNetCloud.Modules.Email.Data;
@@ -146,7 +147,7 @@ public class EmailController : EmailControllerBase
     public async Task<IActionResult> Send(Guid id, [FromBody] EmailSendRequest request)
     {
         _logger.LogInformation("EmailController.Send called: accountId={Id}, To={To}, Subject={Subj}",
-            id, request.To?.Count, request.Subject);
+            id, request.To?.Count, LogSanitizer.Sanitize(request.Subject));
         try
         {
             var caller = GetAuthenticatedCaller();

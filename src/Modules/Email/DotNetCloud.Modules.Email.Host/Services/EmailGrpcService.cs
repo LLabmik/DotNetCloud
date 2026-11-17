@@ -411,9 +411,9 @@ public sealed class EmailGrpcService : EmailService.EmailServiceBase
 
         if (assertedUserId is null)
         {
+            // `request.AccountId` is a caller-supplied account identifier; it is not logged.
             _logger.LogWarning(
-                "TriggerSync rejected: no core-signed user assertion on the call for account {AccountId}",
-                request.AccountId);
+                "TriggerSync rejected: no core-signed user assertion on the call");
 
             throw new RpcException(new Status(
                 StatusCode.PermissionDenied,

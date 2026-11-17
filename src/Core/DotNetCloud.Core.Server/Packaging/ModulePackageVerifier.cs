@@ -199,6 +199,12 @@ public static class ModulePackageVerifier
         var root = Path.GetFullPath(destinationDirectory);
         Directory.CreateDirectory(root);
 
+        // Separator-terminated so a sibling directory that merely shares the root's name
+        // ("/mods/x-evil" next to "/mods/x") is not treated as contained.
+        var rootPrefix = root.EndsWith(Path.DirectorySeparatorChar)
+            ? root
+            : root + Path.DirectorySeparatorChar;
+
         var extracted = new List<string>();
 
         using var archive = ZipFile.OpenRead(packagePath);
@@ -216,12 +222,9 @@ public static class ModulePackageVerifier
             var target = Path.GetFullPath(Path.Combine(root, entry.FullName));
 
             // Defence in depth: the inspector already rejected traversal, but the resolved path is
-            // what the file system will actually write, so it is checked again here.
-            var relative = Path.GetRelativePath(root, target);
-            var firstSegment = relative.Split([Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar])[0];
-            if (string.Equals(relative, ".", StringComparison.Ordinal)
-                || Path.IsPathRooted(relative)
-                || string.Equals(firstSegment, "..", StringComparison.Ordinal))
+            // what the file system will actually write, so it is checked again here. The
+            // separator-terminated prefix keeps ".." segments and siblings out of the root.
+            if (!target.StartsWith(rootPrefix, StringComparison.Ordinal))
             {
                 throw new ModulePackageException(
                     $"Entry '{entry.FullName}' resolves outside the extraction root.",

@@ -39,7 +39,9 @@ internal sealed class GrpcChannelManager : IModuleGrpcChannelProvider, IDisposab
         return _channels.GetOrAdd(moduleId, _ =>
         {
             var channel = CreateChannel(moduleId, endpoint);
-            _logger.LogDebug("Created gRPC channel for module {ModuleId} to {Endpoint}", moduleId, endpoint);
+            _logger.LogDebug(
+                "Created gRPC channel for module {ModuleId} to {Endpoint}",
+                LogSanitizer.Sanitize(moduleId), LogSanitizer.Sanitize(endpoint));
             return channel;
         });
     }
@@ -54,7 +56,7 @@ internal sealed class GrpcChannelManager : IModuleGrpcChannelProvider, IDisposab
         {
             await channel.ShutdownAsync();
             channel.Dispose();
-            _logger.LogDebug("Removed gRPC channel for module {ModuleId}", moduleId);
+            _logger.LogDebug("Removed gRPC channel for module {ModuleId}", LogSanitizer.Sanitize(moduleId));
         }
     }
 

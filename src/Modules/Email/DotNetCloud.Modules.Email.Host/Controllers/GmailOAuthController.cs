@@ -1,4 +1,5 @@
 using System.Text.Json;
+using DotNetCloud.Core;
 using DotNetCloud.Core.Authorization;
 using DotNetCloud.Core.Errors;
 using DotNetCloud.Modules.Email.Data.Services;
@@ -122,7 +123,7 @@ public class GmailOAuthController : EmailControllerBase
         // If user denied access, Google sends ?error=access_denied
         if (!string.IsNullOrWhiteSpace(error))
         {
-            _logger.LogWarning("Gmail OAuth denied by user (error={Error})", error);
+            _logger.LogWarning("Gmail OAuth denied by user (error={Error})", LogSanitizer.Sanitize(error));
             return Redirect(ModuleUrl("gmail=denied"));
         }
 

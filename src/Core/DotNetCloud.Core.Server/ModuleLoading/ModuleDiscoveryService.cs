@@ -1,4 +1,5 @@
 using DotNetCloud.Core.Modules.Supervisor;
+using DotNetCloud.Core.Server.Supervisor;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -110,21 +111,23 @@ internal sealed class ModuleDiscoveryService
         var modulesDir = Path.GetFullPath(GetModulesDirectory());
         var moduleDir = Path.GetFullPath(Path.Combine(modulesDir, moduleId));
 
-        // Prevent path traversal: the resolved module directory must be within the modules root
-        var relativePath = Path.GetRelativePath(modulesDir, moduleDir);
-        if (relativePath.Equals("..", StringComparison.Ordinal) ||
-            relativePath.StartsWith($"..{Path.DirectorySeparatorChar}", StringComparison.Ordinal) ||
-            Path.IsPathRooted(relativePath))
+        // Prevent path traversal: the resolved module directory must be within the modules root.
+        // This is a single boolean guard (not an inline chain of comparisons) so the value is known
+        // to be contained on the fall-through path — for humans and for static analysis alike. Every
+        // later use of `moduleDir` is dominated by it.
+        if (!PathContainment.TryResolveWithin(modulesDir, moduleDir, out _))
         {
             _logger.LogWarning(
                 "Path traversal blocked for module {ModuleId}: resolved path {Path} is outside modules directory",
-                moduleId, moduleDir);
+                LogSanitizer.Sanitize(moduleId), LogSanitizer.Sanitize(moduleDir));
             return null;
         }
 
         if (!Directory.Exists(moduleDir))
         {
-            _logger.LogWarning("Module directory not found for {ModuleId} at {Path}", moduleId, moduleDir);
+            _logger.LogWarning(
+                "Module directory not found for {ModuleId} at {Path}",
+                LogSanitizer.Sanitize(moduleId), LogSanitizer.Sanitize(moduleDir));
             return null;
         }
 
@@ -154,8 +157,9 @@ internal sealed class ModuleDiscoveryService
         var modulesRoot = Path.GetFullPath(GetModulesDirectory());
         var moduleDirectory = Path.GetFullPath(discovered.ModuleDirectory);
 
-        // Strong containment guard (CodeQL-recognised): the relative path must not be rooted, must
-        // not be the root itself, and its first segment must not be "..".
+        // Defence in depth: the id already went through the containment guard in DiscoverModule, so
+        // the delete target can never resolve outside the modules root; this re-check keeps the
+        // deletion safe if that ever changes.
         var relative = Path.GetRelativePath(modulesRoot, moduleDirectory);
         var firstSegment = relative.Split([Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar])[0];
         if (string.Equals(relative, ".", StringComparison.Ordinal)
@@ -164,7 +168,7 @@ internal sealed class ModuleDiscoveryService
         {
             _logger.LogWarning(
                 "Refusing to delete {Path}: it is not inside the modules directory {Root}",
-                moduleDirectory, modulesRoot);
+                LogSanitizer.Sanitize(moduleDirectory), LogSanitizer.Sanitize(modulesRoot));
             return false;
         }
 
@@ -172,13 +176,17 @@ internal sealed class ModuleDiscoveryService
         {
             Directory.Delete(moduleDirectory, recursive: true);
             _logger.LogInformation(
-                "Deleted module directory for {ModuleId} at {Path}", moduleId, moduleDirectory);
+                "Deleted module directory for {ModuleId} at {Path}",
+                LogSanitizer.Sanitize(moduleId), LogSanitizer.Sanitize(moduleDirectory));
             return true;
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
             _logger.LogError(
-                ex, "Could not delete the module directory for {ModuleId} at {Path}", moduleId, moduleDirectory);
+                ex,
+                "Could not delete the module directory for {ModuleId} at {Path}",
+                LogSanitizer.Sanitize(moduleId),
+                LogSanitizer.Sanitize(moduleDirectory));
             return false;
         }
     }
@@ -206,7 +214,10 @@ internal sealed class ModuleDiscoveryService
         {
             _logger.LogWarning(
                 "No executable found for module {ModuleId} in {Path}. Expected {DllName} or {ExeName}",
-                moduleId, moduleDir, $"{dirName}.dll", $"{dirName}.exe");
+                LogSanitizer.Sanitize(moduleId),
+                LogSanitizer.Sanitize(moduleDir),
+                LogSanitizer.Sanitize($"{dirName}.dll"),
+                LogSanitizer.Sanitize($"{dirName}.exe"));
             return null;
         }
 

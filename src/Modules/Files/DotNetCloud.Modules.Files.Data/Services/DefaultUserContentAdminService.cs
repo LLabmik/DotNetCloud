@@ -127,19 +127,11 @@ public sealed class DefaultUserContentAdminService
             : Path.GetFullPath(Path.Combine(root, normalized));
 
         // Reject traversal before touching the filesystem. The canonical target must be the root
-        // itself or live beneath it. IndexOf is used rather than StartsWith because a bare prefix
-        // check is ambiguous and is not treated as a reliable traversal barrier by static analysis.
-        var trimmedRoot = root.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
-        var rootWithSeparator = trimmedRoot + Path.DirectorySeparatorChar;
-        if (target.IndexOf(rootWithSeparator, StringComparison.Ordinal) != 0)
+        // itself or live beneath it. The test is a boolean guard (not an inline prefix comparison)
+        // so that static analysis also treats it as a traversal barrier.
+        if (!IsWithinRoot(target, root))
         {
-            if (!string.Equals(
-                    target.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar),
-                    trimmedRoot,
-                    StringComparison.Ordinal))
-            {
-                throw new Core.Errors.ValidationException("path", "Path escapes the template root.");
-            }
+            throw new Core.Errors.ValidationException("path", "Path escapes the template root.");
         }
 
         var validation = await _store.ValidateAsync(options, cancellationToken).ConfigureAwait(false);
@@ -411,5 +403,33 @@ public sealed class DefaultUserContentAdminService
             .Take(cap)
             .ToListAsync(cancellationToken)
             .ConfigureAwait(false);
+    }
+
+    /// <summary>Comparison used for filesystem path checks on the current platform.</summary>
+    private static StringComparison PathComparison => OperatingSystem.IsWindows()
+        ? StringComparison.OrdinalIgnoreCase
+        : StringComparison.Ordinal;
+
+    /// <summary>
+    /// Returns <see langword="true"/> when <paramref name="candidatePath"/> is
+    /// <paramref name="rootPath"/> itself or lives beneath it.
+    /// </summary>
+    /// <param name="candidatePath">The path to check; canonicalized before comparison.</param>
+    /// <param name="rootPath">The template root the path must stay within.</param>
+    /// <returns><see langword="true"/> when the path is contained by the root.</returns>
+    private static bool IsWithinRoot(string candidatePath, string rootPath)
+    {
+        var root = Path.GetFullPath(rootPath)
+            .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        var candidate = Path.GetFullPath(candidatePath)
+            .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+
+        if (string.Equals(candidate, root, PathComparison))
+        {
+            return true;
+        }
+
+        // A separator must follow the root, so a sibling such as "<root>-evil" is rejected.
+        return candidate.StartsWith(root + Path.DirectorySeparatorChar, PathComparison);
     }
 }

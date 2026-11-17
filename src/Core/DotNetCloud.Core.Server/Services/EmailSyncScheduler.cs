@@ -159,9 +159,10 @@ internal sealed class EmailSyncScheduler : BackgroundService
         {
             if (!TryParseCandidate(candidate, out var accountId, out var userId))
             {
+                // The ids come from the module payload and are account identifiers: the outcome is
+                // logged, the values are not.
                 _logger.LogWarning(
-                    "EmailSyncScheduler skipped a candidate with unparsable ids ({AccountId}/{UserId})",
-                    candidate.AccountId, candidate.UserId);
+                    "EmailSyncScheduler skipped a sync candidate whose ids could not be parsed");
                 skipped++;
                 continue;
             }
