@@ -49,7 +49,16 @@ internal sealed class ModuleInstallLayout
     /// <returns>The empty staging directory (contained under <see cref="ModulesRoot"/>).</returns>
     public string CreateStagingRoot(string moduleId)
     {
-        var root = Path.Combine(ModulesRoot, StagingDirectoryName, moduleId, Guid.CreateVersion7().ToString("N"));
+        var stagingBase = Path.Combine(ModulesRoot, StagingDirectoryName);
+        var root = Path.Combine(stagingBase, moduleId, Guid.CreateVersion7().ToString("N"));
+
+        // A module id is user-supplied: the staging tree must stay inside the staging root.
+        if (!PathContainment.TryResolveWithin(stagingBase, root, out _))
+        {
+            throw new ModulePackageException(
+                $"Module id '{moduleId}' resolves outside the modules directory.");
+        }
+
         Directory.CreateDirectory(root);
         return root;
     }
@@ -76,7 +85,16 @@ internal sealed class ModuleInstallLayout
         if (keepVersionIdentity)
         {
             // Exactly one generation is retained, so stale slots are cleared first.
-            var previousRoot = Path.Combine(ModulesRoot, PreviousDirectoryName, moduleId);
+            var previousBase = Path.Combine(ModulesRoot, PreviousDirectoryName);
+            var previousRoot = Path.Combine(previousBase, moduleId);
+
+            // A module id is user-supplied: the retained slot must stay inside the rollback root.
+            if (!PathContainment.TryResolveWithin(previousBase, previousRoot, out _))
+            {
+                throw new ModulePackageException(
+                    $"Module id '{moduleId}' resolves outside the modules directory.");
+            }
+
             if (Directory.Exists(previousRoot))
             {
                 Directory.Delete(previousRoot, recursive: true);
@@ -129,7 +147,16 @@ internal sealed class ModuleInstallLayout
         Directory.Move(retainedDirectory, live);
 
         // The slot is now empty; remove it so a second rollback reports "nothing retained".
-        var previousRoot = Path.Combine(ModulesRoot, PreviousDirectoryName, moduleId);
+        var previousBase = Path.Combine(ModulesRoot, PreviousDirectoryName);
+        var previousRoot = Path.Combine(previousBase, moduleId);
+
+        // A module id is user-supplied: the retained slot must stay inside the rollback root.
+        if (!PathContainment.TryResolveWithin(previousBase, previousRoot, out _))
+        {
+            throw new ModulePackageException(
+                $"Module id '{moduleId}' resolves outside the modules directory.");
+        }
+
         TryDeleteDirectory(previousRoot);
     }
 
@@ -158,7 +185,14 @@ internal sealed class ModuleInstallLayout
     /// <returns>The retained directory and version, or <see langword="null"/> when there is none.</returns>
     public (string Directory, string Version)? FindPrevious(string moduleId)
     {
-        var previousRoot = Path.Combine(ModulesRoot, PreviousDirectoryName, moduleId);
+        var previousBase = Path.Combine(ModulesRoot, PreviousDirectoryName);
+        var previousRoot = Path.Combine(previousBase, moduleId);
+
+        // A module id is user-supplied: refuse to read outside the retained-previous root.
+        if (!PathContainment.TryResolveWithin(previousBase, previousRoot, out _))
+        {
+            return null;
+        }
 
         if (!Directory.Exists(previousRoot))
         {

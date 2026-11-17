@@ -198,24 +198,16 @@ public sealed class BackupService : DotNetCloud.Core.Services.IBackupService
         // the containment check below.
         var backupPath = Path.GetFullPath(outputPath ?? Path.Combine(backupDir, backupFileName));
 
-        // Security: the archive must stay inside the configured backup directory. The prefix is
-        // compared with IndexOf rather than StartsWith: a bare StartsWith check does not stop
-        // ambiguous traversal and is not treated as a reliable barrier by static analysis.
+        // Security: the archive must stay inside the configured backup directory. The test is a
+        // boolean helper rather than an inline prefix comparison because static analysis only
+        // recognises a boolean guard on the path as a traversal barrier. Every later use of
+        // `backupPath` (`backupPath + ".sha256"`, the checksum helper, the cleanup list) is
+        // dominated by this guard, so the canonical value is validated exactly once.
         var fullBackupDir = Path.GetFullPath(backupDir);
-        var trimmedBackupDir = fullBackupDir.TrimEnd(
-            Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
-        var backupDirPrefix = trimmedBackupDir + Path.DirectorySeparatorChar;
-        if (backupPath.IndexOf(backupDirPrefix, StringComparison.Ordinal) != 0)
+        if (!IsWithinDirectory(backupPath, fullBackupDir))
         {
-            // The configured directory itself is also accepted (no separator to match against).
-            if (!string.Equals(
-                    backupPath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar),
-                    trimmedBackupDir,
-                    StringComparison.Ordinal))
-            {
-                throw new UnauthorizedAccessException(
-                    "The backup path must be within the configured backup directory.");
-            }
+            throw new UnauthorizedAccessException(
+                "The backup path must be within the configured backup directory.");
         }
 
         _logger.LogInformation("Starting backup to: {BackupPath}", backupPath);
@@ -582,6 +574,34 @@ public sealed class BackupService : DotNetCloud.Core.Services.IBackupService
     /// <summary>Account that owns the restored data directory.</summary>
     private static string ResolveServiceUser()
         => Environment.GetEnvironmentVariable("DOTNETCLOUD_SERVICE_USER") ?? "dotnetcloud";
+
+    /// <summary>Comparison used for filesystem path checks on the current platform.</summary>
+    private static StringComparison PathComparison => OperatingSystem.IsWindows()
+        ? StringComparison.OrdinalIgnoreCase
+        : StringComparison.Ordinal;
+
+    /// <summary>
+    /// Returns <see langword="true"/> when <paramref name="candidatePath"/> is
+    /// <paramref name="rootDirectory"/> itself or lives beneath it.
+    /// </summary>
+    /// <param name="candidatePath">The path to check; canonicalized before comparison.</param>
+    /// <param name="rootDirectory">The directory the path must stay within.</param>
+    /// <returns><see langword="true"/> when the path is contained by the root.</returns>
+    private static bool IsWithinDirectory(string candidatePath, string rootDirectory)
+    {
+        var root = Path.GetFullPath(rootDirectory)
+            .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        var candidate = Path.GetFullPath(candidatePath)
+            .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+
+        if (candidate.Equals(root, PathComparison))
+        {
+            return true;
+        }
+
+        // A separator must follow the root, so a sibling such as "/data/backups-evil" is rejected.
+        return candidate.StartsWith(root + Path.DirectorySeparatorChar, PathComparison);
+    }
 
     /// <summary>
     /// Returns <see langword="true"/> when <paramref name="path"/> is one of the excluded paths or

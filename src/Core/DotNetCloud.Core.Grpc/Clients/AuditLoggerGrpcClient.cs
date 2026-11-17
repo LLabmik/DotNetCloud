@@ -102,7 +102,10 @@ internal sealed class AuditLoggerGrpcClient : IAuditLogger, IDisposable
             _logger.LogWarning(
                 "AuditLoggerGrpcClient: audit entry NOT persisted for {AuditAction} on {EntityType}/{EntityId} " +
                 "in {ModuleId} (DOTNETCLOUD_CORE_ENDPOINT or DOTNETCLOUD_MODULE_ID not set).",
-                entry.Action, entry.EntityType, entry.EntityId, entry.ModuleId);
+                entry.Action,
+                LogSanitizer.Sanitize(entry.EntityType),
+                LogSanitizer.Sanitize(entry.EntityId.ToString()),
+                LogSanitizer.Sanitize(entry.ModuleId));
             return;
         }
 
@@ -143,7 +146,10 @@ internal sealed class AuditLoggerGrpcClient : IAuditLogger, IDisposable
         {
             _logger.LogError(ex,
                 "LogAudit: gRPC call failed for {AuditAction} on {EntityType}/{EntityId} in {ModuleId}",
-                entry.Action, entry.EntityType, entry.EntityId, entry.ModuleId);
+                entry.Action,
+                LogSanitizer.Sanitize(entry.EntityType),
+                LogSanitizer.Sanitize(entry.EntityId.ToString()),
+                LogSanitizer.Sanitize(entry.ModuleId));
         }
     }
 

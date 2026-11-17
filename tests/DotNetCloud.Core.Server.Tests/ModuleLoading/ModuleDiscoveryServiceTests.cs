@@ -1,5 +1,6 @@
 using DotNetCloud.Core.Modules.Supervisor;
 using DotNetCloud.Core.Server.ModuleLoading;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 
@@ -164,6 +165,44 @@ public class ModuleDiscoveryServiceTests
         Assert.AreEqual(_tempDir, Path.GetDirectoryName(modules[0].ModuleDirectory));
     }
 
+    [TestMethod]
+    public void DiscoverModule_ModuleIdWithNewlines_WritesSingleSanitizedLogEntry()
+    {
+        var logger = new CapturingLogger<ModuleDiscoveryService>();
+        var service = new ModuleDiscoveryService(
+            logger,
+            Options.Create(new ProcessSupervisorOptions { ModulesDirectory = _tempDir }));
+
+        var module = service.DiscoverModule("missing.module\r\nFAKE LOG ENTRY");
+
+        Assert.IsNull(module);
+        var message = logger.Messages.Single(m => m.Contains("Module directory not found"));
+        Assert.IsFalse(message.Contains('\r'), "CR must not reach the log sink");
+        Assert.IsFalse(message.Contains('\n'), "LF must not reach the log sink");
+        Assert.IsTrue(message.Contains("FAKE LOG ENTRY"), "the value should remain visible, only neutralized");
+    }
+
+    [TestMethod]
+    public void RemoveModuleDirectory_ModuleIdEscapesModulesRoot_ReturnsFalseAndKeepsOutsideDirectory()
+    {
+        var outsideDir = Path.Combine(Path.GetDirectoryName(_tempDir)!, $"{Guid.CreateVersion7():N}-outside");
+        Directory.CreateDirectory(outsideDir);
+
+        try
+        {
+            var removed = _service.RemoveModuleDirectory($"../{Path.GetFileName(outsideDir)}");
+
+            Assert.IsFalse(removed);
+            Assert.IsTrue(Directory.Exists(outsideDir), "a traversal id must never delete outside the modules root");
+        }
+        finally
+        {
+            try
+            { Directory.Delete(outsideDir, recursive: true); }
+            catch { /* best effort */ }
+        }
+    }
+
     private void CreateModuleOnDisk(
         string moduleId,
         bool hasDll = false,
@@ -193,5 +232,23 @@ public class ModuleDiscoveryServiceTests
                 }
                 """);
         }
+    }
+
+    /// <summary>Logger that records the formatted message of every log entry.</summary>
+    private sealed class CapturingLogger<T> : ILogger<T>
+    {
+        public List<string> Messages { get; } = [];
+
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(
+            LogLevel logLevel,
+            EventId eventId,
+            TState state,
+            Exception? exception,
+            Func<TState, Exception?, string> formatter)
+            => Messages.Add(formatter(state, exception));
     }
 }

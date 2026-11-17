@@ -268,10 +268,13 @@ public sealed class ModulePackageInstaller : IModulePackageInstaller
                 $"package-rejected:{review.Sha256}",
                 cancellationToken);
 
+            // Only the count is logged: the issue codes are returned to the caller and recorded by
+            // the install audit entry, and keeping them out of the log avoids writing
+            // signature/verification diagnostics to a cleartext log sink.
             _logger.LogWarning(
-                "Package {Sha256} was rejected: {Codes}",
+                "Package {Sha256} was rejected: {IssueCount} blocking issue(s)",
                 LogSanitizer.Sanitize(review.Sha256),
-                string.Join(",", blocking.Select(issue => issue.Code)));
+                blocking.Count);
 
             return Failure(review, "PACKAGE_INVALID", "The package failed verification.", blocking);
         }

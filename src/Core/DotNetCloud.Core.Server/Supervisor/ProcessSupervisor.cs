@@ -443,7 +443,7 @@ internal sealed class ProcessSupervisor : BackgroundService, IProcessSupervisor
 
             _logger.LogInformation(
                 "Module {ModuleId} is running (PID {Pid}, endpoint {Endpoint})",
-                SanitizeForLog(moduleId), handle.ProcessId, grpcEndpoint);
+                SanitizeForLog(moduleId), handle.ProcessId, SanitizeForLog(grpcEndpoint));
         }
     }
 
@@ -451,25 +451,26 @@ internal sealed class ProcessSupervisor : BackgroundService, IProcessSupervisor
     {
         if (!_modules.TryGetValue(moduleId, out var handle))
         {
-            _logger.LogDebug("Module {ModuleId} not found in supervisor", moduleId);
+            _logger.LogDebug("Module {ModuleId} not found in supervisor", SanitizeForLog(moduleId));
             return;
         }
 
         if (!handle.IsRunning)
         {
-            _logger.LogDebug("Module {ModuleId} is not running", moduleId);
+            _logger.LogDebug("Module {ModuleId} is not running", SanitizeForLog(moduleId));
             handle.SetStatus(ModuleProcessStatus.Stopped);
             return;
         }
 
-        _logger.LogInformation("Stopping module {ModuleId} (PID {Pid})", moduleId, handle.ProcessId);
+        _logger.LogInformation(
+            "Stopping module {ModuleId} (PID {Pid})", SanitizeForLog(moduleId), handle.ProcessId);
         handle.SetStatus(ModuleProcessStatus.Stopping);
 
         // 1. Send gRPC Stop request for graceful drain
         var grpcStopSuccess = await SendGrpcStopAsync(moduleId, handle.GrpcEndpoint, cancellationToken);
         if (grpcStopSuccess)
         {
-            _logger.LogDebug("gRPC Stop acknowledged by module {ModuleId}", moduleId);
+            _logger.LogDebug("gRPC Stop acknowledged by module {ModuleId}", SanitizeForLog(moduleId));
         }
 
         // 2. Wait for graceful exit
@@ -504,7 +505,7 @@ internal sealed class ProcessSupervisor : BackgroundService, IProcessSupervisor
             ModuleRuntimeArtifacts.Remove(stoppedEndpoint);
         }
 
-        _logger.LogInformation("Module {ModuleId} stopped", moduleId);
+        _logger.LogInformation("Module {ModuleId} stopped", SanitizeForLog(moduleId));
     }
 
     // ---- Process Spawning ----
@@ -532,7 +533,7 @@ internal sealed class ProcessSupervisor : BackgroundService, IProcessSupervisor
             {
                 _logger.LogError(
                     "Module {ModuleId} executable path {Path} is outside the modules directory",
-                    discovered.ModuleId, discovered.ExecutablePath);
+                    SanitizeForLog(discovered.ModuleId), SanitizeForLog(discovered.ExecutablePath));
                 return null;
             }
 
@@ -540,7 +541,7 @@ internal sealed class ProcessSupervisor : BackgroundService, IProcessSupervisor
             {
                 _logger.LogError(
                     "Module {ModuleId} directory {Path} is outside the modules directory",
-                    discovered.ModuleId, discovered.ModuleDirectory);
+                    SanitizeForLog(discovered.ModuleId), SanitizeForLog(discovered.ModuleDirectory));
                 return null;
             }
 
@@ -549,7 +550,7 @@ internal sealed class ProcessSupervisor : BackgroundService, IProcessSupervisor
             {
                 _logger.LogError(
                     "Module {ModuleId} executable not found at {Path}",
-                    discovered.ModuleId, fullExePath);
+                    SanitizeForLog(discovered.ModuleId), SanitizeForLog(fullExePath));
                 return null;
             }
 
@@ -626,7 +627,8 @@ internal sealed class ProcessSupervisor : BackgroundService, IProcessSupervisor
             var process = Process.Start(startInfo);
             if (process is null)
             {
-                _logger.LogError("Process.Start returned null for module {ModuleId}", discovered.ModuleId);
+                _logger.LogError(
+                    "Process.Start returned null for module {ModuleId}", SanitizeForLog(discovered.ModuleId));
                 return null;
             }
 
@@ -768,7 +770,8 @@ internal sealed class ProcessSupervisor : BackgroundService, IProcessSupervisor
     {
         if (!handle.IsRunning)
         {
-            _logger.LogWarning("Module {ModuleId} process has exited unexpectedly", moduleId);
+            _logger.LogWarning(
+                "Module {ModuleId} process has exited unexpectedly", SanitizeForLog(moduleId));
             handle.SetStatus(ModuleProcessStatus.Crashed, "Process exited unexpectedly");
             await HandleCrashedModuleAsync(moduleId, handle, cancellationToken);
             return;
@@ -840,7 +843,7 @@ internal sealed class ProcessSupervisor : BackgroundService, IProcessSupervisor
         }
         catch (Exception ex)
         {
-            _logger.LogDebug(ex, "Health probe failed for module {ModuleId}", moduleId);
+            _logger.LogDebug(ex, "Health probe failed for module {ModuleId}", SanitizeForLog(moduleId));
             return false;
         }
     }
@@ -970,7 +973,10 @@ internal sealed class ProcessSupervisor : BackgroundService, IProcessSupervisor
         }
         catch (Exception ex)
         {
-            _logger.LogDebug(ex, "gRPC Stop call failed for module {ModuleId} (may already be exiting)", moduleId);
+            _logger.LogDebug(
+                ex,
+                "gRPC Stop call failed for module {ModuleId} (may already be exiting)",
+                SanitizeForLog(moduleId));
             return false;
         }
     }
@@ -1224,7 +1230,7 @@ internal sealed class ProcessSupervisor : BackgroundService, IProcessSupervisor
 
             _logger.LogWarning(
                 "Manifest invalid for {ModuleId}: {Errors}. Using defaults.",
-                discovered.ModuleId, string.Join("; ", result.Errors));
+                SanitizeForLog(discovered.ModuleId), SanitizeForLog(string.Join("; ", result.Errors)));
         }
 
         var fallback = _manifestLoader.CreateDefaultManifest(discovered.ModuleId);
@@ -1273,7 +1279,7 @@ internal sealed class ProcessSupervisor : BackgroundService, IProcessSupervisor
             _logger.LogWarning(
                 "Internal gRPC endpoint '{Original}' used an https scheme; coercing to cleartext '{Coerced}' " +
                 "(module↔core gRPC is plaintext HTTP/2 and never uses TLS).",
-                endpoint, coerced);
+                SanitizeForLog(endpoint), SanitizeForLog(coerced));
             return coerced;
         }
 

@@ -134,7 +134,9 @@ public sealed class ModuleDataStoreProvisioningService : IModuleDataStoreProvisi
 
             _logger.LogInformation(
                 "Provisioned isolated data store for module {ModuleId} (schema {Schema}, principal {Principal})",
-                moduleId, schema, principal);
+                LogSanitizer.Sanitize(moduleId),
+                LogSanitizer.Sanitize(schema),
+                LogSanitizer.Sanitize(principal));
 
             return new ModuleDataStoreProvisioningResult(true, schema, principal, null);
         }
@@ -147,7 +149,7 @@ public sealed class ModuleDataStoreProvisioningService : IModuleDataStoreProvisi
 
             _logger.LogError(
                 "Provisioning the isolated data store for module {ModuleId} failed: {Error}",
-                moduleId, error);
+                LogSanitizer.Sanitize(moduleId), LogSanitizer.Sanitize(error));
 
             return ModuleDataStoreProvisioningResult.Failed(error);
         }
@@ -185,7 +187,8 @@ public sealed class ModuleDataStoreProvisioningService : IModuleDataStoreProvisi
             store.UpdatedAtUtc = DateTime.UtcNow;
             await SaveStoreRowAsync(store, cancellationToken);
 
-            _logger.LogInformation("Rotated credentials for module {ModuleId} data store", moduleId);
+            _logger.LogInformation(
+                "Rotated credentials for module {ModuleId} data store", LogSanitizer.Sanitize(moduleId));
 
             return new ModuleDataStoreProvisioningResult(true, store.SchemaName, store.PrincipalName, null);
         }
@@ -197,7 +200,9 @@ public sealed class ModuleDataStoreProvisioningService : IModuleDataStoreProvisi
             store.UpdatedAtUtc = DateTime.UtcNow;
             await SaveStoreRowAsync(store, cancellationToken);
 
-            _logger.LogError("Rotating credentials for module {ModuleId} failed: {Error}", moduleId, error);
+            _logger.LogError(
+                "Rotating credentials for module {ModuleId} failed: {Error}",
+                LogSanitizer.Sanitize(moduleId), LogSanitizer.Sanitize(error));
             return ModuleDataStoreProvisioningResult.Failed(error);
         }
     }
@@ -280,7 +285,9 @@ public sealed class ModuleDataStoreProvisioningService : IModuleDataStoreProvisi
             store.UpdatedAtUtc = DateTime.UtcNow;
             await SaveStoreRowAsync(store, cancellationToken);
 
-            _logger.LogError("Adopting the data store for module {ModuleId} failed: {Error}", moduleId, error);
+            _logger.LogError(
+                "Adopting the data store for module {ModuleId} failed: {Error}",
+                LogSanitizer.Sanitize(moduleId), LogSanitizer.Sanitize(error));
             return ModuleDataStoreProvisioningResult.Failed(error);
         }
     }
@@ -309,7 +316,8 @@ public sealed class ModuleDataStoreProvisioningService : IModuleDataStoreProvisi
             await dbContext.SaveChangesAsync(cancellationToken);
         }
 
-        _logger.LogInformation("Destroyed the isolated data store for module {ModuleId}", moduleId);
+        _logger.LogInformation(
+            "Destroyed the isolated data store for module {ModuleId}", LogSanitizer.Sanitize(moduleId));
     }
 
     /// <inheritdoc />
@@ -333,7 +341,7 @@ public sealed class ModuleDataStoreProvisioningService : IModuleDataStoreProvisi
             _logger.LogError(
                 ex,
                 "Could not decrypt the module data-store connection string for {ModuleId}; credentials must be reset",
-                moduleId);
+                LogSanitizer.Sanitize(moduleId));
             return null;
         }
     }
