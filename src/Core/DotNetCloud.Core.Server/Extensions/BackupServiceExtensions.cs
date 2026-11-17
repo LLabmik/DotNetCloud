@@ -15,6 +15,7 @@ public static class BackupServiceExtensions
     /// <returns>The same service collection for chaining.</returns>
     public static IServiceCollection AddDotNetCloudBackupServices(this IServiceCollection services)
     {
+        services.AddSingleton<IDatabaseBackupTool, DatabaseBackupTool>();
         services.AddScoped<IBackupService, BackupService>();
         services.AddSingleton<BackupJobRunner>();
         services.AddHostedService<BackupHostedService>();

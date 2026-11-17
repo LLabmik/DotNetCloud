@@ -13,6 +13,7 @@ public sealed class BackupService : DotNetCloud.Core.Services.IBackupService
 {
     private readonly ILogger<BackupService> _logger;
     private readonly IConfiguration _configuration;
+    private readonly IDatabaseBackupTool _databaseBackupTool;
     private static readonly SemaphoreSlim _backupLock = new(1, 1);
 
     // Simple in-memory tracking of last backup status
@@ -21,10 +22,17 @@ public sealed class BackupService : DotNetCloud.Core.Services.IBackupService
     /// <summary>
     /// Initializes a new instance of the <see cref="BackupService"/> class.
     /// </summary>
-    public BackupService(ILogger<BackupService> logger, IConfiguration configuration)
+    /// <param name="logger">Logger for backup progress and failures.</param>
+    /// <param name="configuration">Configuration used to resolve provider, connection string and data directory.</param>
+    /// <param name="databaseBackupTool">Provider-native tool used for database dumps and restores.</param>
+    public BackupService(
+        ILogger<BackupService> logger,
+        IConfiguration configuration,
+        IDatabaseBackupTool databaseBackupTool)
     {
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _configuration = configuration ?? throw new ArgumentNullException(nameof(configuration));
+        _databaseBackupTool = databaseBackupTool ?? throw new ArgumentNullException(nameof(databaseBackupTool));
     }
 
     /// <inheritdoc />
@@ -132,7 +140,11 @@ public sealed class BackupService : DotNetCloud.Core.Services.IBackupService
             {
                 options.DatabaseProvider ??= ResolveConfiguredDatabaseProvider();
                 options.ConnectionString ??= ResolveConfiguredConnectionString();
-                await RestoreDatabaseDumpAsync(dumpFile, options, cancellationToken);
+                await _databaseBackupTool.RestoreDumpAsync(
+                    options.DatabaseProvider ?? string.Empty,
+                    options.ConnectionString,
+                    dumpFile,
+                    cancellationToken);
             }
 
             _logger.LogInformation("Restore completed successfully from: {FilePath}", filePath);
@@ -249,14 +261,15 @@ public sealed class BackupService : DotNetCloud.Core.Services.IBackupService
 
                 try
                 {
-                    await CreateDatabaseDumpAsync(databaseProvider, connectionString, dbDumpPath, cancellationToken);
+                    await _databaseBackupTool.CreateDumpAsync(
+                        databaseProvider, connectionString, dbDumpPath, cancellationToken);
                     createdDbDump = true;
                     _logger.LogInformation("Database dump created: {DumpPath}", dbDumpPath);
                 }
                 catch (Exception ex)
                 {
                     _logger.LogError(ex, "Database dump failed. Ensure {Tool} is installed and accessible.",
-                        GetDumpToolName(databaseProvider));
+                        DatabaseBackupTool.GetDumpToolName(databaseProvider));
                     return new BackupResult
                     {
                         Success = false,
@@ -710,252 +723,6 @@ public sealed class BackupService : DotNetCloud.Core.Services.IBackupService
         {
             return false;
         }
-    }
-
-    /// <summary>Reads a single value from a semicolon-delimited connection string.</summary>
-    private static string? TryGetConnectionStringValue(string? connectionString, params string[] keys)
-    {
-        if (string.IsNullOrWhiteSpace(connectionString) || keys.Length == 0)
-            return null;
-
-        foreach (var part in connectionString.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
-        {
-            var eqIndex = part.IndexOf('=');
-            if (eqIndex <= 0)
-                continue;
-
-            var key = part[..eqIndex].Trim();
-            var value = part[(eqIndex + 1)..].Trim();
-
-            if (keys.Any(k => k.Equals(key, StringComparison.OrdinalIgnoreCase)) && !string.IsNullOrEmpty(value))
-                return value;
-        }
-
-        return null;
-    }
-
-    private static async Task CreateDatabaseDumpAsync(
-        string provider,
-        string? connectionString,
-        string outputPath,
-        CancellationToken cancellationToken)
-    {
-        var (tool, argList) = provider.ToUpperInvariant() switch
-        {
-            "POSTGRESQL" => ("pg_dump", BuildPgDumpArgs(connectionString, outputPath)),
-            "SQLSERVER" => ("sqlcmd", BuildSqlCmdArgs(connectionString, outputPath)),
-            _ => throw new NotSupportedException($"Database provider '{provider}' is not supported for automated dump. Please use the provider's native backup tool.")
-        };
-
-        var psi = new ProcessStartInfo
-        {
-            FileName = tool,
-            RedirectStandardOutput = true,
-            RedirectStandardError = true,
-            UseShellExecute = false,
-            CreateNoWindow = true,
-        };
-
-        foreach (var a in argList)
-            psi.ArgumentList.Add(a);
-
-        // pg_dump has no password argument; without PGPASSWORD it prompts (impossible in a service)
-        // and the dump fails on any password-authenticated PostgreSQL server.
-        if (provider.Equals("POSTGRESQL", StringComparison.OrdinalIgnoreCase))
-        {
-            var password = TryGetConnectionStringValue(connectionString, "password", "pwd");
-            if (!string.IsNullOrEmpty(password))
-                psi.Environment["PGPASSWORD"] = password;
-        }
-
-        using var process = new Process { StartInfo = psi };
-        process.Start();
-
-        // Read output
-        var outputTask = process.StandardOutput.ReadToEndAsync(cancellationToken);
-        var errorTask = process.StandardError.ReadToEndAsync(cancellationToken);
-
-        await process.WaitForExitAsync(cancellationToken);
-
-        if (process.ExitCode != 0)
-        {
-            var error = await errorTask;
-            throw new InvalidOperationException(
-                $"Database dump failed (exit code {process.ExitCode}): {error}");
-        }
-
-        // Write stdout to file (pg_dump outputs to stdout by default with -Fp)
-        if (string.IsNullOrEmpty(await errorTask))
-        {
-            var output = await outputTask;
-            if (!string.IsNullOrEmpty(output))
-            {
-                await File.WriteAllTextAsync(outputPath, output, cancellationToken);
-            }
-        }
-    }
-
-    private static List<string> BuildPgDumpArgs(string? connectionString, string outputPath)
-    {
-        var (host, port, db, user) = ParsePgConnectionString(connectionString);
-        // -Fp selects the plain format; -f names the output file. Passing the path positionally after
-        // -Fp makes pg_dump reject it as an extra command-line argument.
-        return new List<string> { "-h", host, "-p", port, "-U", user, "-d", db, "-Fp", "-f", outputPath };
-    }
-
-    private static (string Host, string Port, string Database, string User) ParsePgConnectionString(string? connectionString)
-    {
-        var host = "localhost";
-        var port = "5432";
-        var db = "dotnetcloud";
-        var user = "postgres";
-
-        if (string.IsNullOrEmpty(connectionString))
-            return (host, port, db, user);
-
-        foreach (var part in connectionString.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
-        {
-            var eqIndex = part.IndexOf('=');
-            if (eqIndex < 0)
-                continue;
-
-            var key = part[..eqIndex].Trim().ToLowerInvariant();
-            var value = part[(eqIndex + 1)..].Trim();
-
-            switch (key)
-            {
-                case "host" or "server" or "datasource":
-                    host = value;
-                    break;
-                case "port":
-                    port = value;
-                    break;
-                case "database" or "db":
-                    db = value;
-                    break;
-                case "username" or "user id" or "user":
-                    user = value;
-                    break;
-            }
-        }
-
-        return (host, port, db, user);
-    }
-
-    private static List<string> BuildSqlCmdArgs(string? connectionString, string outputPath)
-    {
-        if (string.IsNullOrEmpty(connectionString))
-            return new List<string> { "-Q", $"BACKUP DATABASE [dotnetcloud] TO DISK = '{outputPath}'" };
-        // For SQL Server, connection string is used as-is with -S
-        var server = ParseSqlServerConnectionString(connectionString);
-        return new List<string> { "-S", server, "-Q", $"BACKUP DATABASE [dotnetcloud] TO DISK = '{outputPath}'" };
-    }
-
-    private static string ParseSqlServerConnectionString(string connectionString)
-    {
-        foreach (var part in connectionString.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
-        {
-            var eqIndex = part.IndexOf('=');
-            if (eqIndex < 0)
-                continue;
-
-            var key = part[..eqIndex].Trim().ToLowerInvariant();
-            var value = part[(eqIndex + 1)..].Trim();
-
-            if (key is "server" or "data source" or "host")
-                return value;
-        }
-
-        return connectionString; // fallback: use raw connection string
-    }
-
-    private static string GetDumpToolName(string provider) => provider.ToUpperInvariant() switch
-    {
-        "POSTGRESQL" => "pg_dump",
-        "SQLSERVER" => "sqlcmd",
-        _ => provider,
-    };
-
-    private static async Task RestoreDatabaseDumpAsync(
-        string dumpFile,
-        RestoreOptions options,
-        CancellationToken cancellationToken)
-    {
-        string tool;
-        List<string> argList;
-        bool useStdinRedirect = false;
-
-        switch (options.DatabaseProvider?.ToUpperInvariant())
-        {
-            case "POSTGRESQL":
-                tool = "psql";
-                argList = BuildPsqlRestoreArgs(options.ConnectionString, dumpFile);
-                break;
-            case "SQLSERVER":
-                tool = "sqlcmd";
-                argList = BuildSqlCmdRestoreArgs(options.ConnectionString, dumpFile);
-                break;
-            default:
-                throw new NotSupportedException($"Database provider '{options.DatabaseProvider}' is not supported for automated restore.");
-        }
-
-        var psi = new ProcessStartInfo
-        {
-            FileName = tool,
-            RedirectStandardOutput = true,
-            RedirectStandardError = true,
-            RedirectStandardInput = useStdinRedirect,
-            UseShellExecute = false,
-            CreateNoWindow = true,
-        };
-
-        foreach (var a in argList)
-            psi.ArgumentList.Add(a);
-
-        // psql authenticates from PGPASSWORD; without it the restore prompts and fails in a service.
-        if (options.DatabaseProvider?.Equals("POSTGRESQL", StringComparison.OrdinalIgnoreCase) == true)
-        {
-            var password = TryGetConnectionStringValue(options.ConnectionString, "password", "pwd");
-            if (!string.IsNullOrEmpty(password))
-                psi.Environment["PGPASSWORD"] = password;
-        }
-
-        using var process = new Process { StartInfo = psi };
-        process.Start();
-
-        if (useStdinRedirect)
-        {
-            // Pipe the dump file into the database's stdin instead of using shell redirect (<)
-            await using var fileStream = File.OpenRead(dumpFile);
-            await fileStream.CopyToAsync(process.StandardInput.BaseStream, cancellationToken);
-            process.StandardInput.Close();
-        }
-
-        var errorTask = process.StandardError.ReadToEndAsync(cancellationToken);
-        await process.WaitForExitAsync(cancellationToken);
-
-        if (process.ExitCode != 0)
-        {
-            var error = await errorTask;
-            throw new InvalidOperationException(
-                $"Database restore failed (exit code {process.ExitCode}): {error}");
-        }
-    }
-
-    private static List<string> BuildPsqlRestoreArgs(string? connectionString, string dumpFile)
-    {
-        if (string.IsNullOrEmpty(connectionString))
-            return new List<string> { "-f", dumpFile };
-        var (host, port, db, user) = ParsePgConnectionString(connectionString);
-        return new List<string> { "-h", host, "-p", port, "-U", user, "-d", db, "-f", dumpFile };
-    }
-
-    private static List<string> BuildSqlCmdRestoreArgs(string? connectionString, string dumpFile)
-    {
-        if (string.IsNullOrEmpty(connectionString))
-            return new List<string> { "-Q", $"RESTORE DATABASE [dotnetcloud] FROM DISK = '{dumpFile}'" };
-        var server = ParseSqlServerConnectionString(connectionString);
-        return new List<string> { "-S", server, "-Q", $"RESTORE DATABASE [dotnetcloud] FROM DISK = '{dumpFile}'" };
     }
 
     private static void CopyDirectory(string sourceDir, string targetDir)

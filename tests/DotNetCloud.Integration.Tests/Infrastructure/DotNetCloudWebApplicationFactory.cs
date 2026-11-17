@@ -39,6 +39,12 @@ internal sealed class DotNetCloudWebApplicationFactory : WebApplicationFactory<D
 {
     private readonly string _databaseName = $"IntTest_{Guid.CreateVersion7():N}";
 
+    /// <summary>
+    /// Gets the data directory (<c>DOTNETCLOUD_DATA_DIR</c>) used by the test host. Backups default
+    /// to <c>{TestDataDirectory}/backups</c>.
+    /// </summary>
+    public static string TestDataDirectory => IntegrationTestEnvironment.DataDirectory;
+
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.UseEnvironment("Development");
@@ -159,6 +165,14 @@ internal sealed class DotNetCloudWebApplicationFactory : WebApplicationFactory<D
             {
                 services.Remove(descriptor);
             }
+
+            // ---------------------------------------------------------------
+            // Stub the provider-native dump tool. pg_dump/psql/sqlcmd are not guaranteed to be
+            // installed on the machine running the tests, and the dummy connection string below
+            // points at no real server, so the dump is faked instead of shelled out.
+            // ---------------------------------------------------------------
+            services.RemoveAll<IDatabaseBackupTool>();
+            services.AddSingleton<IDatabaseBackupTool>(_ => new FakeDatabaseBackupTool());
 
             // ---------------------------------------------------------------
             // Stub out module services that the DI validator can't resolve.

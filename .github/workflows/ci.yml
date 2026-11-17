@@ -121,23 +121,36 @@ jobs:
 
       - name: Pack the Example module
         run: |
+          # The package file name must carry the manifest version: the packer verifies its own
+          # output and rejects a package whose name does not match manifest.json
+          # (MANIFEST_MISMATCH). Read the version instead of hard-coding it, so bumping the
+          # Example module does not break this job.
+          version="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["version"])' src/Modules/Example/manifest.json)"
+          if [ -z "${version}" ] || [ "${version}" = "None" ]; then
+            echo "::error::Could not read .version from src/Modules/Example/manifest.json"
+            exit 1
+          fi
+
+          package="${RUNNER_TEMP}/package/dotnetcloud.example-${version}.dncpkg"
+          echo "EXAMPLE_PACKAGE=${package}" >> "${GITHUB_ENV}"
+
           dotnet src/Tools/DotNetCloud.ModulePackaging/bin/Release/net10.0/dotnetcloud-pack.dll pack \
             --project src/Modules/Example/DotNetCloud.Modules.Example.Host/DotNetCloud.Modules.Example.Host.csproj \
             --rid linux-x64 \
             --sign-key "${RUNNER_TEMP}/ci.key.json" \
-            --output "${RUNNER_TEMP}/package/dotnetcloud.example-1.0.0.dncpkg" \
+            --output "${package}" \
             --feed "${RUNNER_TEMP}/feed"
 
       - name: Verify the package independently
         run: |
           dotnet src/Tools/DotNetCloud.ModulePackaging/bin/Release/net10.0/dotnetcloud-pack.dll verify \
-            "${RUNNER_TEMP}/package/dotnetcloud.example-1.0.0.dncpkg" \
+            "${EXAMPLE_PACKAGE}" \
             --key-file "${RUNNER_TEMP}/ci.key.json"
 
       - name: Inspect the package
         run: |
           dotnet src/Tools/DotNetCloud.ModulePackaging/bin/Release/net10.0/dotnetcloud-pack.dll inspect \
-            "${RUNNER_TEMP}/package/dotnetcloud.example-1.0.0.dncpkg"
+            "${EXAMPLE_PACKAGE}"
 
       - name: Upload package + local feed
         uses: actions/upload-artifact@v4
