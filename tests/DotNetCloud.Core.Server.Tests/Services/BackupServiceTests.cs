@@ -39,7 +39,10 @@ public class BackupServiceTests
     }
 
     private static BackupService CreateService()
-        => new(NullLogger<BackupService>.Instance, new ConfigurationBuilder().Build());
+        => new(
+            NullLogger<BackupService>.Instance,
+            new ConfigurationBuilder().Build(),
+            new DatabaseBackupTool(NullLogger<DatabaseBackupTool>.Instance));
 
     private static BackupOptions FileOnlyOptions(string backupDirectory) => new()
     {

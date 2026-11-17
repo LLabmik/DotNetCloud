@@ -96,8 +96,8 @@ public class BackupEndpointTests
     {
         // Arrange - use a path within the default backup directory
         var backupDir = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
-            ".config", "dotnetcloud", "backups");
+            DotNetCloud.Integration.Tests.Infrastructure.DotNetCloudWebApplicationFactory.TestDataDirectory,
+            "backups");
         Directory.CreateDirectory(backupDir);
         var outputPath = Path.Combine(backupDir, $"custom-backup-{Guid.CreateVersion7():N}.zip");
 
