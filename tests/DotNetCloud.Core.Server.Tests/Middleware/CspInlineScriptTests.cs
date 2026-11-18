@@ -11,12 +11,19 @@ namespace DotNetCloud.Core.Server.Tests.Middleware;
 /// </summary>
 /// <remarks>
 /// The CSP allow-lists the app's static inline <c>&lt;script&gt;</c> blocks by the SHA-256 of their
-/// <b>exact rendered text</b>. Reformatting one of those blocks (indentation, line breaks) changes the
-/// hash, so the browser starts <b>blocking</b> the script and whatever it bootstraps dies silently.
+/// <b>exact rendered text</b>. Reformatting one of those blocks (indentation, adding or removing line
+/// breaks) changes the hash, so the browser starts <b>blocking</b> the script and whatever it bootstraps
+/// dies silently.
 /// That is exactly how <c>window.blazorCulture</c> broke on 2026-09-27: the WASM client reads it at
 /// startup (<c>DotNetCloud.UI.Web.Client/Program.cs</c>) and the layout's <c>CultureSelector</c> writes
 /// it, so every page using <c>InteractiveAuto</c> stalled with a CSP violation in the console.
 /// These tests recompute the hashes from the razor sources so a reformat fails the build instead.
+/// <para>
+/// Newlines are normalised before hashing. The browser hashes the script element's <b>DOM</b> text, and
+/// HTML preprocessing rewrites CRLF and lone CR before the markup is tokenised, so the allow-list is
+/// written in LF form. Hashing the raw file bytes instead made this guard fail on a Windows checkout
+/// (<c>core.autocrlf=true</c> ⇒ CRLF) while passing on Linux, although the policy was correct for both.
+/// </para>
 /// </remarks>
 [TestClass]
 public sealed class CspInlineScriptTests
@@ -46,6 +53,21 @@ public sealed class CspInlineScriptTests
             .ToList();
 
         Assert.AreEqual(0, offenders.Count, InlineScriptMismatchMessage + string.Join("; ", offenders));
+    }
+
+    /// <summary>
+    /// The same script text must hash identically whether the checkout wrote it with CRLF or LF.
+    /// </summary>
+    [TestMethod]
+    public void InlineScriptHash_IsLineEndingAgnostic()
+    {
+        const string lf = "<script>\nvar a = 1;\nvar b = 2;\n</script>";
+        const string crlf = "<script>\r\nvar a = 1;\r\nvar b = 2;\r\n</script>";
+
+        var lfHash = Sha256Base64(NormalizeLineEndings(ExtractInlineScriptBodies(lf).Single().Body));
+        var crlfHash = Sha256Base64(NormalizeLineEndings(ExtractInlineScriptBodies(crlf).Single().Body));
+
+        Assert.AreEqual(lfHash, crlfHash, "A CRLF checkout must produce the same hash as an LF one.");
     }
 
     [TestMethod]
@@ -250,7 +272,7 @@ public sealed class CspInlineScriptTests
                 results.Add(new InlineScript(
                     Path.GetRelativePath(repositoryRoot, file).Replace('\\', '/'),
                     line,
-                    Sha256Base64(body)));
+                    Sha256Base64(NormalizeLineEndings(body))));
             }
         }
 
@@ -323,6 +345,17 @@ public sealed class CspInlineScriptTests
 
         return hashes;
     }
+
+    /// <summary>
+    /// Applies the HTML parser's newline normalisation: CRLF and lone CR both become LF.
+    /// </summary>
+    /// <remarks>
+    /// The CSP hash covers the script element's DOM text, and HTML input preprocessing rewrites every
+    /// CRLF/CR to LF before tokenising, so the served bytes may be either form while the hash is always
+    /// over LF. Skipping this step made the guard report drift on every Windows checkout.
+    /// </remarks>
+    private static string NormalizeLineEndings(string body) =>
+        body.Replace("\r\n", "\n", StringComparison.Ordinal).Replace('\r', '\n');
 
     private static string Sha256Base64(string value) =>
         Convert.ToBase64String(SHA256.HashData(Encoding.UTF8.GetBytes(value)));

@@ -108,7 +108,7 @@ The tier is **informational** and deliberately distinct from `InstalledModule.Tr
 community-tier package still needs explicit admin approval for every capability it declares.
 
 The store recomputes the tier on every validation, so a hand-edited catalogue cannot promote itself;
-the store-side rules are in `DotNetCloud.ModuleStore/policy/STORE_POLICY.md` §2.
+the store-side rules are in `DotNetCloud-ModuleStore/policy/STORE_POLICY.md` §2.
 
 ### Revocation warnings for installed versions
 
@@ -208,7 +208,7 @@ An index signed by either verifies, so servers do not have to move in lock-step 
 `RevokedKeyIds` wins over `TrustedKeys`, so a compromised key can be disabled without deleting its
 entry. Drop the previous id once the overlap release has shipped. The store-side procedure (key
 generation, secret storage, offline backup, rotation, compromise response) is
-`DotNetCloud.ModuleStore/docs/KEY_MANAGEMENT.md`.
+`DotNetCloud-ModuleStore/docs/KEY_MANAGEMENT.md`.
 
 ### Prerequisites on the host
 

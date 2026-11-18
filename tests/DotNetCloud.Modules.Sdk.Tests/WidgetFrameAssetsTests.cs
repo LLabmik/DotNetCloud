@@ -47,7 +47,14 @@ public class WidgetFrameAssetsTests
             .Where(path => Normalize(path).Contains("/wwwroot/widget/", StringComparison.Ordinal))
             .ToArray();
 
-        Assert.IsTrue(widgets.Length >= 4, $"Expected the module widgets, found {widgets.Length} document(s).");
+        // The iframe widgets belong to the optional modules, which live in the DotNetCloud-ModuleStore
+        // repository (2026-11-18); the modules left here ship no module-hosted widget document, so this
+        // guard is a no-op for them. The same assertions run against the moved modules in that
+        // repository's tests — keep this one so a widget reintroduced here is still checked.
+        if (widgets.Length == 0)
+        {
+            return;
+        }
 
         var failures = new List<string>();
 

@@ -35,7 +35,10 @@ public class ModuleManifestPublicationTests
             .Where(File.Exists)
             .ToList();
 
-        Assert.IsTrue(manifestPaths.Count >= 9, $"Expected at least 9 module manifests, found {manifestPaths.Count}.");
+        // The optional modules that ship an iframe UI moved to the DotNetCloud-ModuleStore repository
+        // (2026-11-18); their manifests are asserted there. What remains here are the required modules
+        // and the core-migrated ones, which still must publish the manifest their host reads.
+        Assert.IsTrue(manifestPaths.Count >= 8, $"Expected the in-repo module manifests, found {manifestPaths.Count}.");
 
         List<string> unpublished = [];
 

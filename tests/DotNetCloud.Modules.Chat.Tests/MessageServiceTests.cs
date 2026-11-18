@@ -76,7 +76,7 @@ public class MessageServiceTests
         await _service.SendMessageAsync(_channelId, dto, _caller);
 
         _eventBusMock.Verify(
-            eb => eb.PublishAsync(It.IsAny<Events.MessageSentEvent>(), _caller, It.IsAny<CancellationToken>()),
+            eb => eb.PublishAsync(It.IsAny<MessageSentEvent>(), _caller, It.IsAny<CancellationToken>()),
             Times.Once);
     }
 

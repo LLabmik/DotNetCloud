@@ -19,8 +19,7 @@
     <InternalsVisibleTo Include="DotNetCloud.Integration.Tests" />
     <InternalsVisibleTo Include="DotNetCloud.Integration.Tests.PostgreSQL" />
     <InternalsVisibleTo Include="DotNetCloud.Integration.Tests.SqlServer" />
-    <!-- The packer validates packaged manifests with the same loader the core uses. -->
-    <InternalsVisibleTo Include="dotnetcloud-pack" />    <!-- Allows Moq/Castle to proxy internal types (for example the legacy capability service the
+    <!-- Allows Moq/Castle to proxy internal types (for example the legacy capability service the
          canonical module API adapter delegates to) from the test project. -->
     <InternalsVisibleTo Include="DynamicProxyGenAssembly2" />
   </ItemGroup>
@@ -58,6 +57,7 @@
     <ProjectReference Include="..\DotNetCloud.Core.Data\DotNetCloud.Core.Data.csproj" />
     <ProjectReference Include="..\DotNetCloud.Core.Data.SqlServer\DotNetCloud.Core.Data.SqlServer.csproj" />
     <ProjectReference Include="..\DotNetCloud.Core.Grpc\DotNetCloud.Core.Grpc.csproj" />
+    <ProjectReference Include="..\DotNetCloud.Core.Packaging\DotNetCloud.Core.Packaging.csproj" />
     <ProjectReference Include="..\DotNetCloud.Core.Search\DotNetCloud.Core.Search.csproj" />
     <ProjectReference Include="..\DotNetCloud.Core.Search.Extraction.Contracts\DotNetCloud.Core.Search.Extraction.Contracts.csproj" />
     <ProjectReference Include="..\DotNetCloud.Core.ServiceDefaults\DotNetCloud.Core.ServiceDefaults.csproj" />
@@ -115,32 +115,34 @@
     <Protobuf Include="..\..\Modules\Notes\DotNetCloud.Modules.Notes.Host\Protos\notes_service.proto"
               GrpcServices="Client"
               Link="Protos\notes_service.proto" />
-    <Protobuf Include="..\..\Modules\Tracks\DotNetCloud.Modules.Tracks.Host\Protos\tracks_service.proto"
-              GrpcServices="Client"
-              Link="Protos\tracks_service.proto" />
+    <!--
+      The optional modules live in the DotNetCloud-ModuleStore repository, so their service contracts
+      are vendored under Protos/ in this project: the core is the *caller* (search indexing, email
+      sync, shared-with-me aggregation) and needs the generated client, while the module host keeps the
+      authoritative copy next to the service it implements. A contract change is made in the module's
+      own repository first and copied here in the same change — the two copies must stay byte-identical.
+    -->
+    <Protobuf Include="Protos\tracks_service.proto"
+              GrpcServices="Client" />
     <Protobuf Include="..\..\Modules\Music\DotNetCloud.Modules.Music.Host\Protos\music_service.proto"
               GrpcServices="Client"
               Link="Protos\music_service.proto" />
-    <Protobuf Include="..\..\Modules\Photos\DotNetCloud.Modules.Photos.Host\Protos\photos_service.proto"
-              GrpcServices="Client"
-              Link="Protos\photos_service.proto" />
+    <Protobuf Include="Protos\photos_service.proto"
+              GrpcServices="Client" />
     <Protobuf Include="..\..\Modules\Video\DotNetCloud.Modules.Video.Host\Protos\video_service.proto"
               GrpcServices="Client"
               Link="Protos\video_service.proto" />
     <!-- Search proto NOT included directly here. Search.Client is referenced
          transitively via Files.Data (which provides the generated SearchService types). -->
-    <Protobuf Include="..\..\Modules\Bookmarks\DotNetCloud.Modules.Bookmarks.Host\Protos\bookmarks_service.proto"
-              GrpcServices="Client"
-              Link="Protos\bookmarks_service.proto" />
-    <Protobuf Include="..\..\Modules\Email\DotNetCloud.Modules.Email.Host\Protos\email_service.proto"
-              GrpcServices="Client"
-              Link="Protos\email_service.proto" />
+    <Protobuf Include="Protos\bookmarks_service.proto"
+              GrpcServices="Client" />
+    <Protobuf Include="Protos\email_service.proto"
+              GrpcServices="Client" />
     <Protobuf Include="..\..\Modules\About\DotNetCloud.Modules.About.Host\Protos\about_service.proto"
               GrpcServices="Client"
               Link="Protos\about_service.proto" />
-    <Protobuf Include="..\..\Modules\AI\DotNetCloud.Modules.AI.Host\Protos\ai_service.proto"
-              GrpcServices="Client"
-              Link="Protos\ai_service.proto" />
+    <Protobuf Include="Protos\ai_service.proto"
+              GrpcServices="Client" />
   </ItemGroup>
 
   <ItemGroup>

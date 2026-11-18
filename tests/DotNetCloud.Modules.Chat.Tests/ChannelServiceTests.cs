@@ -77,7 +77,7 @@ public class ChannelServiceTests
         await _service.CreateChannelAsync(dto, _caller);
 
         _eventBusMock.Verify(
-            eb => eb.PublishAsync(It.IsAny<Events.ChannelCreatedEvent>(), _caller, It.IsAny<CancellationToken>()),
+            eb => eb.PublishAsync(It.IsAny<ChannelCreatedEvent>(), _caller, It.IsAny<CancellationToken>()),
             Times.Once);
     }
 

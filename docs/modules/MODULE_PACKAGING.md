@@ -1,13 +1,56 @@
 # `.dncpkg` module packaging
 
-> **Status:** implemented 2026-11-07 (phase B1) · **Tool:** `src/Tools/DotNetCloud.ModulePackaging`
-> (`dotnetcloud-pack`) · **Plan:** `docs/THIRD_PARTY_MODULE_SANDBOX_AND_STORE_PLAN.md` §4.6, §4.10, B1
+> **Status:** implemented 2026-11-07 (phase B1) ┬╖ **Tool:** `tools/DotNetCloud.ModulePackaging` in the
+> `DotNetCloud-ModuleStore` repository (`dotnetcloud-pack`; the format code is `src/Core/DotNetCloud.Core.Packaging`
+> here) ┬╖ **Plan:** `docs/THIRD_PARTY_MODULE_SANDBOX_AND_STORE_PLAN.md` ┬º4.6, ┬º4.10, B1
 > **Audience:** module authors, store operators, and anyone implementing the installer (B3)
 
 A `.dncpkg` file is a **deterministic, signed ZIP** that contains a module manifest, its licence and
 documentation, and one self-contained publish output per runtime identifier. The format is designed
 so that a package can be verified _before_ a single entry is extracted, and so that two independent
 builders of the same inputs produce the same bytes — and therefore the same signature.
+
+---
+
+## 0. Where module source lives
+
+Modules are split by whether the platform owns them (2026-11-18):
+
+| Group                | Module ids                                                                                                 | Source lives in                                                    |
+| -------------------- | ---------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------ |
+| **Required**         | `dotnetcloud.files`, `.chat`, `.contacts`, `.calendar`, `.notes`, `.about`, `.extraction`                   | This repository, `src/Modules/**` (and `src/Core/DotNetCloud.Core.Search.Extraction.Host`) |
+| **Optional first-party** | `dotnetcloud.example`, `.bookmarks`, `.email`, `.ai`, `.photos`, `.tracks`                              | `DotNetCloud-ModuleStore`, `src/Modules/**`                        |
+| **Third party**      | anything else                                                                                              | The publisher's own repository                                     |
+
+A required module shares the `core` schema, cannot be disabled or uninstalled, and cannot be replaced
+by a store package, so it is **never published to the store** — `validate`/`build` in
+`DotNetCloud-ModuleStore` reject a package whose manifest id is in `RequiredModules`.
+
+Optional and third-party modules build outside this repository, so they reference the platform's
+contract assemblies as **packages**, not project references:
+
+```powershell
+# from a DotNetCloud checkout — writes DotNetCloud.Core, .Core.Data, .Core.Grpc,
+# .Modules.Sdk, .Modules.Sdk.Web and .UI.Shared into a local feed
+./scripts/pack-module-sdk.ps1 -Output ../DotNetCloud-ModuleStore/.sdk-feed
+```
+
+The version is this repository's version, and the consumer pins it in its own
+`Directory.Packages.props` (`DotNetCloudSdkVersion`). The `Publish Module SDK` workflow pushes the same
+packages on an `sdk-v*` tag.
+
+The **packer** (`dotnetcloud-pack`) and everything it needs now live where modules are built:
+
+- `DotNetCloud.Core.Packaging` (this repository) holds the format, archive hardening, Ed25519
+  signature and verification pipeline — no EF, no ASP.NET — and `DotNetCloud.Core` holds
+  `ModuleManifestLoader`/`ModuleCompatibility`, so the packer validates and writes a package with
+  exactly the code the server installs with.
+- `tools/DotNetCloud.ModulePackaging` in **`DotNetCloud-ModuleStore`** is the tool, built against those
+  two packages. `scripts/pack-module.ps1` there runs it locally.
+
+Cross-module **event contracts** live in `DotNetCloud.Core.Events` (`ChatEvents.cs`,
+`FileDeletedEvent.cs`, `TracksEvents.cs`, …) for the same reason: a module that reacts to another
+module's event must never reference that module's assembly.
 
 ---
 
@@ -275,7 +318,7 @@ tests (B3) consume, and the job fails if determinism, archive safety or manifest
 
 | Item                                              | Where | Status                                                  |
 | ------------------------------------------------- | ----- | ------------------------------------------------------- |
-| store index build + curated key signing           | B2    | ✓ `DotNetCloud.ModuleStore`                             |
+| store index build + curated key signing           | B2    | ✓ `DotNetCloud-ModuleStore`                             |
 | publisher key registry, revocation/yank           | B2/B5 | ✓ registry + `yanked.json`; trust program remains in B5 |
 | installer state machine + rollback                | B3    | ✓ [`MODULE_STORE.md`](MODULE_STORE.md)                  |
 | local feed + `--file` install, admin review       | B3    | ✓ CLI, admin API and `/admin/store`                     |

@@ -10,6 +10,9 @@
     <PackageReference Include="Microsoft.AspNetCore.Http.Abstractions" />
     <!-- MediaCachePathResolver reads storage-path configuration shared by core and module hosts. -->
     <PackageReference Include="Microsoft.Extensions.Configuration.Abstractions" />
+    <!-- The manifest loader (ModuleLoading/) reports validation failures through ILogger<T>. The
+         abstraction is browser-safe, so the WASM-side SDK keeps compiling against this assembly. -->
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
   </ItemGroup>
 
 </Project>
