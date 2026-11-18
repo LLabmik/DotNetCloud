@@ -11,11 +11,9 @@ using DotNetCloud.ModulePackaging;
 using DotNetCloud.Modules.Calendar.Data;
 using DotNetCloud.Modules.Chat.Data;
 using DotNetCloud.Modules.Contacts.Data;
-using DotNetCloud.Modules.Email.Data;
 using DotNetCloud.Modules.Files.Data;
 using DotNetCloud.Modules.Music.Data;
 using DotNetCloud.Modules.Notes.Data;
-using DotNetCloud.Modules.Tracks.Data;
 using DotNetCloud.Modules.Video.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Migrations;
@@ -280,11 +278,9 @@ internal static class ServiceProviderFactory
         const string CalendarMigrationsAssembly = "DotNetCloud.Modules.Calendar.Data.SqlServer";
         const string ChatMigrationsAssembly = "DotNetCloud.Modules.Chat.Data.SqlServer";
         const string ContactsMigrationsAssembly = "DotNetCloud.Modules.Contacts.Data.SqlServer";
-        const string EmailMigrationsAssembly = "DotNetCloud.Modules.Email.Data.SqlServer";
         const string FilesMigrationsAssembly = "DotNetCloud.Modules.Files.Data.SqlServer";
         const string MusicMigrationsAssembly = "DotNetCloud.Modules.Music.Data.SqlServer";
         const string NotesMigrationsAssembly = "DotNetCloud.Modules.Notes.Data.SqlServer";
-        const string TracksMigrationsAssembly = "DotNetCloud.Modules.Tracks.Data.SqlServer";
         const string VideoMigrationsAssembly = "DotNetCloud.Modules.Video.Data.SqlServer";
 
         services.AddDbContext<CalendarDbContext>(options =>
@@ -293,8 +289,6 @@ internal static class ServiceProviderFactory
             ConfigureModuleDbContext(options, provider, connectionString, ChatMigrationsAssembly));
         services.AddDbContext<ContactsDbContext>(options =>
             ConfigureModuleDbContext(options, provider, connectionString, ContactsMigrationsAssembly));
-        services.AddDbContext<EmailDbContext>(options =>
-            ConfigureModuleDbContext(options, provider, connectionString, EmailMigrationsAssembly));
         services.AddDbContext<FilesDbContext>(options =>
             ConfigureModuleDbContext(options, provider, connectionString, FilesMigrationsAssembly));
         services.AddDbContextFactory<MusicDbContext>(options =>
@@ -303,8 +297,6 @@ internal static class ServiceProviderFactory
             ConfigureModuleDbContext(options, provider, connectionString, MusicMigrationsAssembly));
         services.AddDbContext<NotesDbContext>(options =>
             ConfigureModuleDbContext(options, provider, connectionString, NotesMigrationsAssembly));
-        services.AddDbContext<TracksDbContext>(options =>
-            ConfigureModuleDbContext(options, provider, connectionString, TracksMigrationsAssembly));
         services.AddDbContext<VideoDbContext>(options =>
             ConfigureModuleDbContext(options, provider, connectionString, VideoMigrationsAssembly));
 

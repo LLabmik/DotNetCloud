@@ -17,14 +17,10 @@ public enum ModuleTrustTier
 }
 
 /// <summary>How a module stores its own data.</summary>
-public enum ModuleDataStoreMode
-{
-    /// <summary>The module has no database; it persists through module settings and files.</summary>
-    None,
-
-    /// <summary>The module owns a dedicated schema and database principal.</summary>
-    Isolated,
-}
+/// <remarks>
+/// Defined in <c>DotNetCloud.Core</c> (it is a manifest field), declared in this namespace for
+/// compatibility — see <c>src/Core/DotNetCloud.Core/ModuleDataStoreMode.cs</c>.
+/// </remarks>
 
 /// <summary>Provisioning state of a module's data store.</summary>
 public enum ModuleDataStoreStatus

@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>DotNetCloud.ModulePackaging</RootNamespace>
+    <AssemblyName>DotNetCloud.Core.Packaging</AssemblyName>
+    <!-- The format, archive hardening, signature and verification pipeline for `.dncpkg`, split out of
+         Core.Server so the packer can be built in the DotNetCloud-ModuleStore repository against a
+         package instead of the server project. Nothing here touches EF or ASP.NET: the installer that
+         does stays in Core.Server. -->
+    <IsPackable>true</IsPackable>
+    <Description>Deterministic, signed .dncpkg module package format: writer, archive safety, Ed25519 signature and verification.</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Ed25519. .NET 10 has no System.Security.Cryptography.Ed25519 surface, and a native libsodium
+         binding would make the format platform-specific. See MODULE_PACKAGING.md §3. -->
+    <PackageReference Include="BouncyCastle.Cryptography" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The manifest contract (ModuleManifestLoader/ModuleCompatibility) is the single source of truth
+         for validation, so packaging and the running core agree by construction. -->
+    <ProjectReference Include="..\DotNetCloud.Core\DotNetCloud.Core.csproj" />
+  </ItemGroup>
+
+</Project>

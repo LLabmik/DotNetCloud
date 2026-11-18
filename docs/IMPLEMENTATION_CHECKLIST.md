@@ -4098,6 +4098,28 @@ Plan: `docs/THIRD_PARTY_MODULE_SANDBOX_AND_STORE_PLAN.md` (phase A0). Branch `fe
   - ✓ Policy set: `STORE_POLICY.md`, `REVIEW_CHECKLIST.md`, `PUBLISHER_AGREEMENT.md`, `REVOCATION_RUNBOOK.md`, `docs/SUBMISSION.md`, PR template
   - ✓ Static store frontend (browse/search, package detail, publisher page) reusing the website's visual language; no npm, `textContent`-only rendering, URL scheme checks
   - ✓ 20 tooling tests; local end-to-end pack → build → verify → yank → verify passes
+- ✓ **Repository split — `DotNetCloud-ModuleStore` (2026-11-18)**
+  - ✓ Old store repository content (site, tools, tests, schemas, policy, docs, workflows, catalogue) imported into the new `DotNetCloud-ModuleStore` repository; the GitHub `DotNetCloud.ModuleStore` repository is abandoned
+  - ✓ Optional first-party modules moved **out of this repository** into it: Example, Bookmarks, Email, AI, Photos, Tracks (43 projects + 6 test projects + the Tracks schema-migration integration test)
+  - ✓ Required modules and Music/Video stay here (`RequiredModules.cs`), so the platform still ships and versions them; the store's `validate`/`build` now reject a package for a required module (`StorePolicy.RequiredModuleIds`, `policy/STORE_POLICY.md` §1.1)
+  - ✓ Module SDK feed: `scripts/pack-module-sdk.ps1` packs `DotNetCloud.Core`, `.Core.Data`, `.Core.Grpc`, `.Modules.Sdk`, `.Modules.Sdk.Web` (now packable) and `.UI.Shared`; the store repository pins the version in `DotNetCloudSdkVersion`
+  - ✓ The SDK packages carry the iframe bridge scripts as `contentFiles`, so the moved browser-side projects link them from the package instead of a path into this checkout
+  - ✓ Cross-module event contracts (`MessageSentEvent`, `ChannelCreatedEvent`, `ChannelDeletedEvent`, `FileDeletedEvent`) moved into `DotNetCloud.Core.Events`; Tracks no longer references the Chat/Files assemblies
+  - ✓ Core.Server keeps client-only copies of the five module service contracts it calls (`Protos/<module>_service.proto`); CLI no longer registers the moved modules' DbContexts; Integration.Tests lost the moved Tracks schema test
+  - ✓ Store now owns its module tests: shipped-manifest guards (v2, isolated, erasure, minimal capabilities, known consent scopes) and the widget-bridge path guard, replacing the six `Shipped*ModuleManifestTests` that left this repository
+  - ✓ Verified: `DotNetCloud.CI.slnf` builds 0 warnings / 0 errors; store solution builds 0 warnings / 0 errors and its 867 tests pass
+- ✓ **Packer moved to the store repository (option C — remove the dependency first)**
+  - ✓ `ModuleManifestLoader` + `ModuleCompatibility` moved from `Core.Server/ModuleLoading` into `DotNetCloud.Core` (namespace retained for call-site compatibility, types made public) so a consumer outside this repository can validate a manifest with the server's own code
+  - ✓ `ModuleDataStoreMode` moved into `DotNetCloud.Core` (a manifest field; `Core` cannot reference `Core.Data`), namespace retained
+  - ✓ New **`DotNetCloud.Core.Packaging`** library: format, archive hardening, Ed25519 signing and the verification pipeline split out of `Core.Server` (no EF, no ASP.NET); the installer stays in `Core.Server`
+  - ✓ `tools/DotNetCloud.ModulePackaging` + its 52 tests now live in `DotNetCloud-ModuleStore`, referencing `DotNetCloud.Core`/`Core.Packaging` **as packages**; removed from `DotNetCloud.sln`/`CI.slnf`
+  - ✓ `scripts/pack-module-sdk.ps1` packs the new `DotNetCloud.Core.Packaging` too, and the store's `scripts/pack-module.ps1` runs the in-repo packer (no platform checkout)
+  - ✓ Verified: packer builds in both repos, its 52 tests pass against the packaged contracts, and the 175 manifest/packaging tests in `Core.Server.Tests` stay green
+- ✓ **Shared deploy helper; store site deploy moved to the store repository**
+  - ✓ `scripts/lib/SiteDeployment.psm1`: the release/`current` junction swap, robocopy, retention, rollback and smoke-check machinery extracted from `deploy-sites.ps1` into one module (`Invoke-SiteDeployment -Definitions <map>`)
+  - ✓ `scripts/deploy-sites.ps1` now describes only `www.dotnetcloud.net` (its content, `deploy/sites/www/web.config`, smoke paths, redirects)
+  - ✓ `DotNetCloud-ModuleStore` owns `deploy/web.config` + `scripts/deploy-site.ps1` for `modules.dotnetcloud.net`, importing the shared module from a sibling checkout (`-DotNetCloudRoot`)
+  - ✓ Verified: both scripts parse, `-ListReleases` runs, and the store site dry-run composes a release from `site/`, `index/`, `packages/`, `publishers.json`, `yanked.json` + its own `web.config`
   - ✓ Unified the detached-signature field on `file` across the packer (B1) and the store
 - ✓ Phase B3 — core package installer + remote store client (decision D6)
   - ✓ Packaging primitives moved into `DotNetCloud.Core.Server/Packaging` (BouncyCastle on the server) so the installer and the packer share one verifier without a project cycle

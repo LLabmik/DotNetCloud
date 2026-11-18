@@ -7663,3 +7663,66 @@ passed / 2 skipped**; Blazor standards gate green; `DotNetCloud.CI.slnf` builds 
 only solution-wide build failure is the Android client's signing keystore, which is environmental and unrelated.
 Remaining: a signed-in browser click-through per module against a deployed host, then re-packing the five
 `.dncpkg` packages.
+
+---
+
+## Repository Split: module store + optional modules (2026-11-18, `task/move-module-store-to-new-repo`)
+
+### Status
+
+**completed** — both repositories build and test green; nothing committed yet (awaiting the moderator).
+
+### What moved
+
+The store moved to the fresh repository **`DotNetCloud-ModuleStore`** (hyphen; the GitHub
+`DotNetCloud.ModuleStore` repository is abandoned), and in the same change the **optional first-party
+modules** moved out of this repository and into it:
+
+- store content: `site/`, `index/`, `packages/`, `publishers.json`, `yanked.json`, `schemas/`, `policy/`,
+  `docs/`, `tools/DotNetCloud.ModuleStore.Tools`, `tests/DotNetCloud.ModuleStore.Tools.Tests`, workflows;
+- modules: **Example, Bookmarks, Email, AI, Photos, Tracks** — 43 projects (library, `.Data`,
+  `.Data.SqlServer`, `.Host`, `.Web`, `.Web.Services`, `.Shared`) plus their 6 test projects and the Tracks
+  schema-migration integration test (moved out of `DotNetCloud.Integration.Tests`).
+
+### What stayed, and why
+
+| Kept in this repository                | Reason                                                                                                 |
+| -------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| Required modules + Music/Video         | Ship with the server (`RequiredModules.cs`), share the `core` schema, can never be store packages      |
+| `scripts/pack-module-sdk.ps1`          | Produces the contract packages an out-of-tree module compiles against                                   |
+| `DotNetCloud.Core.Packaging`           | The `.dncpkg` format/archive/signature/verification primitives — now a standalone library               |
+| `scripts/lib/SiteDeployment.psm1`      | The release/junction/rollback/smoke machinery both site scripts call                                    |
+| `deploy/sites/www/web.config` + `scripts/deploy-sites.ps1` | The `www` site's own config and entry point                                         |
+| `Core.Server/Protos/<module>_service.proto` | The core is the gRPC *caller*; client-only copies of the five moved modules' contracts (vendored)   |
+| `DotNetCloud.Core.Events` chat/file events  | Cross-module contracts: a module must never reference another module's assembly                     |
+
+### Follow-ups done in the same change
+
+- **Packer (option C).** The packer validated through `ModuleManifestLoader` in `Core.Server`, so it could
+  not leave. The manifest contract (`ModuleManifestLoader`, `ModuleCompatibility`, `ModuleDataStoreMode`)
+  moved into `DotNetCloud.Core`, and the format/archive/Ed25519/verification pipeline became
+  **`DotNetCloud.Core.Packaging`** — neither touches EF or ASP.NET. `tools/DotNetCloud.ModulePackaging` and
+  its 52 tests now live in `DotNetCloud-ModuleStore` against those packages; the installer remains here.
+- **Deploy contract (shared helper).** The release/junction swap, robocopy, retention, rollback and smoke
+  checks moved into `scripts/lib/SiteDeployment.psm1`; `scripts/deploy-sites.ps1` now only describes `www`,
+  and the store repository owns `deploy/web.config` + `scripts/deploy-site.ps1` for `modules` (importing the
+  shared module from a sibling checkout). One implementation of the risky machinery, two entry points.
+
+### Enforced boundary
+
+`StorePolicy.RequiredModuleIds` (mirrors `RequiredModules`) is checked by `validate`/`build` in the store
+repository, so a required module can never be published as a package; `policy/STORE_POLICY.md` §1.1 records
+the rule and `StoreRequiredModuleTests` pins the list.
+
+### Verification
+
+- `DotNetCloud.CI.slnf`: build **0 warnings / 0 errors**. Tests: Chat 1503, Files 1010, Core.Data 202,
+  Core.Auth 180, Calendar 208, Video 227, Music 458, Notes 166, Contacts 159, Core.Search 180,
+  UI.Shared 262, ModulePackaging 52, Sdk 52, CLI 238/240, Core.Server 1714/1724 — the remaining failures are
+  the pre-existing Windows-only ones (path separators in `MediaCachePath`/`ModuleEndpointAllocator`, the
+  `ProgramRootCa` sibling path, CSP hash drift in untouched Razor, and file-lock backup tests).
+- `DotNetCloud-ModuleStore`: build **0 warnings / 0 errors**; **867 tests pass** (store tooling 92, module
+  suites 47 / 90 / 73 / 63 / 225 / 302, Tracks skips the DB-dependent migration test without a connection).
+- The moved modules compile against the packed SDK feed (`DotNetCloud.* 0.7.1`), so the split is real rather
+  than a path coincidence: no project in the store repository references a `.csproj` in this one.
+

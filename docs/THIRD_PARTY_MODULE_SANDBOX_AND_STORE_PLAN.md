@@ -854,6 +854,42 @@ Per-module directories: `<dataDir>/modules/<moduleId>/{config,data,run}` created
 **Effort:** Large (~2–3 weeks)
 **Parallel with:** A3–A5.
 
+> **Repository renamed 2026-11-18 → `DotNetCloud-ModuleStore`.** The store moved to a fresh repository
+> (`DotNetCloud-ModuleStore`, hyphen) and the GitHub `DotNetCloud.ModuleStore` repository is abandoned. In
+> the same change the **optional first-party modules** (Example, Bookmarks, Email, AI, Photos, Tracks) moved
+> out of this repository into it — host, library, data projects, tests, manifest and service contract —
+> because they are store-delivered product, not platform. What stayed here:
+>
+> - the **required modules** (`RequiredModules.cs`: files, chat, contacts, calendar, notes, about,
+>   extraction) and the core-migrated Music/Video, which ship with the server and are never store packages;
+> - the **module SDK feed** (`scripts/pack-module-sdk.ps1`: `DotNetCloud.Core`, `.Core.Data`, `.Core.Grpc`,
+>   `.Core.Packaging`, `.Modules.Sdk`, `.Modules.Sdk.Web`, `.UI.Shared`), which is how any out-of-tree
+>   module compiles;
+> - the **gRPC client contracts** the core calls (`src/Core/DotNetCloud.Core.Server/Protos/<module>_service.proto`,
+>   vendored from the module repository — the module keeps the authoritative copy beside the service it
+>   implements, and the two must change together);
+> - cross-module **event contracts** in `DotNetCloud.Core.Events` (chat and file-deleted events were moved
+>   out of the Chat/Files modules so a module can subscribe without referencing another module's assembly);
+> - for `www.dotnetcloud.net`: `scripts/deploy-sites.ps1` and `deploy/sites/www/web.config`.
+>
+> Three things that were initially kept here moved out once the dependency was removed:
+>
+> - the **packer** (`dotnetcloud-pack`) now lives in `tools/DotNetCloud.ModulePackaging` in the store
+>   repository. It validated through `ModuleManifestLoader` in `Core.Server`; that contract (with
+>   `ModuleCompatibility`) moved into `DotNetCloud.Core`, and the format/archive/signature/verification
+>   pipeline (`ArchiveSafetyInspector`, `DeterministicPackageWriter`, `Ed25519Signature`,
+>   `ModulePackageFormat`, `ModulePackageManifest`, `ModulePackageVerifier`, `ModuleFeed`) split out of
+>   `Core.Server` into the new **`DotNetCloud.Core.Packaging`** library. The packer now references those two
+>   packages, exactly like any other out-of-tree consumer.
+> - the **modules site deploy contract**: `deploy/web.config` and `scripts/deploy-site.ps1` are in the store
+>   repository. The release/junction/retention/rollback/smoke machinery was extracted into
+>   **`scripts/lib/SiteDeployment.psm1`** here, and both site scripts call it, so the behaviour has one
+>   implementation and two entry points (a `www` deployment is one command, a store deployment is another).
+>
+> The store repository now **refuses to publish a required module** (`StorePolicy.RequiredModuleIds`, checked by
+> `validate`/`build`, documented in `policy/STORE_POLICY.md` §1.1), so the boundary is enforced rather than
+> documented.
+
 **Deliverables**
 
 - ✓ Repo scaffold: `packages/`, `index/`, `tools/` (`dotnetcloud-store` index builder + Ed25519 signer + validator), `schemas/`, `policy/`, `site/`, `docs/`, `scripts/`, `.github/workflows/`, plus a solution + central package pins. The repo is self-contained: it builds from its own checkout with no reference to the DotNetCloud source tree.

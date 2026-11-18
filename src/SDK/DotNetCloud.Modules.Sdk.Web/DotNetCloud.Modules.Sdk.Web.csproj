@@ -6,7 +6,9 @@
     <Nullable>enable</Nullable>
     <RootNamespace>DotNetCloud.Modules.Sdk.Web</RootNamespace>
     <AssemblyName>DotNetCloud.Modules.Sdk.Web</AssemblyName>
-    <IsPackable>false</IsPackable>
+    <!-- Packed as part of the module SDK: a module's browser-side project is built outside this
+         repository and can only reference this by package. See scripts/pack-module-sdk.ps1. -->
+    <IsPackable>true</IsPackable>
   </PropertyGroup>
 
   <ItemGroup>
@@ -23,6 +25,34 @@
   <ItemGroup>
     <!-- Browser-safe by design: DotNetCloud.Core only references Microsoft.AspNetCore.Http.Abstractions. -->
     <ProjectReference Include="..\..\Core\DotNetCloud.Core\DotNetCloud.Core.csproj" />
+  </ItemGroup>
+
+  <!--
+    The iframe UI plane's browser scripts (phase A5). They are plain static assets a module's
+    browser-side project links into its own wwwroot, so they ship as package content: that keeps one
+    copy of the protocol while letting a module outside this repository build without a path into the
+    platform checkout.
+
+    dncModuleBridge.js is the *same* file the host-side SDK packs (a browser app may not reference
+    DotNetCloud.Modules.Sdk — it depends on ASP.NET Core through DotNetCloud.Core.Grpc), so it is
+    packed here from its single source location rather than copied.
+  -->
+  <ItemGroup>
+    <Content Include="wwwroot\dncModuleFrame.js">
+      <Pack>true</Pack>
+      <PackagePath>contentFiles/any/any/wwwroot/dncModuleFrame.js</PackagePath>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="wwwroot\dncModuleBoot.js">
+      <Pack>true</Pack>
+      <PackagePath>contentFiles/any/any/wwwroot/dncModuleBoot.js</PackagePath>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="..\DotNetCloud.Modules.Sdk\wwwroot\dncModuleBridge.js">
+      <Pack>true</Pack>
+      <PackagePath>contentFiles/any/any/wwwroot/dncModuleBridge.js</PackagePath>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
   </ItemGroup>
 
 </Project>

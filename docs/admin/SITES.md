@@ -12,13 +12,14 @@ Two **static** IIS sites, no managed code and no app pool running application co
 | Site                        | Serves                                                                                   | Content repo                |
 | --------------------------- | ---------------------------------------------------------------------------------------- | --------------------------- |
 | `www.dotnetcloud.net`       | marketing site (home, server, client pages, module store page, support)                    | `DotNetCloud-WebSite`       |
-| `modules.dotnetcloud.net`   | module store frontend + the signed catalogue (`index/`) + the `.dncpkg` packages (`packages/`) | `DotNetCloud.ModuleStore`   |
+| `modules.dotnetcloud.net`   | module store frontend + the signed catalogue (`index/`) + the `.dncpkg` packages (`packages/`) | `DotNetCloud-ModuleStore`   |
 
 Neither site is related to `scripts/deploy.sh`, which deploys the **cloud instance** over SSH to a
 Linux host. This document is the IIS/Windows path only.
 
-Site *configuration* (`web.config`) lives in this repository under `deploy/sites/<site>/` so the
-content repos stay free of server configuration.
+Site *configuration* (`web.config`) is versioned with the site it serves: `www` here in
+`deploy/sites/www/`, `modules` in the `DotNetCloud-ModuleStore` repository (`deploy/web.config`), so a
+content repo stays free of server configuration and each site's config lives next to its deploy script.
 
 ## 2. Prerequisites on the IIS host
 
@@ -35,10 +36,11 @@ content repos stay free of server configuration.
    `dotnetcloud.net`. **Certify The Web** is already installed and renews them automatically
    (`Certify Management Agent` service) — see §7. Do not add another ACME client beside it.
 6. The two content checkouts on disk, e.g. `C:\Src\DotNetCloud-WebSite` and
-   `C:\Src\DotNetCloud.ModuleStore`, and a checkout of this repo (for `scripts/deploy-sites.ps1`
-   and `deploy/sites/*/web.config`). On the live host this is `C:\Src\DotNetCloud-WebSite`,
-   `C:\Src\DotNetCloud.ModuleStore` and `C:\Src\DotNetCloud-deploy` (the repo's `scripts\` and
-   `deploy\sites\` trees side by side, which is what `$PSScriptRoot\..\deploy\sites` resolves to).
+   `C:\Src\DotNetCloud-ModuleStore`, **and** a checkout of this repo. `www` deploys from this repo
+   (`scripts/deploy-sites.ps1` + `deploy/sites/www/web.config`); `modules` deploys from the store repo
+   (`scripts/deploy-site.ps1` + `deploy/web.config`), which imports the shared deploy module from a
+   sibling checkout of this repo (`scripts/lib/SiteDeployment.psm1`, found by
+   `-DotNetCloudRoot`; the default is a `DotNetCloud` directory next to the store repo).
 
 ## 3. Directory layout: releases + `current`
 
@@ -53,7 +55,8 @@ C:\inetpub\Apps\DotNetCloud-Modules\
 ```
 
 **The IIS site's physical path is `<SiteRoot>\current`**, never the site root and never a release
-directory directly. `scripts/deploy-sites.ps1` creates and re-points the junction.
+directory directly. Both deploy scripts create and re-point the junction through one shared
+implementation (`scripts/lib/SiteDeployment.psm1`).
 
 For `modules` the site root layout is fixed by the store frontend and must not be changed — the
 frontend fetches `../index/v1/index.json` and the catalogue's `downloadUrl` values are
@@ -75,8 +78,10 @@ and the physical path is the `current` junction that the deploy creates.
 
 ```powershell
 # 1. first deploy (creates releases\<timestamp> and the `current` junction)
-.\scripts\deploy-sites.ps1 -Site modules -Verify
-.\scripts\deploy-sites.ps1 -Site www     -Verify
+#    modules: from the DotNetCloud-ModuleStore checkout
+.\scripts\deploy-site.ps1 -Verify
+#    www: from this repo
+.\scripts\deploy-sites.ps1 -Verify
 # 2. static-only app pool: no managed runtime
 Import-Module WebAdministration
 foreach ($pool in 'DotNetCloud-Website', 'DotNetCloud-Modules') {
@@ -106,8 +111,9 @@ New-WebBinding -Name 'DotNetCloud-Modules' -Protocol https -Port 443 -HostHeader
 If the site was deployed by copying files straight into the site root, do this once:
 
 ```powershell
-# the root already holds the content; deploy-sites.ps1 adds releases\ + current beside it
-.\scripts\deploy-sites.ps1 -Site modules -Verify
+# the root already holds the content; the deploy script adds releases\ + current beside it
+# (run this from the DotNetCloud-ModuleStore checkout)
+.\scripts\deploy-site.ps1 -Verify
 
 Set-ItemProperty 'IIS:\Sites\DotNetCloud-Modules' -Name physicalPath `
     -Value 'C:\inetpub\Apps\DotNetCloud-Modules\current'
@@ -118,13 +124,13 @@ the smoke checks pass.
 
 ## 5. `web.config` — what it does and where it lives
 
-| File                                | Copied to              | Purpose                                                        |
-| ----------------------------------- | ---------------------- | -------------------------------------------------------------- |
-| `deploy/sites/www/web.config`       | www release root       | redirects, cache policy, MIME maps, security headers            |
-| `deploy/sites/modules/web.config`   | modules release root   | same + `.dncpkg`/`.sig` maps, catalogue-aware cache policy      |
+| File                                     | Copied to              | Purpose                                                        |
+| ---------------------------------------- | ---------------------- | -------------------------------------------------------------- |
+| `deploy/sites/www/web.config` (this repo) | www release root      | redirects, cache policy, MIME maps, security headers            |
+| `deploy/web.config` (store repo)          | modules release root  | same + `.dncpkg`/`.sig` maps, catalogue-aware cache policy      |
 
-`deploy-sites.ps1` copies the file **last**, after the content robocopy, so the core repo always
-wins over anything a content checkout might contain.
+Each deploy script copies its `web.config` **last**, after the content robocopy, so the record in
+source control always wins over anything a content checkout might contain.
 
 > **ACME webroot.** Certify The Web renews these certificates through its own HTTP listener (§7), so
 > nothing writes into the site root. The deploy still creates an empty `.well-known/acme-challenge`
@@ -203,46 +209,47 @@ served through a rewrite rule, DNS-01, or a self-hosting challenge with the site
 
 ## 6. Deploy
 
-Run on the IIS host, from a checkout of this repo:
+Two entry points, one implementation. The release/junction swap, retention, rollback and smoke
+checks live in `scripts/lib/SiteDeployment.psm1`; each site has a script that only describes its own
+content, config directory and smoke list.
 
 ```powershell
-# both sites, with smoke checks
-.\scripts\deploy-sites.ps1 -Site all -Verify
+# www.dotnetcloud.net — from a checkout of this repo
+.\scripts\deploy-sites.ps1 -Verify
 
-# one site
-.\scripts\deploy-sites.ps1 -Site modules -Verify
+# modules.dotnetcloud.net — from the DotNetCloud-ModuleStore checkout
+.\scripts\deploy-site.ps1 -Verify
 
-# see what would happen
-.\scripts\deploy-sites.ps1 -Site all -WhatIf
+# see what would happen (either script)
+.\scripts\deploy-sites.ps1 -WhatIf
+.\scripts\deploy-site.ps1 -WhatIf
 
-# non-default content locations
-.\scripts\deploy-sites.ps1 -Site modules `
-    -ModulesCatalogueSource 'C:\Src\DotNetCloud.ModuleStore' `
-    -ModulesSiteRoot 'C:\inetpub\Apps\DotNetCloud-Modules'
+# non-default locations
+.\scripts\deploy-sites.ps1 -WwwSource 'C:\Src\DotNetCloud-WebSite' -WwwSiteRoot 'C:\inetpub\Apps\DotNetCloud-WebSite'
+.\scripts\deploy-site.ps1 -ModulesSiteRoot 'C:\inetpub\Apps\DotNetCloud-Modules'
 ```
 
-What it does, in order: validate every source (nothing is touched if a source is missing) → build
-`releases\<yyyyMMdd-HHmmss>\` with `robocopy /MIR` from the content checkouts → copy the repo's
+What each does, in order: validate every source (nothing is touched if a source is missing) → build
+`releases\<yyyyMMdd-HHmmss>\` with `robocopy /MIR` from the content checkouts → copy the site's
 `web.config` over the release root → re-point `current` → smoke checks → prune old releases.
 
-| Parameter            | Default                                    | Notes                                                |
-| -------------------- | ------------------------------------------ | ---------------------------------------------------- |
-| `-Site`              | `all`                                      | `www`, `modules` or `all`                            |
-| `-WwwSource`         | `C:\Src\DotNetCloud-WebSite`               | marketing-site checkout                              |
-| `-ModulesCatalogueSource` | `C:\Src\DotNetCloud.ModuleStore`      | store repo (`site/`, `index/`, `packages/`)          |
-| `-ModulesFrontendSource` | `<catalogue>\site`                    | frontend files                                       |
-| `-WwwSiteRoot`       | `C:\inetpub\Apps\DotNetCloud-WebSite`      | deploy root                                          |
-| `-ModulesSiteRoot`   | `C:\inetpub\Apps\DotNetCloud-Modules`      | deploy root                                          |
-| `-ReleaseName`       | current UTC time (`yyyyMMdd-HHmmss`)       | refuses to reuse an existing release                 |
-| `-KeepReleases`      | `5`                                        | `0` keeps everything; current + previous are never pruned |
-| `-Verify`            | off                                        | smoke checks after the swap; failure exits non-zero  |
-| `-VerifyOnly`        | off                                        | smoke checks only, no deploy                         |
-| `-Rollback`          | off                                        | re-point `current` at the previous release           |
-| `-RollbackTo`        | –                                          | re-point `current` at a named release                |
-| `-ListReleases`      | off                                        | list releases, mark the current one                  |
-| `-WhatIf`            | off                                        | print every action, change nothing                   |
+| Parameter        | Script        | Default                               | Notes                                                |
+| ---------------- | ------------- | ------------------------------------- | ---------------------------------------------------- |
+| `-WwwSource`     | `deploy-sites` | `C:\Src\DotNetCloud-WebSite`         | marketing-site checkout                              |
+| `-WwwSiteRoot`   | `deploy-sites` | `C:\inetpub\Apps\DotNetCloud-WebSite`| deploy root                                          |
+| `-SiteConfigRoot`| `deploy-sites` | `<repo>\deploy\sites`                | holds `www/web.config`                               |
+| `-DotNetCloudRoot`| `deploy-site`| sibling `DotNetCloud`                 | where the shared `SiteDeployment.psm1` lives         |
+| `-ModulesSiteRoot`| `deploy-site`| `C:\inetpub\Apps\DotNetCloud-Modules`| deploy root                                          |
+| `-ReleaseName`   | both          | current UTC time (`yyyyMMdd-HHmmss`)  | refuses to reuse an existing release                 |
+| `-KeepReleases`  | both          | `5`                                   | `0` keeps everything; current + previous are never pruned |
+| `-Verify`        | both          | off                                   | smoke checks after the swap; failure exits non-zero  |
+| `-VerifyOnly`    | both          | off                                   | smoke checks only, no deploy                         |
+| `-Rollback`      | both          | off                                   | re-point `current` at the previous release           |
+| `-RollbackTo`    | both          | –                                     | re-point `current` at a named release                |
+| `-ListReleases`  | both          | off                                   | list releases, mark the current one                  |
+| `-WhatIf`        | both          | off                                   | print every action, change nothing                   |
 
-The script exits non-zero on any failure, so it can be wrapped by a task or a pipeline later
+Both scripts exit non-zero on any failure, so they can be wrapped by a task or a pipeline later
 (CI-driven deploys are a separate, deferred decision — they need a deployment credential here).
 
 ## 7. TLS and renewal
@@ -283,9 +290,12 @@ same names will hit Let's Encrypt rate limits and fight over the port-80 challen
 ## 8. Rollback
 
 ```powershell
-.\scripts\deploy-sites.ps1 -Site modules -ListReleases
-.\scripts\deploy-sites.ps1 -Site modules -Rollback              # previous release
-.\scripts\deploy-sites.ps1 -Site www -RollbackTo 20261108-120000  # a specific one
+# modules (from the DotNetCloud-ModuleStore checkout)
+.\scripts\deploy-site.ps1 -ListReleases
+.\scripts\deploy-site.ps1 -Rollback              # previous release
+
+# www (from this repo)
+.\scripts\deploy-sites.ps1 -RollbackTo 20261108-120000  # a specific release
 ```
 
 A rollback re-points the junction; nothing is rebuilt and no content is re-copied. IIS serves the
