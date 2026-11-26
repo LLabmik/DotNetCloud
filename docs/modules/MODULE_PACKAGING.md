@@ -20,13 +20,15 @@ Modules are split by whether the platform owns them (2026-11-18):
 | -------------------- | ---------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------ |
 | **Required**         | `dotnetcloud.files`, `.chat`, `.contacts`, `.calendar`, `.notes`, `.about`, `.extraction`                   | This repository, `src/Modules/**` (and `src/Core/DotNetCloud.Core.Search.Extraction.Host`) |
 | **Optional first-party** | `dotnetcloud.example`, `.bookmarks`, `.email`, `.ai`, `.photos`, `.tracks`                              | `DotNetCloud-ModuleStore`, `src/Modules/**`                        |
+| **Optional first-party (in this repo)** | `dotnetcloud.music`, `.video` | This repository, `src/Modules/**` |
 | **Third party**      | anything else                                                                                              | The publisher's own repository                                     |
 
 A required module shares the `core` schema, cannot be disabled or uninstalled, and cannot be replaced
 by a store package, so it is **never published to the store** — `validate`/`build` in
 `DotNetCloud-ModuleStore` reject a package whose manifest id is in `RequiredModules`.
 
-Optional and third-party modules build outside this repository, so they reference the platform's
+Optional and third-party modules build outside this repository (except `music` and `video`,
+which still ship here), so they reference the platform's
 contract assemblies as **packages**, not project references:
 
 ```powershell

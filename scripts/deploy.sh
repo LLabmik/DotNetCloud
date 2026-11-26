@@ -5,7 +5,7 @@
 #   sudo ./scripts/deploy.sh                    # Incremental (changed modules only)
 #   sudo ./scripts/deploy.sh --force             # Full rebuild of everything
 #   sudo ./scripts/deploy.sh --config Debug      # Build configuration
-#   sudo ./scripts/deploy.sh --skip-modules "About,AI"    # Skip specific modules
+#   sudo ./scripts/deploy.sh --skip-modules "About,Music"    # Skip specific modules
 #   sudo ./scripts/deploy.sh --skip-stop         # Don't restart the service
 #   sudo ./scripts/deploy.sh --skip-build        # Skip build step (publish existing build output)
 #   sudo ./scripts/deploy.sh --dry-run           # Show what would happen
@@ -14,6 +14,10 @@
 #
 # Legacy: positional arg is config:
 #   sudo ./scripts/deploy.sh Debug
+#
+# Store-hosted modules (Tracks, Photos, Bookmarks, Email, AI, Example) live in the
+# DotNetCloud-ModuleStore repository. This script never builds or publishes them —
+# it only reports their install state. Manage them with `dotnetcloud module`.
 set -euo pipefail
 
 # ============================================================================
@@ -46,9 +50,24 @@ if [ "$(id -u)" -ne 0 ]; then
 fi
 
 # ============================================================================
-# Module registry — all known modules with publishable hosts
+# Module registry
 # ============================================================================
-MODULES=(Contacts Calendar Chat Files Notes Tracks Music Photos Video Extraction Bookmarks Email About AI)
+# Every module the server can host, split by where its source lives
+# (see docs/modules/MODULE_PACKAGING.md §0):
+#
+#   MODULES       — host source lives in THIS repository: built and published here.
+#   STORE_MODULES — optional first-party modules whose source moved to the
+#                   DotNetCloud-ModuleStore repository. They are installed and
+#                   updated through the module store
+#                   (`dotnetcloud module install <id> --from-store`), so this
+#                   script must NEVER build or publish them — a local publish
+#                   would overwrite a store-managed install with a stale build.
+#                   Deploy only validates and reports their state.
+#
+# When a module moves to the store: move its name from MODULES to STORE_MODULES
+# and remove its projects from DotNetCloud.CI.slnf.
+MODULES=(Contacts Calendar Chat Files Notes Music Video About Extraction)
+STORE_MODULES=(Tracks Photos Bookmarks Email AI Example)
 
 # Core project paths (relative to REPO_ROOT)
 CORE_PROJECTS=(
@@ -221,6 +240,33 @@ module_host_csproj() {
     else
         echo "$REPO_ROOT/src/Modules/$module/DotNetCloud.Modules.$module.Host/DotNetCloud.Modules.$module.Host.csproj"
     fi
+}
+
+# True when a module's host project is present in this repository.
+module_host_exists() {
+    [ -f "$(module_host_csproj "$1")" ]
+}
+
+# Report the store-hosted modules: they are owned by DotNetCloud-ModuleStore, so a
+# deploy only inspects them. A missing install is not fatal (optional modules can be
+# deliberately absent), but it is surfaced so a half-installed server is obvious.
+report_store_modules() {
+    [ "${#STORE_MODULES[@]}" -eq 0 ] && return 0
+    log "  Store modules (owned by DotNetCloud-ModuleStore — not built from this repo):"
+    local module module_lower dir host_dll status
+    for module in "${STORE_MODULES[@]}"; do
+        module_lower=$(echo "$module" | tr '[:upper:]' '[:lower:]')
+        dir="$MODULES_DIR/dotnetcloud.$module_lower"
+        host_dll="$dir/dotnetcloud.$module_lower.dll"
+        if [ -f "$host_dll" ]; then
+            status="installed — left untouched"
+        elif [ -d "$dir" ]; then
+            status="host assembly missing in $dir — reinstall from the store"
+        else
+            status="not installed (dotnetcloud module install dotnetcloud.$module_lower --from-store)"
+        fi
+        echo "    • dotnetcloud.$module_lower: $status"
+    done
 }
 
 # Resolve a module host's build output directory (bin/$CONFIG/net10.0).
@@ -596,6 +642,9 @@ echo "║   DotNetCloud Deploy                            ║"
 echo "╚══════════════════════════════════════════════════╝"
 echo "  Config:   $CONFIG"
 echo "  Mode:     $([ "$FORCE" = true ] && echo 'FULL (--force)' || echo 'Incremental')"
+if [ "${#STORE_MODULES[@]}" -gt 0 ]; then
+    echo "  Store:    ${STORE_MODULES[*]} (store-managed, never built here)"
+fi
 $DRY_RUN && echo "  DRY RUN:  No changes will be applied"
 $SKIP_BUILD && echo "  Build:    skipped (--skip-build)"
 [ -n "$SKIP_MODULES" ] && echo "  Skip:     $SKIP_MODULES"
@@ -604,6 +653,34 @@ echo ""
 # ============================================================================
 # Phase 1: Determine what changed
 # ============================================================================
+
+# Fail fast if an in-repo module has no host project. This catches the case where a
+# module moved to the store but was not added to STORE_MODULES: without the check the
+# full-build solution filter fails later with an unrelated MSBuild error, and an
+# incremental deploy would silently stop updating that module.
+missing_module_hosts=()
+for module in "${MODULES[@]}"; do
+    module_host_exists "$module" || missing_module_hosts+=("$module")
+done
+if [ "${#missing_module_hosts[@]}" -gt 0 ]; then
+    echo ""
+    echo "[ERROR] Host project missing for in-repo module(s): ${missing_module_hosts[*]}"
+    echo "        If the module's source moved to DotNetCloud-ModuleStore, move its name"
+    echo "        from MODULES to STORE_MODULES at the top of this script."
+    exit 1
+fi
+
+# A module must be owned by exactly one repository — otherwise it is either
+# published over a store install or silently never updated.
+for module in "${STORE_MODULES[@]}"; do
+    if printf '%s\n' "${MODULES[@]}" | grep -qx "$module"; then
+        echo ""
+        echo "[ERROR] Module '$module' is listed in both MODULES and STORE_MODULES."
+        echo "        Keep it in MODULES (built here) or STORE_MODULES (store-managed), never both."
+        exit 1
+    fi
+done
+
 log "Checking last deployed state..."
 LAST_DEPLOYED=$(get_last_deployed_commit)
 CURRENT_HEAD=$(cd "$REPO_ROOT" && git rev-parse HEAD 2>/dev/null || echo "unknown")
@@ -711,6 +788,9 @@ if $DRY_RUN; then
     echo ""
     echo "  Steps:"
     echo "    [build] $($FULL_BUILD && echo 'deploy.slnf (server + module hosts)' || echo "${#CHANGED_MODULES[@]} module(s)")"
+    if [ "${#STORE_MODULES[@]}" -gt 0 ]; then
+        echo "    [store]  leave store-hosted modules untouched: ${STORE_MODULES[*]}"
+    fi
     if ! $SKIP_STOP; then echo "    [stop]  dotnetcloud service (after build succeeds)"; fi
     if $FULL_BUILD; then
         echo "    [publish] Core.Server + all ${#MODULES[@]} module hosts"
@@ -840,6 +920,7 @@ if $DRY_RUN; then
     echo "    [DRY-RUN] ensure server/modules -> ../modules symlink"
 else
     ensure_module_layout
+    report_store_modules
 fi
 
 step "Publishing Core.Server..."

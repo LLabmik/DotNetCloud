@@ -28,6 +28,7 @@ Both must be backed up together and restored together for a consistent state.
 | **Server settings**  | `/opt/dotnetcloud/appsettings.json`, `VERSION`                       | AllowedHosts, Kestrel, AI/email/ICE settings; deployed version                |
 | **Collabora config** | `/etc/coolwsd/coolwsd.xml` (+ `cert.pem`, `ca-chain.cert.pem`)       | WOPI alias group added by the installer                                       |
 | **Storage manifest** | Embedded by `dotnetcloud backup`; also `dotnetcloud backup manifest` | Index mapping every stored blob back to its file (see below)                 |
+| **Module data**      | `database.sql` (one schema per module) + `{DataDirectory}/modules/<module-id>/` | Module-owned tables and private files; module *binaries* are not archived (see *Store-installed modules*) |
 
 > **⚠️ Certificates and env are not optional.** `config.json` points at
 > `/etc/dotnetcloud/certs/dotnetcloud-selfsigned.pfx`; if that file is missing the server throws
@@ -305,6 +306,50 @@ In practice, running the backup during low-activity periods is sufficient. The c
 
 ---
 
+## Store-installed modules
+
+Optional modules (module store or third-party) are **not** archived as binaries. A backup contains
+their data and configuration, not their code:
+
+| Part                                   | In the archive?                                                              | Where it comes from on restore |
+| -------------------------------------- | ---------------------------------------------------------------------------- | ------------------------------ |
+| Module data (database)                 | ✅ `database.sql` — every module owns a schema in the one database (e.g. `[tracks]`) | Restored with the database     |
+| Module sandbox files                   | ✅ `data/modules/<module-id>/{config,data}/` under the data directory          | Restored with `data/**`        |
+| Module settings / store registration   | ✅ `config/config.json` (`enabledModules`, store index + trusted keys) + the database | Restored as configuration |
+| Module binaries (`dotnetcloud.<id>.dll`, …) | ❌ never archived                                                        | Re-installed from the signed module store |
+
+Restoring binaries from a backup is deliberately avoided: they are signed, immutable and versioned in
+the store, so re-installing the recorded version yields a verifiable deployment and never overwrites a
+newer store-managed host with a stale copy. Required modules (`files`, `chat`, `contacts`, `calendar`,
+`notes`, `about`, `extraction`) ship with the server and come back with `install.sh` /
+`scripts/deploy.sh`.
+
+`backup-info.json` records the installed inventory under `modules[]` (id, version, publisher, signing
+key, trust tier, data-store mode, required flag). CLI and mirror backups write it directly; for an
+admin-UI archive without the list, `dotnetcloud restore` reads the inventory from the restored
+database instead. After restoring, it prints every recorded module whose host directory is missing:
+
+```text
+⚠ Module binaries are not part of a backup: 2 of 14 recorded module(s) are not installed under /opt/dotnetcloud/server/modules.
+  store    dotnetcloud.tracks 2.0.0: sudo dotnetcloud module install dotnetcloud.tracks --version 2.0.0 --from-store --yes
+  store    dotnetcloud.photos 1.4.2: sudo dotnetcloud module install dotnetcloud.photos --version 1.4.2 --from-store --yes
+```
+
+Then restart the service (`sudo systemctl restart dotnetcloud`). Module schemas are re-adopted at
+startup, and isolated data-store principals are re-provisioned (with a fresh password) by the core if
+the restored database lost them — which can happen after a logical `pg_dump` restore, because roles
+are cluster-level objects rather than database content.
+
+### Restore order on a machine that never had the modules
+
+1. Fresh install (`install.sh`) — server binaries and the required modules.
+2. `sudo dotnetcloud restore <archive>` — database, data and configuration.
+3. Run the `dotnetcloud module install … --from-store --yes` commands the restore printed.
+4. `sudo systemctl restart dotnetcloud`, then poll `/health/ready` — module hosts register over
+   roughly two minutes and report `N module(s) — all healthy` when done.
+
+---
+
 ## Restore Procedures
 
 ### Method 1: CLI Restore
@@ -327,7 +372,8 @@ sudo dotnetcloud restore /var/backups/dnc/dotnetcloud-2026-11-03.zip
 7. Restores `data/**` — streamed straight to the destination, then `chown -R dotnetcloud:dotnetcloud` and
    re-applies `0600`/`0700` to secret material. **No full staging copy is made**: peak disk is the archive
    plus the restored tree (~2×, not 3×).
-8. `systemctl daemon-reload` / `enable` / `start` and waits for `/health/ready`.
+8. Reports recorded modules whose binaries are absent from this machine (see *Store-installed modules*).
+9. `systemctl daemon-reload` / `enable` / `start` and waits for `/health/ready`.
 
 Options:
 

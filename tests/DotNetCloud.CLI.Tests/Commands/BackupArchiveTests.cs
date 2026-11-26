@@ -221,4 +221,155 @@ public class BackupArchiveTests
         Assert.AreEqual("pw", args[args.IndexOf("-P") + 1]);
         Assert.IsTrue(args[^1].Contains("BACKUP DATABASE", StringComparison.Ordinal));
     }
+
+    [TestMethod]
+    public void SerializeInfo_WithModuleInventory_RoundTripsModuleMetadata()
+    {
+        var info = new BackupInfo
+        {
+            CreatedUtc = "2026-11-25T00:00:00Z",
+            Modules =
+            [
+                new BackupModuleInfo
+                {
+                    Id = "dotnetcloud.tracks",
+                    Version = "2.0.0",
+                    PublisherId = "dotnetcloud-official",
+                    SignedByKeyId = "store-2027",
+                    TrustTier = "Bundled",
+                    DataStoreMode = "Isolated",
+                    IsRequired = false,
+                },
+            ],
+        };
+
+        var restored = BackupArchive.DeserializeInfo(BackupArchive.SerializeInfo(info));
+
+        Assert.IsNotNull(restored);
+        Assert.AreEqual(1, restored.Modules.Count);
+        Assert.AreEqual("dotnetcloud.tracks", restored.Modules[0].Id);
+        Assert.AreEqual("2.0.0", restored.Modules[0].Version);
+        Assert.AreEqual("Isolated", restored.Modules[0].DataStoreMode);
+        Assert.IsFalse(restored.Modules[0].IsRequired);
+    }
+
+    [TestMethod]
+    public void DeserializeInfo_ArchiveWithoutModuleList_ReturnsEmptyInventory()
+    {
+        // Older archives (and the server-side admin backup) carry no module list; reading them must
+        // stay backward compatible rather than throwing.
+        var restored = BackupArchive.DeserializeInfo(
+            "{\"formatVersion\":2,\"createdUtc\":\"2026-01-01T00:00:00Z\"}");
+
+        Assert.IsNotNull(restored);
+        Assert.AreEqual(0, restored.Modules.Count);
+    }
+
+    [TestMethod]
+    public void FindMissingModules_OnlyInstalledModulePresent_ReportsAbsentModule()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "dnc-modules-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(Path.Combine(root, "dotnetcloud.files"));
+        try
+        {
+            var missing = BackupArchive.FindMissingModules(
+                [
+                    new BackupModuleInfo { Id = "dotnetcloud.files", Version = "1.0.0", IsRequired = true },
+                    new BackupModuleInfo { Id = "dotnetcloud.tracks", Version = "2.0.0" },
+                ],
+                root);
+
+            Assert.AreEqual(1, missing.Count);
+            Assert.AreEqual("dotnetcloud.tracks", missing[0].Id);
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [TestMethod]
+    public void FindMissingModules_AllDirectoriesPresent_ReturnsEmpty()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "dnc-modules-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(Path.Combine(root, "dotnetcloud.tracks"));
+        try
+        {
+            var missing = BackupArchive.FindMissingModules(
+                [new BackupModuleInfo { Id = "dotnetcloud.tracks", Version = "2.0.0" }],
+                root);
+
+            Assert.AreEqual(0, missing.Count);
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [TestMethod]
+    public void FormatModuleInstallCommand_WithVersion_PinsStoreVersion()
+    {
+        var command = BackupArchive.FormatModuleInstallCommand(
+            new BackupModuleInfo { Id = "dotnetcloud.tracks", Version = "2.0.0" });
+
+        Assert.AreEqual(
+            "sudo dotnetcloud module install dotnetcloud.tracks --version 2.0.0 --from-store --yes",
+            command);
+    }
+
+    [TestMethod]
+    public void FormatModuleInstallCommand_WithoutVersion_OmitsVersionFlag()
+    {
+        var command = BackupArchive.FormatModuleInstallCommand(
+            new BackupModuleInfo { Id = "dotnetcloud.tracks" });
+
+        Assert.IsFalse(command.Contains("--version", StringComparison.Ordinal));
+    }
+
+    [TestMethod]
+    public void BuildModuleRestorePlanLines_MissingStoreAndRequired_ExplainsEachSource()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "dnc-modules-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
+        try
+        {
+            var lines = BackupCommands.BuildModuleRestorePlanLines(
+                [
+                    new BackupModuleInfo { Id = "dotnetcloud.files", Version = "1.0.0", IsRequired = true },
+                    new BackupModuleInfo { Id = "dotnetcloud.tracks", Version = "2.0.0" },
+                ],
+                root);
+
+            Assert.AreEqual(2, lines.Count);
+            StringAssert.Contains(lines[0], "required dotnetcloud.files 1.0.0");
+            StringAssert.Contains(lines[1], "store    dotnetcloud.tracks 2.0.0");
+            StringAssert.Contains(
+                lines[1],
+                "dotnetcloud module install dotnetcloud.tracks --version 2.0.0 --from-store --yes");
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [TestMethod]
+    public void BuildModuleRestorePlanLines_AllHostsPresent_ReturnsEmpty()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "dnc-modules-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(Path.Combine(root, "dotnetcloud.tracks"));
+        try
+        {
+            var lines = BackupCommands.BuildModuleRestorePlanLines(
+                [new BackupModuleInfo { Id = "dotnetcloud.tracks", Version = "2.0.0" }],
+                root);
+
+            Assert.AreEqual(0, lines.Count);
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
 }

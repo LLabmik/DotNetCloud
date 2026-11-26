@@ -384,6 +384,7 @@ internal sealed class MirrorSnapshotWriter
     private readonly string _installDirectory;
     private readonly string _serviceUser;
     private readonly IReadOnlyList<string> _excludePaths;
+    private readonly IReadOnlyList<BackupModuleInfo> _modules;
     private readonly IHardLinker _hardLinker;
     private readonly Action<BackupProgress>? _progress;
     private readonly bool _includeSystem;
@@ -397,7 +398,8 @@ internal sealed class MirrorSnapshotWriter
         IReadOnlyList<string> excludePaths,
         bool includeSystem = true,
         IHardLinker? hardLinker = null,
-        Action<BackupProgress>? progress = null)
+        Action<BackupProgress>? progress = null,
+        IReadOnlyList<BackupModuleInfo>? modules = null)
     {
         _targetRoot = targetRoot;
         _dataDirectory = dataDirectory;
@@ -405,6 +407,7 @@ internal sealed class MirrorSnapshotWriter
         _installDirectory = installDirectory;
         _serviceUser = serviceUser;
         _excludePaths = excludePaths;
+        _modules = modules ?? [];
         _includeSystem = includeSystem;
         _hardLinker = hardLinker ?? new PlatformHardLinker();
         _progress = progress;
@@ -596,6 +599,7 @@ internal sealed class MirrorSnapshotWriter
             PreviousSnapshot = previous is null ? null : Path.GetFileName(previous),
             HardLinkedFiles = hardLinked,
             CopiedFiles = copied,
+            Modules = _modules,
             Warnings = warnings,
         };
 
