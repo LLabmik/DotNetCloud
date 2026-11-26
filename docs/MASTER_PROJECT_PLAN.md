@@ -12,6 +12,21 @@
 
 ---
 
+> **Database growth (2026-11-25, `chore/db-cleanup`): the 58.7 GB was a transaction log, not data.** Live audit of the
+> production `DotNetCloud` database: `.mdf` 995 MB / `.ldf` **57,736 MB**, recovery model `FULL`,
+> `log_reuse_wait_desc = LOG_BACKUP`, and only full (`D`) backups in `msdb.dbo.backupset` — the log had never truncated.
+> User tables total 864.6 MB (largest: Photos **404 MB** of `varbinary(max)` thumbnails for 1,060 photos,
+> `core.SearchIndexEntries` 96 MB / 83,621 rows, `music.user_tracks` 95 MB). Two tables grew without any delete path:
+> `core.UploadSessions` (15,771 finished sessions, 23 MB) and `core.OpenIddictTokens` (8,733 rows, 8,126 expired).
+> Fixes: `UploadSessionCleanupService` now deletes finished sessions 7 days past `ExpiresAt`; new
+> `ExpiredTokenPurgeHostedService` deletes expired tokens daily; Music migration `DropLegacyMusicTables` removes six
+> zero-row pre-canonical tables; `docs/admin/DATABASE_MAINTENANCE.md` documents the log fix, the retention matrix and the
+> remaining manual decisions (the legacy `contacts` schema still holds pre-move rows; module schemas belong to the
+> module-store repository). Build clean, Files cleanup tests 8/8, new Core.Server tests 3/3. Live migration and the log
+> reclaim still to be run by the operator.
+
+---
+
 > **Cross-provider schema (2026-11-14, `fix/more-things`): no more SQL Server `text` columns.** All 27 `HasColumnType("text")`
 > sites across Notes, Email, Photos, Bookmarks, AI and Tracks are gone; leaving the type unconfigured gives
 > `nvarchar(max)` on SQL Server and `text` on PostgreSQL (so the PostgreSQL schema is unchanged). Each module got a SQL

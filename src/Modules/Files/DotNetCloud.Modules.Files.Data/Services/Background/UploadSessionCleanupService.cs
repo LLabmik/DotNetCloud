@@ -18,6 +18,13 @@ internal sealed class UploadSessionCleanupService : BackgroundService
     private const string ServiceName = "Upload Session Cleanup";
     private static readonly TimeSpan Interval = TimeSpan.FromHours(1);
 
+    /// <summary>
+    /// How long a finished (non-<see cref="UploadSessionStatus.InProgress"/>) session row is kept
+    /// after it expires before the row itself is deleted. Clients may poll a completed session for a
+    /// short while after the last chunk, so a grace window is required.
+    /// </summary>
+    private static readonly TimeSpan TerminalSessionRetention = TimeSpan.FromDays(7);
+
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly ILogger<UploadSessionCleanupService> _logger;
     private readonly IBackgroundServiceTracker _tracker;
@@ -133,6 +140,22 @@ internal sealed class UploadSessionCleanupService : BackgroundService
                 // Another service (e.g. TrashCleanup) already deleted some of these chunks
                 _logger.LogDebug("Chunk GC had concurrency conflict (another service already cleaned some chunks)");
             }
+        }
+
+        // Purge finished session rows. Without this the table grows forever: every completed
+        // upload leaves a row behind and nothing else ever deletes it.
+        var purgeCutoff = now - TerminalSessionRetention;
+        var staleSessions = await db.UploadSessions
+            .Where(s => s.Status != UploadSessionStatus.InProgress && s.ExpiresAt < purgeCutoff)
+            .ToListAsync(cancellationToken);
+
+        if (staleSessions.Count > 0)
+        {
+            db.UploadSessions.RemoveRange(staleSessions);
+            await db.SaveChangesAsync(cancellationToken);
+            _logger.LogInformation(
+                "Purged {Count} finished upload sessions that expired before {Cutoff:O} (retention {Days} days)",
+                staleSessions.Count, purgeCutoff, TerminalSessionRetention.TotalDays);
         }
     }
 }

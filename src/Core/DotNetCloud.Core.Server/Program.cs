@@ -832,6 +832,9 @@ public class Program
         // Enforce audit-log retention (SOC 2 C2/P6): daily purge of expired rows.
         builder.Services.AddHostedService<AuditLogPurgeHostedService>();
 
+        // Enforce token retention: daily purge of expired OpenIddict token rows.
+        builder.Services.AddHostedService<ExpiredTokenPurgeHostedService>();
+
         // Deliver scheduled admin broadcasts shortly after their send time (30s poll).
         builder.Services.AddHostedService<AdminBroadcastSchedulerHostedService>();
 
