@@ -3,8 +3,10 @@ using System.Diagnostics;
 using System.IO.Compression;
 using System.Text;
 using DotNetCloud.CLI.Infrastructure;
+using DotNetCloud.Core.Data.Context;
 using DotNetCloud.Core.DTOs;
 using DotNetCloud.Modules.Files.Data;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace DotNetCloud.CLI.Commands;
@@ -424,6 +426,117 @@ internal static class BackupCommands
     }
 
     /// <summary>
+    /// Reads the installed-module inventory so the archive records which modules (and versions) the
+    /// installation had. A failure is a warning, never a failed backup: the archive is still
+    /// restorable, the operator only loses the convenience list of hosts to re-install.
+    /// </summary>
+    /// <param name="warnings">Collected warnings for <c>backup-info.json</c>.</param>
+    internal static async Task<IReadOnlyList<BackupModuleInfo>> ReadInstalledModuleInventoryAsync(
+        List<string> warnings)
+    {
+        ArgumentNullException.ThrowIfNull(warnings);
+
+        try
+        {
+            await using var provider = ServiceProviderFactory.CreateForPackageInstall();
+            if (provider is null)
+                return [];
+
+            using var scope = provider.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<CoreDbContext>();
+
+            return await db.InstalledModules
+                .AsNoTracking()
+                .OrderBy(module => module.ModuleId)
+                .Select(module => new BackupModuleInfo
+                {
+                    Id = module.ModuleId,
+                    Version = module.Version,
+                    PublisherId = module.PublisherId,
+                    SignedByKeyId = module.SignedByKeyId,
+                    TrustTier = module.TrustTier.ToString(),
+                    DataStoreMode = module.DataStoreMode.ToString(),
+                    IsRequired = module.IsRequired,
+                })
+                .ToListAsync();
+        }
+        catch (Exception ex)
+        {
+            warnings.Add(
+                $"Installed-module inventory unavailable ({ex.Message}); the archive records no module list.");
+            return [];
+        }
+    }
+
+    /// <summary>
+    /// Prints which recorded modules are not installed on this machine. Module <em>binaries</em> are
+    /// deliberately not archived — store modules are re-installed from the signed store at the
+    /// recorded version, and required modules ship with the server install.
+    /// </summary>
+    /// <param name="info">Archive metadata, used when the inventory cannot be read from the database.</param>
+    internal static async Task ReportModuleRestorePlanAsync(BackupInfo? info)
+    {
+        IReadOnlyList<BackupModuleInfo> modules = info?.Modules ?? [];
+        if (modules.Count == 0)
+            modules = await ReadInstalledModuleInventoryAsync([]);
+
+        if (modules.Count == 0)
+        {
+            ConsoleOutput.WriteInfo("No installed-module inventory is available for this restore.");
+            return;
+        }
+
+        var modulesRoot = BackupArchive.ResolveDefaultModulesRoot();
+        var lines = BuildModuleRestorePlanLines(modules, modulesRoot);
+        if (lines.Count == 0)
+        {
+            ConsoleOutput.WriteSuccess(
+                $"All {modules.Count} recorded module(s) are installed under {modulesRoot}.");
+            return;
+        }
+
+        ConsoleOutput.WriteWarning(
+            $"Module binaries are not part of a backup: {lines.Count} of {modules.Count} recorded " +
+            $"module(s) are not installed under {modulesRoot}.");
+
+        foreach (var line in lines)
+            ConsoleOutput.WriteInfo($"  {line}");
+    }
+
+    /// <summary>
+    /// Builds the per-module restore instructions: required modules come back with the server
+    /// install, every other recorded module is re-installed from the store at its recorded version.
+    /// Returns an empty list when every recorded module host is already present.
+    /// </summary>
+    /// <param name="modules">Modules recorded by the backup.</param>
+    /// <param name="modulesRoot">Module directory the supervisor discovers hosts from.</param>
+    internal static IReadOnlyList<string> BuildModuleRestorePlanLines(
+        IReadOnlyList<BackupModuleInfo> modules,
+        string modulesRoot)
+    {
+        ArgumentNullException.ThrowIfNull(modules);
+
+        var missing = BackupArchive.FindMissingModules(modules, modulesRoot);
+        var lines = new List<string>();
+
+        foreach (var module in missing.Where(m => m.IsRequired))
+        {
+            lines.Add(
+                $"required {module.Id} {module.Version}: reinstall the server " +
+                "(install.sh or scripts/deploy.sh) — required module hosts ship with the release.");
+        }
+
+        foreach (var module in missing.Where(m => !m.IsRequired))
+        {
+            lines.Add(
+                $"store    {module.Id} {module.Version}: " +
+                BackupArchive.FormatModuleInstallCommand(module));
+        }
+
+        return lines;
+    }
+
+    /// <summary>
     /// Returns <see langword="true"/> when <paramref name="filePath"/> is one of the excluded paths or
     /// lives beneath one of them. A sibling directory that merely shares a name prefix (for example
     /// <c>backups-old</c> next to <c>backups</c>) is deliberately <b>not</b> excluded.
@@ -706,6 +819,7 @@ internal static class BackupCommands
                 SystemEntries = systemEntries,
                 DataFileCount = dataFileCount,
                 EmptyDirectoryCount = emptyDirectoryCount,
+                Modules = await ReadInstalledModuleInventoryAsync(warnings),
                 Warnings = warnings,
             };
 
@@ -836,6 +950,12 @@ internal static class BackupCommands
                 : $"  {progress.Phase}...");
         }
 
+        // Module inventory is metadata only: a failure warns and leaves the snapshot usable.
+        var moduleWarnings = new List<string>();
+        var moduleInventory = await ReadInstalledModuleInventoryAsync(moduleWarnings);
+        foreach (var warning in moduleWarnings)
+            ConsoleOutput.WriteWarning(warning);
+
         var writer = new MirrorSnapshotWriter(
             targetRoot,
             config.DataDirectory,
@@ -844,7 +964,8 @@ internal static class BackupCommands
             serviceUser,
             excludePaths: [config.BackupDirectory, targetRoot],
             includeSystem: includeSystem,
-            progress: Report);
+            progress: Report,
+            modules: moduleInventory);
 
         try
         {
@@ -1086,6 +1207,10 @@ internal static class BackupCommands
             {
                 ConsoleOutput.WriteWarning("Database restore skipped (--skip-database).");
             }
+
+            // Module binaries are never archived. Report which recorded modules are absent from this
+            // machine so the operator can re-install them from the store before relying on them.
+            await ReportModuleRestorePlanAsync(info);
 
             if (options.ManageService)
             {

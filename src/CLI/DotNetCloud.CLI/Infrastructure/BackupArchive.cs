@@ -82,6 +82,46 @@ internal sealed record BackupInfo
 
     /// <summary>Non-fatal problems encountered while creating the backup.</summary>
     public IReadOnlyList<string> Warnings { get; init; } = [];
+
+    /// <summary>
+    /// Modules installed at backup time. Their data and configuration are inside the archive (the
+    /// database dump carries every module schema; the data directory carries the per-module sandbox
+    /// folders). Their <em>binaries</em> are deliberately not archived: store modules are re-installed
+    /// from the signed store at the recorded version, and required modules ship with the server.
+    /// </summary>
+    public IReadOnlyList<BackupModuleInfo> Modules { get; init; } = [];
+}
+
+/// <summary>
+/// One module recorded in <c>backup-info.json</c>. Used by <c>dotnetcloud restore</c> to tell the
+/// operator exactly which module hosts must be re-installed (and at which version) after a restore
+/// onto a machine that does not already have them.
+/// </summary>
+internal sealed record BackupModuleInfo
+{
+    /// <summary>Module id, for example <c>dotnetcloud.tracks</c>.</summary>
+    public string Id { get; init; } = string.Empty;
+
+    /// <summary>Installed version string.</summary>
+    public string Version { get; init; } = string.Empty;
+
+    /// <summary>Publisher recorded for a store or sideloaded package, when known.</summary>
+    public string? PublisherId { get; init; }
+
+    /// <summary>Signing key that vouched for the package, when known.</summary>
+    public string? SignedByKeyId { get; init; }
+
+    /// <summary>Trust tier at backup time (<c>Required</c>, <c>Bundled</c> or <c>Store</c>).</summary>
+    public string TrustTier { get; init; } = "Bundled";
+
+    /// <summary>Data-store mode at backup time (<c>None</c> or <c>Isolated</c>).</summary>
+    public string DataStoreMode { get; init; } = "None";
+
+    /// <summary>
+    /// <see langword="true"/> for architecturally required modules. Their binaries ship with the
+    /// server install, so they are restored by install.sh/deploy.sh rather than from the store.
+    /// </summary>
+    public bool IsRequired { get; init; }
 }
 
 /// <summary>
@@ -420,5 +460,54 @@ internal static class BackupArchive
         {
             return null;
         }
+    }
+
+    /// <summary>
+    /// Resolves the module directory the supervisor discovers hosts from. Honours
+    /// <c>DOTNETCLOUD_MODULES_DIR</c>, otherwise uses the install layout
+    /// (<c>&lt;install&gt;/server/modules</c>, the symlink install.sh creates, falling back to
+    /// <c>&lt;install&gt;/modules</c>).
+    /// </summary>
+    internal static string ResolveDefaultModulesRoot()
+    {
+        var configured = Environment.GetEnvironmentVariable("DOTNETCLOUD_MODULES_DIR");
+        if (!string.IsNullOrWhiteSpace(configured))
+            return configured;
+
+        var installDirectory = GetDefaultInstallDirectory();
+        var serverModules = Path.Combine(installDirectory, "server", "modules");
+        return Directory.Exists(serverModules)
+            ? serverModules
+            : Path.Combine(installDirectory, "modules");
+    }
+
+    /// <summary>
+    /// Returns the recorded modules whose host directory is absent under <paramref name="modulesRoot"/>.
+    /// Binaries are not part of a backup, so on replacement hardware every module is reported here.
+    /// </summary>
+    internal static IReadOnlyList<BackupModuleInfo> FindMissingModules(
+        IReadOnlyList<BackupModuleInfo> modules,
+        string modulesRoot)
+    {
+        ArgumentNullException.ThrowIfNull(modules);
+        if (string.IsNullOrWhiteSpace(modulesRoot))
+            return [];
+
+        return modules
+            .Where(module => !string.IsNullOrWhiteSpace(module.Id)
+                             && !Directory.Exists(Path.Combine(modulesRoot, module.Id)))
+            .ToArray();
+    }
+
+    /// <summary>
+    /// Builds the exact command that reinstalls a store module at the version recorded in the backup.
+    /// </summary>
+    internal static string FormatModuleInstallCommand(BackupModuleInfo module)
+    {
+        ArgumentNullException.ThrowIfNull(module);
+        var version = string.IsNullOrWhiteSpace(module.Version)
+            ? string.Empty
+            : $" --version {module.Version}";
+        return $"sudo dotnetcloud module install {module.Id}{version} --from-store --yes";
     }
 }
