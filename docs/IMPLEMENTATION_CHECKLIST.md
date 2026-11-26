@@ -8,6 +8,36 @@
 
 ---
 
+## Recent Work — Database audit: 56 GB transaction log + unbounded retention tables (2026-11-25, `chore/db-cleanup`)
+
+Live audit of the production `DotNetCloud` database (SQL Server) found 58.7 GB total, of which **57.7 GB was the
+transaction log** (`.mdf` 995 MB, `.ldf` 57,736 MB) — recovery model `FULL`, `log_reuse_wait_desc = LOG_BACKUP`, and only
+full backups in `msdb.dbo.backupset`, so the log had never truncated. Real user-table data is **864.6 MB**.
+
+- ✓ **Retention gap closed — upload sessions.** `UploadSessionCleanupService` only flipped stale `InProgress` sessions to
+  `Expired`; nothing ever deleted rows, leaving **15,771** finished sessions (23 MB) on the live instance. It now deletes
+  finished sessions 7 days past `ExpiresAt` (`TerminalSessionRetention`, batched `RemoveRange`).
+- ✓ **Retention gap closed — identity tokens.** New `ExpiredTokenPurgeHostedService` (Core.Server, daily) deletes
+  `core.OpenIddictTokens` rows whose `ExpirationDate` has passed — **8,126 of 8,733** rows were expired. An expired token
+  can never be redeemed, so active sessions and refresh-token reuse detection are unaffected.
+- ✓ **Dead schema.** Music migration `DropLegacyMusicTables` (SQL Server + PostgreSQL) drops the pre-canonical-library
+  tables `Tracks`, `Albums`, `Artists`, `Genres`, `TrackArtists`, `TrackGenres` — all zero-row and absent from the model.
+  Guarded (`IF OBJECT_ID` / `IF EXISTS`), no-op `Down`.
+- ✓ **Operator runbook.** New `docs/admin/DATABASE_MAINTENANCE.md`: log-growth diagnosis, SIMPLE vs FULL + log-backup
+  decision, shrink procedure, the automatic-retention matrix, legacy-schema cleanup (the `contacts` schema still holds
+  pre-move rows and needs an operator decision) and post-change verification.
+- ✓ **Scope respected.** Module schemas owned by the module-store repository (`dnc_dotnetcloud_photos/ai/bookmarks/email/
+  tracks/example_*`) were left untouched; the local `src/Modules/<module>` folders are untracked leftovers from the move.
+- ✓ **Tests.** `UploadSessionCleanupServiceTests` 8/8 (3 new: purged past retention, kept inside the window, `InProgress`
+  only flipped to `Expired`); `ExpiredTokenPurgeHostedServiceTests` 3/3; `DotNetCloud.CI.slnf` build 0 warnings / 0
+  errors. Pre-existing failures on this host, verified identical at HEAD in a clean worktree: Files
+  `BuildManifestAsync_HiddenAndIllegalEntries_AreSkipped`; Core.Server 6 (`ProgramRootCa` path, Unix shared-directory
+  transport, `TryBuild` user scope, 3 × backup/restore).
+- ☐ **Live verification pending** — apply the Music migration and let the two purge services run against the live database;
+  reclaim the 57 GB log per the runbook (operator decision: SIMPLE, or FULL + scheduled log backups).
+
+---
+
 ## Recent Work — SQL Server `text` columns eliminated across modules (2026-11-14, `fix/more-things`)
 
 Follow-up to the Contacts 500: **27** `HasColumnType("text")` sites in **21** entity-configuration files pinned columns to

@@ -156,4 +156,77 @@ public class UploadSessionCleanupServiceTests
         // Both chunks removed from DB (best-effort: storage delete failure is logged, not blocking)
         Assert.AreEqual(0, await db.FileChunks.CountAsync());
     }
+
+    [TestMethod]
+    public async Task CleanupAsync_FinishedSessionPastRetention_DeletesRow()
+    {
+        using var db = CreateContext();
+
+        var session = new ChunkedUploadSession
+        {
+            FileName = "old-completed.txt",
+            TotalChunks = 1,
+            ChunkManifest = "[\"hash\"]",
+            UserId = Guid.CreateVersion7(),
+            Status = UploadSessionStatus.Completed,
+            ExpiresAt = DateTime.UtcNow.AddDays(-30),
+        };
+        db.UploadSessions.Add(session);
+        await db.SaveChangesAsync();
+
+        var service = CreateService(db);
+        await service.CleanupAsync(CancellationToken.None);
+
+        Assert.IsNull(await db.UploadSessions.FindAsync(session.Id));
+    }
+
+    [TestMethod]
+    public async Task CleanupAsync_FinishedSessionWithinRetention_KeepsRow()
+    {
+        using var db = CreateContext();
+
+        // Completed an hour ago: a client may still be polling this session, so the row must survive.
+        var session = new ChunkedUploadSession
+        {
+            FileName = "recent-completed.txt",
+            TotalChunks = 1,
+            ChunkManifest = "[\"hash\"]",
+            UserId = Guid.CreateVersion7(),
+            Status = UploadSessionStatus.Completed,
+            ExpiresAt = DateTime.UtcNow.AddHours(-1),
+        };
+        db.UploadSessions.Add(session);
+        await db.SaveChangesAsync();
+
+        var service = CreateService(db);
+        await service.CleanupAsync(CancellationToken.None);
+
+        Assert.IsNotNull(await db.UploadSessions.FindAsync(session.Id));
+    }
+
+    [TestMethod]
+    public async Task CleanupAsync_ExpiredInProgressSession_IsKeptUntilRetentionWindow()
+    {
+        using var db = CreateContext();
+
+        var session = new ChunkedUploadSession
+        {
+            FileName = "expired-yesterday.txt",
+            TotalChunks = 1,
+            ChunkManifest = "[]",
+            UserId = Guid.CreateVersion7(),
+            Status = UploadSessionStatus.InProgress,
+            ExpiresAt = DateTime.UtcNow.AddDays(-1),
+        };
+        db.UploadSessions.Add(session);
+        await db.SaveChangesAsync();
+
+        var service = CreateService(db);
+        await service.CleanupAsync(CancellationToken.None);
+
+        // The pass first flips it to Expired; it is not yet old enough to delete.
+        var updated = await db.UploadSessions.FindAsync(session.Id);
+        Assert.IsNotNull(updated);
+        Assert.AreEqual(UploadSessionStatus.Expired, updated!.Status);
+    }
 }
