@@ -16,6 +16,11 @@ namespace DotNetCloud.CLI.Commands;
 /// but the binaries changes.
 /// </para>
 /// <para>
+/// It also works for a module that was never installed: the build's <c>manifest.json</c> supplies the
+/// identity, the isolated schema is provisioned and the manifest's setting defaults are seeded, so a
+/// first run against a real user's data does not need a package and an install first.
+/// </para>
+/// <para>
 /// It replaces module code without a signature or a review, so it is deliberately Development-only,
 /// audited per deploy, and replaced builds are parked under <c>&lt;modules&gt;/.dev/</c> rather than the
 /// rollback slot a catalogue install uses.
@@ -55,7 +60,7 @@ internal static class ModuleDevCommand
             Description = "Put the previous dev build back and exit",
         };
 
-        var command = new Command("dev", "Deploy a local module build over the installed module (Development only)")
+        var command = new Command("dev", "Deploy a local module build over the installed module, installing it first if needed (Development only)")
         {
             pathArgument,
             watchOption,

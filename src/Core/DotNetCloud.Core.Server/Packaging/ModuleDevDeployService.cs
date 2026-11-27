@@ -5,8 +5,11 @@ using DotNetCloud.Core.Data.Context;
 using DotNetCloud.Core.Data.Entities.Modules;
 using DotNetCloud.Core.Modules;
 using DotNetCloud.Core.Modules.Supervisor;
+using DotNetCloud.Core.Server.ModuleLoading;
+using DotNetCloud.Core.Server.Sandbox;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 
 namespace DotNetCloud.ModulePackaging;
@@ -139,6 +142,7 @@ public sealed class ModuleDevDeployService : IModuleDevDeployService
 
     private readonly CoreDbContext _db;
     private readonly IModuleDevProcessControl _processControl;
+    private readonly IModuleDataStoreProvisioningService _dataStores;
     private readonly IAuditLogger? _auditLogger;
     private readonly IOptions<ProcessSupervisorOptions> _supervisorOptions;
     private readonly ILogger<ModuleDevDeployService> _logger;
@@ -146,18 +150,21 @@ public sealed class ModuleDevDeployService : IModuleDevDeployService
     /// <summary>Initializes a new instance of the <see cref="ModuleDevDeployService"/> class.</summary>
     /// <param name="db">The core database context, for the installation record and the audit trail.</param>
     /// <param name="processControl">Stops and starts the module through whoever owns the process.</param>
+    /// <param name="dataStores">Provisions the isolated schema when the module is not installed yet.</param>
     /// <param name="supervisorOptions">Supplies the modules directory.</param>
     /// <param name="logger">Logger.</param>
     /// <param name="auditLogger">Audit sink; the deploy is still performed without one.</param>
     public ModuleDevDeployService(
         CoreDbContext db,
         IModuleDevProcessControl processControl,
+        IModuleDataStoreProvisioningService dataStores,
         IOptions<ProcessSupervisorOptions> supervisorOptions,
         ILogger<ModuleDevDeployService> logger,
         IAuditLogger? auditLogger = null)
     {
         _db = db ?? throw new ArgumentNullException(nameof(db));
         _processControl = processControl ?? throw new ArgumentNullException(nameof(processControl));
+        _dataStores = dataStores ?? throw new ArgumentNullException(nameof(dataStores));
         _supervisorOptions = supervisorOptions ?? throw new ArgumentNullException(nameof(supervisorOptions));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _auditLogger = auditLogger;
@@ -176,16 +183,21 @@ public sealed class ModuleDevDeployService : IModuleDevDeployService
                 false, Deployed: false, Error: $"The build output '{publishedDirectory}' does not exist.");
         }
 
+        var layout = new ModuleInstallLayout(_supervisorOptions.Value);
         var record = await FindInstallationAsync(request.ModuleId, cancellationToken);
+        var isFirstInstall = record is null;
+
         if (record is null)
         {
-            return new ModuleDevDeployResult(
-                false, Deployed: false,
-                Error: $"Module '{request.ModuleId}' is not installed. Install it first with "
-                       + $"'dotnetcloud module install --file <package>'.");
+            var prepared = await PrepareFirstInstallAsync(request, publishedDirectory, cancellationToken);
+            record = prepared.Record;
+
+            if (record is null)
+            {
+                return new ModuleDevDeployResult(false, Deployed: false, Error: prepared.Error);
+            }
         }
 
-        var layout = new ModuleInstallLayout(_supervisorOptions.Value);
         var contentHash = HashTree(publishedDirectory);
         var migrationFingerprint = MigrationFingerprint(publishedDirectory);
         var state = ReadState(request.ModuleId);
@@ -223,7 +235,7 @@ public sealed class ModuleDevDeployService : IModuleDevDeployService
             {
                 layout.DeleteStaging(staged);
                 return await FailAsync(
-                    record, request, "dev-deploy:stop-timeout", ex.Message, cancellationToken);
+                    record, request, "dev-deploy:stop-timeout", ex.Message, isFirstInstall, cancellationToken);
             }
 
             // 3. Swap: live -> .dev/<id>/previous, staged -> live.
@@ -238,7 +250,7 @@ public sealed class ModuleDevDeployService : IModuleDevDeployService
                 layout.DeleteStaging(staged);
                 return await FailAsync(
                     record, request, "dev-deploy:swap-failed",
-                    "Could not replace the module directory: " + ex.Message, cancellationToken);
+                    "Could not replace the module directory: " + ex.Message, isFirstInstall, cancellationToken);
             }
         }
         catch (TimeoutException)
@@ -255,6 +267,19 @@ public sealed class ModuleDevDeployService : IModuleDevDeployService
             DeployedAtUtc = DateTime.UtcNow,
         }, layout);
 
+        // A module that is being installed for the first time has no settings yet; seed the manifest
+        // defaults the way an install does, so the first request sees them. Additive only.
+        try
+        {
+            await ModuleSettingDefaultsSeeder.SeedFromModuleDirectoryAsync(
+                _db, request.ModuleId, layout.GetModuleDirectory(request.ModuleId), _logger, cancellationToken);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _logger.LogWarning(
+                ex, "Failed to seed default settings for module {ModuleId}", request.ModuleId);
+        }
+
         // 4. Start it again and wait for it to report healthy.
         await SetStatusAsync(record, ModuleInstallStatus.Enabled, cancellationToken);
         var unhealthy = await _processControl.WaitForHealthyAsync(request.ModuleId, cancellationToken);
@@ -264,7 +289,12 @@ public sealed class ModuleDevDeployService : IModuleDevDeployService
             _logger.LogInformation(
                 "Dev build {ContentHash} of module {ModuleId} is running",
                 contentHash, request.ModuleId);
-            await AuditAsync(request.ModuleId, request.PerformedByUserId, $"dev-deploy:{contentHash}", cancellationToken);
+            await AuditAsync(
+                request.ModuleId,
+                request.PerformedByUserId,
+                isFirstInstall ? $"dev-install:{contentHash}" : $"dev-deploy:{contentHash}",
+                cancellationToken,
+                isFirstInstall ? AuditAction.ModuleInstalled : AuditAction.ModuleUpdated);
             return new ModuleDevDeployResult(true, Deployed: true);
         }
 
@@ -404,12 +434,94 @@ public sealed class ModuleDevDeployService : IModuleDevDeployService
         ModuleDevDeployRequest request,
         string auditDescription,
         string error,
+        bool isFirstInstall,
         CancellationToken cancellationToken)
     {
-        // A failed deploy leaves the previous build in place, so the module goes back to Enabled.
-        await SetStatusAsync(record, ModuleInstallStatus.Enabled, cancellationToken);
+        if (isFirstInstall)
+        {
+            // Nothing was ever installed, so there is nothing to leave enabled: a row without a
+            // module directory would only show up as a broken install.
+            _db.InstalledModules.Remove(record);
+            await _db.SaveChangesAsync(cancellationToken);
+        }
+        else
+        {
+            // A failed deploy leaves the previous build in place, so the module goes back to Enabled.
+            await SetStatusAsync(record, ModuleInstallStatus.Enabled, cancellationToken);
+        }
+
         await AuditAsync(request.ModuleId, request.PerformedByUserId, auditDescription, cancellationToken);
         return new ModuleDevDeployResult(false, Deployed: false, Error: error);
+    }
+
+    /// <summary>
+    /// Prepares a module that has never been installed: validate the build's manifest, provision its
+    /// isolated schema when it declares one, and create the installation row.
+    /// </summary>
+    /// <remarks>
+    /// A dev deploy is allowed to be the first install, so this mirrors the installer's first-install
+    /// steps without the package: nothing is verified or signed, which is why the command only runs in
+    /// Development and audits every deploy.
+    /// </remarks>
+    private async Task<(InstalledModule? Record, string? Error)> PrepareFirstInstallAsync(
+        ModuleDevDeployRequest request, string publishedDirectory, CancellationToken cancellationToken)
+    {
+        if (RequiredModules.IsRequired(request.ModuleId))
+        {
+            return (null,
+                $"'{request.ModuleId}' is a required platform module: it ships with the core, cannot be "
+                + "stopped, and is not developed with 'module dev'.");
+        }
+
+        var manifestPath = Path.Combine(publishedDirectory, ModulePackageFormat.ManifestEntryName);
+        var validation = new ModuleManifestLoader(NullLogger<ModuleManifestLoader>.Instance)
+            .LoadAndValidate(manifestPath, request.ModuleId);
+
+        if (!validation.IsValid || validation.Manifest is null)
+        {
+            return (null,
+                "The build's manifest.json is not valid, so the module cannot be installed: "
+                + string.Join("; ", validation.Errors));
+        }
+
+        var manifest = validation.Manifest;
+
+        if (manifest.EffectiveDataStoreMode == ModuleDataStoreMode.Isolated)
+        {
+            var provisioning = await _dataStores.EnsureProvisionedAsync(
+                request.ModuleId, cancellationToken: cancellationToken);
+
+            if (!provisioning.Success)
+            {
+                return (null,
+                    "Provisioning the module's data store failed: "
+                    + (provisioning.Error ?? "the provisioning service gave no reason"));
+            }
+        }
+
+        var record = new InstalledModule
+        {
+            ModuleId = request.ModuleId,
+            Version = manifest.Version,
+            InstalledAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow,
+            // Not Store: nothing here was verified or signed. Bundled is the tier whose capabilities
+            // are granted from the manifest, which is what keeps the loop usable; the row can only be
+            // created by a command that refuses to run outside Development.
+            TrustTier = ModuleTrustTier.Bundled,
+            DataStoreMode = manifest.EffectiveDataStoreMode,
+            SandboxStatus = ModuleSandboxStatus.Active,
+            Status = ModuleInstallStatus.Disabled,
+        };
+
+        _db.InstalledModules.Add(record);
+        await _db.SaveChangesAsync(cancellationToken);
+
+        _logger.LogInformation(
+            "Installing module {ModuleId} {Version} from a local build",
+            request.ModuleId, manifest.Version);
+
+        return (record, null);
     }
 
     private async Task<InstalledModule?> FindInstallationAsync(string moduleId, CancellationToken cancellationToken) =>
@@ -459,7 +571,11 @@ public sealed class ModuleDevDeployService : IModuleDevDeployService
     }
 
     private async Task AuditAsync(
-        string moduleId, Guid? performedByUserId, string description, CancellationToken cancellationToken)
+        string moduleId,
+        Guid? performedByUserId,
+        string description,
+        CancellationToken cancellationToken,
+        AuditAction action = AuditAction.ModuleUpdated)
     {
         if (_auditLogger is null)
         {
@@ -476,7 +592,7 @@ public sealed class ModuleDevDeployService : IModuleDevDeployService
                             userId, Array.Empty<string>(), DotNetCloud.Core.Authorization.CallerType.User)
                         : DotNetCloud.Core.Authorization.CallerContext.CreateSystemContext(),
                     ModuleId = "dotnetcloud.core",
-                    Action = AuditAction.ModuleUpdated,
+                    Action = action,
                     EntityType = "Module",
                     EntityId = Guid.CreateVersion7(),
                     Description = description,

@@ -7,6 +7,7 @@ using DotNetCloud.ModulePackaging;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
+using Moq;
 
 namespace DotNetCloud.Core.Server.Tests.Packaging;
 
@@ -25,10 +26,29 @@ public class ModuleDevDeployServiceTests
     private const string ModulesDirectoryEnvironmentVariable = "DOTNETCLOUD_MODULES_DIR";
     private const string ModuleId = "test.module";
 
+    private const string Manifest = """
+        {
+          "manifestVersion": 2,
+          "id": "test.module",
+          "name": "Test",
+          "version": "1.2.3",
+          "description": "Fixture module for the dev deploy tests.",
+          "publisher": { "id": "dotnetcloud", "name": "DotNetCloud" },
+          "moduleApiVersion": 1,
+          "minCoreVersion": "0.7.0",
+          "dataStore": "isolated",
+          "handlesUserErasure": true,
+          "capabilities": [],
+          "userConsentScopes": [],
+          "events": { "publishes": [], "subscribes": [] }
+        }
+        """;
+
     private string _root = null!;
     private string? _previousModulesDirectory;
     private CoreDbContext _db = null!;
     private FakeProcessControl _control = null!;
+    private Mock<IModuleDataStoreProvisioningService> _dataStores = null!;
     private ModuleDevDeployService _service = null!;
 
     [TestInitialize]
@@ -46,6 +66,11 @@ public class ModuleDevDeployServiceTests
 
         _db = new CoreDbContext(options, new PostgreSqlNamingStrategy());
         _control = new FakeProcessControl();
+        _dataStores = new Mock<IModuleDataStoreProvisioningService>();
+        _dataStores
+            .Setup(service => service.EnsureProvisionedAsync(It.IsAny<string>(), It.IsAny<int?>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ModuleDataStoreProvisioningResult(true, "test_module", "test_module_login", null));
+
         _service = CreateService(_db, _control);
     }
 
@@ -155,12 +180,48 @@ public class ModuleDevDeployServiceTests
     }
 
     [TestMethod]
-    public async Task Deploy_ModuleThatIsNotInstalled_IsRefused()
+    public async Task Deploy_ForAModuleThatIsNotInstalled_InstallsItFirst()
+    {
+        var published = Publish("new", withManifest: true);
+
+        var result = await _service.DeployAsync(Request(published));
+
+        Assert.IsTrue(result.Success, result.Error);
+        Assert.IsTrue(result.Deployed);
+        Assert.AreEqual("new", ReadLive());
+
+        var record = await ReadRecordAsync();
+        Assert.AreEqual("1.2.3", record.Version, "the version comes from the build's manifest");
+        Assert.AreEqual(ModuleDataStoreMode.Isolated, record.DataStoreMode);
+        Assert.AreEqual(ModuleInstallStatus.Enabled, record.Status);
+
+        _dataStores.Verify(
+            service => service.EnsureProvisionedAsync(ModuleId, It.IsAny<int?>(), It.IsAny<CancellationToken>()),
+            Times.Once,
+            "an isolated module must get its schema before it runs");
+    }
+
+    [TestMethod]
+    public async Task Deploy_ForAModuleWithoutAValidManifest_IsRefused()
     {
         var result = await _service.DeployAsync(Request(Publish("new")));
 
         Assert.IsFalse(result.Success);
-        StringAssert.Contains(result.Error, "not installed");
+        StringAssert.Contains(result.Error, "manifest.json");
+        Assert.AreEqual(0, _control.StopCalls);
+        Assert.IsFalse(Directory.Exists(Path.Combine(_root, ModuleId)));
+    }
+
+    [TestMethod]
+    public async Task Deploy_ForARequiredModule_IsRefused()
+    {
+        var result = await _service.DeployAsync(Request(Publish("new", withManifest: true)) with
+        {
+            ModuleId = "dotnetcloud.files",
+        });
+
+        Assert.IsFalse(result.Success);
+        StringAssert.Contains(result.Error, "required platform module");
         Assert.AreEqual(0, _control.StopCalls);
     }
 
@@ -203,6 +264,7 @@ public class ModuleDevDeployServiceTests
         new(
             db,
             control,
+            _dataStores.Object,
             Options.Create(new ProcessSupervisorOptions { ModulesDirectory = _root }),
             NullLogger<ModuleDevDeployService>.Instance);
 
@@ -231,11 +293,16 @@ public class ModuleDevDeployServiceTests
         File.WriteAllText(Path.Combine(live, "test.module.dll"), content);
     }
 
-    private string Publish(string content, string? dataAssembly = null)
+    private string Publish(string content, string? dataAssembly = null, bool withManifest = false)
     {
         var directory = Path.Combine(_root, "publish", Guid.CreateVersion7().ToString("N"));
         Directory.CreateDirectory(directory);
         File.WriteAllText(Path.Combine(directory, "test.module.dll"), content);
+
+        if (withManifest)
+        {
+            File.WriteAllText(Path.Combine(directory, "manifest.json"), Manifest);
+        }
 
         if (dataAssembly is not null)
         {
