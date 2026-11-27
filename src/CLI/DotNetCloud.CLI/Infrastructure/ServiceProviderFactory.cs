@@ -136,7 +136,8 @@ internal static class ServiceProviderFactory
     /// </summary>
     /// <remarks>
     /// The CLI never spawns module processes: <see cref="OfflineModuleInstallRunner"/> records the
-    /// install and lets the running server's 30-second reconcile start the module.
+    /// install and lets the running server's status reconcile (<c>ProcessSupervisor:StatusReconcileInterval</c>)
+    /// start the module.
     /// </remarks>
     /// <returns>A configured <see cref="ServiceProvider"/>, or <see langword="null"/> if no configuration exists.</returns>
     public static ServiceProvider? CreateForPackageInstall()
