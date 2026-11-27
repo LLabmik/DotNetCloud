@@ -195,7 +195,7 @@ public class ModuleDevDeployServiceTests
         File.WriteAllText(Path.Combine(published, "DotNetCloud.Modules.Test.Web.dll"), "web");
 
         Assert.AreEqual(
-            ModuleDevDeployService.MigrationFingerprint(Publish("v2", dataAssembly: "migrations-1")) ,
+            ModuleDevDeployService.MigrationFingerprint(Publish("v2", dataAssembly: "migrations-1")),
             ModuleDevDeployService.MigrationFingerprint(published));
     }
 
