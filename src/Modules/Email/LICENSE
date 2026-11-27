@@ -1,0 +1,9 @@
+# Email module licence
+
+This module is part of DotNetCloud and is distributed under the GNU Affero General Public
+License v3.0 or later (AGPL-3.0-or-later).
+
+The full licence text is in the repository root `LICENSE` file.
+
+Third-party modules are free to choose their own licence; the module store requires that every
+package contains a `LICENSE` entry describing the terms the module is distributed under.

@@ -55,6 +55,15 @@ jobs:
         run: dotnet workload restore DotNetCloud.sln
 
       # ------------------------------------------------------------------
+      # Module SDK feed: the optional modules resolve their contracts from it, so
+      # it must exist before anything builds or publishes them, and it is copied
+      # into the tarball so third parties can build against the release they run.
+      # ------------------------------------------------------------------
+      - name: Pack the module SDK feed
+        shell: pwsh
+        run: ./scripts/pack-module-sdk.ps1 -Output .sdk-feed
+
+      # ------------------------------------------------------------------
       # Build & Test (uses CI solution filter — excludes Android/MAUI
       # projects that require the Android SDK not present on runners)
       # ------------------------------------------------------------------
@@ -66,6 +75,17 @@ jobs:
 
       - name: Test
         run: dotnet test DotNetCloud.CI.slnf --no-build --configuration Release --verbosity normal --settings .runsettings
+
+      # The optional modules are built and tested separately: they consume the sealed
+      # contracts as packages, which the CI filter deliberately leaves out.
+      - name: Restore optional modules
+        run: dotnet restore DotNetCloud.Modules.slnf
+
+      - name: Build optional modules
+        run: dotnet build DotNetCloud.Modules.slnf --no-restore --configuration Release
+
+      - name: Test optional modules
+        run: dotnet test DotNetCloud.Modules.slnf --no-build --configuration Release --verbosity normal --settings .runsettings
 
       # ------------------------------------------------------------------
       # Publish framework-dependent linux-x64 binaries
@@ -152,6 +172,11 @@ jobs:
 
           # Include install metadata
           echo "${VERSION}" > "${STAGING}/VERSION"
+
+          # Module SDK feed: the seven contract packages, so an author can build a
+          # module against the platform they installed (<tarball>/sdk-feed/).
+          mkdir -p "${STAGING}/sdk-feed"
+          cp .sdk-feed/*.nupkg "${STAGING}/sdk-feed/"
 
           # Packaged default user content seed tree. It is copied into an empty
           # data-directory template on a fresh install only; upgrades leave the

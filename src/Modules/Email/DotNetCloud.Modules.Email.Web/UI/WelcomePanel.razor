@@ -1,0 +1,18 @@
+@inherits EmailPanelBase
+
+<div class="empty">
+    <span class="empty-icon">
+        <MaterialIcon Icon="mail" Size="MaterialIconSize.Xl" />
+    </span>
+    <h3>@(State.Accounts.Count == 0 ? "Welcome to Email" : "No folder selected")</h3>
+    <p>
+        @(State.Accounts.Count == 0
+            ? "Add your first email account to get started."
+            : "Select a folder in the sidebar to view your mail.")
+    </p>
+
+    @if (State.Accounts.Count == 0)
+    {
+        <button type="button" class="btn btn-primary" @onclick="() => State.View = EmailView.AddAccount">Add account</button>
+    }
+</div>

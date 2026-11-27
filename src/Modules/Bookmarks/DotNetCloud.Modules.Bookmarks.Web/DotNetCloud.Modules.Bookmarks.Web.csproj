@@ -1,0 +1,40 @@
+<Project Sdk="Microsoft.NET.Sdk.BlazorWebAssembly">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <NoDefaultLaunchSettingsFile>true</NoDefaultLaunchSettingsFile>
+    <BlazorWebAssemblyLoadAllGlobalizationData>false</BlazorWebAssemblyLoadAllGlobalizationData>
+    <InvariantGlobalization>true</InvariantGlobalization>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The frame bridge and its Blazor bootstrap are the SDK's files, not copies: one
+         implementation, no npm. The bridge patches window.fetch so every request carries the frame
+         ticket and the module assertion. -->
+    <Content Include="$(PkgDotNetCloud_Modules_Sdk_Web)\contentFiles\any\any\wwwroot\dncModuleBridge.js"
+             Link="wwwroot\js\dncModuleBridge.js"
+             CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="$(PkgDotNetCloud_Modules_Sdk_Web)\contentFiles\any\any\wwwroot\dncModuleFrame.js"
+             Link="wwwroot\js\dncModuleFrame.js"
+             CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="$(PkgDotNetCloud_Modules_Sdk_Web)\contentFiles\any\any\wwwroot\dncModuleBoot.js"
+             Link="wwwroot\js\dncModuleBoot.js"
+             CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="DotNetCloud.Core" />
+    <PackageReference Include="DotNetCloud.UI.Shared" />
+    <!-- The bridge scripts are linked into wwwroot below, so NuGet's automatic contentFiles copies
+         (which would land outside wwwroot) are excluded to avoid duplicate Content items. -->
+    <PackageReference Include="DotNetCloud.Modules.Sdk.Web" GeneratePathProperty="true" ExcludeAssets="contentFiles" />
+    <ProjectReference Include="..\DotNetCloud.Modules.Bookmarks.Web.Services\DotNetCloud.Modules.Bookmarks.Web.Services.csproj" />
+  </ItemGroup>
+
+</Project>

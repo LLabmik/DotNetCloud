@@ -1,0 +1,159 @@
+/* ══════════════════════════════════════════════════════════════
+   Onboarding Tour Styles
+   Center-stage tour with dimmed overlay and centered tooltip.
+   ══════════════════════════════════════════════════════════════ */
+
+/* ── Overlay ── */
+
+.onboarding-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  z-index: 9000;
+  animation: tour-fade-in 200ms ease-out;
+}
+
+/* ── Tooltip Wrapper (always centered) ── */
+
+.onboarding-tooltip-wrapper {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 9002;
+}
+
+/* ── Tooltip Card ── */
+
+::deep .tour-tooltip {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 14px;
+  padding: 28px;
+  min-width: 360px;
+  max-width: 440px;
+  box-shadow:
+    0 16px 48px rgba(0, 0, 0, 0.25),
+    0 4px 12px rgba(0, 0, 0, 0.15);
+  animation: tour-tooltip-in 300ms ease-out;
+  text-align: center;
+}
+
+/* ── Step icon ── */
+
+::deep .tour-tooltip__icon {
+  display: flex;
+  justify-content: center;
+  line-height: 1;
+  margin-bottom: 12px;
+  color: var(--tracks-accent, #3b82f6);
+}
+
+/* ── Step Indicator ── */
+
+::deep .tour-tooltip__step-indicator {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 10px;
+}
+
+/* ── Title ── */
+
+::deep .tour-tooltip__title {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--color-text);
+  margin: 0 0 10px;
+  line-height: 1.3;
+}
+
+/* ── Description ── */
+
+::deep .tour-tooltip__description {
+  font-size: 14px;
+  color: var(--color-muted);
+  margin: 0 0 22px;
+  line-height: 1.7;
+}
+
+/* ── Actions Row ── */
+
+::deep .tour-tooltip__actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+::deep .tour-tooltip__spacer {
+  flex: 1;
+}
+
+::deep .tour-tooltip__skip {
+  color: var(--color-muted);
+  font-size: 13px;
+}
+
+::deep .tour-tooltip__skip:hover {
+  color: var(--color-text);
+}
+
+/* ── Animations ── */
+
+@keyframes tour-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes tour-tooltip-in {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* ── Dark Mode ── */
+
+.dark-mode ::deep .tour-tooltip {
+  background: var(--color-surface);
+  border-color: var(--color-border);
+  box-shadow:
+    0 16px 48px rgba(0, 0, 0, 0.5),
+    0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.dark-mode .onboarding-overlay {
+  background: rgba(0, 0, 0, 0.7);
+}
+
+/* ── Mobile Responsive ── */
+
+@media (max-width: 480px) {
+  ::deep .tour-tooltip {
+    min-width: auto;
+    max-width: calc(100vw - 32px);
+    padding: 22px 20px;
+  }
+
+  ::deep .tour-tooltip__title {
+    font-size: 17px;
+  }
+
+  ::deep .tour-tooltip__description {
+    font-size: 13px;
+  }
+
+  ::deep .tour-tooltip__icon {
+    margin-bottom: 8px;
+  }
+}

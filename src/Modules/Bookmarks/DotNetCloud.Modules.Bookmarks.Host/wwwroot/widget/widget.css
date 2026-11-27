@@ -1,0 +1,78 @@
+/* Bookmarks widget card — compact list of the five most recent bookmarks. */
+
+:root {
+  --text: #1f2933;
+  --text-muted: #5f6b7a;
+  --border: #dfe3e8;
+  --primary: #2563eb;
+  --danger-text: #b3261e;
+}
+
+html[data-theme="dark"] {
+  --text: #e8eaed;
+  --text-muted: #a1a8b3;
+  --border: #333844;
+  --primary: #5b8cff;
+  --danger-text: #ffb4ab;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  background: transparent;
+  color: var(--text);
+  font-family:
+    "Inter",
+    "Segoe UI",
+    system-ui,
+    -apple-system,
+    sans-serif;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.widget {
+  padding: 2px 0;
+}
+
+.widget-message {
+  margin: 0;
+  padding: 6px 0;
+  color: var(--text-muted);
+}
+
+.widget-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.widget-list-item {
+  padding: 5px 0;
+  border-bottom: 1px solid var(--border);
+  overflow: hidden;
+}
+
+.widget-list-item:last-child {
+  border-bottom: 0;
+}
+
+.widget-link {
+  display: block;
+  color: var(--text);
+  text-decoration: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.widget-link:hover,
+.widget-link:focus-visible {
+  color: var(--primary);
+  text-decoration: underline;
+}

@@ -795,14 +795,14 @@ The full protocol, theme handling and the widget role are in
 
 A distributable module is a `.dncpkg`: a deterministic zip with `manifest.json`, your published
 binaries per RID under `files/<rid>/`, `LICENSE`, `README.md`, `CHANGELOG.md`, and a detached
-signature. Pack and verify with the `dotnetcloud-pack` tool:
+signature. Pack and verify with the CLI's `module` verbs:
 
 ```bash
-dotnetcloud-pack keygen --out mykey.json --key-id org.example-2026
-dotnetcloud-pack pack --project src/Modules/MyModule/DotNetCloud.Modules.MyModule.Host \
-                     --rid linux-x64 --rid win-x64 --sign-key mykey.json
-dotnetcloud-pack verify MyModule-1.0.0.dncpkg --key org.example-2026=<public-key>
-dotnetcloud-pack inspect MyModule-1.0.0.dncpkg
+dotnetcloud module keygen --key-id org.example-2026 --output mykey.json
+dotnetcloud module pack --project src/Modules/MyModule/DotNetCloud.Modules.MyModule.Host \
+                        --rid linux-x64 --rid win-x64 --sign-key mykey.json
+dotnetcloud module verify MyModule-1.0.0.dncpkg --key org.example-2026=<public-key>
+dotnetcloud module inspect MyModule-1.0.0.dncpkg
 ```
 
 Install with the CLI (`--file` for a local package, `--from-feed` for a directory of packages,

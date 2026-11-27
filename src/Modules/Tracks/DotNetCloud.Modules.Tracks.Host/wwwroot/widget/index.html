@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Tracks</title>
+
+    <!-- Relative assets only: the core frames this at /apps/dotnetcloud.tracks/widget/index.html. -->
+    <link rel="stylesheet" href="widget.css" />
+  </head>
+  <body>
+    <div class="widget">
+      <p id="message" class="widget-message" role="status">Loading…</p>
+      <ul id="items" class="widget-list" hidden></ul>
+    </div>
+
+    <!-- The SDK bridge lives in the module app's wwwroot (js/dncModuleBridge.js); the widget is one
+         directory below it, so it reaches the same file the app uses. -->
+    <script src="../js/dncModuleBridge.js"></script>
+    <script src="widget.js"></script>
+  </body>
+</html>

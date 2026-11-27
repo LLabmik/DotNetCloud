@@ -1,0 +1,272 @@
+@namespace DotNetCloud.Modules.Tracks.Web.UI
+
+<div class="review-session review-host">
+    @* ── Session Header ── *@
+    <div class="review-header">
+        <div class="review-header-left">
+            <h2>
+                <MaterialIcon Icon="visibility" Size="MaterialIconSize.Sm" /> Live Review Session
+            </h2>
+            <span class="review-status-badge @GetStatusClass()">@Session.Status</span>
+        </div>
+        <div class="review-header-right">
+            <span class="review-participant-count">
+                <MaterialIcon Icon="group" Size="MaterialIconSize.Sm" /> @Session.ParticipantCount participants
+            </span>
+            <button class="btn btn-sm btn-danger" @onclick="EndSession">End Session</button>
+        </div>
+    </div>
+
+    <div class="review-body">
+        @* ── Left: Card Navigator + Detail ── *@
+        <div class="review-card-area">
+            @* Card Navigator *@
+            <div class="review-card-nav">
+                <button class="btn btn-sm btn-outline" @onclick="PreviousItem" disabled="@(!HasPreviousItem)">
+                    ← Prev
+                </button>
+                <span class="review-card-counter">
+                    @if (_items.Count > 0)
+                    {
+                        <text>Card @(_currentCardIndex + 1) / @_items.Count</text>
+                    }
+                    else
+                    {
+                        <text>No items loaded</text>
+                    }
+                </span>
+                <button class="btn btn-sm btn-outline" @onclick="NextItem" disabled="@(!HasNextItem)">
+                    Next →
+                </button>
+            </div>
+
+            @* Current Card Detail *@
+            @if (_currentItem is not null)
+            {
+                <div class="review-card-detail">
+                    <div class="review-card-header">
+                        <span class="review-card-number">#@_currentItem.ItemNumber</span>
+                        <h3 class="review-card-title">@_currentItem.Title</h3>
+                        @if (_currentItem.StoryPoints.HasValue)
+                        {
+                            <span class="review-card-points">@_currentItem.StoryPoints SP</span>
+                        }
+                    </div>
+                    @if (_currentItem.Priority != Priority.None)
+                    {
+                        <span class="review-card-priority priority-@_currentItem.Priority.ToString().ToLowerInvariant()">
+                            @_currentItem.Priority
+                        </span>
+                    }
+                    @if (!string.IsNullOrWhiteSpace(_currentItem.Description))
+                    {
+                        <div class="review-card-description">@_currentItem.Description</div>
+                    }
+                    @if (_currentItem.Labels.Count > 0)
+                    {
+                        <div class="review-card-labels">
+                            @foreach (var label in _currentItem.Labels)
+                            {
+                                <span class="review-label" style="background: @(label.Color ?? "#6b7280");">@label.Title</span>
+                            }
+                        </div>
+                    }
+                    @if (_currentItem.Assignments.Count > 0)
+                    {
+                        <div class="review-card-assignments">
+                            <span class="review-assignments-label">Assigned:</span>
+                            @foreach (var a in _currentItem.Assignments)
+                            {
+                                <span class="review-assignee">@(a.DisplayName ?? a.UserId.ToString()[..8])</span>
+                            }
+                        </div>
+                    }
+                    @if (_currentItem.DueDate.HasValue)
+                    {
+                        <div class="review-card-due">
+                            <MaterialIcon Icon="calendar_today" Size="MaterialIconSize.Sm" /> Due:
+                            @_currentItem.DueDate.Value.ToString("MMM d, yyyy")
+                        </div>
+                    }
+                </div>
+            }
+            else
+            {
+                <div class="review-card-empty">
+                    <p>Select a card to review using the navigator above, or load cards from a sprint.</p>
+                </div>
+            }
+
+            @* Sprint Selector *@
+            @if (Sprints.Count > 0)
+            {
+                <div class="review-sprint-selector">
+                    <label>Load cards from:</label>
+                    <select @onchange="HandleSprintFilterChanged" value="@_selectedSprintId">
+                        <option value="">All cards</option>
+                        <option value="backlog">Backlog</option>
+                        @foreach (var sprint in Sprints)
+                        {
+                            <option value="@sprint.Id">@sprint.Title (@sprint.ItemCount cards)</option>
+                        }
+                    </select>
+                </div>
+            }
+        </div>
+
+        @* ── Right: Participants + Poker ── *@
+        <div class="review-sidebar">
+            @* Participants Panel *@
+            <div class="review-participants">
+                <h4>Participants</h4>
+                <div class="review-participant-list">
+                    <p class="tracks-muted">@Session.ParticipantCount participant(s) connected</p>
+                </div>
+            </div>
+
+            @* Poker Panel *@
+            <div class="review-poker">
+                <h4>Planning Poker</h4>
+
+                @if (_activePoker is null)
+                {
+                    @* No active poker — show Start button *@
+                    @if (_currentItem is not null)
+                    {
+                        <div class="review-poker-start">
+                            <div class="review-poker-scale-select">
+                                <label>Scale:</label>
+                                <select @bind="_selectedScale">
+                                    <option value="@PokerScale.Fibonacci">Fibonacci</option>
+                                    <option value="@PokerScale.TShirt">T-Shirt</option>
+                                    <option value="@PokerScale.PowersOfTwo">Powers of Two</option>
+                                </select>
+                            </div>
+                            <button class="btn btn-primary btn-sm" @onclick="StartPoker" disabled="@_isStartingPoker">
+                                <MaterialIcon Icon="add" Size="MaterialIconSize.Sm" /> Start Poker
+                            </button>
+                        </div>
+                    }
+                    else
+                    {
+                        <p class="review-poker-hint">Navigate to a card to start poker estimation.</p>
+                    }
+                }
+                else
+                {
+                    @* Active Poker Session *@
+                    <div class="review-poker-active">
+                        <div class="review-poker-status-bar">
+                            <span class="review-poker-status @GetPokerStatusClass()">@_activePoker.Status</span>
+                            <span class="review-poker-round">Round @_activePoker.Round</span>
+                        </div>
+
+                        @* Host Vote Status Overview *@
+                        <div class="review-poker-vote-overview">
+                            <span>@VotedCount / @Session.ParticipantCount voted</span>
+                        </div>
+
+                        @if (_activePoker.Status == PokerSessionStatus.Voting)
+                        {
+                            @* Host can also vote *@
+                            <div class="review-poker-host-vote">
+                                <div class="review-poker-scale-options">
+                                    @foreach (var val in GetScaleValues())
+                                    {
+                                        <button class="review-poker-card @(_hostVote == val ? "selected" : "")"
+                                                @onclick="() => SelectHostVote(val)">
+                                            @val
+                                        </button>
+                                    }
+                                </div>
+                                @if (_hostVote is not null)
+                                {
+                                    <button class="btn btn-sm btn-primary" @onclick="SubmitHostVote" disabled="@_isSubmittingVote">
+                                        Submit Vote
+                                    </button>
+                                }
+                            </div>
+
+                            <div class="review-poker-controls">
+                                <button class="btn btn-sm btn-accent" @onclick="RevealVotes" disabled="@_isRevealingVotes">
+                                    <MaterialIcon Icon="visibility" Size="MaterialIconSize.Sm" /> Reveal Votes
+                                </button>
+                            </div>
+                        }
+                        else if (_activePoker.Status == PokerSessionStatus.Revealed)
+                        {
+                            @* Revealed — votes shown to all participants *@
+
+                            <div class="review-poker-accept">
+                                <label>Accept estimate:</label>
+                                <div class="review-poker-accept-options">
+                                    @foreach (var val in GetScaleValues())
+                                    {
+                                        <button class="review-poker-card @(_acceptEstimate == val ? "selected" : "")"
+                                                @onclick="() => _acceptEstimate = val">
+                                            @val
+                                        </button>
+                                    }
+                                </div>
+                                @if (_acceptEstimate is not null)
+                                {
+                                    <button class="btn btn-sm btn-primary" @onclick="AcceptEstimate" disabled="@_isAccepting">
+                                        <MaterialIcon Icon="check" Size="MaterialIconSize.Sm" /> Accept @_acceptEstimate
+                                    </button>
+                                }
+                                @* Re-vote: start a new poker session *@
+                            </div>
+                        }
+                        else if (_activePoker.Status == PokerSessionStatus.Completed)
+                        {
+                            <div class="review-poker-completed">
+                                <span class="review-poker-accepted">Accepted: @_activePoker.AcceptedEstimate</span>
+                                <p>Poker complete. Navigate to next card to continue.</p>
+                            </div>
+                        }
+                    </div>
+                }
+            </div>
+
+            @* Discussion Panel *@
+            <div class="review-discussion">
+                <h4>
+                    <MaterialIcon Icon="chat" Size="MaterialIconSize.Sm" /> Discussion
+                </h4>
+                <div class="tracks-discussion-messages">
+                    @if (_discussionMessages.Count == 0)
+                    {
+                        <p class="tracks-muted discussion-empty">No messages yet.</p>
+                    }
+                    else
+                    {
+                        @foreach (var msg in _discussionMessages)
+                        {
+                            <div class="tracks-discussion-message">
+                                <div class="tracks-discussion-message-header">
+                                    <span class="tracks-discussion-author">@msg.UserDisplayName</span>
+                                    <span class="tracks-discussion-time">@GetRelativeDiscussionTime(msg.CreatedAt)</span>
+                                </div>
+                                <div class="tracks-discussion-content">@msg.Content</div>
+                            </div>
+                        }
+                    }
+                </div>
+                <div class="tracks-discussion-input">
+                    <textarea class="form-control" @bind="_discussionInput" @onkeydown="HandleDiscussionKeyDown"
+                              placeholder="Type a message..." rows="2" maxlength="2000"
+                              disabled="@_isSendingDiscussion"></textarea>
+                    <button class="btn btn-sm btn-primary" @onclick="SendDiscussionMessageAsync"
+                            disabled="@(string.IsNullOrWhiteSpace(_discussionInput) || _isSendingDiscussion)">
+                        Send
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    @if (_errorMessage is not null)
+    {
+        <div class="review-error">@_errorMessage</div>
+    }
+</div>

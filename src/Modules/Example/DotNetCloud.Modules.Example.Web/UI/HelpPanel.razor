@@ -1,0 +1,77 @@
+<header class="page-header">
+    <h1>Example help</h1>
+    <p class="text-muted">How the reference module works, and what to copy into your own module.</p>
+</header>
+
+<section class="help-section">
+    <h2>Overview</h2>
+    <p>
+        The Example module is a reference and demo module for module developers. It demonstrates how
+        to build a complete sandboxed module: its own process, its own database schema, its own web
+        UI, capability calls through the SDK, and domain events.
+    </p>
+</section>
+
+<section class="help-section">
+    <h2>Creating notes</h2>
+    <ol class="help-steps">
+        <li>Select <strong>New note</strong>.</li>
+        <li>Fill in the title and content.</li>
+        <li>Select <strong>Save</strong>. The note appears at the top of the grid.</li>
+    </ol>
+</section>
+
+<section class="help-section">
+    <h2>Note cards</h2>
+    <p>
+        Notes appear as cards showing their title, content and creation date. Cards are read-only —
+        there is no inline editing. To change a note, delete it and create a new one.
+    </p>
+</section>
+
+<section class="help-section">
+    <h2>Deleting notes</h2>
+    <p>Each card has a <strong>Delete</strong> button. Deletion is immediate; there is no undo.</p>
+</section>
+
+<section class="help-section">
+    <h2>How this UI is hosted</h2>
+    <ul class="help-tips">
+        <li>
+            The module serves this page from its own process; the core frames it at
+            <code>/apps/dotnetcloud.example/</code>.
+        </li>
+        <li>
+            The frame has an opaque origin: no cookies, no <code>localStorage</code>, no
+            <code>window.top</code>.
+        </li>
+        <li>
+            The core strips the user's session cookie and sends a short-lived
+            <code>dnc-user-assertion</code>. This module's API trusts only that.
+        </li>
+        <li>
+            Theme, locale and shell notifications travel over the <code>dncModuleBridge</code>
+            message protocol.
+        </li>
+        <li>
+            The UI itself is Blazor WebAssembly served by the module host, so the components and the
+            host share one set of contracts.
+        </li>
+    </ul>
+</section>
+
+<section class="help-section">
+    <h2>FAQ</h2>
+    <dl class="help-faq">
+        <dt>Can I use this module in production?</dt>
+        <dd>
+            No. The Example module is a development reference and is not supported for production
+            use.
+        </dd>
+        <dt>How do I create my own module?</dt>
+        <dd>
+            Use this module as a template: copy the structure, replace the namespaces, then implement
+            your own domain.
+        </dd>
+    </dl>
+</section>

@@ -1,8 +1,9 @@
 # `.dncpkg` module packaging
 
-> **Status:** implemented 2026-11-07 (phase B1) ┬╖ **Tool:** `tools/DotNetCloud.ModulePackaging` in the
-> `DotNetCloud-ModuleStore` repository (`dotnetcloud-pack`; the format code is `src/Core/DotNetCloud.Core.Packaging`
-> here) ┬╖ **Plan:** `docs/THIRD_PARTY_MODULE_SANDBOX_AND_STORE_PLAN.md` ┬º4.6, ┬º4.10, B1
+> **Status:** implemented 2026-11-07 (phase B1); packer folded into the CLI 2026-11-26 ┬╖ **Tool:**
+> `dotnetcloud module pack` in `src/Cli/DotNetCloud.CLI`; the format code is
+> `src/Core/DotNetCloud.Core.Packaging` ┬╖ **Plan:** `docs/THIRD_PARTY_MODULE_SANDBOX_AND_STORE_PLAN.md`
+> ┬º4.6, ┬º4.10, B1
 > **Audience:** module authors, store operators, and anyone implementing the installer (B3)
 
 A `.dncpkg` file is a **deterministic, signed ZIP** that contains a module manifest, its licence and
@@ -19,36 +20,42 @@ Modules are split by whether the platform owns them (2026-11-18):
 | Group                | Module ids                                                                                                 | Source lives in                                                    |
 | -------------------- | ---------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------ |
 | **Required**         | `dotnetcloud.files`, `.chat`, `.contacts`, `.calendar`, `.notes`, `.about`, `.extraction`                   | This repository, `src/Modules/**` (and `src/Core/DotNetCloud.Core.Search.Extraction.Host`) |
-| **Optional first-party** | `dotnetcloud.example`, `.bookmarks`, `.email`, `.ai`, `.photos`, `.tracks`                              | `DotNetCloud-ModuleStore`, `src/Modules/**`                        |
-| **Optional first-party (in this repo)** | `dotnetcloud.music`, `.video` | This repository, `src/Modules/**` |
+| **Optional first-party** | `dotnetcloud.example`, `.bookmarks`, `.email`, `.ai`, `.photos`, `.tracks`                              | This repository, `src/Modules/**` (verified against the sealed contracts, below) |
+| **Optional first-party (bundled)** | `dotnetcloud.music`, `.video`                                                             | This repository, `src/Modules/**`                                  |
 | **Third party**      | anything else                                                                                              | The publisher's own repository                                     |
 
 A required module shares the `core` schema, cannot be disabled or uninstalled, and cannot be replaced
 by a store package, so it is **never published to the store** — `validate`/`build` in
 `DotNetCloud-ModuleStore` reject a package whose manifest id is in `RequiredModules`.
 
-Optional and third-party modules build outside this repository (except `music` and `video`,
-which still ship here), so they reference the platform's
-contract assemblies as **packages**, not project references:
+The optional and third-party modules reference the platform's contract assemblies as **packages**,
+not project references — including the optional modules that live in this repository. That is what
+keeps co-location from eroding the public contract, and it is how a third party consumes exactly the
+same surface:
 
 ```powershell
-# from a DotNetCloud checkout — writes DotNetCloud.Core, .Core.Data, .Core.Grpc,
-# .Modules.Sdk, .Modules.Sdk.Web and .UI.Shared into a local feed
-./scripts/pack-module-sdk.ps1 -Output ../DotNetCloud-ModuleStore/.sdk-feed
+# from a DotNetCloud checkout — writes DotNetCloud.Core, .Core.Data, .Core.Grpc, .Core.Packaging,
+# .Modules.Sdk, .Modules.Sdk.Web and .UI.Shared into .sdk-feed/
+./scripts/pack-module-sdk.ps1 -Output .sdk-feed
 ```
 
-The version is this repository's version, and the consumer pins it in its own
-`Directory.Packages.props` (`DotNetCloudSdkVersion`). The `Publish Module SDK` workflow pushes the same
-packages on an `sdk-v*` tag.
+The feed is gitignored and empty in a clean checkout, so `DotNetCloud.CI.slnf` (the ordinary build)
+never needs it, while `DotNetCloud.Modules.slnf` (the six optional modules and their tests) does. The
+version is this repository's version, pinned as `DotNetCloudSdkVersion` in
+`Directory.Packages.props`. The `Publish Module SDK` workflow pushes the same packages on an `sdk-v*`
+tag, and `release.yml` puts them in `<tarball>/sdk-feed/` so an author builds against the platform
+they installed.
 
-The **packer** (`dotnetcloud-pack`) and everything it needs now live where modules are built:
+The **packer** is a verb of the platform CLI:
 
-- `DotNetCloud.Core.Packaging` (this repository) holds the format, archive hardening, Ed25519
-  signature and verification pipeline — no EF, no ASP.NET — and `DotNetCloud.Core` holds
+- `DotNetCloud.Core.Packaging` holds the format, archive hardening, Ed25519 signature and
+  verification pipeline — no EF, no ASP.NET — and `DotNetCloud.Core` holds
   `ModuleManifestLoader`/`ModuleCompatibility`, so the packer validates and writes a package with
   exactly the code the server installs with.
-- `tools/DotNetCloud.ModulePackaging` in **`DotNetCloud-ModuleStore`** is the tool, built against those
-  two packages. `scripts/pack-module.ps1` there runs it locally.
+- `src/Cli/DotNetCloud.CLI/Commands/Module*Command.cs` wraps those libraries as
+  `dotnetcloud module pack|inspect|keygen|feed`, next to `module verify`, which it extends with the
+  packer's `--signature`, `--key`, `--key-file` and `--allow-unverified` options. There is no
+  separate tool to install and no second distribution channel.
 
 Cross-module **event contracts** live in `DotNetCloud.Core.Events` (`ChatEvents.cs`,
 `FileDeletedEvent.cs`, `TracksEvents.cs`, …) for the same reason: a module that reacts to another
@@ -140,7 +147,7 @@ Rejected by design:
 | Key file    | JSON `{ "keyId", "publicKey", "privateKey" }` produced by `keygen`  |
 
 ```bash
-dotnetcloud-pack keygen --key-id store-2026 --output keys/store-2026.key.json
+dotnetcloud module keygen --key-id store-2027 --output keys/store-2027.key.json
 ```
 
 The public key is what a verifier pins; the private key never leaves the signing environment. Key
@@ -274,15 +281,15 @@ verification path does not change when the remote index arrives.
 ## 7. Tool reference
 
 ```
-dotnetcloud-pack pack    --input <dir> | --project <csproj> --rid <rid> [--rid …]
-                         [--configuration Release] [--manifest <path>] [--output <file>]
-                         [--sign-key <key.json>] [--feed <dir>] [--no-build]
-dotnetcloud-pack verify  <package> [--signature <file>] [--key id=base64]… [--key-file <path>]…
-                         [--allow-unverified]
-dotnetcloud-pack inspect <package> [--signature <file>]
-dotnetcloud-pack keygen  --key-id <id> [--output <file>]
-dotnetcloud-pack feed    list   --feed <dir>
-dotnetcloud-pack feed    verify --feed <dir> --id <id> --version <ver> [--key …] [--allow-unverified]
+dotnetcloud module pack    --input <dir> | --project <csproj> --rid <rid> [--rid …]
+                           [--configuration Release] [--manifest <path>] [--output <file>]
+                           [--sign-key <key.json>] [--feed <dir>] [--no-build]
+dotnetcloud module verify  <package> [--signature <file>] [--key id=base64]… [--key-file <path>]…
+                           [--allow-unverified]
+dotnetcloud module inspect <package> [--signature <file>]
+dotnetcloud module keygen  --key-id <id> [--output <file>]
+dotnetcloud module feed    list   --feed <dir>
+dotnetcloud module feed    verify --feed <dir> --id <id> --version <ver> [--key …] [--allow-unverified]
 ```
 
 Exit codes: `0` success, `1` verification or usage failure. `pack` always verifies its own output
@@ -301,9 +308,9 @@ directory when present.
 - ☐ `LICENSE`, `README.md`, `CHANGELOG.md` next to the manifest.
 - ☐ A host project that publishes per RID (`dotnet publish -r <rid>`).
 - ☐ `minCoreVersion` set to the oldest core you support (`0.7.0` today).
-- ☐ `dotnetcloud-pack pack --project … --rid linux-x64 --rid win-x64 --sign-key …`
-- ☐ `dotnetcloud-pack verify <package> --key <your-key-id>=<public-key>` passes.
-- ☐ `dotnetcloud-pack inspect <package>` shows exactly the entries you expect.
+- ☐ `dotnetcloud module pack --project … --rid linux-x64 --rid win-x64 --sign-key …`
+- ☐ `dotnetcloud module verify <package> --key <your-key-id>=<public-key>` passes.
+- ☐ `dotnetcloud module inspect <package>` shows exactly the entries you expect.
 
 ---
 

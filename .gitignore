@@ -428,3 +428,6 @@ data-protection-keys/
 soc2-compliance-report-*.md
 soc2-compliance-report.json
 .soc2-counts.tmp
+
+# Module SDK feed: packed by scripts/pack-module-sdk.ps1, never committed
+.sdk-feed/

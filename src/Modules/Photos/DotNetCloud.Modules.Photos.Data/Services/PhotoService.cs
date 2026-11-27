@@ -1,0 +1,351 @@
+using DotNetCloud.Core.Authorization;
+using DotNetCloud.Core.DTOs;
+using DotNetCloud.Core.Errors;
+using DotNetCloud.Core.Events;
+using DotNetCloud.Core.Events.Search;
+using DotNetCloud.Modules.Photos.Data;
+using DotNetCloud.Modules.Photos.Models;
+using DotNetCloud.Modules.Photos.Services;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
+using IAuditLogger = DotNetCloud.Core.Capabilities.IAuditLogger;
+using AuditEntry = DotNetCloud.Core.Capabilities.AuditEntry;
+using AuditAction = DotNetCloud.Core.Capabilities.AuditAction;
+using ITeamDirectory = DotNetCloud.Core.Capabilities.ITeamDirectory;
+
+namespace DotNetCloud.Modules.Photos.Data.Services;
+
+/// <summary>
+/// Service for managing photos — CRUD, search, timeline queries, favorites.
+/// </summary>
+public sealed class PhotoService : IPhotoService
+{
+    private readonly PhotosDbContext _db;
+    private readonly IEventBus _eventBus;
+    private readonly IAuditLogger _auditLogger;
+    private readonly ITeamDirectory? _teamDirectory;
+    private readonly ILogger<PhotoService> _logger;
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="PhotoService"/> class.
+    /// </summary>
+    public PhotoService(PhotosDbContext db, IEventBus eventBus, IAuditLogger auditLogger, ILogger<PhotoService> logger, ITeamDirectory? teamDirectory = null)
+    {
+        _db = db;
+        _eventBus = eventBus;
+        _auditLogger = auditLogger;
+        _teamDirectory = teamDirectory;
+        _logger = logger;
+    }
+
+    /// <summary>
+    /// Resolves the caller's team IDs for team-share access checks (empty when the
+    /// team directory capability is unavailable).
+    /// </summary>
+    private async Task<Guid[]> GetCallerTeamIdsAsync(CallerContext caller, CancellationToken cancellationToken)
+    {
+        if (_teamDirectory is null)
+        {
+            return [];
+        }
+
+        try
+        {
+            var teams = await _teamDirectory.GetTeamsForUserAsync(caller.UserId, cancellationToken);
+            return teams.Select(t => t.Id).ToArray();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to resolve team memberships for {UserId}", caller.UserId);
+            return [];
+        }
+    }
+
+    /// <summary>
+    /// Gets an existing photo by its FileNode ID, or null if not found.
+    /// </summary>
+    internal async Task<PhotoDto?> GetByFileNodeIdAsync(Guid fileNodeId, Guid ownerId, CancellationToken cancellationToken = default)
+    {
+        var photo = await _db.Photos
+            .Include(p => p.Metadata)
+            .Include(p => p.Tags)
+            .FirstOrDefaultAsync(p => p.FileNodeId == fileNodeId && p.OwnerId == ownerId, cancellationToken);
+
+        return photo is not null ? MapToDto(photo) : null;
+    }
+
+    /// <summary>
+    /// Creates a new photo record linked to a FileNode.
+    /// </summary>
+    public async Task<PhotoDto> CreatePhotoAsync(Guid fileNodeId, string fileName, string mimeType, long sizeBytes, Guid ownerId, CallerContext caller, CancellationToken cancellationToken = default)
+    {
+        // Hard-delete any stale soft-deleted tombstone for this (owner, file node) so a re-import
+        // after a source removal doesn't collide with the unique (FileNodeId, OwnerId) index.
+        var tombstones = await _db.Photos
+            .IgnoreQueryFilters()
+            .Where(p => p.OwnerId == ownerId && p.FileNodeId == fileNodeId && p.IsDeleted)
+            .ToListAsync(cancellationToken);
+        if (tombstones.Count > 0)
+        {
+            _db.Photos.RemoveRange(tombstones);
+            await _db.SaveChangesAsync(cancellationToken);
+        }
+
+        var photo = new Photo
+        {
+            FileNodeId = fileNodeId,
+            OwnerId = ownerId,
+            FileName = fileName,
+            MimeType = mimeType,
+            SizeBytes = sizeBytes,
+            TakenAt = DateTime.UtcNow
+        };
+
+        _db.Photos.Add(photo);
+        await _db.SaveChangesAsync(cancellationToken);
+
+        await _auditLogger.LogAsync(new AuditEntry
+        {
+            Caller = caller,
+            ModuleId = "dotnetcloud.photos",
+            Action = AuditAction.Create,
+            EntityType = "Photo",
+            EntityId = photo.Id,
+            Description = "create-photo",
+        }, cancellationToken);
+
+        _logger.LogInformation("Photo {PhotoId} created for file {FileNodeId} by user {UserId}", photo.Id, fileNodeId, ownerId);
+
+        await _eventBus.PublishAsync(new PhotoUploadedEvent
+        {
+            EventId = Guid.CreateVersion7(),
+            CreatedAt = DateTime.UtcNow,
+            PhotoId = photo.Id,
+            FileNodeId = fileNodeId,
+            OwnerId = ownerId,
+            FileName = fileName
+        }, caller, cancellationToken);
+
+        await _eventBus.PublishAsync(new SearchIndexRequestEvent
+        {
+            EventId = Guid.CreateVersion7(),
+            CreatedAt = DateTime.UtcNow,
+            ModuleId = "photos",
+            EntityId = photo.Id.ToString(),
+            Action = SearchIndexAction.Index
+        }, caller, cancellationToken);
+
+        return MapToDto(photo);
+    }
+
+    /// <summary>
+    /// Gets a photo by ID. Returns null if not found or not accessible by the caller.
+    /// </summary>
+    public async Task<PhotoDto?> GetPhotoAsync(Guid photoId, CallerContext caller, CancellationToken cancellationToken = default)
+    {
+        var teamIds = await GetCallerTeamIdsAsync(caller, cancellationToken);
+
+        var photo = await _db.Photos
+            .Include(p => p.Metadata)
+            .Include(p => p.Tags)
+            .Include(p => p.EditRecords)
+            .FirstOrDefaultAsync(p => p.Id == photoId, cancellationToken);
+
+        if (photo is null || (photo.OwnerId != caller.UserId && !await HasShareAccessAsync(photoId, caller.UserId, teamIds, cancellationToken)))
+            return null;
+
+        return MapToDto(photo);
+    }
+
+    /// <summary>
+    /// Lists photos for a user, ordered by date taken (newest first).
+    /// </summary>
+    public async Task<IReadOnlyList<PhotoDto>> ListPhotosAsync(CallerContext caller, int skip = 0, int take = 50, CancellationToken cancellationToken = default)
+    {
+        var photos = await _db.Photos
+            .Include(p => p.Metadata)
+            .Include(p => p.Tags)
+            .Where(p => p.OwnerId == caller.UserId)
+            .OrderByDescending(p => p.TakenAt)
+            .Skip(skip)
+            .Take(take)
+            .ToListAsync(cancellationToken);
+
+        return photos.Select(MapToDto).ToList();
+    }
+
+    /// <summary>
+    /// Counts all photos owned by the caller. The exact total lets the UI compute the
+    /// number of pages instead of guessing from whether a full page came back.
+    /// </summary>
+    public async Task<int> CountPhotosAsync(CallerContext caller, CancellationToken cancellationToken = default)
+    {
+        return await _db.Photos
+            .Where(p => p.OwnerId == caller.UserId)
+            .CountAsync(cancellationToken);
+    }
+
+    /// <summary>
+    /// Gets the most recently added photos for the caller.
+    /// </summary>
+    public async Task<IReadOnlyList<PhotoDto>> GetRecentPhotosAsync(CallerContext caller, int count = 5, CancellationToken cancellationToken = default)
+    {
+        var photos = await _db.Photos
+            .Include(p => p.Metadata)
+            .Include(p => p.Tags)
+            .Where(p => p.OwnerId == caller.UserId)
+            .OrderByDescending(p => p.TakenAt)
+            .Take(count)
+            .ToListAsync(cancellationToken);
+
+        return photos.Select(MapToDto).ToList();
+    }
+
+    /// <summary>
+    /// Gets photos in a date range for timeline view.
+    /// </summary>
+    public async Task<IReadOnlyList<PhotoDto>> GetTimelineAsync(CallerContext caller, DateTime from, DateTime to, CancellationToken cancellationToken = default)
+    {
+        var photos = await _db.Photos
+            .Include(p => p.Metadata)
+            .Include(p => p.Tags)
+            .Where(p => p.OwnerId == caller.UserId && p.TakenAt >= from && p.TakenAt <= to)
+            .OrderByDescending(p => p.TakenAt)
+            .ToListAsync(cancellationToken);
+
+        return photos.Select(MapToDto).ToList();
+    }
+
+    /// <summary>
+    /// Toggles the favorite flag on a photo.
+    /// </summary>
+    public async Task<PhotoDto> ToggleFavoriteAsync(Guid photoId, CallerContext caller, CancellationToken cancellationToken = default)
+    {
+        var photo = await _db.Photos.FirstOrDefaultAsync(p => p.Id == photoId && p.OwnerId == caller.UserId, cancellationToken)
+            ?? throw new BusinessRuleException(ErrorCodes.PhotoNotFound, "Photo not found.");
+
+        photo.IsFavorite = !photo.IsFavorite;
+        photo.UpdatedAt = DateTime.UtcNow;
+        await _db.SaveChangesAsync(cancellationToken);
+
+        return MapToDto(photo);
+    }
+
+    /// <summary>
+    /// Gets all favorite photos for a user.
+    /// </summary>
+    public async Task<IReadOnlyList<PhotoDto>> GetFavoritesAsync(CallerContext caller, CancellationToken cancellationToken = default)
+    {
+        var photos = await _db.Photos
+            .Include(p => p.Tags)
+            .Where(p => p.OwnerId == caller.UserId && p.IsFavorite)
+            .OrderByDescending(p => p.TakenAt)
+            .ToListAsync(cancellationToken);
+
+        return photos.Select(MapToDto).ToList();
+    }
+
+    /// <summary>
+    /// Soft-deletes a photo.
+    /// </summary>
+    public async Task DeletePhotoAsync(Guid photoId, CallerContext caller, CancellationToken cancellationToken = default)
+    {
+        var photo = await _db.Photos.FirstOrDefaultAsync(p => p.Id == photoId && p.OwnerId == caller.UserId, cancellationToken)
+            ?? throw new BusinessRuleException(ErrorCodes.PhotoNotFound, "Photo not found.");
+
+        photo.IsDeleted = true;
+        photo.DeletedAt = DateTime.UtcNow;
+        photo.UpdatedAt = DateTime.UtcNow;
+        await _db.SaveChangesAsync(cancellationToken);
+
+        _logger.LogInformation("Photo {PhotoId} soft-deleted by user {UserId}", photoId, caller.UserId);
+
+        await _eventBus.PublishAsync(new PhotoDeletedEvent
+        {
+            EventId = Guid.CreateVersion7(),
+            CreatedAt = DateTime.UtcNow,
+            PhotoId = photoId,
+            DeletedByUserId = caller.UserId,
+            IsPermanent = false
+        }, caller, cancellationToken);
+
+        await _eventBus.PublishAsync(new SearchIndexRequestEvent
+        {
+            EventId = Guid.CreateVersion7(),
+            CreatedAt = DateTime.UtcNow,
+            ModuleId = "photos",
+            EntityId = photoId.ToString(),
+            Action = SearchIndexAction.Remove
+        }, caller, cancellationToken);
+    }
+
+    /// <summary>
+    /// Searches photos by filename (case-insensitive substring match).
+    /// </summary>
+    public async Task<IReadOnlyList<PhotoDto>> SearchAsync(CallerContext caller, string query, int maxResults = 20, CancellationToken cancellationToken = default)
+    {
+        var photos = await _db.Photos
+            .Include(p => p.Tags)
+            .Where(p => p.OwnerId == caller.UserId && p.FileName.Contains(query))
+            .OrderByDescending(p => p.TakenAt)
+            .Take(maxResults)
+            .ToListAsync(cancellationToken);
+
+        return photos.Select(MapToDto).ToList();
+    }
+
+    /// <summary>
+    /// Checks whether a user has share access to a photo, either through a direct
+    /// user share or through a share targeting a team the user belongs to.
+    /// </summary>
+    internal async Task<bool> HasShareAccessAsync(Guid photoId, Guid userId, IReadOnlyCollection<Guid> teamIds, CancellationToken cancellationToken = default)
+    {
+        return await _db.PhotoShares.AnyAsync(
+            s => s.PhotoId == photoId &&
+                 (s.SharedWithUserId == userId ||
+                  (s.SharedWithTeamId != null && teamIds.Contains(s.SharedWithTeamId.Value))) &&
+                 (s.ExpiresAt == null || s.ExpiresAt > DateTime.UtcNow),
+            cancellationToken);
+    }
+
+    internal static PhotoDto MapToDto(Photo photo)
+    {
+        return new PhotoDto
+        {
+            Id = photo.Id,
+            FileNodeId = photo.FileNodeId,
+            OwnerId = photo.OwnerId,
+            FileName = photo.FileName,
+            MimeType = photo.MimeType,
+            SizeBytes = photo.SizeBytes,
+            Width = photo.Width,
+            Height = photo.Height,
+            IsFavorite = photo.IsFavorite,
+            TakenAt = photo.TakenAt,
+            CreatedAt = photo.CreatedAt,
+            UpdatedAt = photo.UpdatedAt,
+            Tags = photo.Tags?.Select(t => t.Tag).ToList() ?? [],
+            HasEdits = photo.EditRecords?.Count > 0,
+            Metadata = photo.Metadata is not null ? new PhotoMetadataDto
+            {
+                CameraMake = photo.Metadata.CameraMake,
+                CameraModel = photo.Metadata.CameraModel,
+                LensModel = photo.Metadata.LensModel,
+                FocalLengthMm = photo.Metadata.FocalLengthMm,
+                Aperture = photo.Metadata.Aperture,
+                ShutterSpeed = photo.Metadata.ShutterSpeed,
+                Iso = photo.Metadata.Iso,
+                FlashFired = photo.Metadata.FlashFired,
+                Orientation = photo.Metadata.Orientation,
+                Location = photo.Metadata.Latitude.HasValue && photo.Metadata.Longitude.HasValue
+                    ? new Core.DTOs.Media.GeoCoordinate
+                    {
+                        Latitude = photo.Metadata.Latitude.Value,
+                        Longitude = photo.Metadata.Longitude.Value,
+                        AltitudeMetres = photo.Metadata.AltitudeMetres
+                    }
+                    : null
+            } : null
+        };
+    }
+}

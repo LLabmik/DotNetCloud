@@ -1,0 +1,240 @@
+@page "/"
+
+<PageTitle>AI Assistant</PageTitle>
+
+<div class="ai-layout">
+    <aside class="ai-sidebar" aria-label="Conversations">
+        <div class="ai-sidebar-header">
+            <span class="ai-sidebar-title">AI Assistant</span>
+            <button type="button"
+                    class="ai-icon-btn"
+                    title="New chat"
+                    aria-label="New chat"
+                    disabled="@_loading"
+                    @onclick="NewChatAsync">
+                <MaterialIcon Icon="add" />
+            </button>
+        </div>
+
+        <p class="ai-model-label">Model: @(string.IsNullOrEmpty(_defaultModel) ? "—" : _defaultModel)</p>
+
+        <div class="ai-conversation-list" role="list">
+            @foreach (var conversation in _conversations)
+            {
+                <div class="ai-conversation @(conversation.Id == _activeId ? "is-active" : null)" role="listitem" @key="conversation.Id">
+                    @if (_renamingId == conversation.Id)
+                    {
+                        <input class="ai-rename-input"
+                               type="text"
+                               aria-label="Conversation title"
+                               @bind="_renameTitle"
+                               @bind:event="oninput"
+                               @onkeydown="OnRenameKeyDown"
+                               @onblur="CommitRenameAsync" />
+                    }
+                    else
+                    {
+                        <button type="button"
+                                class="ai-conversation-btn"
+                                title="@conversation.Title"
+                                @onclick="() => OpenConversationAsync(conversation.Id)">
+                            <span class="ai-conversation-title">@conversation.Title</span>
+                            <span class="ai-conversation-date">@FormatShortDate(conversation.UpdatedAt == default ? conversation.CreatedAt : conversation.UpdatedAt)</span>
+                        </button>
+
+                        @if (_confirmDeleteId == conversation.Id)
+                        {
+                            <button type="button" class="ai-copy-btn" @onclick="() => DeleteConversationAsync(conversation.Id)">Delete</button>
+                            <button type="button" class="ai-copy-btn" @onclick="() => _confirmDeleteId = null">Cancel</button>
+                        }
+                        else
+                        {
+                            <button type="button"
+                                    class="ai-icon-btn ai-conversation-rename"
+                                    title="Rename chat"
+                                    aria-label="Rename chat"
+                                    @onclick="() => StartRenaming(conversation)">
+                                <MaterialIcon Icon="edit" />
+                            </button>
+
+                            <button type="button"
+                                    class="ai-icon-btn ai-conversation-delete"
+                                    title="Delete chat"
+                                    aria-label="Delete chat"
+                                    disabled="@_streaming"
+                                    @onclick="() => _confirmDeleteId = conversation.Id">
+                                <MaterialIcon Icon="delete" />
+                            </button>
+                        }
+                    }
+                </div>
+            }
+        </div>
+
+        @if (_conversations.Count == 0)
+        {
+            <p class="ai-empty-hint">No conversations yet.</p>
+        }
+
+        <div class="ai-sidebar-footer">
+            <button type="button" class="ai-link-btn" @onclick="OpenHelp">
+                <MaterialIcon Icon="help" />
+                <span>Help</span>
+            </button>
+        </div>
+    </aside>
+
+    <main class="ai-main">
+        <section class="ai-welcome @(ShowWelcome ? null : "hidden")">
+            <div class="ai-welcome-icon" aria-hidden="true">
+                <MaterialIcon Icon="smart_toy" Size="MaterialIconSize.Xl" />
+            </div>
+            <h1>DotNetCloud AI Assistant</h1>
+            <p>Start a conversation or select one from the sidebar.</p>
+            @if (!_modelHealthy)
+            {
+                <p class="ai-warning">
+                    The configured language model is not reachable. AI features may be unavailable.
+                </p>
+            }
+        </section>
+
+        <section class="ai-chat @(ShowChat ? null : "hidden")" aria-live="polite">
+            <div class="ai-messages" id="ai-messages">
+                @foreach (var message in _messages)
+                {
+                    <div class="ai-msg @(message.IsUser ? "is-user" : "is-assistant")" @key="message.Key">
+                        <div class="ai-avatar">
+                            <MaterialIcon Icon="@(message.IsUser ? "person" : "assistant")" />
+                        </div>
+
+                        <div class="ai-msg-body">
+                            <div class="ai-msg-role">@(message.IsUser ? "You" : "Assistant")</div>
+
+                            @if (message.IsUser)
+                            {
+                                <div class="ai-msg-text">@message.Content</div>
+                            }
+                            else
+                            {
+                                <div class="ai-msg-text ai-markdown" id="@($"ai-msg-{message.Key}")">
+                                    @((MarkupString)RenderMarkdown(message.Content))
+                                </div>
+
+                                <div class="ai-copy-actions">
+                                    <button type="button"
+                                            class="ai-copy-btn"
+                                            title="Copy as Markdown"
+                                            @onclick="() => CopyMarkdownAsync(message)">
+                                        <MaterialIcon Icon="@(_copiedKey == message.Key + ":md" ? "check" : "copy")" />
+                                        <span>@(_copiedKey == message.Key + ":md" ? "Copied!" : "Copy as Markdown")</span>
+                                    </button>
+                                    <button type="button"
+                                            class="ai-copy-btn"
+                                            title="Copy as formatted text"
+                                            @onclick="() => CopyFormattedAsync(message)">
+                                        <MaterialIcon Icon="@(_copiedKey == message.Key + ":html" ? "check" : "copy")" />
+                                        <span>@(_copiedKey == message.Key + ":html" ? "Copied!" : "Copy as formatted")</span>
+                                    </button>
+                                </div>
+                            }
+                        </div>
+                    </div>
+                }
+
+                @if (_streaming)
+                {
+                    <div class="ai-msg is-assistant">
+                        <div class="ai-avatar">
+                            <MaterialIcon Icon="smart_toy" />
+                        </div>
+
+                        <div class="ai-msg-body">
+                            <div class="ai-msg-role">
+                                <span>Assistant</span>
+                                @if (string.IsNullOrEmpty(_pendingText) && string.IsNullOrEmpty(_pendingThinking))
+                                {
+                                    <span class="ai-thinking">Thinking…</span>
+                                }
+                            </div>
+
+                            <div class="ai-stream-actions">
+                                @if (_queuePosition is { } position)
+                                {
+                                    <span class="ai-queue">In queue: position @position of @(_queueTotal ?? 1)</span>
+                                }
+                                <button type="button" class="ai-abort-btn" @onclick="AbortStreamAsync">Abort</button>
+                            </div>
+
+                            @if (!string.IsNullOrEmpty(_pendingThinking))
+                            {
+                                <div class="ai-thinking-block">
+                                    <div class="ai-thinking-label">Thought process</div>
+                                    <div class="ai-thinking-text">@_pendingThinking</div>
+                                </div>
+                            }
+
+                            <div class="ai-msg-text ai-markdown ai-streaming">
+                                @((MarkupString)RenderMarkdown(_pendingText))
+                            </div>
+                        </div>
+                    </div>
+                }
+            </div>
+
+            @if (!string.IsNullOrEmpty(_error))
+            {
+                <div class="ai-error" role="alert">@_error</div>
+            }
+
+            <form class="ai-composer @(_streaming ? "is-streaming" : null)" @onsubmit="SendAsync" @onsubmit:preventDefault>
+                <label class="ai-visually-hidden" for="ai-input">Message</label>
+                <textarea class="ai-input"
+                          id="ai-input"
+                          rows="1"
+                          placeholder="Type a message…  (Enter to send, Shift+Enter for a new line)"
+                          disabled="@_streaming"
+                          @bind="_input"
+                          @bind:event="oninput"></textarea>
+                <button type="submit" class="ai-send" title="Send" aria-label="Send" disabled="@_streaming">
+                    <MaterialIcon Icon="send" />
+                </button>
+            </form>
+        </section>
+
+        <section class="ai-help @(_helpOpen ? null : "hidden")">
+            <div class="ai-help-header">
+                <h2>AI Assistant help</h2>
+                <button type="button" class="ai-icon-btn" title="Close help" aria-label="Close help" @onclick="CloseHelp">
+                    <MaterialIcon Icon="close" />
+                </button>
+            </div>
+
+            <h3>Chatting</h3>
+            <p>
+                Pick a conversation on the left, or press <strong>New chat</strong>. Messages stream from the
+                model as they are generated; <strong>Abort</strong> cancels the request, and a request still
+                waiting in the queue gives up its place.
+            </p>
+
+            <h3>Conversations</h3>
+            <p>
+                Rename a conversation with the pencil button on its row, or use the delete button to remove
+                it. Conversations and their messages are stored in this module's own data store and are
+                deleted when your account is deleted.
+            </p>
+
+            <h3>Models and providers</h3>
+            <p>
+                The provider, model and endpoint are configured by your administrator. The model shown above
+                the list is the one new conversations use; it cannot be changed from here.
+            </p>
+
+            <h3>Privacy</h3>
+            <p>
+                Your prompts and the model's answers are sent to the configured language-model provider.
+                This assistant does not read your files, mail, calendar or contacts.
+            </p>
+        </section>
+    </main>
+</div>

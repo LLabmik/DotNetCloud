@@ -386,7 +386,18 @@ DotNetCloud is designed for extensibility. Third-party developers can build modu
 dotnet new dotnetcloud-module -n MyCustomModule
 ```
 
-See the [Module Development Guide](docs/modules/README.md) for the full walkthrough, including the [Example Module](src/Modules/Example/) as a working reference.
+See the [Module Development Guide](docs/modules/README.md) for the full walkthrough, including the [Example Module](src/Modules/Example/) as a working reference, and [`.dncpkg` module packaging](docs/modules/MODULE_PACKAGING.md) for `dotnetcloud module pack`.
+
+The optional modules in `src/Modules/{AI,Bookmarks,Email,Example,Photos,Tracks}` build against the
+platform's **contract packages**, exactly as a third-party module does — so they need the local SDK
+feed, and they live outside the ordinary `DotNetCloud.CI.slnf` build:
+
+```sh
+./scripts/pack-module-sdk.ps1 -Output .sdk-feed   # once per contract change
+dotnet build DotNetCloud.Modules.slnf
+dotnet test DotNetCloud.Modules.slnf
+```
+
 
 ---
 

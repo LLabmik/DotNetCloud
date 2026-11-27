@@ -1,0 +1,585 @@
+@page "/"
+
+<PageTitle>Bookmarks</PageTitle>
+
+<nav class="sidebar @(_collapsed ? "is-collapsed" : null)" aria-label="Bookmarks navigation">
+    <div class="sidebar-header">
+        <span class="sidebar-title">Bookmarks</span>
+        <button type="button"
+                class="icon-btn sidebar-toggle"
+                aria-label="@(_collapsed ? "Expand sidebar" : "Collapse sidebar")"
+                title="@(_collapsed ? "Expand sidebar" : "Collapse sidebar")"
+                @onclick="ToggleSidebar">
+            <MaterialIcon Icon="@(_collapsed ? "chevron_right" : "chevron_left")" />
+        </button>
+    </div>
+
+    <div class="sidebar-actions">
+        <button type="button" class="btn btn-primary" @onclick="BeginCreate">
+            <MaterialIcon Icon="add" Size="MaterialIconSize.Sm" />
+            <span>New</span>
+        </button>
+        <button type="button" class="btn btn-secondary" @onclick="BeginFolderCreate">
+            <MaterialIcon Icon="folder" Size="MaterialIconSize.Sm" />
+            <span>Folder</span>
+        </button>
+    </div>
+
+    <div class="sidebar-section">
+        <p class="sidebar-section-header">Views</p>
+        <button type="button" class="nav-item @(IsNavActive("nav-all") ? "is-active" : null)" @onclick="SelectAllAsync">
+            <MaterialIcon Icon="bookmark" Size="MaterialIconSize.Sm" />
+            <span class="nav-text">All bookmarks</span>
+        </button>
+        <button type="button" class="nav-item @(IsNavActive("nav-favorites") ? "is-active" : null)" @onclick="SelectFavoritesAsync">
+            <MaterialIcon Icon="star" Size="MaterialIconSize.Sm" />
+            <span class="nav-text">Favorites</span>
+        </button>
+    </div>
+
+    <div class="sidebar-section">
+        <p class="sidebar-section-header">Folders</p>
+
+        @foreach (var folder in _folders)
+        {
+            <div class="nav-row" @key="folder.Id">
+                <button type="button"
+                        class="nav-item @(IsNavActive($"folder:{folder.Id}") ? "is-active" : null)"
+                        title="@FolderName(folder.Id)"
+                        @onclick="() => SelectFolderAsync(folder.Id)">
+                    <span class="folder-dot" style="background: @(folder.Color ?? "#6b7280")"></span>
+                    <span class="nav-text">@folder.Name</span>
+                </button>
+                <button type="button"
+                        class="icon-btn nav-row-action"
+                        aria-label="Rename folder"
+                        title="Rename folder"
+                        @onclick="() => BeginFolderEdit(folder)">
+                    <MaterialIcon Icon="edit" Size="MaterialIconSize.Sm" />
+                </button>
+            </div>
+        }
+
+        @if (_folders.Count == 0)
+        {
+            <p class="sidebar-empty">No folders yet</p>
+        }
+    </div>
+
+    <div class="sidebar-section sidebar-section-tools">
+        <p class="sidebar-section-header">Tools</p>
+        <button type="button" class="nav-item @(IsNavActive("nav-import") ? "is-active" : null)" @onclick="OpenImport">
+            <MaterialIcon Icon="file_upload" Size="MaterialIconSize.Sm" />
+            <span class="nav-text">Import</span>
+        </button>
+        <button type="button" class="nav-item" @onclick="ExportAsync">
+            <MaterialIcon Icon="download" Size="MaterialIconSize.Sm" />
+            <span class="nav-text">Export</span>
+        </button>
+        <button type="button" class="nav-item @(IsNavActive("nav-help") ? "is-active" : null)" @onclick="ShowHelpAsync">
+            <MaterialIcon Icon="help" Size="MaterialIconSize.Sm" />
+            <span class="nav-text">Help</span>
+        </button>
+    </div>
+</nav>
+
+<main class="main">
+    @if (!string.IsNullOrEmpty(_status))
+    {
+        <p class="status" role="status" aria-live="polite">@_status</p>
+    }
+
+    @if (_panel is Panel.Library)
+    {
+        <section>
+            <div class="toolbar">
+                <form class="search-bar" @onsubmit="RunSearchAsync" @onsubmit:preventDefault>
+                    <input class="search-input"
+                           type="search"
+                           autocomplete="off"
+                           placeholder="Search bookmarks…"
+                           aria-label="Search bookmarks"
+                           @bind="_searchInput"
+                           @bind:event="oninput" />
+                    <button type="submit" class="btn btn-primary" aria-label="Search" title="Search">
+                        <MaterialIcon Icon="search" Size="MaterialIconSize.Sm" />
+                    </button>
+                    @if (_searchQuery is not null)
+                    {
+                        <button type="button" class="btn btn-secondary" aria-label="Clear search" title="Clear search" @onclick="ClearSearch">
+                            <MaterialIcon Icon="close" Size="MaterialIconSize.Sm" />
+                        </button>
+                    }
+                </form>
+
+                <div class="view-toggle" role="group" aria-label="View mode">
+                    <button type="button"
+                            class="btn btn-secondary @(_listView ? null : "is-active")"
+                            aria-label="Grid view"
+                            title="Grid view"
+                            @onclick="() => SetViewAsync(listView: false)">
+                        <MaterialIcon Icon="grid_view" Size="MaterialIconSize.Sm" />
+                    </button>
+                    <button type="button"
+                            class="btn btn-secondary @(_listView ? "is-active" : null)"
+                            aria-label="List view"
+                            title="List view"
+                            @onclick="() => SetViewAsync(listView: true)">
+                        <MaterialIcon Icon="view_list" Size="MaterialIconSize.Sm" />
+                    </button>
+                </div>
+            </div>
+
+            <h2 class="panel-title">@LibraryTitle</h2>
+
+            @if (VisibleItems.Count == 0)
+            {
+                <div class="empty-state">
+                    <MaterialIcon Icon="bookmark" Size="MaterialIconSize.Xl" />
+                    <h3>@EmptyTitle</h3>
+                    <p>@EmptyText</p>
+                    @if (_searchQuery is null && !_showFavorites)
+                    {
+                        <button type="button" class="btn btn-primary" @onclick="BeginCreate">Add bookmark</button>
+                    }
+                </div>
+            }
+            else if (_listView)
+            {
+                <div class="table-wrap">
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>Title</th>
+                                <th>URL</th>
+                                <th>Folder</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var item in VisibleItems)
+                            {
+                                <tr class="table-row @(item.IsFavorite ? "is-favorite" : null)"
+                                    tabindex="0"
+                                    @key="item.Id"
+                                    @onclick="() => OpenDetailAsync(item)">
+                                    <td>@DisplayTitle(item)</td>
+                                    <td class="table-url">@item.Url</td>
+                                    <td>@FolderName(item.FolderId)</td>
+                                    <td class="table-actions">
+                                        <div class="card-actions">
+                                            <button type="button"
+                                                    class="icon-btn @(item.IsFavorite ? "is-favorite" : null)"
+                                                    aria-label="@(item.IsFavorite ? "Remove from favorites" : "Add to favorites")"
+                                                    title="@(item.IsFavorite ? "Remove from favorites" : "Add to favorites")"
+                                                    @onclick="() => ToggleFavoriteAsync(item)"
+                                                    @onclick:stopPropagation="true">
+                                                <MaterialIcon Icon="@(item.IsFavorite ? "star" : "star_border")" Size="MaterialIconSize.Sm" />
+                                            </button>
+                                            <button type="button"
+                                                    class="icon-btn"
+                                                    aria-label="Fetch preview"
+                                                    title="Fetch preview"
+                                                    @onclick="() => FetchPreviewAsync(item)"
+                                                    @onclick:stopPropagation="true">
+                                                <MaterialIcon Icon="refresh" Size="MaterialIconSize.Sm" />
+                                            </button>
+                                            <button type="button"
+                                                    class="icon-btn is-danger"
+                                                    aria-label="Delete bookmark"
+                                                    title="Delete bookmark"
+                                                    @onclick="() => DeleteBookmarkAsync(item)"
+                                                    @onclick:stopPropagation="true">
+                                                <MaterialIcon Icon="delete" Size="MaterialIconSize.Sm" />
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+            else
+            {
+                <div class="grid" aria-live="polite">
+                    @foreach (var item in VisibleItems)
+                    {
+                        <article class="card @(item.IsFavorite ? "is-favorite" : null)"
+                                 tabindex="0"
+                                 role="button"
+                                 @key="item.Id"
+                                 @onclick="() => OpenDetailAsync(item)">
+                            <div class="card-header">
+                                <h3 class="card-title">@DisplayTitle(item)</h3>
+                                <div class="card-actions">
+                                    <button type="button"
+                                            class="icon-btn @(item.IsFavorite ? "is-favorite" : null)"
+                                            aria-label="@(item.IsFavorite ? "Remove from favorites" : "Add to favorites")"
+                                            title="@(item.IsFavorite ? "Remove from favorites" : "Add to favorites")"
+                                            @onclick="() => ToggleFavoriteAsync(item)"
+                                            @onclick:stopPropagation="true">
+                                        <MaterialIcon Icon="@(item.IsFavorite ? "star" : "star_border")" Size="MaterialIconSize.Sm" />
+                                    </button>
+                                    <button type="button"
+                                            class="icon-btn"
+                                            aria-label="Fetch preview"
+                                            title="Fetch preview"
+                                            @onclick="() => FetchPreviewAsync(item)"
+                                            @onclick:stopPropagation="true">
+                                        <MaterialIcon Icon="refresh" Size="MaterialIconSize.Sm" />
+                                    </button>
+                                    <button type="button"
+                                            class="icon-btn is-danger"
+                                            aria-label="Delete bookmark"
+                                            title="Delete bookmark"
+                                            @onclick="() => DeleteBookmarkAsync(item)"
+                                            @onclick:stopPropagation="true">
+                                        <MaterialIcon Icon="delete" Size="MaterialIconSize.Sm" />
+                                    </button>
+                                </div>
+                            </div>
+
+                            <p class="card-url">@item.Url</p>
+
+                            @if (!string.IsNullOrEmpty(item.Description))
+                            {
+                                <p class="card-description">@item.Description</p>
+                            }
+
+                            <p class="card-meta">@CardMeta(item)</p>
+                        </article>
+                    }
+                </div>
+            }
+        </section>
+    }
+    else if (_panel is Panel.Detail && _selected is not null)
+    {
+        <section>
+            <div class="detail-header">
+                <button type="button" class="btn btn-secondary" @onclick="BackToLibraryAsync">
+                    <MaterialIcon Icon="arrow_back" Size="MaterialIconSize.Sm" />
+                    <span>Back</span>
+                </button>
+
+                <div class="detail-actions">
+                    <button type="button" class="btn btn-secondary" @onclick="() => BeginEdit(_selected)">
+                        <MaterialIcon Icon="edit" Size="MaterialIconSize.Sm" />
+                        <span>Edit</span>
+                    </button>
+                    <button type="button"
+                            class="btn btn-secondary @(_selected.IsFavorite ? "is-favorite" : null)"
+                            aria-pressed="@(_selected.IsFavorite ? "true" : "false")"
+                            aria-label="Toggle favorite"
+                            title="Toggle favorite"
+                            @onclick="() => ToggleFavoriteAsync(_selected)">
+                        <MaterialIcon Icon="star" Size="MaterialIconSize.Sm" />
+                    </button>
+                    <button type="button" class="btn btn-secondary" @onclick="() => FetchPreviewAsync(_selected)">
+                        <MaterialIcon Icon="refresh" Size="MaterialIconSize.Sm" />
+                        <span>Fetch preview</span>
+                    </button>
+                    <button type="button" class="btn btn-danger" @onclick="() => DeleteBookmarkAsync(_selected)">
+                        <MaterialIcon Icon="delete" Size="MaterialIconSize.Sm" />
+                        <span>Delete</span>
+                    </button>
+                </div>
+            </div>
+
+            <h2>@DisplayTitle(_selected)</h2>
+
+            @if (!string.IsNullOrEmpty(_selected.Url))
+            {
+                <a href="@_selected.Url"
+                   class="detail-url"
+                   rel="noopener noreferrer"
+                   @onclick="OpenSelectedUrlAsync"
+                   @onclick:preventDefault="true">@_selected.Url</a>
+            }
+
+            @if (!string.IsNullOrEmpty(_selected.Description))
+            {
+                <p class="detail-description">@_selected.Description</p>
+            }
+
+            <p class="detail-meta">@DetailMeta(_selected)</p>
+
+            @if (!string.IsNullOrEmpty(_selected.Notes))
+            {
+                <div class="detail-notes">
+                    <h4>Notes</h4>
+                    <p>@_selected.Notes</p>
+                </div>
+            }
+
+            @if (_preview is not null)
+            {
+                <div class="preview-card">
+                    <h4>Preview</h4>
+
+                    @switch (PreviewStatusOf(_preview))
+                    {
+                        case BookmarkPreviewStatus.Fetching:
+                            <p class="text-muted">Fetching preview…</p>
+                            break;
+                        case BookmarkPreviewStatus.Failed:
+                            <p class="text-muted">
+                                @(string.IsNullOrEmpty(_preview.ErrorMessage)
+                                    ? "Preview fetch failed."
+                                    : $"Preview fetch failed: {_preview.ErrorMessage}")
+                            </p>
+                            break;
+                        case BookmarkPreviewStatus.NotFetched:
+                            <p class="text-muted">No preview yet. Select “Fetch preview” to load one.</p>
+                            break;
+                        default:
+                            <div class="preview-body">
+                                @if (!string.IsNullOrEmpty(_preview.PreviewImageUrl))
+                                {
+                                    <img class="preview-image" alt="" loading="lazy" referrerpolicy="no-referrer" src="@_preview.PreviewImageUrl" />
+                                }
+
+                                @if (!string.IsNullOrEmpty(_preview.FaviconUrl) || !string.IsNullOrEmpty(_preview.SiteName))
+                                {
+                                    <div class="preview-heading">
+                                        @if (!string.IsNullOrEmpty(_preview.FaviconUrl))
+                                        {
+                                            <img class="preview-favicon" alt="" width="16" height="16" referrerpolicy="no-referrer" src="@_preview.FaviconUrl" />
+                                        }
+                                        @if (!string.IsNullOrEmpty(_preview.SiteName))
+                                        {
+                                            <span class="preview-site">@_preview.SiteName</span>
+                                        }
+                                    </div>
+                                }
+
+                                @if (!string.IsNullOrEmpty(_preview.ResolvedTitle))
+                                {
+                                    <h5>@_preview.ResolvedTitle</h5>
+                                }
+
+                                @if (!string.IsNullOrEmpty(_preview.ResolvedDescription))
+                                {
+                                    <p>@_preview.ResolvedDescription</p>
+                                }
+                            </div>
+                            break;
+                    }
+                </div>
+            }
+        </section>
+    }
+    else if (_panel is Panel.Edit)
+    {
+        <section>
+            <h2 class="panel-title">@(_editing?.Id is null ? "Add bookmark" : "Edit bookmark")</h2>
+
+            <form class="form" @onsubmit="SaveBookmarkAsync" @onsubmit:preventDefault>
+                <div class="form-group">
+                    <label for="edit-url">URL</label>
+                    <input id="edit-url" type="url" autocomplete="off" placeholder="https://…" required @bind="_editUrl" />
+                </div>
+
+                <div class="form-group">
+                    <label for="edit-bookmark-title">Title</label>
+                    <input id="edit-bookmark-title" type="text" autocomplete="off" placeholder="Optional title" maxlength="500" @bind="_editTitle" />
+                </div>
+
+                <div class="form-group">
+                    <label for="edit-folder">Folder</label>
+                    <select id="edit-folder" @bind="_editFolderId">
+                        <option value="">No folder</option>
+                        @foreach (var folder in _folders)
+                        {
+                            <option value="@folder.Id" @key="folder.Id">@folder.Name</option>
+                        }
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="edit-description">Description</label>
+                    <textarea id="edit-description" rows="2" placeholder="Optional description" @bind="_editDescription"></textarea>
+                </div>
+
+                <div class="form-group">
+                    <label for="edit-notes">Notes</label>
+                    <textarea id="edit-notes" rows="3" placeholder="Optional notes" @bind="_editNotes"></textarea>
+                </div>
+
+                <div class="form-group">
+                    <label for="edit-tags">Tags (comma-separated)</label>
+                    <input id="edit-tags" type="text" autocomplete="off" placeholder="tag1, tag2, tag3" @bind="_editTags" />
+                </div>
+
+                @if (!string.IsNullOrEmpty(_editError))
+                {
+                    <p class="alert alert-danger" role="alert">@_editError</p>
+                }
+
+                <div class="form-actions">
+                    <button type="submit" class="btn btn-primary" disabled="@_savingBookmark">
+                        @(_savingBookmark ? "Saving…" : "Save")
+                    </button>
+                    <button type="button" class="btn btn-secondary" @onclick="CancelEdit">Cancel</button>
+                </div>
+            </form>
+        </section>
+    }
+    else if (_panel is Panel.Folder)
+    {
+        <section>
+            <h2 class="panel-title">@(_editingFolder is null ? "New folder" : "Edit folder")</h2>
+
+            <form class="form" @onsubmit="SaveFolderAsync" @onsubmit:preventDefault>
+                <div class="form-group">
+                    <label for="folder-name">Name</label>
+                    <input id="folder-name" type="text" autocomplete="off" placeholder="Folder name" maxlength="200" required @bind="_folderName" />
+                </div>
+
+                <div class="form-group">
+                    <label for="folder-color">Color</label>
+                    <input id="folder-color" type="color" class="color-picker" @bind="_folderColor" />
+                </div>
+
+                @if (!string.IsNullOrEmpty(_folderError))
+                {
+                    <p class="alert alert-danger" role="alert">@_folderError</p>
+                }
+
+                <div class="form-actions">
+                    <button type="submit" class="btn btn-primary" disabled="@_savingFolder">
+                        @(_savingFolder ? "Saving…" : "Save")
+                    </button>
+                    <button type="button" class="btn btn-secondary" @onclick="CancelFolder">Cancel</button>
+                    @if (_editingFolder is not null)
+                    {
+                        <button type="button" class="btn btn-danger" disabled="@_deletingFolder" @onclick="DeleteFolderAsync">
+                            Delete folder
+                        </button>
+                    }
+                </div>
+            </form>
+        </section>
+    }
+    else if (_panel is Panel.Import)
+    {
+        <section>
+            <h2 class="panel-title">Import bookmarks</h2>
+            <p class="text-muted">
+                Select an HTML bookmarks file exported from your browser. Folders in the file are recreated.
+            </p>
+
+            <form class="form" @onsubmit="ImportAsync" @onsubmit:preventDefault>
+                <div class="form-group">
+                    <label for="import-file">Bookmarks file</label>
+                    <InputFile id="import-file" accept=".html,.htm,text/html" OnChange="OnImportFileSelected" />
+                </div>
+
+                <div class="form-group">
+                    <label for="import-folder">Import into</label>
+                    <select id="import-folder" @bind="_importFolderId">
+                        <option value="">No folder</option>
+                        @foreach (var folder in _folders)
+                        {
+                            <option value="@folder.Id" @key="folder.Id">@folder.Name</option>
+                        }
+                    </select>
+                </div>
+
+                @if (!string.IsNullOrEmpty(_importError))
+                {
+                    <p class="alert alert-danger" role="alert">@_importError</p>
+                }
+
+                <div class="form-actions">
+                    <button type="submit" class="btn btn-primary" disabled="@_importing">
+                        @(_importing ? "Importing…" : "Import")
+                    </button>
+                    <button type="button" class="btn btn-secondary" @onclick="CloseImport">Done</button>
+                </div>
+            </form>
+
+            @if (_importResult is not null)
+            {
+                <div class="import-result">
+                    <p class="import-stat">Imported: <strong>@_importResult.ImportedCount</strong></p>
+                    <p class="import-stat">Folders: <strong>@_importResult.FolderCount</strong></p>
+                    <p class="import-stat">Skipped: <strong>@_importResult.SkippedCount</strong></p>
+                    @if (_importResult.Errors.Count > 0)
+                    {
+                        <ul class="import-errors">
+                            @foreach (var error in _importResult.Errors)
+                            {
+                                <li>@error</li>
+                            }
+                        </ul>
+                    }
+                </div>
+            }
+        </section>
+    }
+    else
+    {
+        <section>
+            <h2 class="panel-title">Bookmarks help</h2>
+
+            <div class="help-section">
+                <h3>Overview</h3>
+                <p>
+                    DotNetCloud Bookmarks saves, organizes and searches web links. Browse everything from
+                    <strong>All bookmarks</strong>, star favorites, group links into folders, and switch
+                    between grid and list with the toolbar toggle.
+                </p>
+            </div>
+
+            <div class="help-section">
+                <h3>Adding bookmarks</h3>
+                <ol class="help-steps">
+                    <li>Select <strong>New</strong> in the sidebar.</li>
+                    <li>Enter the URL and, optionally, a title, folder, description, notes and comma-separated tags.</li>
+                    <li>Select <strong>Save</strong>.</li>
+                </ol>
+                <p>
+                    Open a bookmark to see its details. <strong>Fetch preview</strong> asks the server for
+                    the page's resolved title, description, favicon, site name and preview image.
+                </p>
+            </div>
+
+            <div class="help-section">
+                <h3>Organizing</h3>
+                <p>
+                    <strong>Folders</strong> group bookmarks by category; create one with the
+                    <strong>Folder</strong> button and rename or recolor it from the pencil next to its
+                    name. <strong>Tags</strong> categorize across folders, and <strong>favorites</strong>
+                    keep important links one click away.
+                </p>
+            </div>
+
+            <div class="help-section">
+                <h3>Searching</h3>
+                <p>Type in the search box and press Enter. Results replace the current list until you clear the search.</p>
+            </div>
+
+            <div class="help-section">
+                <h3>Import and export</h3>
+                <p>
+                    Import a browser's <code>bookmarks.html</code> export (<strong>Tools → Import</strong>)
+                    and export everything back to the same format (<strong>Tools → Export</strong>, which
+                    opens in a new tab so your browser can save the file).
+                </p>
+            </div>
+
+            <div class="help-section">
+                <h3>How this UI is hosted</h3>
+                <ul class="help-tips">
+                    <li>The module serves this page from its own process; the core frames it at <code>/apps/dotnetcloud.bookmarks/</code>.</li>
+                    <li>The frame has an opaque origin: no cookies, no <code>localStorage</code>, no <code>window.top</code>.</li>
+                    <li>The core strips your session cookie and sends a short-lived <code>dnc-user-assertion</code>; this module's API trusts only that.</li>
+                    <li>Theme, locale and shell notifications travel over the <code>dncModuleBridge</code> message protocol.</li>
+                    <li>The UI itself is Blazor WebAssembly served by the module host, so the components and the host share one set of contracts.</li>
+                </ul>
+            </div>
+        </section>
+    }
+</main>

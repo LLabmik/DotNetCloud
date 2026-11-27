@@ -100,7 +100,11 @@ public class CommandStructureTests
         CollectionAssert.Contains(subNames, "info");
         CollectionAssert.Contains(subNames, "rollback");
         CollectionAssert.Contains(subNames, "uninstall");
-        Assert.AreEqual(9, command.Subcommands.Count);
+        CollectionAssert.Contains(subNames, "pack");
+        CollectionAssert.Contains(subNames, "inspect");
+        CollectionAssert.Contains(subNames, "keygen");
+        CollectionAssert.Contains(subNames, "feed");
+        Assert.AreEqual(13, command.Subcommands.Count);
     }
 
     [TestMethod]

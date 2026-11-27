@@ -1,0 +1,104 @@
+@inherits EmailPanelBase
+@using Microsoft.AspNetCore.Components.Forms
+
+@if (State.Compose is not { } compose)
+{
+    <p class="hint">Nothing to compose.</p>
+}
+else
+{
+    <div class="compose-card">
+        <div class="compose-header">
+            <h3>New message</h3>
+            <button type="button" class="icon-btn" aria-label="Discard" title="Discard" @onclick="Discard">
+                <MaterialIcon Icon="close" />
+            </button>
+        </div>
+
+        <div class="compose-row">
+            <span class="compose-label">From</span>
+            <select class="select" @bind="compose.AccountId">
+                @foreach (var account in State.Accounts)
+                {
+                    <option value="@account.Id" @key="account.Id">
+                        @(string.IsNullOrWhiteSpace(account.DisplayName) ? account.EmailAddress : account.DisplayName) &lt;@account.EmailAddress&gt;
+                    </option>
+                }
+            </select>
+        </div>
+
+        <div class="compose-row">
+            <span class="compose-label">To</span>
+            <input class="input" type="text" placeholder="Recipient email address" autocomplete="off" @bind="compose.To" />
+        </div>
+
+        <div class="compose-row">
+            <span class="compose-label">Cc</span>
+            <input class="input" type="text" autocomplete="off" @bind="compose.Cc" />
+        </div>
+
+        <div class="compose-row">
+            <span class="compose-label">Bcc</span>
+            <input class="input" type="text" autocomplete="off" @bind="compose.Bcc" />
+        </div>
+
+        <div class="compose-row">
+            <span class="compose-label">Subject</span>
+            <input class="input" type="text" autocomplete="off" @bind="compose.Subject" />
+        </div>
+
+        <div class="compose-attachments">
+            @if (compose.Attachments.Count > 0)
+            {
+                <div class="chip-list">
+                    @for (var index = 0; index < compose.Attachments.Count; index++)
+                    {
+                        var position = index;
+                        var attachment = compose.Attachments[index];
+                        <span class="chip" @key="attachment.FileName + attachment.Size">
+                            <MaterialIcon Icon="attach_file" />
+                            <span>@attachment.FileName</span>
+                            <span class="attachment-size">@FormatSize(attachment.Size)</span>
+                            <button type="button" class="icon-btn" aria-label="Remove attachment" @onclick="() => compose.Attachments.RemoveAt(position)">
+                                <MaterialIcon Icon="close" />
+                            </button>
+                        </span>
+                    }
+                </div>
+            }
+
+            <div class="form-actions">
+                <InputFile OnChange="OnFilesSelected" multiple class="compose-file-input" />
+                <button type="button"
+                        class="btn btn-secondary"
+                        disabled="@(State.Busy || compose.Uploading > 0)"
+                        @onclick="BrowseFilesAsync">
+                    Browse files
+                </button>
+                @if (compose.Uploading > 0)
+                {
+                    <span class="hint">Uploading…</span>
+                }
+            </div>
+        </div>
+
+        <div class="compose-body">
+            <textarea class="textarea" placeholder="Write your message…" @bind="compose.Body" @bind:event="oninput"></textarea>
+        </div>
+
+        <div class="compose-footer">
+            <div class="form-actions">
+                <button type="button" class="btn btn-primary" disabled="@(State.Busy || compose.Uploading > 0)" @onclick="() => State.SendAsync()">Send</button>
+                <button type="button" class="btn btn-secondary" @onclick="Discard">Discard</button>
+            </div>
+
+            <span class="compose-hint">
+                @(string.IsNullOrWhiteSpace(compose.To) || string.IsNullOrWhiteSpace(compose.Subject)
+                    ? "Enter a recipient and a subject to send"
+                    : compose.Attachments.Count > 0
+                        ? $"{compose.Attachments.Count} attachment(s) — ready to send"
+                        : "Ready to send")
+            </span>
+        </div>
+    </div>
+}

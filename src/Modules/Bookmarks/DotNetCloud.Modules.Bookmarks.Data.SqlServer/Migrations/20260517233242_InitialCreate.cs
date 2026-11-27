@@ -1,0 +1,162 @@
+﻿using System;
+using Microsoft.EntityFrameworkCore.Migrations;
+
+#nullable disable
+
+namespace DotNetCloud.Modules.Bookmarks.Data.SqlServer.Migrations
+{
+    /// <inheritdoc />
+    public partial class InitialCreate : Migration
+    {
+        /// <inheritdoc />
+        protected override void Up(MigrationBuilder migrationBuilder)
+        {
+            migrationBuilder.CreateTable(
+                name: "BookmarkFolders",
+                columns: table => new
+                {
+                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false, defaultValueSql: "NEWSEQUENTIALID()"),
+                    OwnerId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    ParentId = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
+                    Name = table.Column<string>(type: "nvarchar(300)", maxLength: 300, nullable: false),
+                    Color = table.Column<string>(type: "nvarchar(20)", maxLength: 20, nullable: true),
+                    SortOrder = table.Column<int>(type: "int", nullable: false),
+                    IsDeleted = table.Column<bool>(type: "bit", nullable: false),
+                    DeletedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false, defaultValueSql: "CURRENT_TIMESTAMP"),
+                    UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: false, defaultValueSql: "CURRENT_TIMESTAMP")
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_BookmarkFolders", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_BookmarkFolders_BookmarkFolders_ParentId",
+                        column: x => x.ParentId,
+                        principalTable: "BookmarkFolders",
+                        principalColumn: "Id");
+                });
+
+            migrationBuilder.CreateTable(
+                name: "Bookmarks",
+                columns: table => new
+                {
+                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false, defaultValueSql: "NEWSEQUENTIALID()"),
+                    OwnerId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    FolderId = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
+                    Url = table.Column<string>(type: "nvarchar(2048)", maxLength: 2048, nullable: false),
+                    NormalizedUrl = table.Column<string>(type: "nvarchar(2048)", maxLength: 2048, nullable: false),
+                    Title = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
+                    Description = table.Column<string>(type: "nvarchar(2000)", maxLength: 2000, nullable: true),
+                    Notes = table.Column<string>(type: "text", nullable: true),
+                    TagsJson = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    IsFavorite = table.Column<bool>(type: "bit", nullable: false),
+                    IsDeleted = table.Column<bool>(type: "bit", nullable: false),
+                    DeletedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false, defaultValueSql: "CURRENT_TIMESTAMP"),
+                    UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: false, defaultValueSql: "CURRENT_TIMESTAMP")
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_Bookmarks", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_Bookmarks_BookmarkFolders_FolderId",
+                        column: x => x.FolderId,
+                        principalTable: "BookmarkFolders",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.SetNull);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "BookmarkPreviews",
+                columns: table => new
+                {
+                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false, defaultValueSql: "NEWSEQUENTIALID()"),
+                    BookmarkId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    FetchedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    Status = table.Column<int>(type: "int", nullable: false),
+                    CanonicalUrl = table.Column<string>(type: "nvarchar(2048)", maxLength: 2048, nullable: true),
+                    SiteName = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: true),
+                    ResolvedTitle = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
+                    ResolvedDescription = table.Column<string>(type: "nvarchar(2000)", maxLength: 2000, nullable: true),
+                    FaviconUrl = table.Column<string>(type: "nvarchar(2048)", maxLength: 2048, nullable: true),
+                    PreviewImageUrl = table.Column<string>(type: "nvarchar(2048)", maxLength: 2048, nullable: true),
+                    ContentType = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: true),
+                    ContentLength = table.Column<long>(type: "bigint", nullable: true),
+                    ErrorMessage = table.Column<string>(type: "nvarchar(1000)", maxLength: 1000, nullable: true),
+                    ETag = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: true),
+                    LastModified = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: true),
+                    CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false, defaultValueSql: "CURRENT_TIMESTAMP"),
+                    UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: false, defaultValueSql: "CURRENT_TIMESTAMP")
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_BookmarkPreviews", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_BookmarkPreviews_Bookmarks_BookmarkId",
+                        column: x => x.BookmarkId,
+                        principalTable: "Bookmarks",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                });
+
+            migrationBuilder.CreateIndex(
+                name: "ix_bookmark_folders_owner_id",
+                table: "BookmarkFolders",
+                column: "OwnerId");
+
+            migrationBuilder.CreateIndex(
+                name: "ix_bookmark_folders_owner_parent",
+                table: "BookmarkFolders",
+                columns: new[] { "OwnerId", "ParentId" });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_BookmarkFolders_ParentId",
+                table: "BookmarkFolders",
+                column: "ParentId");
+
+            migrationBuilder.CreateIndex(
+                name: "ix_bookmark_previews_bookmark_id",
+                table: "BookmarkPreviews",
+                column: "BookmarkId",
+                unique: true);
+
+            migrationBuilder.CreateIndex(
+                name: "ix_bookmark_previews_status",
+                table: "BookmarkPreviews",
+                column: "Status");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Bookmarks_FolderId",
+                table: "Bookmarks",
+                column: "FolderId");
+
+            migrationBuilder.CreateIndex(
+                name: "ix_bookmarks_normalized_url",
+                table: "Bookmarks",
+                column: "NormalizedUrl");
+
+            migrationBuilder.CreateIndex(
+                name: "ix_bookmarks_owner_folder",
+                table: "Bookmarks",
+                columns: new[] { "OwnerId", "FolderId" });
+
+            migrationBuilder.CreateIndex(
+                name: "ix_bookmarks_owner_id",
+                table: "Bookmarks",
+                column: "OwnerId");
+        }
+
+        /// <inheritdoc />
+        protected override void Down(MigrationBuilder migrationBuilder)
+        {
+            migrationBuilder.DropTable(
+                name: "BookmarkPreviews");
+
+            migrationBuilder.DropTable(
+                name: "Bookmarks");
+
+            migrationBuilder.DropTable(
+                name: "BookmarkFolders");
+        }
+    }
+}
