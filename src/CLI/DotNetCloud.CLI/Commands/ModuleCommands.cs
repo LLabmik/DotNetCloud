@@ -42,6 +42,7 @@ internal static class ModuleCommands
         command.Subcommands.Add(CreateInfo());
         command.Subcommands.Add(CreateRollback());
         command.Subcommands.Add(CreateUninstall());
+        command.Subcommands.Add(ModuleDevCommand.Create());
         return command;
     }
 
@@ -850,11 +851,18 @@ internal static class ModuleCommands
         var moduleDirectory = Path.Combine(ResolveModulesDirectory(), moduleId);
         var manifest = ReadManifestIfPresent(Path.Combine(moduleDirectory, "manifest.json"));
         var receipt = ReadReceipt(Path.Combine(moduleDirectory, ModulePackageInstaller.ReceiptFileName));
+        var devState = ReadModuleDevState(moduleId);
 
         ConsoleOutput.WriteHeader($"Module {moduleId}");
 
         ConsoleOutput.WriteDetail("Version", module.Version);
         ConsoleOutput.WriteDetail("Status", ConsoleOutput.FormatStatus(module.Status));
+        ConsoleOutput.WriteDetail(
+            "Build",
+            devState is null
+                ? "installed package"
+                : $"LOCAL DEV BUILD deployed {devState.DeployedAtUtc:yyyy-MM-dd HH:mm} UTC "
+                  + $"(hash {devState.ContentHash[..Math.Min(12, devState.ContentHash.Length)]})");
         ConsoleOutput.WriteDetail("Trust tier", module.TrustTier.ToString());
         ConsoleOutput.WriteDetail("Data store", module.DataStoreMode.ToString());
         ConsoleOutput.WriteDetail("Sandbox", module.SandboxStatus.ToString());
@@ -885,6 +893,29 @@ internal static class ModuleCommands
                 : string.Join(", ", module.CapabilityGrants.Select(grant => grant.CapabilityName)));
 
         return 0;
+    }
+
+    /// <summary>
+    /// Reads the recorded dev build for a module, so an operator can tell it apart from a catalogue
+    /// install. Best effort: an unreadable file means "no dev build".
+    /// </summary>
+    private static ModuleDevState? ReadModuleDevState(string moduleId)
+    {
+        var path = Path.Combine(ResolveModulesDirectory(), ".dev", moduleId, "state.json");
+        if (!File.Exists(path))
+        {
+            return null;
+        }
+
+        try
+        {
+            return JsonSerializer.Deserialize<ModuleDevState>(
+                File.ReadAllText(path), new JsonSerializerOptions(JsonSerializerDefaults.Web));
+        }
+        catch (Exception ex) when (ex is IOException or JsonException)
+        {
+            return null;
+        }
     }
 
     /// <summary>

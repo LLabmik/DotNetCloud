@@ -100,7 +100,8 @@ public class CommandStructureTests
         CollectionAssert.Contains(subNames, "info");
         CollectionAssert.Contains(subNames, "rollback");
         CollectionAssert.Contains(subNames, "uninstall");
-        Assert.AreEqual(9, command.Subcommands.Count);
+        CollectionAssert.Contains(subNames, "dev");
+        Assert.AreEqual(10, command.Subcommands.Count);
     }
 
     [TestMethod]
