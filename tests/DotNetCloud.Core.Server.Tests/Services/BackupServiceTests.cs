@@ -87,6 +87,10 @@ public class BackupServiceTests
         Assert.IsTrue(result.Success, result.ErrorMessage);
         Assert.AreEqual(Path.GetFullPath(outputPath), result.FilePath);
         Assert.IsTrue(File.Exists(outputPath));
+        // The checksum is computed after the write handle is closed. Asserting the sidecar proves the
+        // read-back succeeded: on Windows a still-open write handle made it a sharing violation, and
+        // the archive itself exists either way.
+        Assert.IsTrue(File.Exists(outputPath + ".sha256"));
         using var archive = ZipFile.OpenRead(outputPath);
         Assert.IsTrue(archive.Entries.Any(e => e.FullName == "config/database-info.txt"));
     }

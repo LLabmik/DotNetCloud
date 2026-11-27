@@ -441,7 +441,13 @@ public sealed class BackupService : DotNetCloud.Core.Services.IBackupService
             // Finish the archive (writes the central directory) before hashing it.
             options.Progress?.Invoke(new BackupProgress("finalizing", dataFileCount, dataFileCount, 0, 0));
             archive.Dispose();
-            await zipStream.FlushAsync(cancellationToken);
+
+            // Close the writing handle before reading the file back. A FileStream opened with
+            // FileMode.Create holds FileShare.None, so on Windows the read below is a sharing
+            // violation ("The process cannot access the file ... because it is being used by
+            // another process") until this stream is disposed. The `await using` above would only
+            // do it when the method returns, i.e. after the hash and the stat.
+            await zipStream.DisposeAsync();
 
             var archiveHash = await ComputeSha256Async(backupPath, cancellationToken);
             var shaPath = backupPath + ".sha256";
@@ -449,7 +455,6 @@ public sealed class BackupService : DotNetCloud.Core.Services.IBackupService
                 shaPath, $"{archiveHash}  {Path.GetFileName(backupPath)}{Environment.NewLine}", cancellationToken);
 
             // Step 3: Determine final file size
-            await zipStream.FlushAsync(cancellationToken);
             var fileInfo = new FileInfo(backupPath);
             fileInfo.Refresh();
 
