@@ -88,7 +88,11 @@ internal static class RestoredHostIdentity
             return null;
         }
 
-        var restored = X509CertificateLoader.LoadPkcs12CollectionFromFile(certPath, string.Empty);
+        // Exportable: Repoint writes a fresh chain back over this same PFX, and a key materialised
+        // from a PKCS#12 container is non-exportable by default on Windows, so Export(Pfx) would
+        // fail with "Key not valid for use in specified state".
+        var restored = X509CertificateLoader.LoadPkcs12CollectionFromFile(
+            certPath, string.Empty, X509KeyStorageFlags.Exportable);
         var leaf = FindServerCertificate(restored);
         if (leaf is null)
         {

@@ -79,7 +79,10 @@ public sealed class AddFolderDialogViewModelTests
         var contextId = Guid.CreateVersion7();
         var vm = new AddFolderDialogViewModel(null!, syncMock.Object, contextId, []);
 
-        vm.LocalFolderPath = "/tmp/new-folder";
+        // A real absolute path: the view model normalises what it is given, and a POSIX literal such
+        // as /tmp/new-folder becomes D:\tmp\new-folder on Windows.
+        var localPath = Path.Combine(Path.GetTempPath(), "new-folder");
+        vm.LocalFolderPath = localPath;
         vm.UseExistingRemoteFolder = false;
         vm.RemoteFolderName = "Docs";
 
@@ -93,7 +96,7 @@ public sealed class AddFolderDialogViewModelTests
         Assert.IsNotNull(vm.DialogResult);
         Assert.AreEqual(created.Id, vm.DialogResult!.RemoteFolderNodeId);
         Assert.AreEqual("/Docs", vm.DialogResult.RemoteFolderPath);
-        Assert.AreEqual("/tmp/new-folder", vm.DialogResult.LocalFolderPath);
+        Assert.AreEqual(localPath, vm.DialogResult.LocalFolderPath);
         syncMock.Verify(
             i => i.CreateRemoteFolderAsync(contextId, "Docs", null, It.IsAny<CancellationToken>()),
             Times.Once);

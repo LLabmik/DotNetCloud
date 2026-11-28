@@ -79,11 +79,23 @@ public class BackupArchiveTests
         CollectionAssert.Contains(entries, "config/certs/dotnetcloud-selfsigned.pfx");
         CollectionAssert.Contains(entries, "config/certs/dotnetcloud-selfsigned.pem");
         CollectionAssert.Contains(entries, "config/certs/dotnetcloud-root-ca.crt");
-        CollectionAssert.Contains(entries, "system/systemd/dotnetcloud.service");
-        CollectionAssert.Contains(entries, "system/bin/dotnetcloud");
-        CollectionAssert.Contains(entries, "system/coolwsd/coolwsd.xml");
         CollectionAssert.Contains(entries, "opt/appsettings.json");
         CollectionAssert.Contains(entries, "opt/VERSION");
+
+        // The service definition, CLI wrapper and Collabora files only exist on a systemd host, so
+        // the payload carries them only when the backup runs on Linux.
+        if (OperatingSystem.IsLinux())
+        {
+            CollectionAssert.Contains(entries, "system/systemd/dotnetcloud.service");
+            CollectionAssert.Contains(entries, "system/bin/dotnetcloud");
+            CollectionAssert.Contains(entries, "system/coolwsd/coolwsd.xml");
+        }
+        else
+        {
+            Assert.IsFalse(
+                entries.Any(e => e.StartsWith("system/", StringComparison.Ordinal)),
+                "a host without systemd has no service definition, CLI wrapper or Collabora files to back up");
+        }
     }
 
     [TestMethod]

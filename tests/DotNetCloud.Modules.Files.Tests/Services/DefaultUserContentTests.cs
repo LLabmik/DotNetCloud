@@ -117,18 +117,37 @@ public class DefaultUserContentTests
     }
 
     [TestMethod]
-    public async Task BuildManifestAsync_HiddenAndIllegalEntries_AreSkipped()
+    public async Task BuildManifestAsync_HiddenEntries_AreSkipped()
     {
         Directory.CreateDirectory(Path.Combine(_templateRoot, "Documents"));
         await File.WriteAllTextAsync(Path.Combine(_templateRoot, "Documents", "letter.txt"), "hello");
         await File.WriteAllTextAsync(Path.Combine(_templateRoot, ".hidden"), "x");
-        await File.WriteAllTextAsync(Path.Combine(_templateRoot, "bad:name.txt"), "x");
 
         var store = CreateStore(Options());
         var result = await store.ValidateAsync(Options());
 
         Assert.IsTrue(result.Manifest.Entries.Any(e => e.RelativePath == "Documents/letter.txt"));
         Assert.IsFalse(result.Manifest.Entries.Any(e => e.RelativePath.Contains(".hidden", StringComparison.Ordinal)));
+        Assert.IsFalse(result.Issues.Any(i => i.Code == "illegal-name"));
+    }
+
+    [TestMethod]
+    public async Task BuildManifestAsync_IllegalName_IsReported()
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            // A colon is legal in an NTFS name only as an alternate-data-stream separator, so
+            // "bad:name.txt" lands as the stream "name.txt" of the file "bad" and never reaches the
+            // manifest under an illegal name. No name Windows rejects can be created to test this.
+            Assert.Inconclusive("No illegal file name can be created on Windows.");
+        }
+
+        Directory.CreateDirectory(Path.Combine(_templateRoot, "Documents"));
+        await File.WriteAllTextAsync(Path.Combine(_templateRoot, "bad:name.txt"), "x");
+
+        var store = CreateStore(Options());
+        var result = await store.ValidateAsync(Options());
+
         Assert.IsTrue(result.Issues.Any(i => i.Code == "illegal-name"));
     }
 

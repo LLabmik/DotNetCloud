@@ -58,12 +58,17 @@ public class MediaCachePathResolverTests
     public void ResolveMediaCachePath_CoreAndHostConfigurations_Agree()
     {
         // Core.Server propagates Files:Storage:RootPath; a module host resolves the same root from
-        // DOTNETCLOUD_DATA_DIR. Both must end up at the identical media-cache directory.
-        var coreConfig = BuildConfig(("Files:Storage:RootPath", "/var/lib/dotnetcloud/storage"));
+        // DOTNETCLOUD_DATA_DIR. Both must end up at the identical media-cache directory. The inputs
+        // are built with Path.Combine so the expectation holds on any platform: literal POSIX paths
+        // make the two combine chains disagree about separators on Windows.
+        var dataDirectory = Path.Combine(Path.GetTempPath(), "dotnetcloud");
+        var storageRoot = Path.Combine(dataDirectory, "storage");
+
+        var coreConfig = BuildConfig(("Files:Storage:RootPath", storageRoot));
         var hostConfig = BuildConfig();
 
         var corePath = MediaCachePathResolver.ResolveMediaCachePath(coreConfig, dataDirectory: null);
-        var hostPath = MediaCachePathResolver.ResolveMediaCachePath(hostConfig, dataDirectory: "/var/lib/dotnetcloud");
+        var hostPath = MediaCachePathResolver.ResolveMediaCachePath(hostConfig, dataDirectory: dataDirectory);
 
         Assert.AreEqual(corePath, hostPath);
     }

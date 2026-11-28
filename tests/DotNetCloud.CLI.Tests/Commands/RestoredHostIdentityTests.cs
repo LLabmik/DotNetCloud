@@ -96,7 +96,18 @@ public class RestoredHostIdentityTests
         Assert.AreEqual(currentHost, result.NewHost);
         Assert.IsTrue(result.CertificateReissued);
         Assert.IsFalse(result.RootCaChanged, "the restored root CA signs the new leaf, so client trust survives");
-        Assert.IsTrue(result.CollaboraUpdated);
+
+        // Re-pointing Collabora is Linux-only: without a coolwsd directory there is nothing to
+        // rewrite, so the result reports false rather than claiming an update that did not happen.
+        if (OperatingSystem.IsLinux())
+        {
+            Assert.IsTrue(result.CollaboraUpdated);
+        }
+        else
+        {
+            Assert.IsFalse(result.CollaboraUpdated,
+                "Collabora does not run on this platform, so there is nothing to repoint");
+        }
 
         // The new leaf covers this machine and is still issued by the original root CA.
         var reissued = X509CertificateLoader.LoadPkcs12CollectionFromFile(certPath, string.Empty);
@@ -118,10 +129,13 @@ public class RestoredHostIdentityTests
         Assert.IsNotNull(persisted);
         Assert.AreEqual(currentHost, persisted.SelfSignedTlsHost);
 
-        var coolwsd = File.ReadAllText(Path.Combine(collaboraDirectory, "coolwsd.xml"));
-        StringAssert.Contains(coolwsd, $"https://{currentHost}:5443");
-        Assert.IsFalse(coolwsd.Contains("oldbox", StringComparison.Ordinal), "the managed alias block must be repointed");
-        StringAssert.Contains(File.ReadAllText(Path.Combine(collaboraDirectory, "cert.pem")), "BEGIN CERTIFICATE");
+        if (OperatingSystem.IsLinux())
+        {
+            var coolwsd = File.ReadAllText(Path.Combine(collaboraDirectory, "coolwsd.xml"));
+            StringAssert.Contains(coolwsd, $"https://{currentHost}:5443");
+            Assert.IsFalse(coolwsd.Contains("oldbox", StringComparison.Ordinal), "the managed alias block must be repointed");
+            StringAssert.Contains(File.ReadAllText(Path.Combine(collaboraDirectory, "cert.pem")), "BEGIN CERTIFICATE");
+        }
     }
 
     [TestMethod]
