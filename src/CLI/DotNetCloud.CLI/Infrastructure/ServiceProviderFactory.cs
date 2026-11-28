@@ -136,7 +136,8 @@ internal static class ServiceProviderFactory
     /// </summary>
     /// <remarks>
     /// The CLI never spawns module processes: <see cref="OfflineModuleInstallRunner"/> records the
-    /// install and lets the running server's 30-second reconcile start the module.
+    /// install and lets the running server's status reconcile (<c>ProcessSupervisor:StatusReconcileInterval</c>)
+    /// start the module.
     /// </remarks>
     /// <returns>A configured <see cref="ServiceProvider"/>, or <see langword="null"/> if no configuration exists.</returns>
     public static ServiceProvider? CreateForPackageInstall()
@@ -156,6 +157,40 @@ internal static class ServiceProviderFactory
             services.AddSingleton<IModuleStoreService>(ModuleStoreServiceFactory.Create);
             services.AddSingleton<IModuleInstallRunner>(OfflineModuleInstallRunner.Instance);
             services.AddScoped<IModulePackageInstaller, ModulePackageInstaller>();
+        });
+    }
+
+    /// <summary>
+    /// Creates a service provider for <c>module dev</c>: the core database context plus the local
+    /// dev-deploy service.
+    /// </summary>
+    /// <remarks>
+    /// The process control is the one host-specific piece: the CLI cannot spawn a module, so it polls
+    /// the running server's readiness report after writing the lifecycle state.
+    /// </remarks>
+    /// <param name="serverBaseUrl">The running server, for example <c>http://localhost:5080</c>.</param>
+    /// <returns>A configured <see cref="ServiceProvider"/>, or <see langword="null"/> if no configuration exists.</returns>
+    public static ServiceProvider? CreateForModuleDev(string serverBaseUrl)
+    {
+        var configuration = BuildCliConfiguration();
+        var supervisor = configuration.GetSection(ProcessSupervisorOptions.SectionName)
+            .Get<ProcessSupervisorOptions>() ?? new ProcessSupervisorOptions();
+
+        // A stop waits for one reconcile pass and then for the graceful shutdown; a start waits for the
+        // supervisor's startup timeout. Both get a little slack for the event loop.
+        var stopTimeout = supervisor.EffectiveStatusReconcileInterval
+                          + supervisor.GracefulShutdownTimeout
+                          + TimeSpan.FromSeconds(15);
+        var startTimeout = supervisor.StartupTimeout + TimeSpan.FromSeconds(15);
+
+        return CreateForModuleDataStores(services =>
+        {
+            services.AddOptions<ProcessSupervisorOptions>()
+                .Bind(configuration.GetSection(ProcessSupervisorOptions.SectionName));
+            services.AddScoped<DotNetCloud.Core.Capabilities.IAuditLogger, AuditLogService>();
+            services.AddSingleton<IModuleDevProcessControl>(
+                new ReadinessModuleDevProcessControl(serverBaseUrl, stopTimeout, startTimeout));
+            services.AddScoped<IModuleDevDeployService, ModuleDevDeployService>();
         });
     }
 

@@ -20,6 +20,7 @@ internal sealed class ModuleInstallLayout
 {
     private const string StagingDirectoryName = ".staging";
     private const string PreviousDirectoryName = ".previous";
+    private const string DevDirectoryName = ".dev";
     private const string ModulesDirectoryEnvironmentVariable = "DOTNETCLOUD_MODULES_DIR";
 
     /// <summary>Initializes a new instance of the <see cref="ModuleInstallLayout"/> class.</summary>
@@ -223,6 +224,81 @@ internal sealed class ModuleInstallLayout
     /// <summary>Deletes the live module directory of a module that failed its first install.</summary>
     /// <param name="moduleId">The module id.</param>
     public void DeleteLive(string moduleId) => TryDeleteDirectory(GetModuleDirectory(moduleId));
+
+    /// <summary>
+    /// Resolves the development workspace of a module: <c>&lt;ModulesRoot&gt;/.dev/&lt;moduleId&gt;</c>.
+    /// </summary>
+    /// <remarks>
+    /// Everything <c>dotnetcloud module dev</c> owns lives under this root: the staged build, the one
+    /// previous build and <c>state.json</c>. It starts with a dot, so module discovery skips it and a
+    /// half-swapped tree can never be mistaken for an install; an operator can delete the whole
+    /// workspace.
+    /// </remarks>
+    /// <param name="moduleId">The module id.</param>
+    /// <returns>The absolute dev root.</returns>
+    /// <exception cref="ModulePackageException">The id would resolve outside the dev root.</exception>
+    public string GetDevRoot(string moduleId)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(moduleId);
+
+        var devBase = Path.Combine(ModulesRoot, DevDirectoryName);
+        var candidate = Path.Combine(devBase, moduleId);
+        if (!PathContainment.TryResolveWithin(devBase, candidate, out var resolved))
+        {
+            throw new ModulePackageException($"Module id '{moduleId}' resolves outside the modules directory.");
+        }
+
+        return resolved;
+    }
+
+    /// <summary>Creates a fresh staging root for one dev deploy.</summary>
+    /// <param name="moduleId">The module id.</param>
+    /// <returns>The empty staging directory, contained under the dev root.</returns>
+    public string CreateDevStagingRoot(string moduleId)
+    {
+        var root = Path.Combine(GetDevRoot(moduleId), "staging", Guid.CreateVersion7().ToString("N"));
+        Directory.CreateDirectory(root);
+        return root;
+    }
+
+    /// <summary>
+    /// The single dev-only rollback slot: <c>&lt;ModulesRoot&gt;/.dev/&lt;moduleId&gt;/previous</c>.
+    /// </summary>
+    /// <remarks>
+    /// Deliberately not <c>.previous/&lt;moduleId&gt;/&lt;version&gt;</c>: that slot is what
+    /// <c>dotnetcloud module rollback</c> restores, and a dev build must never become a rollback
+    /// target.
+    /// </remarks>
+    /// <param name="moduleId">The module id.</param>
+    /// <returns>The absolute previous-dev-build directory.</returns>
+    public string GetDevPreviousDirectory(string moduleId) =>
+        Path.Combine(GetDevRoot(moduleId), "previous");
+
+    /// <summary>The file recording which build a module is running in development.</summary>
+    /// <param name="moduleId">The module id.</param>
+    /// <returns>The absolute <c>state.json</c> path.</returns>
+    public string GetDevStateFilePath(string moduleId) =>
+        Path.Combine(GetDevRoot(moduleId), "state.json");
+
+    /// <summary>
+    /// Moves the live install into the dev-only rollback slot, replacing what was there.
+    /// </summary>
+    /// <param name="moduleId">The module id.</param>
+    /// <returns>The directory the live install was parked in, or <see langword="null"/> when there was nothing to move.</returns>
+    public string? MoveLiveToDevPrevious(string moduleId)
+    {
+        var live = GetModuleDirectory(moduleId);
+        if (!Directory.Exists(live))
+        {
+            return null;
+        }
+
+        var target = GetDevPreviousDirectory(moduleId);
+        Directory.CreateDirectory(Path.GetDirectoryName(target)!);
+        TryDeleteDirectory(target);
+        Directory.Move(live, target);
+        return target;
+    }
 
     /// <summary>
     /// Resolves <c>&lt;ModulesRoot&gt;/&lt;moduleId&gt;</c>, refusing to escape the root.

@@ -52,6 +52,45 @@ internal static class SupervisorServiceExtensions
                 .BindConfiguration(ProcessSupervisorOptions.SectionName);
         }
 
+        // The reconcile interval is clamped and reported from a post-configure rather than in the
+        // branch above: a post-configure runs after every Configure call, so the configureOptions
+        // overload cannot bypass the floor. It runs once, on the first resolution, which is host
+        // startup for the singleton supervisor.
+        services.AddOptions<ProcessSupervisorOptions>()
+            .PostConfigure<IHostEnvironment, ILoggerFactory>((options, environment, loggerFactory) =>
+            {
+                var requested = options.StatusReconcileInterval;
+                var effective = options.EffectiveStatusReconcileInterval;
+                options.StatusReconcileInterval = effective;
+
+                var logger = loggerFactory.CreateLogger("DotNetCloud.Core.Server.Supervisor");
+
+                if (effective != requested)
+                {
+                    logger.LogWarning(
+                        "ProcessSupervisor:{Option} {Requested} is below the supported floor; using {Effective}",
+                        nameof(ProcessSupervisorOptions.StatusReconcileInterval),
+                        requested,
+                        effective);
+                }
+
+                // A fast reconcile outside a development host is almost always a configuration
+                // mistake, and it is the setting that multiplies the status query's cost.
+                if (effective < TimeSpan.FromSeconds(1) && !environment.IsDevelopment())
+                {
+                    logger.LogWarning(
+                        "ProcessSupervisor:{Option} {Effective} is below one second outside Development; " +
+                        "the status query then runs on every tick, so keep Microsoft.EntityFrameworkCore at Warning or above",
+                        nameof(ProcessSupervisorOptions.StatusReconcileInterval),
+                        effective);
+                }
+
+                logger.LogInformation(
+                    "ProcessSupervisor status reconcile interval: {Effective} (requested {Requested})",
+                    effective,
+                    requested);
+            });
+
         // Register module loading services
         services.AddSingleton<ModuleDiscoveryService>();
         services.AddSingleton<ModuleManifestLoader>();

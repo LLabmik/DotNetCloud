@@ -104,7 +104,8 @@ public class CommandStructureTests
         CollectionAssert.Contains(subNames, "inspect");
         CollectionAssert.Contains(subNames, "keygen");
         CollectionAssert.Contains(subNames, "feed");
-        Assert.AreEqual(13, command.Subcommands.Count);
+        CollectionAssert.Contains(subNames, "dev");
+        Assert.AreEqual(14, command.Subcommands.Count);
     }
 
     [TestMethod]

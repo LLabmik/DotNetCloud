@@ -45,10 +45,11 @@ internal sealed class ProcessSupervisor : BackgroundService, IProcessSupervisor
     private readonly ConcurrentDictionary<string, ModuleProcessHandle> _modules = new();
     private readonly SemaphoreSlim _startStopLock = new(1, 1);
 
-    /// <summary>How often database-requested lifecycle changes are reconciled against live processes.</summary>
-    private static readonly TimeSpan StatusReconcileInterval = TimeSpan.FromSeconds(30);
-
+    /// <summary>When the current (or last) status reconcile pass started; used for diagnostics.</summary>
     private DateTime _lastStatusReconcileUtc = DateTime.MinValue;
+
+    /// <summary>1 while a status reconcile pass is in flight; the re-entrancy guard.</summary>
+    private int _statusReconcileRunning;
 
     public ProcessSupervisor(
         ILogger<ProcessSupervisor> logger,
@@ -228,7 +229,8 @@ internal sealed class ProcessSupervisor : BackgroundService, IProcessSupervisor
     // ---- BackgroundService ----
 
     /// <summary>
-    /// Starts all discovered modules on application startup, then runs the health monitor loop.
+    /// Starts all discovered modules on application startup, then runs the health monitor and the
+    /// status reconcile loops side by side.
     /// </summary>
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -248,7 +250,26 @@ internal sealed class ProcessSupervisor : BackgroundService, IProcessSupervisor
             _logger.LogError(ex, "Error during module startup");
         }
 
-        await RunHealthMonitorLoopAsync(stoppingToken);
+        // Two loops with unrelated cadences: probing every module and applying database-requested
+        // lifecycle changes. They share a linked token, and the first one to end cancels the other,
+        // so a faulted loop can never leave its sibling running after this method returns.
+        using var loopCancellation = CancellationTokenSource.CreateLinkedTokenSource(stoppingToken);
+        var loops = new[]
+        {
+            RunHealthMonitorLoopAsync(loopCancellation.Token),
+            RunStatusReconcileLoopAsync(loopCancellation.Token),
+        };
+
+        try
+        {
+            await Task.WhenAny(loops);
+            await loopCancellation.CancelAsync();
+            await Task.WhenAll(loops);
+        }
+        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+        {
+            // Host shutdown: both loops end through the token.
+        }
     }
 
     /// <summary>
@@ -689,26 +710,83 @@ internal sealed class ProcessSupervisor : BackgroundService, IProcessSupervisor
 
                 await CheckModuleHealthAsync(moduleId, handle, stoppingToken);
             }
-
-            await ReconcileRequestedOperationsAsync(stoppingToken);
         }
 
         _logger.LogInformation("Health monitor stopped");
     }
 
     /// <summary>
-    /// Applies lifecycle changes requested through the database (CLI <c>module start|stop|restart</c>)
-    /// to the live processes. Throttled so the query never runs on every probe tick.
+    /// Applies database-requested lifecycle changes on their own interval, independent of health
+    /// probing: shortening a <c>module stop</c> must not mean probing every module every second.
     /// </summary>
+    /// <param name="stoppingToken">The token that ends the loop.</param>
+    private async Task RunStatusReconcileLoopAsync(CancellationToken stoppingToken)
+    {
+        var interval = _options.EffectiveStatusReconcileInterval;
+
+        _logger.LogInformation("Status reconcile loop started (interval: {Interval})", interval);
+
+        using var timer = new PeriodicTimer(interval);
+
+        try
+        {
+            while (await timer.WaitForNextTickAsync(stoppingToken))
+            {
+                await ReconcileRequestedOperationsAsync(stoppingToken);
+            }
+        }
+        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+        {
+            // Host shutdown.
+        }
+
+        _logger.LogInformation("Status reconcile loop stopped");
+    }
+
+    /// <summary>
+    /// Applies lifecycle changes requested through the database (CLI <c>module start|stop|restart</c>)
+    /// to the live processes.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The loop schedules one pass per configured interval, so this guard covers the remaining case:
+    /// a pass that is still running when the next tick arrives. Such a tick is skipped and the one
+    /// after it retries, so two passes can never apply the same change concurrently.
+    /// </para>
+    /// <para>
+    /// It is deliberately not a rate limiter. Comparing wall-clock deltas against the interval skips
+    /// any tick that lands a fraction of a millisecond early, which happened on roughly every second
+    /// tick and doubled the latency the interval exists to bound.
+    /// </para>
+    /// </remarks>
     private async Task ReconcileRequestedOperationsAsync(CancellationToken cancellationToken)
     {
-        if (DateTime.UtcNow - _lastStatusReconcileUtc < StatusReconcileInterval)
+        if (Interlocked.Exchange(ref _statusReconcileRunning, 1) == 1)
         {
+            _logger.LogDebug(
+                "Skipping a status reconcile pass: the pass started at {StartedUtc:O} has not finished",
+                _lastStatusReconcileUtc);
             return;
         }
 
         _lastStatusReconcileUtc = DateTime.UtcNow;
 
+        try
+        {
+            await ApplyRequestedOperationsAsync(cancellationToken);
+        }
+        finally
+        {
+            Volatile.Write(ref _statusReconcileRunning, 0);
+        }
+    }
+
+    /// <summary>
+    /// Reads the persisted module statuses and starts, restarts or stops each module accordingly.
+    /// </summary>
+    /// <param name="cancellationToken">The token that abandons the pass.</param>
+    private async Task ApplyRequestedOperationsAsync(CancellationToken cancellationToken)
+    {
         var statuses = await GetInstalledModuleStatusesAsync(cancellationToken);
         if (statuses.Count == 0)
         {

@@ -134,8 +134,9 @@ public sealed class SupervisorModuleInstallRunner : IModuleInstallRunner
 /// </summary>
 /// <remarks>
 /// Module processes belong to the running server. The CLI writes the installation record with
-/// <c>Status = Enabled</c> (or <c>RestartPending</c> for an upgrade) and the supervisor's 30-second
-/// reconcile applies it, so health checking from the CLI would be checking the wrong process.
+/// <c>Status = Enabled</c> (or <c>RestartPending</c> for an upgrade) and the supervisor's status
+/// reconcile applies it on <c>ProcessSupervisor:StatusReconcileInterval</c>, so health checking
+/// from the CLI would be checking the wrong process.
 /// </remarks>
 public sealed class OfflineModuleInstallRunner : IModuleInstallRunner
 {
@@ -153,5 +154,5 @@ public sealed class OfflineModuleInstallRunner : IModuleInstallRunner
     public Task<ModuleInstallHealth> StartAndAwaitHealthyAsync(
         string moduleId, CancellationToken cancellationToken = default) =>
         Task.FromResult(new ModuleInstallHealth(
-            false, "No supervisor in this process; the running server starts the module within 30 seconds."));
+            false, "No supervisor in this process; the running server starts the module on its next status reconcile."));
 }

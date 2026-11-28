@@ -28,6 +28,47 @@ public sealed class ProcessSupervisorOptions
     public TimeSpan HealthCheckInterval { get; set; } = TimeSpan.FromSeconds(15);
 
     /// <summary>
+    /// The lowest accepted <see cref="StatusReconcileInterval"/>. Lower values are raised to it.
+    /// </summary>
+    public static TimeSpan MinimumStatusReconcileInterval { get; } = TimeSpan.FromMilliseconds(250);
+
+    /// <summary>
+    /// How often the supervisor applies lifecycle changes requested through the database
+    /// (<c>dotnetcloud module start|stop|restart</c> only write a status row) to the live
+    /// processes. This interval is the latency an operator sees between such a command and the
+    /// module process leaving or entering the running state.
+    /// Default: 30 seconds.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// A dedicated loop consumes this value: it is independent of
+    /// <see cref="HealthCheckInterval"/>, so lowering it makes lifecycle changes apply sooner
+    /// without probing every module more often.
+    /// </para>
+    /// <para>
+    /// Values below <see cref="MinimumStatusReconcileInterval"/> are raised to that floor, so a
+    /// bad value cannot turn the status query into a busy loop.
+    /// </para>
+    /// <para>
+    /// A sub-five-second interval only makes sense while <c>Microsoft.EntityFrameworkCore</c> logs
+    /// at <c>Warning</c> or above. <c>SerilogConfiguration</c> applies that override, so a
+    /// one-second reconcile is silent by default; a developer who raises that category to
+    /// <c>Information</c> gets one <c>Database.Command</c> line per tick instead.
+    /// </para>
+    /// </remarks>
+    public TimeSpan StatusReconcileInterval { get; set; } = TimeSpan.FromSeconds(30);
+
+    /// <summary>
+    /// Gets <see cref="StatusReconcileInterval"/> with
+    /// <see cref="MinimumStatusReconcileInterval"/> applied, which is the interval the supervisor
+    /// and the CLI report.
+    /// </summary>
+    public TimeSpan EffectiveStatusReconcileInterval =>
+        StatusReconcileInterval < MinimumStatusReconcileInterval
+            ? MinimumStatusReconcileInterval
+            : StatusReconcileInterval;
+
+    /// <summary>
     /// Maximum time to wait for a health check response before considering it failed.
     /// Default: 5 seconds.
     /// </summary>

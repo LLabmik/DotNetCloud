@@ -1,4 +1,5 @@
 using System.CommandLine;
+using System.Globalization;
 using System.Text.Json;
 using DotNetCloud.CLI.Infrastructure;
 using DotNetCloud.Core.Data.Context;
@@ -6,6 +7,7 @@ using DotNetCloud.Core.Data.Entities.Modules;
 using DotNetCloud.Core.DTOs;
 using DotNetCloud.Core.Modules;
 using DotNetCloud.Core.Modules.Store;
+using DotNetCloud.Core.Modules.Supervisor;
 using DotNetCloud.Core.Server.Sandbox;
 using DotNetCloud.ModulePackaging;
 using Microsoft.EntityFrameworkCore;
@@ -18,8 +20,9 @@ namespace DotNetCloud.CLI.Commands;
 /// Module lifecycle commands: list, start, stop, restart, install, uninstall.
 /// </summary>
 /// <remarks>
-/// Lifecycle changes are written to the database; a running supervisor reconciles them within
-/// 30 seconds (start/stop/restart), so the CLI never needs an IPC channel.
+/// Lifecycle changes are written to the database; a running supervisor reconciles them on its
+/// configured status-reconcile interval (<c>ProcessSupervisor:StatusReconcileInterval</c>, 30
+/// seconds by default), so the CLI never needs an IPC channel.
 /// </remarks>
 internal static class ModuleCommands
 {
@@ -43,6 +46,7 @@ internal static class ModuleCommands
         command.Subcommands.Add(ModuleInspectCommand.Create());
         command.Subcommands.Add(ModuleKeygenCommand.Create());
         command.Subcommands.Add(ModuleFeedCommand.Create());
+        command.Subcommands.Add(ModuleDevCommand.Create());
         return command;
     }
 
@@ -405,7 +409,8 @@ internal static class ModuleCommands
         await db.SaveChangesAsync();
 
         ConsoleOutput.WriteSuccess($"Module '{moduleId}' {verb}.");
-        ConsoleOutput.WriteInfo("A running server applies this within 30 seconds; no restart is required.");
+        ConsoleOutput.WriteInfo(
+            $"A running server applies this within {DescribeReconcileLatency()}; no restart is required.");
         return 0;
     }
 
@@ -436,7 +441,9 @@ internal static class ModuleCommands
         await db.SaveChangesAsync();
 
         ConsoleOutput.WriteSuccess($"Restart of module '{moduleId}' requested.");
-        ConsoleOutput.WriteInfo("A running server applies this within 30 seconds. If it is not running, start it with 'dotnetcloud serve'.");
+        ConsoleOutput.WriteInfo(
+            $"A running server applies this within {DescribeReconcileLatency()}. " +
+            "If it is not running, start it with 'dotnetcloud serve'.");
         return 0;
     }
 
@@ -737,7 +744,8 @@ internal static class ModuleCommands
             ConsoleOutput.WriteInfo("Provisioned the module's isolated data store.");
         }
 
-        ConsoleOutput.WriteInfo("A running server starts (or restarts) the module within 30 seconds.");
+        ConsoleOutput.WriteInfo(
+            $"A running server starts (or restarts) the module within {DescribeReconcileLatency()}.");
         return 0;
     }
 
@@ -905,11 +913,18 @@ internal static class ModuleCommands
         var moduleDirectory = Path.Combine(ResolveModulesDirectory(), moduleId);
         var manifest = ReadManifestIfPresent(Path.Combine(moduleDirectory, "manifest.json"));
         var receipt = ReadReceipt(Path.Combine(moduleDirectory, ModulePackageInstaller.ReceiptFileName));
+        var devState = ReadModuleDevState(moduleId);
 
         ConsoleOutput.WriteHeader($"Module {moduleId}");
 
         ConsoleOutput.WriteDetail("Version", module.Version);
         ConsoleOutput.WriteDetail("Status", ConsoleOutput.FormatStatus(module.Status));
+        ConsoleOutput.WriteDetail(
+            "Build",
+            devState is null
+                ? "installed package"
+                : $"LOCAL DEV BUILD deployed {devState.DeployedAtUtc:yyyy-MM-dd HH:mm} UTC "
+                  + $"(hash {devState.ContentHash[..Math.Min(12, devState.ContentHash.Length)]})");
         ConsoleOutput.WriteDetail("Trust tier", module.TrustTier.ToString());
         ConsoleOutput.WriteDetail("Data store", module.DataStoreMode.ToString());
         ConsoleOutput.WriteDetail("Sandbox", module.SandboxStatus.ToString());
@@ -943,6 +958,29 @@ internal static class ModuleCommands
     }
 
     /// <summary>
+    /// Reads the recorded dev build for a module, so an operator can tell it apart from a catalogue
+    /// install. Best effort: an unreadable file means "no dev build".
+    /// </summary>
+    private static ModuleDevState? ReadModuleDevState(string moduleId)
+    {
+        var path = Path.Combine(ResolveModulesDirectory(), ".dev", moduleId, "state.json");
+        if (!File.Exists(path))
+        {
+            return null;
+        }
+
+        try
+        {
+            return JsonSerializer.Deserialize<ModuleDevState>(
+                File.ReadAllText(path), new JsonSerializerOptions(JsonSerializerDefaults.Web));
+        }
+        catch (Exception ex) when (ex is IOException or JsonException)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>
     /// Restores the previous version retained by the last install.
     /// </summary>
     private static async Task<int> RollbackModuleAsync(string moduleId)
@@ -966,7 +1004,8 @@ internal static class ModuleCommands
 
         ConsoleOutput.WriteSuccess(
             $"Rolled {moduleId} back to {result.Version} (was {result.PreviousVersion}).");
-        ConsoleOutput.WriteInfo("A running server restarts the module within 30 seconds.");
+        ConsoleOutput.WriteInfo(
+            $"A running server restarts the module within {DescribeReconcileLatency()}.");
         return 0;
     }
 
@@ -1154,7 +1193,8 @@ internal static class ModuleCommands
             ConsoleOutput.WriteInfo($"Provision its isolated schema with: dotnetcloud datastore provision {moduleId}");
         }
 
-        ConsoleOutput.WriteInfo("A running server starts the module within 30 seconds.");
+        ConsoleOutput.WriteInfo(
+            $"A running server starts the module within {DescribeReconcileLatency()}.");
         return 0;
     }
 
@@ -1259,8 +1299,43 @@ internal static class ModuleCommands
         await db.SaveChangesAsync();
 
         ConsoleOutput.WriteSuccess($"Module '{moduleId}' uninstalled.");
-        ConsoleOutput.WriteInfo("A running server stops the module within 30 seconds.");
+        ConsoleOutput.WriteInfo(
+            $"A running server stops the module within {DescribeReconcileLatency()}.");
         return 0;
+    }
+
+    /// <summary>
+    /// The configured supervisor status-reconcile interval, phrased for a "within …" message.
+    /// </summary>
+    /// <remarks>
+    /// The CLI reads the same configuration file as the server, so an operator sees the latency
+    /// their deployment actually has. An unreadable or invalid value falls back to the default
+    /// rather than failing a command that has already written its change.
+    /// </remarks>
+    /// <returns>The interval, e.g. <c>1 seconds</c>.</returns>
+    private static string DescribeReconcileLatency()
+    {
+        var interval = new ProcessSupervisorOptions().EffectiveStatusReconcileInterval;
+
+        try
+        {
+            var configured = ServiceProviderFactory.BuildCliConfiguration()
+                .GetSection(ProcessSupervisorOptions.SectionName)
+                .Get<ProcessSupervisorOptions>();
+
+            if (configured is not null)
+            {
+                interval = configured.EffectiveStatusReconcileInterval;
+            }
+        }
+        catch (InvalidOperationException)
+        {
+            // Reported by the server at startup; the hint below still needs a number.
+        }
+
+        return interval.TotalSeconds >= 1
+            ? $"{interval.TotalSeconds.ToString("0.###", CultureInfo.InvariantCulture)} seconds"
+            : $"{interval.TotalMilliseconds.ToString("0", CultureInfo.InvariantCulture)} milliseconds";
     }
 
     /// <summary>
