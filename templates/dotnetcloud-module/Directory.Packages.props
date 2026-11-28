@@ -1,0 +1,23 @@
+<Project>
+
+  <!-- A module builds against the SDK of the platform it runs on: the contract packages come from
+       <install>/sdk-feed, never from a public feed. DotNetCloudSdkVersion is the platform version;
+       it moves when you upgrade the platform and repack the feed (scripts/pack-module-sdk.ps1). -->
+  <PropertyGroup>
+    <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+    <CentralPackageTransitivePinningEnabled>true</CentralPackageTransitivePinningEnabled>
+    <DotNetCloudSdkVersion>__SDK_VERSION__</DotNetCloudSdkVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageVersion Include="DotNetCloud.Core" Version="$(DotNetCloudSdkVersion)" />
+    <PackageVersion Include="DotNetCloud.Core.Grpc" Version="$(DotNetCloudSdkVersion)" />
+    <PackageVersion Include="DotNetCloud.Modules.Sdk" Version="$(DotNetCloudSdkVersion)" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Public nuget.org packages the contract packages themselves depend on. -->
+    <PackageVersion Include="Grpc.AspNetCore" Version="2.84.0" />
+  </ItemGroup>
+
+</Project>

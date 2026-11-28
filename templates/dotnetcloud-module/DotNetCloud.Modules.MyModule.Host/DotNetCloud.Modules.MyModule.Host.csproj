@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>DotNetCloud.Modules.MyModule.Host</RootNamespace>
+    <!-- The supervisor discovers <modules>/<id>/<id>.dll, so the assembly name is the module id. -->
+    <AssemblyName>org.example.mymodule</AssemblyName>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="DotNetCloud.Core" />
+    <PackageReference Include="DotNetCloud.Core.Grpc" />
+    <PackageReference Include="DotNetCloud.Modules.Sdk" />
+    <PackageReference Include="Grpc.AspNetCore" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- `dotnet publish` must emit manifest.json next to the binaries: discovery reads it, and so
+         does `dotnetcloud module dev`. -->
+    <Content Include="..\manifest.json"
+             Link="manifest.json"
+             CopyToOutputDirectory="PreserveNewest"
+             CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
+
+</Project>

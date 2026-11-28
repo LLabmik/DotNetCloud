@@ -178,6 +178,15 @@ jobs:
           mkdir -p "${STAGING}/sdk-feed"
           cp .sdk-feed/*.nupkg "${STAGING}/sdk-feed/"
 
+          # Module template (<tarball>/templates/dotnetcloud-module): `dotnet new install`
+          # that folder, then scaffold against the sdk-feed above. The SDK version baked
+          # into the template is this release's version, so a scaffolded module starts
+          # pinned to the platform it came with.
+          mkdir -p "${STAGING}/templates"
+          cp -r templates/dotnetcloud-module "${STAGING}/templates/dotnetcloud-module"
+          grep -rl '__SDK_VERSION__' "${STAGING}/templates/dotnetcloud-module" \
+            | while read -r file; do sed -i "s/__SDK_VERSION__/${VERSION}/g" "$file"; done
+
           # Packaged default user content seed tree. It is copied into an empty
           # data-directory template on a fresh install only; upgrades leave the
           # administrator-owned template untouched.

@@ -1,0 +1,9 @@
+MyModule — licence placeholder
+
+Replace this file with the licence you distribute this module under. The packer requires a LICENSE
+file in every package, and the store review reads it, so an unreplaced placeholder is a submission
+you are not ready to publish.
+
+The module contracts this module builds against (DotNetCloud.Core, DotNetCloud.Core.Grpc,
+DotNetCloud.Modules.Sdk) are published by the DotNetCloud platform under AGPL-3.0-or-later. See the
+platform's LICENSE for their terms.
