@@ -66,7 +66,9 @@ public class ModuleStorageNamespaceTests
             _root, ModuleId, "notes", userId.ToString("B"), "x.txt", out var path, out var error);
 
         Assert.IsTrue(built, error);
-        Assert.IsTrue(path.Contains($"/users/{userId:D}/", StringComparison.Ordinal),
+        Assert.AreEqual(
+            $"{ModuleId}/users/{userId:D}/notes/x.txt",
+            RelativeTo(_root, path),
             "The namespace segment must not depend on the caller's spelling of the id");
     }
 

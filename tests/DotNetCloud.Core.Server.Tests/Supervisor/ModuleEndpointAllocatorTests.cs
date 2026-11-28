@@ -39,8 +39,10 @@ public class ModuleEndpointAllocatorTests
         var first = allocator.Resolve("dotnetcloud.files");
         var second = allocator.Resolve("dotnetcloud.chat");
 
-        Assert.AreEqual("/run/dotnetcloud/dotnetcloud.files.sock", first.Address);
-        Assert.AreEqual("/run/dotnetcloud/dotnetcloud.chat.sock", second.Address);
+        // The shared directory is combined with the host separator, matching the sibling test's
+        // expectation for the per-module run directory.
+        Assert.AreEqual(Path.Combine("/run/dotnetcloud", "dotnetcloud.files.sock"), first.Address);
+        Assert.AreEqual(Path.Combine("/run/dotnetcloud", "dotnetcloud.chat.sock"), second.Address);
     }
 
     [TestMethod]
