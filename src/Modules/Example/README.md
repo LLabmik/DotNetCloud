@@ -196,7 +196,7 @@ Two design-time factories exist for the EF CLI (one per project):
 6. **Create your DbContext** in `Data/`
 7. **Implement your gRPC service** in `Host/`
 8. **Build your UI** in `Host/wwwroot` and declare it in the manifest (`ui.type = "iframe"`, entry path, Material-icon nav items) — see `docs/modules/MODULE_UI_HOSTING.md`
-9. **Package it** with `dotnetcloud-pack pack` (`.dncpkg`) and install it with `dotnetcloud module install --file`
+9. **Package it** with `dotnetcloud module pack` (`.dncpkg`) and install it with `dotnetcloud module install --file`
 
 ## Capabilities Used
 

@@ -381,12 +381,15 @@ The sync client keeps your files synchronized between your devices and your DotN
 
 DotNetCloud is designed for extensibility. Third-party developers can build modules that integrate deeply with the platform — adding database tables, API endpoints, Blazor UI pages, background jobs, and event handlers.
 
+A module builds against the SDK of the platform it runs on: every release carries the module contracts in `sdk-feed/` beside the server, so there is no feed to request access to.
+
 ```sh
-# Scaffold a new module
-dotnet new dotnetcloud-module -n MyCustomModule
+# Install the template that ships in your release, then scaffold a module
+dotnet new install <install>/templates/dotnetcloud-module
+dotnet new dotnetcloud-module -n MyCustomModule --sdkFeed <install>/sdk-feed
 ```
 
-See the [Module Development Guide](docs/modules/README.md) for the full walkthrough, including the [Example Module](src/Modules/Example/) as a working reference, and [`.dncpkg` module packaging](docs/modules/MODULE_PACKAGING.md) for `dotnetcloud module pack`.
+See the [Module Development Guide](docs/guides/MODULE_DEVELOPMENT.md) for the full walkthrough, including the [Example Module](src/Modules/Example/) as a working reference.
 
 The optional modules in `src/Modules/{AI,Bookmarks,Email,Example,Photos,Tracks}` build against the
 platform's **contract packages**, exactly as a third-party module does — so they need the local SDK
@@ -453,7 +456,7 @@ Imports users, files, calendars, contacts, and bookmarks.
 
 - [Architecture](docs/architecture/ARCHITECTURE.md) — system design and module architecture
 - [API Reference](docs/api/README.md) — REST API, authentication, response format
-- [Module Development](docs/modules/README.md) — build your own modules
+- [Module Development](docs/guides/MODULE_DEVELOPMENT.md) — build your own modules
 - [Development Workflow](docs/development/DEVELOPMENT_WORKFLOW.md)
 - [Database Setup](docs/development/DATABASE_SETUP.md)
 - [IDE Setup](docs/development/IDE_SETUP.md)

@@ -111,17 +111,17 @@ Configuration is managed via `appsettings.json` sections:
 
 ## Related Documentation
 
-- [REST API Reference](API.md)
-- [Architecture & Data Model](ARCHITECTURE.md)
-- [Sharing Guide](SHARING.md)
-- [Versioning Guide](VERSIONING.md)
-- [WOPI / Collabora Integration](WOPI.md)
-- [Desktop Sync Protocol](SYNC.md)
-- [Admin Configuration](../admin/CONFIGURATION.md)
-- [User Documentation](../user/README.md) — all user guides
-- [User Getting Started](../user/GETTING_STARTED.md)
-- [Document Editing User Guide](../user/DOCUMENT_EDITING.md)
-- [Desktop Sync Client User Guide](../user/SYNC_CLIENT.md)
+- [REST API Reference](../../../docs/modules/API.md)
+- [Architecture & Data Model](../../../docs/modules/ARCHITECTURE.md)
+- [Sharing Guide](../../../docs/modules/SHARING.md)
+- [Versioning Guide](../../../docs/modules/VERSIONING.md)
+- [WOPI / Collabora Integration](../../../docs/modules/WOPI.md)
+- [Desktop Sync Protocol](../../../docs/modules/SYNC.md)
+- [Admin Configuration](../../../docs/admin/CONFIGURATION.md)
+- [User Documentation](../../../docs/user/README.md) — all user guides
+- [User Getting Started](../../../docs/user/GETTING_STARTED.md)
+- [Document Editing User Guide](../../../docs/user/DOCUMENT_EDITING.md)
+- [Desktop Sync Client User Guide](../../../docs/user/SYNC_CLIENT.md)
 
 ## Test Coverage
 
@@ -132,7 +132,7 @@ Configuration is managed via `appsettings.json` sections:
 
 ## Getting Started (Developer)
 
-1. Ensure PostgreSQL or SQL Server is available (see [Database Setup](../development/DATABASE_SETUP.md))
+1. Ensure PostgreSQL or SQL Server is available (see [Database Setup](../../../docs/development/DATABASE_SETUP.md))
 2. Build the solution: `dotnet build`
 3. Run the Files host: `dotnet run --project src/Modules/Files/DotNetCloud.Modules.Files.Host`
 4. Access the API at `https://localhost:5001/api/v1/files`

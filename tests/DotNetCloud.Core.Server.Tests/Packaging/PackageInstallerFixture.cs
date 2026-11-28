@@ -71,7 +71,7 @@ internal sealed class PackageInstallerFixture : IDisposable
             .Replace("__VERSION__", version, StringComparison.Ordinal)
             .Replace("__DATASTORE__", dataStore, StringComparison.Ordinal);
 
-    /// <summary>Creates a staging directory laid out like <c>dotnetcloud-pack</c> output.</summary>
+    /// <summary>Creates a staging directory laid out like <c>dotnetcloud module pack</c> output.</summary>
     /// <param name="moduleId">Module id.</param>
     /// <param name="version">Module version.</param>
     /// <param name="manifestOverride">Replaces the generated manifest.</param>

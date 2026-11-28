@@ -48,7 +48,7 @@ dotnet run --project src/Tools/DotNetCloud.ModulePackaging -- pack \
   --output ~/artifacts/dotnetcloud.tracks-2.0.0.dncpkg
 ```
 
-The packer verifies its own output; `dotnetcloud-pack verify <file> --key-file <key>` re-checks a
+The packer verifies its own output; `dotnetcloud module verify <file> --key-file <key>` re-checks a
 detached signature after download.
 
 ## Requirements
