@@ -70,7 +70,7 @@ foreach ($project in $contractProjects) {
 
     # Directory.Build.props sets DocumentationFile from $(AssemblyName), which is empty while the
     # pack target evaluates it, so packing otherwise fails with NU5119 (a file named ".xml" cannot be
-    # added). The XML doc is a build artefact, not a package asset, so it is cleared for pack only.
+    # added). The XML doc is a build artifact, not a package asset, so it is cleared for pack only.
     $arguments = @(
         'pack', $projectPath,
         '--configuration', $Configuration,
