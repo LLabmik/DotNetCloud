@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Tracks</title>
+
+    <!-- The core proxy serves this document from /apps/dotnetcloud.tracks/ and strips the prefix, so
+         every path here is relative to the frame's own base address. -->
+    <base href="./" />
+    <link rel="stylesheet" href="css/app.css" />
+    <!-- Scoped CSS for the ported components (Blazor CSS isolation bundle). -->
+    <link rel="stylesheet" href="DotNetCloud.Modules.Tracks.Web.styles.css" />
+  </head>
+
+  <body>
+    <div id="app">
+      <main class="tracks-shell">
+        <h1>Tracks</h1>
+        <p>Loading the module UI…</p>
+      </main>
+    </div>
+
+    <div id="blazor-error-ui" class="tracks-error" role="alert">
+      The Tracks module UI failed to load. Reload the page to try again.
+    </div>
+
+    <!-- Helpers first: the components call them by name from OnAfterRenderAsync, and the bridge must be
+         running before Blazor's first fetch so every API call carries the frame ticket. -->
+    <script src="js/dom-helpers.js"></script>
+    <script src="js/tracks-keyboard.js"></script>
+    <script src="js/tracks-ui.js"></script>
+    <script src="js/dncModuleBridge.js"></script>
+    <script src="js/tracks-bridge.js"></script>
+    <!-- autostart is off on purpose: an opaque-origin frame cannot resolve the loader's relative
+         `import("./dotnet.js")`, so js/tracks-boot.js starts Blazor with absolute boot URLs. -->
+    <script src="_framework/blazor.webassembly.js" autostart="false"></script>
+    <script src="js/tracks-boot.js"></script>
+  </body>
+</html>

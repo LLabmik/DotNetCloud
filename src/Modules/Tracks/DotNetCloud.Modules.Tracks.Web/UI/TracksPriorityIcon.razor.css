@@ -1,0 +1,26 @@
+/* Priority dot. The colour is the only difference between levels; the glyph is the shared Material dot. */
+.tracks-priority-icon {
+  display: inline-flex;
+  align-items: center;
+  line-height: 1;
+}
+
+.tracks-priority--urgent {
+  color: #d92d20;
+}
+
+.tracks-priority--high {
+  color: #f79009;
+}
+
+.tracks-priority--medium {
+  color: #eaaa08;
+}
+
+.tracks-priority--low {
+  color: #17b26a;
+}
+
+.tracks-priority--none {
+  color: #98a2b3;
+}

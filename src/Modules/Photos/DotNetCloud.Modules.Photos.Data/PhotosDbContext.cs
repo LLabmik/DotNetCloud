@@ -1,0 +1,93 @@
+using DotNetCloud.Core.Data.Configuration.Extensions;
+using DotNetCloud.Core.Data.Extensions;
+using DotNetCloud.Core.Data.Naming;
+using DotNetCloud.Modules.Photos.Data.Configuration;
+using DotNetCloud.Modules.Photos.Models;
+using Microsoft.EntityFrameworkCore;
+
+namespace DotNetCloud.Modules.Photos.Data;
+
+/// <summary>
+/// Database context for the Photos module.
+/// Manages all photo entities: photos, albums, metadata, tags, shares, and edit records.
+/// </summary>
+/// <remarks>
+/// <para>
+/// <b>Module DbContext Pattern:</b>
+/// Each module owns its own DbContext, separate from the core <c>CoreDbContext</c>.
+/// This provides schema isolation, independent migrations, and testability.
+/// </para>
+/// <para>
+/// <b>Multi-Database Support:</b>
+/// Works with PostgreSQL and SQL Server through provider-specific configuration.
+/// </para>
+/// </remarks>
+public class PhotosDbContext : DbContext
+{
+    private readonly ITableNamingStrategy _namingStrategy;
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="PhotosDbContext"/> class.
+    /// </summary>
+    public PhotosDbContext(DbContextOptions<PhotosDbContext> options)
+        : this(options, new PostgreSqlNamingStrategy())
+    {
+    }
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="PhotosDbContext"/> class with a specific naming strategy.
+    /// </summary>
+    public PhotosDbContext(DbContextOptions<PhotosDbContext> options, ITableNamingStrategy namingStrategy)
+        : base(options)
+    {
+        _namingStrategy = namingStrategy;
+    }
+
+    /// <summary>Photos in the gallery.</summary>
+    public DbSet<Photo> Photos => Set<Photo>();
+
+    /// <summary>Photo albums.</summary>
+    public DbSet<Album> Albums => Set<Album>();
+
+    /// <summary>Album-photo junction records.</summary>
+    public DbSet<AlbumPhoto> AlbumPhotos => Set<AlbumPhoto>();
+
+    /// <summary>Photo EXIF/GPS metadata.</summary>
+    public DbSet<PhotoMetadata> PhotoMetadata => Set<PhotoMetadata>();
+
+    /// <summary>Tags applied to photos.</summary>
+    public DbSet<PhotoTag> PhotoTags => Set<PhotoTag>();
+
+    /// <summary>Photo and album shares.</summary>
+    public DbSet<PhotoShare> PhotoShares => Set<PhotoShare>();
+
+    /// <summary>Non-destructive edit history records.</summary>
+    public DbSet<PhotoEditRecord> PhotoEditRecords => Set<PhotoEditRecord>();
+
+    /// <inheritdoc />
+    protected override void OnModelCreating(ModelBuilder modelBuilder)
+    {
+        // Schema-neutral on purpose (Track C): a sandboxed module does not own the database, so it
+        // must not name a schema. The connection string the core provisions pins search_path to the
+        // schema the module owns, and unqualified DDL — including the migration-history table — lands
+        // there. Naming a schema here would also require CREATE on the database, which the module
+        // principal deliberately does not have (PostgreSQL 42501).
+        base.OnModelCreating(modelBuilder);
+
+        modelBuilder.ApplyConfiguration(new PhotoConfiguration());
+        modelBuilder.ApplyConfiguration(new AlbumConfiguration());
+        modelBuilder.ApplyConfiguration(new AlbumPhotoConfiguration());
+        modelBuilder.ApplyConfiguration(new PhotoMetadataConfiguration());
+        modelBuilder.ApplyConfiguration(new PhotoTagConfiguration());
+        modelBuilder.ApplyConfiguration(new PhotoShareConfiguration());
+        modelBuilder.ApplyConfiguration(new PhotoEditRecordConfiguration());
+
+        // Fix PostgreSQL-specific column types for SQL Server
+        if (_namingStrategy is SqlServerNamingStrategy)
+        {
+            modelBuilder.FixColumnTypesForSqlServer();
+        }
+
+        SequentialGuidConfigurationExtensions.ApplySequentialGuidDefaults(modelBuilder, _namingStrategy.Provider);
+    }
+}

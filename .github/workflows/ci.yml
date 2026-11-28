@@ -94,6 +94,10 @@ jobs:
   #   verifies it, and stores the artifact. This is the fixture the installer
   #   tests (B3) will consume, and it fails the build if the package format
   #   regresses (nondeterminism, archive safety, manifest validation).
+  #
+  #   The packer is `dotnetcloud module pack` — a verb of the platform CLI, not a
+  #   separate tool. Packing publishes the module host, which resolves the sealed
+  #   contracts from the SDK feed, so the feed is packed first.
   # ===========================================================================
   module-package:
     name: Module Package Fixture
@@ -108,16 +112,20 @@ jobs:
         with:
           dotnet-version: "10.0.x"
 
-      - name: Restore dependencies
-        run: dotnet restore src/Tools/DotNetCloud.ModulePackaging/DotNetCloud.ModulePackaging.csproj
+      - name: Pack the module SDK feed
+        shell: pwsh
+        run: ./scripts/pack-module-sdk.ps1 -Output .sdk-feed
 
-      - name: Build packer
-        run: dotnet build src/Tools/DotNetCloud.ModulePackaging/DotNetCloud.ModulePackaging.csproj --no-restore --configuration Release
+      - name: Restore dependencies
+        run: dotnet restore src/Cli/DotNetCloud.CLI/DotNetCloud.CLI.csproj
+
+      - name: Build the CLI
+        run: dotnet build src/Cli/DotNetCloud.CLI/DotNetCloud.CLI.csproj --no-restore --configuration Release
 
       - name: Generate an ephemeral signing key
         run: |
-          dotnet src/Tools/DotNetCloud.ModulePackaging/bin/Release/net10.0/dotnetcloud-pack.dll \
-            keygen --key-id ci-ephemeral --output "${RUNNER_TEMP}/ci.key.json"
+          dotnet src/Cli/DotNetCloud.CLI/bin/Release/net10.0/dotnetcloud.dll \
+            module keygen --key-id ci-ephemeral --output "${RUNNER_TEMP}/ci.key.json"
 
       - name: Pack the Example module
         run: |
@@ -134,7 +142,7 @@ jobs:
           package="${RUNNER_TEMP}/package/dotnetcloud.example-${version}.dncpkg"
           echo "EXAMPLE_PACKAGE=${package}" >> "${GITHUB_ENV}"
 
-          dotnet src/Tools/DotNetCloud.ModulePackaging/bin/Release/net10.0/dotnetcloud-pack.dll pack \
+          dotnet src/Cli/DotNetCloud.CLI/bin/Release/net10.0/dotnetcloud.dll module pack \
             --project src/Modules/Example/DotNetCloud.Modules.Example.Host/DotNetCloud.Modules.Example.Host.csproj \
             --rid linux-x64 \
             --sign-key "${RUNNER_TEMP}/ci.key.json" \
@@ -143,13 +151,13 @@ jobs:
 
       - name: Verify the package independently
         run: |
-          dotnet src/Tools/DotNetCloud.ModulePackaging/bin/Release/net10.0/dotnetcloud-pack.dll verify \
+          dotnet src/Cli/DotNetCloud.CLI/bin/Release/net10.0/dotnetcloud.dll module verify \
             "${EXAMPLE_PACKAGE}" \
             --key-file "${RUNNER_TEMP}/ci.key.json"
 
       - name: Inspect the package
         run: |
-          dotnet src/Tools/DotNetCloud.ModulePackaging/bin/Release/net10.0/dotnetcloud-pack.dll inspect \
+          dotnet src/Cli/DotNetCloud.CLI/bin/Release/net10.0/dotnetcloud.dll module inspect \
             "${EXAMPLE_PACKAGE}"
 
       - name: Upload package + local feed
@@ -162,3 +170,36 @@ jobs:
             ${{ runner.temp }}/feed/index.json
           if-no-files-found: error
           retention-days: 14
+
+  # ===========================================================================
+  # Optional modules (dotnetcloud.ai, .bookmarks, .email, .example, .photos, .tracks)
+  #   Builds and tests the six optional modules the way a third party consumes the
+  #   platform: against the contract packages, never a project reference. This is
+  #   what keeps co-location from eroding the published contract. Needs the SDK
+  #   feed, so it does not run as part of DotNetCloud.CI.slnf.
+  # ===========================================================================
+  optional-modules:
+    name: Optional Modules
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Pack the module SDK feed
+        shell: pwsh
+        run: ./scripts/pack-module-sdk.ps1 -Output .sdk-feed
+
+      - name: Restore
+        run: dotnet restore DotNetCloud.Modules.slnf
+
+      - name: Build
+        run: dotnet build DotNetCloud.Modules.slnf --no-restore --configuration Release
+
+      - name: Test
+        run: dotnet test DotNetCloud.Modules.slnf --no-build --configuration Release --verbosity normal --settings .runsettings

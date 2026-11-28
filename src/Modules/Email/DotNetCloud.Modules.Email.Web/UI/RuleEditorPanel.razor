@@ -1,0 +1,130 @@
+@inherits EmailPanelBase
+
+@if (State.Rule is not { } rule)
+{
+    <p class="hint">No rule is being edited.</p>
+}
+else
+{
+    <div class="card">
+        <div class="card-header">
+            <h3>@(rule.Id is null ? "New rule" : "Edit rule")</h3>
+            <button type="button" class="icon-btn" aria-label="Cancel" title="Cancel" @onclick="() => State.CancelRule()">
+                <MaterialIcon Icon="close" />
+            </button>
+        </div>
+
+        <label class="field">
+            <span>Rule name</span>
+            <input class="input" type="text" @bind="rule.Name" />
+        </label>
+
+        <div class="rule-row">
+            <label class="field">
+                <span>Applies to</span>
+                <select class="select" @bind="rule.AccountId">
+                    <option value="">All accounts</option>
+                    @foreach (var account in State.Accounts)
+                    {
+                        <option value="@account.Id" @key="account.Id">
+                            @(string.IsNullOrWhiteSpace(account.DisplayName) ? account.EmailAddress : account.DisplayName)
+                        </option>
+                    }
+                </select>
+            </label>
+
+            <label class="field">
+                <span>Priority</span>
+                <input class="input" type="number" min="0" @bind="rule.Priority" />
+            </label>
+        </div>
+
+        <div class="form-actions">
+            <label class="check-row">
+                <input type="checkbox" @bind="rule.IsEnabled" />
+                <span>Enabled</span>
+            </label>
+            <label class="check-row">
+                <input type="checkbox" @bind="rule.StopProcessing" />
+                <span>Stop processing later rules</span>
+            </label>
+        </div>
+
+        <p class="section-title">Conditions</p>
+
+        @for (var groupIndex = 0; groupIndex < rule.Groups.Count; groupIndex++)
+        {
+            var group = rule.Groups[groupIndex];
+            <div class="rule-group" @key="group">
+                <div class="rule-row">
+                    <select class="select" @bind="group.MatchMode">
+                        <option value="0">Match ALL</option>
+                        <option value="1">Match ANY</option>
+                    </select>
+
+                    <button type="button" class="icon-btn" aria-label="Remove group" title="Remove group" @onclick="() => rule.Groups.Remove(group)">
+                        <MaterialIcon Icon="delete" />
+                    </button>
+                </div>
+
+                @foreach (var condition in group.Conditions)
+                {
+                    <div class="rule-row" @key="condition">
+                        <select class="select" @bind="condition.Field">
+                            @foreach (var (value, label) in RuleCatalog.Fields)
+                            {
+                                <option value="@value">@label</option>
+                            }
+                        </select>
+
+                        <select class="select" @bind="condition.Operator">
+                            @foreach (var (value, label) in RuleCatalog.Operators)
+                            {
+                                <option value="@value">@label</option>
+                            }
+                        </select>
+
+                        <input class="input" type="text" placeholder="Value" @bind="condition.Value" />
+
+                        <button type="button" class="icon-btn rule-remove" aria-label="Remove condition" title="Remove condition" @onclick="() => group.Conditions.Remove(condition)">
+                            <MaterialIcon Icon="close" />
+                        </button>
+                    </div>
+                }
+
+                <button type="button" class="btn btn-secondary" @onclick="() => group.Conditions.Add(new RuleConditionDraft())">Add condition</button>
+            </div>
+        }
+
+        <button type="button" class="btn btn-secondary" @onclick="AddGroup">Add condition group</button>
+
+        <p class="section-title">Actions</p>
+
+        @foreach (var action in rule.Actions)
+        {
+            <div class="rule-row" @key="action">
+                <select class="select" @bind="action.ActionType">
+                    @foreach (var (value, label) in RuleCatalog.Actions)
+                    {
+                        <option value="@value">@label</option>
+                    }
+                </select>
+
+                @if (action.ActionType is 4 or 5)
+                {
+                    <input class="input" type="text" placeholder="Folder or label" @bind="action.TargetValue" />
+                }
+
+                <button type="button" class="icon-btn rule-remove" aria-label="Remove action" title="Remove action" @onclick="() => rule.Actions.Remove(action)">
+                    <MaterialIcon Icon="close" />
+                </button>
+            </div>
+        }
+
+        <button type="button" class="btn btn-secondary" @onclick="() => rule.Actions.Add(new RuleActionDraft())">Add action</button>
+
+        <div class="form-actions">
+            <button type="button" class="btn btn-primary" disabled="@State.Busy" @onclick="() => State.SaveRuleAsync()">Save rule</button>
+        </div>
+    </div>
+}

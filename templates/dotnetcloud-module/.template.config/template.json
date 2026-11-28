@@ -1,0 +1,38 @@
+{
+  "$schema": "http://json.schemastore.org/template",
+  "author": "DotNetCloud Contributors",
+  "classifications": ["DotNetCloud", "Module"],
+  "identity": "DotNetCloud.Module.Template",
+  "name": "DotNetCloud module",
+  "description": "A minimal DotNetCloud module host: lifecycle service, health check, manifest and a NuGet.config that resolves the module contracts from the sdk-feed of the platform you installed.",
+  "shortName": "dotnetcloud-module",
+  "tags": {
+    "language": "C#",
+    "type": "project"
+  },
+  "sourceName": "MyModule",
+  "preferNameDirectory": true,
+  "symbols": {
+    "moduleId": {
+      "type": "parameter",
+      "datatype": "text",
+      "defaultValue": "org.example.mymodule",
+      "replaces": "org.example.mymodule",
+      "description": "Reverse-DNS module id. Lowercase; it is also the host assembly name and the directory name the supervisor discovers."
+    },
+    "sdkVersion": {
+      "type": "parameter",
+      "datatype": "text",
+      "defaultValue": "__SDK_VERSION__",
+      "replaces": "__SDK_VERSION__",
+      "description": "The DotNetCloud platform version whose sdk-feed you build against."
+    },
+    "sdkFeed": {
+      "type": "parameter",
+      "datatype": "text",
+      "defaultValue": "../sdk-feed",
+      "replaces": "__SDK_FEED__",
+      "description": "Path to the sdk-feed folder of your DotNetCloud install."
+    }
+  }
+}

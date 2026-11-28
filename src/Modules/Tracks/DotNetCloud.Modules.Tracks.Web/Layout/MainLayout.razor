@@ -1,0 +1,10 @@
+@inherits LayoutComponentBase
+@inject ModuleBridge Bridge
+
+@* The shell is deliberately thin: the ported Tracks UI brings its own full-height layout. The theme
+   is *not* repeated here — the bridge writes it onto the document element, and a second copy on this
+   wrapper went stale (it kept the "light" default), which made the tour tooltip render white-on-white
+   in the core's dark theme. The bridge is still injected so the layout re-renders when it changes. *@
+<div class="tracks-root">
+    @Body
+</div>

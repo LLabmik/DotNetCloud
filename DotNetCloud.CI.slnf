@@ -69,6 +69,7 @@
       "tests\\DotNetCloud.Core.Search.Tests\\DotNetCloud.Core.Search.Tests.csproj",
       "tests\\DotNetCloud.Core.Server.Tests\\DotNetCloud.Core.Server.Tests.csproj",
       "tests\\DotNetCloud.Core.Tests\\DotNetCloud.Core.Tests.csproj",
+      "tests\\DotNetCloud.Core.Packaging.Tests\\DotNetCloud.Core.Packaging.Tests.csproj",
       "tests\\DotNetCloud.Integration.Tests\\DotNetCloud.Integration.Tests.csproj",
       "tests\\DotNetCloud.Integration.Tests.PostgreSQL\\DotNetCloud.Integration.Tests.PostgreSQL.csproj",
       "tests\\DotNetCloud.Integration.Tests.SqlServer\\DotNetCloud.Integration.Tests.SqlServer.csproj",

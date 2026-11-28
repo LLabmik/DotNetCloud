@@ -177,9 +177,33 @@
     <!-- Certes (ACME / Let's Encrypt) -->
     <PackageVersion Include="Certes" Version="3.0.4" />
     <!-- Package signing (B1). Decision: Ed25519 via BouncyCastle rather than a native libsodium
-         binding, so `dotnetcloud-pack` runs anywhere the SDK does (no native assets) and .NET's
-         own System.Security.Cryptography has no Ed25519 surface in net10.0. Provenance, key
-         formats and the canonical signing scheme are in docs/modules/MODULE_PACKAGING.md. -->
+         binding, so packaging runs anywhere the SDK does (no native assets) and .NET's own
+         System.Security.Cryptography has no Ed25519 surface in net10.0. Provenance, key formats
+         and the canonical signing scheme are in docs/modules/MODULE_PACKAGING.md. -->
     <PackageVersion Include="BouncyCastle.Cryptography" Version="2.7.0" />
+  </ItemGroup>
+
+  <!--
+    Platform module contracts, consumed as packages by the optional modules
+    (src/Modules/{AI,Bookmarks,Email,Example,Photos,Tracks}) exactly the way a third-party module
+    consumes them — no ProjectReference to core.
+
+    scripts/pack-module-sdk.ps1 packs them into .sdk-feed/, which NuGet.config maps to the
+    `dotnetcloud-sdk` source. The feed is gitignored and empty in a clean checkout; restore of the
+    module projects therefore needs the script to have run. DotNetCloudSdkVersion tracks the
+    platform version and must be bumped together with it.
+  -->
+  <PropertyGroup>
+    <DotNetCloudSdkVersion>0.7.1</DotNetCloudSdkVersion>
+  </PropertyGroup>
+
+  <ItemGroup Label="DotNetCloud module contracts (built into .sdk-feed by pack-module-sdk.ps1)">
+    <PackageVersion Include="DotNetCloud.Core" Version="$(DotNetCloudSdkVersion)" />
+    <PackageVersion Include="DotNetCloud.Core.Data" Version="$(DotNetCloudSdkVersion)" />
+    <PackageVersion Include="DotNetCloud.Core.Grpc" Version="$(DotNetCloudSdkVersion)" />
+    <PackageVersion Include="DotNetCloud.Core.Packaging" Version="$(DotNetCloudSdkVersion)" />
+    <PackageVersion Include="DotNetCloud.Modules.Sdk" Version="$(DotNetCloudSdkVersion)" />
+    <PackageVersion Include="DotNetCloud.Modules.Sdk.Web" Version="$(DotNetCloudSdkVersion)" />
+    <PackageVersion Include="DotNetCloud.UI.Shared" Version="$(DotNetCloudSdkVersion)" />
   </ItemGroup>
 </Project>

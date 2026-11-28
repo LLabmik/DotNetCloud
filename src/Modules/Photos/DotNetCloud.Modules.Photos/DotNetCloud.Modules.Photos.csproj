@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>DotNetCloud.Modules.Photos</RootNamespace>
+    <AssemblyName>DotNetCloud.Modules.Photos</AssemblyName>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="DotNetCloud.Modules.Photos.Data" />
+    <InternalsVisibleTo Include="DotNetCloud.Modules.Photos.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="DotNetCloud.Core" />
+  </ItemGroup>
+
+  <!-- The domain library needs logging + DI abstractions only; not the ASP.NET Core framework. -->
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+  </ItemGroup>
+
+</Project>

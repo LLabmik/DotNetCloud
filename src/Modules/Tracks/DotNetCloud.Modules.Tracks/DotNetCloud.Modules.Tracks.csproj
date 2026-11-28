@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>DotNetCloud.Modules.Tracks</RootNamespace>
+    <AssemblyName>DotNetCloud.Modules.Tracks</AssemblyName>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="DotNetCloud.Modules.Tracks.Data" />
+    <InternalsVisibleTo Include="DotNetCloud.Modules.Tracks.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\DotNetCloud.Modules.Tracks.Shared\DotNetCloud.Modules.Tracks.Shared.csproj" />
+    <!-- The chat/file event contracts Tracks reacts to live in DotNetCloud.Core.Events, so this module
+         needs nothing from the required Files/Chat modules to compile. -->
+    <PackageReference Include="DotNetCloud.Core" />
+  </ItemGroup>
+
+</Project>

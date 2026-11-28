@@ -1,0 +1,44 @@
+@inherits EmailPanelBase
+
+<div class="card-header">
+    <h3>Email rules</h3>
+    <div class="form-actions">
+        <button type="button" class="btn btn-primary" @onclick="() => State.NewRule()">New rule</button>
+    </div>
+</div>
+
+<p class="hint">Rules run in priority order on newly synced mail.</p>
+
+@if (State.Rules.Count == 0)
+{
+    <div class="empty">
+        <span class="empty-icon"><MaterialIcon Icon="settings" Size="MaterialIconSize.Xl" /></span>
+        <h3>No rules yet</h3>
+        <p>Create a rule to sort incoming mail automatically.</p>
+    </div>
+}
+else
+{
+    @foreach (var rule in SortedRules)
+    {
+        <div class="rule-card @(rule.IsEnabled ? null : "is-disabled")" @key="rule.Id">
+            <div class="rule-info">
+                <strong>@rule.Name</strong>
+                <span class="rule-meta">Priority @rule.Priority</span>
+                @if (!rule.IsEnabled)
+                {
+                    <span class="rule-badge">Disabled</span>
+                }
+            </div>
+
+            <div class="form-actions">
+                <button type="button" class="btn btn-secondary" @onclick="() => State.EditRule(rule)">Edit</button>
+                <button type="button" class="btn btn-danger" @onclick="() => State.RequestDeleteRule(rule)">Delete</button>
+            </div>
+        </div>
+    }
+}
+
+<div class="form-actions">
+    <button type="button" class="btn btn-secondary" disabled="@State.Busy" @onclick="() => State.RunRulesAsync()">Run rules now</button>
+</div>

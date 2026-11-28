@@ -1,0 +1,10 @@
+@inherits LayoutComponentBase
+@inject ModuleFrameBridge Bridge
+
+@* The shell is deliberately thin: the ported Bookmarks UI brings its own sidebar layout. The theme is
+   *not* repeated here — the bridge writes it onto the document element, and a second copy on this
+   wrapper goes stale. The bridge is still injected so the layout re-renders when the shell's theme
+   changes. *@
+<div class="bookmarks-root">
+    @Body
+</div>

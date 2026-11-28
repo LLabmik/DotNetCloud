@@ -1,0 +1,37 @@
+@inherits EmailPanelBase
+
+@if (State.SelectedMailbox is null)
+{
+    <div class="empty">
+        <span class="empty-icon"><MaterialIcon Icon="mail" Size="MaterialIconSize.Xl" /></span>
+        <h3>No folder selected</h3>
+        <p>Choose a folder in the sidebar.</p>
+    </div>
+}
+else if (State.Threads.Count == 0)
+{
+    <div class="empty">
+        <span class="empty-icon"><MaterialIcon Icon="mail" Size="MaterialIconSize.Xl" /></span>
+        <h3>No messages</h3>
+        <p>This folder is empty, or messages have not synced yet.</p>
+    </div>
+}
+else
+{
+    <div class="thread-list">
+        @foreach (var thread in SortedThreads)
+        {
+            <button type="button"
+                    class="thread-card"
+                    @key="thread.Id"
+                    @onclick="() => State.OpenThreadAsync(thread)">
+                <span class="thread-subject">@(string.IsNullOrWhiteSpace(thread.Subject) ? "(No subject)" : thread.Subject)</span>
+                <span class="thread-meta">
+                    <span class="thread-participants">@EmailState.FormatParticipants(thread.ParticipantsJson)</span>
+                    <span class="thread-count">@thread.MessageCount</span>
+                    <span>@FormatListDate(thread.LastMessageAt)</span>
+                </span>
+            </button>
+        }
+    </div>
+}

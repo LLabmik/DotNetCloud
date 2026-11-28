@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Email</title>
+
+    <!-- The core proxy serves this document from /apps/dotnetcloud.email/ and strips the prefix, so
+         every path here is relative to the frame's own base address. -->
+    <base href="./" />
+    <link rel="stylesheet" href="css/app.css" />
+    <!-- Scoped CSS for the ported components (Blazor CSS isolation bundle). -->
+    <link rel="stylesheet" href="DotNetCloud.Modules.Email.Web.styles.css" />
+  </head>
+
+  <body>
+    <div id="app">
+      <main class="main">
+        <h1>Email</h1>
+        <p>Loading the module UI…</p>
+      </main>
+    </div>
+
+    <div id="blazor-error-ui" role="alert">
+      The Email module UI failed to load. Reload the page to try again.
+    </div>
+
+    <!-- Helpers first: the bridge must be running before Blazor's first fetch so every API call
+         carries the frame ticket. The last script starts Blazor with absolute boot URLs. -->
+    <script src="js/dncModuleBridge.js"></script>
+    <script src="js/dncModuleFrame.js"></script>
+    <!-- autostart is off on purpose: an opaque-origin frame cannot resolve the loader's relative
+         `import("./dotnet.js")`, so js/dncModuleBoot.js starts Blazor with absolute boot URLs. -->
+    <script src="_framework/blazor.webassembly.js" autostart="false"></script>
+    <script src="js/dncModuleBoot.js"></script>
+  </body>
+</html>

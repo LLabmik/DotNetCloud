@@ -1,0 +1,15 @@
+{
+  "manifestVersion": 2,
+  "id": "org.example.mymodule",
+  "name": "MyModule",
+  "version": "0.1.0",
+  "description": "MyModule is a DotNetCloud module scaffolded from dotnetcloud-module. Replace this description, the publisher block and the module id before you submit it to the store.",
+  "publisher": {
+    "id": "org.example",
+    "name": "Example Publisher"
+  },
+  "moduleApiVersion": 1,
+  "minCoreVersion": "__SDK_VERSION__",
+  "dataStore": "none",
+  "capabilities": []
+}

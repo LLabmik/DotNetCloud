@@ -1,0 +1,74 @@
+@inherits EmailPanelBase
+
+<div class="card">
+    <div class="card-header">
+        <h3>Add email account</h3>
+        <button type="button" class="icon-btn" aria-label="Cancel" title="Cancel" @onclick="Cancel">
+            <MaterialIcon Icon="close" />
+        </button>
+    </div>
+
+    <div class="form-actions">
+        <button type="button" class="btn @(_tab == AccountTab.Imap ? "btn-primary" : "btn-secondary")" @onclick="() => _tab = AccountTab.Imap">IMAP / SMTP</button>
+        <button type="button" class="btn @(_tab == AccountTab.Gmail ? "btn-primary" : "btn-secondary")" @onclick="() => _tab = AccountTab.Gmail">Gmail (OAuth)</button>
+    </div>
+
+    @if (_tab == AccountTab.Imap)
+    {
+        <label class="field">
+            <span>Display name</span>
+            <input class="input" type="text" placeholder="Work email" @bind="_displayName" />
+        </label>
+        <label class="field">
+            <span>Email address</span>
+            <input class="input" type="email" placeholder="user@example.com" @bind="_emailAddress" />
+        </label>
+        <label class="field">
+            <span>IMAP host</span>
+            <input class="input" type="text" placeholder="imap.example.com" @bind="_imapHost" />
+        </label>
+        <label class="field">
+            <span>IMAP port</span>
+            <input class="input" type="number" @bind="_imapPort" />
+        </label>
+        <label class="field">
+            <span>SMTP host</span>
+            <input class="input" type="text" placeholder="smtp.example.com" @bind="_smtpHost" />
+        </label>
+        <label class="field">
+            <span>SMTP port</span>
+            <input class="input" type="number" @bind="_smtpPort" />
+        </label>
+        <label class="field">
+            <span>Username</span>
+            <input class="input" type="text" placeholder="user@example.com" @bind="_username" />
+        </label>
+        <label class="field">
+            <span>Password</span>
+            <input class="input" type="password" autocomplete="new-password" @bind="_password" />
+        </label>
+
+        <div class="form-actions">
+            <button type="button"
+                    class="btn btn-primary"
+                    disabled="@State.Busy"
+                    @onclick="AddImapAsync">
+                Add account
+            </button>
+        </div>
+    }
+    else if (!State.GmailConfigured)
+    {
+        <p>Gmail is not configured on this server.</p>
+        <p class="hint">
+            An administrator must register a Google OAuth client before accounts can be connected here.
+        </p>
+    }
+    else
+    {
+        <p>Connect a Gmail account through Google. The consent page opens in a new tab.</p>
+        <div class="form-actions">
+            <button type="button" class="btn btn-primary" @onclick="() => State.StartGmailOAuthAsync()">Connect Gmail</button>
+        </div>
+    }
+</div>

@@ -1,0 +1,78 @@
+syntax = "proto3";
+
+option csharp_namespace = "DotNetCloud.Modules.Example.Host.Protos";
+
+package dotnetcloud.example;
+
+// ExampleService: Demonstrates a module-specific gRPC service.
+// The core server calls these RPCs to interact with the Example module.
+service ExampleService {
+  // Creates a new note.
+  rpc CreateNote (CreateNoteRequest) returns (CreateNoteResponse);
+
+  // Gets a note by ID.
+  rpc GetNote (GetNoteRequest) returns (GetNoteResponse);
+
+  // Lists all notes for a user.
+  rpc ListNotes (ListNotesRequest) returns (ListNotesResponse);
+
+  // Deletes a note by ID.
+  rpc DeleteNote (DeleteNoteRequest) returns (DeleteNoteResponse);
+}
+
+// --- CreateNote ---
+
+message CreateNoteRequest {
+  string title = 1;
+  string content = 2;
+  string user_id = 3;
+}
+
+message CreateNoteResponse {
+  bool success = 1;
+  string error_message = 2;
+  NoteMessage note = 3;
+}
+
+// --- GetNote ---
+
+message GetNoteRequest {
+  string note_id = 1;
+}
+
+message GetNoteResponse {
+  bool found = 1;
+  NoteMessage note = 2;
+}
+
+// --- ListNotes ---
+
+message ListNotesRequest {
+  string user_id = 1;
+}
+
+message ListNotesResponse {
+  repeated NoteMessage notes = 1;
+}
+
+// --- DeleteNote ---
+
+message DeleteNoteRequest {
+  string note_id = 1;
+}
+
+message DeleteNoteResponse {
+  bool success = 1;
+  string error_message = 2;
+}
+
+// --- Shared Messages ---
+
+message NoteMessage {
+  string id = 1;
+  string title = 2;
+  string content = 3;
+  string created_by_user_id = 4;
+  string created_at = 5;
+  string updated_at = 6;
+}

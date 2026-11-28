@@ -39,6 +39,10 @@ internal static class ModuleCommands
         command.Subcommands.Add(CreateInfo());
         command.Subcommands.Add(CreateRollback());
         command.Subcommands.Add(CreateUninstall());
+        command.Subcommands.Add(ModulePackCommand.Create());
+        command.Subcommands.Add(ModuleInspectCommand.Create());
+        command.Subcommands.Add(ModuleKeygenCommand.Create());
+        command.Subcommands.Add(ModuleFeedCommand.Create());
         return command;
     }
 
@@ -157,8 +161,38 @@ internal static class ModuleCommands
         {
             Description = "The .dncpkg package to verify",
         };
-        var command = new Command("verify", "Verify a package's integrity, signature and manifest") { packageArg };
-        command.SetAction(parseResult => VerifyPackageAsync(parseResult.GetValue(packageArg)!));
+        var signatureOption = new Option<string?>("--signature")
+        {
+            Description = "Detached signature file (default: <package>.sig)",
+        };
+        var keyOption = new Option<string[]>("--key")
+        {
+            Description = "Additional trusted public key as 'keyId=base64' (repeatable)",
+            AllowMultipleArgumentsPerToken = true,
+        };
+        var keyFileOption = new Option<string[]>("--key-file")
+        {
+            Description = "Key-pair file whose public key is trusted (repeatable)",
+            AllowMultipleArgumentsPerToken = true,
+        };
+        var allowUnsignedOption = new Option<bool>("--allow-unverified")
+        {
+            Description = "Accept an unsigned package (sideload only)",
+        };
+        var command = new Command("verify", "Verify a package's integrity, signature and manifest")
+        {
+            packageArg,
+            signatureOption,
+            keyOption,
+            keyFileOption,
+            allowUnsignedOption,
+        };
+        command.SetAction(parseResult => VerifyPackageAsync(
+            parseResult.GetValue(packageArg)!,
+            parseResult.GetValue(signatureOption),
+            parseResult.GetValue(keyOption) ?? [],
+            parseResult.GetValue(keyFileOption) ?? [],
+            parseResult.GetValue(allowUnsignedOption)));
         return command;
     }
 
@@ -762,9 +796,16 @@ internal static class ModuleCommands
     }
 
     /// <summary>
-    /// Verifies a package without touching the installation.
+    /// Verifies a package without touching the installation. The default trust anchor is the
+    /// configured key set; <c>--key</c>, <c>--key-file</c> and <c>--allow-unverified</c> are the
+    /// explicit opt-ins the standalone packer used to offer.
     /// </summary>
-    private static async Task<int> VerifyPackageAsync(string packagePath)
+    private static async Task<int> VerifyPackageAsync(
+        string packagePath,
+        string? signaturePath,
+        string[] inlineKeys,
+        string[] keyFiles,
+        bool allowUnsigned)
     {
         var path = Path.GetFullPath(packagePath);
         if (!File.Exists(path))
@@ -773,15 +814,36 @@ internal static class ModuleCommands
             return 1;
         }
 
-        var configuration = ServiceProviderFactory.BuildCliConfiguration();
-        var options = configuration.GetSection(ModuleStoreOptions.SectionName).Get<ModuleStoreOptions>()
-                      ?? new ModuleStoreOptions();
+        var trustedKeys = new Dictionary<string, string>(StringComparer.Ordinal);
+        try
+        {
+            var configuration = ServiceProviderFactory.BuildCliConfiguration();
+            var options = configuration.GetSection(ModuleStoreOptions.SectionName).Get<ModuleStoreOptions>()
+                          ?? new ModuleStoreOptions();
+
+            foreach (var (keyId, publicKey) in options.GetEffectiveTrustedKeys())
+            {
+                trustedKeys[keyId] = publicKey;
+            }
+
+            foreach (var (keyId, publicKey) in ModulePackageConsole.BuildTrustedKeys(inlineKeys, keyFiles))
+            {
+                trustedKeys[keyId] = publicKey;
+            }
+        }
+        catch (ModulePackageException ex)
+        {
+            ConsoleOutput.WriteError(ex.Message);
+            return 1;
+        }
 
         var verification = await ModulePackageVerifier.VerifyAsync(
             path,
-            options: new ModulePackageVerificationOptions
+            signaturePath,
+            new ModulePackageVerificationOptions
             {
-                TrustedKeys = options.GetEffectiveTrustedKeys(),
+                TrustedKeys = trustedKeys,
+                AllowUnsigned = allowUnsigned,
             });
 
         ConsoleOutput.WriteHeader("Package Verification");

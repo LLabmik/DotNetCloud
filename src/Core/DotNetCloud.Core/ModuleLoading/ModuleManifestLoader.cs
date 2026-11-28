@@ -8,11 +8,11 @@ using Microsoft.Extensions.Logging;
 namespace DotNetCloud.Core.Server.ModuleLoading;
 
 // This file lives in DotNetCloud.Core, not DotNetCloud.Core.Server, on purpose: the packer
-// (dotnetcloud-pack, now built in the DotNetCloud-ModuleStore repository) must validate a packaged
-// manifest with exactly the code the supervisor runs at install time, and it can only reference the
-// contract assembly. The namespace is kept so existing call sites (the supervisor, the installer, the
-// CLI and every manifest test) did not have to change; do not infer the assembly from it.
-// The types are public for the same reason — the packer is compiled from another repository.
+// (`dotnetcloud module pack`, in the CLI) must validate a packaged manifest with exactly the code
+// the supervisor runs at install time, and it can only reference the contract assembly. The
+// namespace is kept so existing call sites (the supervisor, the installer, the CLI and every
+// manifest test) did not have to change; do not infer the assembly from it.
+// The types are public for the same reason — the packer is a separate consumer of this assembly.
 
 /// <summary>
 /// Manifest data loaded from a module's manifest.json file.

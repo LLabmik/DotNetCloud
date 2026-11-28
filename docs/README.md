@@ -31,6 +31,7 @@ below. The project-level [README](../README.md) covers the build/test quick star
 | [admin/server/INSTALLATION.md](admin/server/INSTALLATION.md) | Installing a server |
 | [user/README.md](user/README.md) | End-user documentation entry point |
 | [api/README.md](api/README.md) | REST API reference entry point |
+| [guides/MODULE_DEVELOPMENT.md](guides/MODULE_DEVELOPMENT.md) | Building, running and submitting a module |
 
 ---
 
@@ -57,7 +58,7 @@ below. The project-level [README](../README.md) covers the build/test quick star
 
 | Document | What it covers |
 | --- | --- |
-| [modules/README.md](modules/README.md) | Files module overview |
+| [../src/Modules/Files/README.md](../src/Modules/Files/README.md) | Files module overview (source-level) |
 | [modules/ARCHITECTURE.md](modules/ARCHITECTURE.md) | File storage, chunking, whole-file blobs |
 | [modules/API.md](modules/API.md) | Files REST API |
 | [modules/SHARING.md](modules/SHARING.md) | Sharing model (users, teams, permissions) |
