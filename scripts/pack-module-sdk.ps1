@@ -16,8 +16,9 @@ This script produces that set from this checkout:
     DotNetCloud.UI.Shared       Blazor components a module's optional Razor UI reuses
 
 The version is the repository version (`MajorVersion.MinorVersion.PatchVersion` in
-Directory.Build.props). Consumers pin it with `DotNetCloudSdkVersion`, so bump that when this
-version changes.
+Directory.Build.props) unless `-Version` overrides it. Consumers pin it with
+`DotNetCloudSdkVersion`, so bump that when this version changes. The release pipeline stamps the
+tag, so the SDK a user gets always matches the platform it shipped with.
 
 The packages are pushed by the `Publish Module SDK` workflow (tag `sdk-v*`).
 
@@ -26,6 +27,10 @@ Directory that receives the .nupkg files. Default: artifacts/module-sdk (gitigno
 
 .PARAMETER Configuration
 Build configuration. Default: Release.
+
+.PARAMETER Version
+Version to stamp the packages with. Default: the repository version. The release pipeline passes
+the tag so the SDK and the platform carry the same number.
 
 .PARAMETER NoBuild
 Pack without rebuilding (the projects must already be built).
@@ -37,6 +42,7 @@ Pack without rebuilding (the projects must already be built).
 param(
     [string]$Output = (Join-Path $PSScriptRoot '..\artifacts\module-sdk'),
     [string]$Configuration = 'Release',
+    [string]$Version,
     [switch]$NoBuild
 )
 
@@ -71,6 +77,7 @@ foreach ($project in $contractProjects) {
         '--output', $outputPath,
         '-p:DocumentationFile='
     )
+    if (-not [string]::IsNullOrWhiteSpace($Version)) { $arguments += "-p:Version=$Version" }
     if ($NoBuild) { $arguments += '--no-build' }
 
     & dotnet @arguments

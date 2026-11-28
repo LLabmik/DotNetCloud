@@ -61,7 +61,10 @@ jobs:
       # ------------------------------------------------------------------
       - name: Pack the module SDK feed
         shell: pwsh
-        run: ./scripts/pack-module-sdk.ps1 -Output .sdk-feed
+        # Stamped with the tag, not the props version: the feed ships beside a server and CLI that
+        # are stamped with the tag, and a module author pins DotNetCloudSdkVersion to the platform
+        # version. A feed at the props version would not resolve for them.
+        run: ./scripts/pack-module-sdk.ps1 -Output .sdk-feed -Version ${{ steps.version.outputs.version }}
 
       # ------------------------------------------------------------------
       # Build & Test (uses CI solution filter — excludes Android/MAUI
@@ -77,15 +80,16 @@ jobs:
         run: dotnet test DotNetCloud.CI.slnf --no-build --configuration Release --verbosity normal --settings .runsettings
 
       # The optional modules are built and tested separately: they consume the sealed
-      # contracts as packages, which the CI filter deliberately leaves out.
+      # contracts as packages, which the CI filter deliberately leaves out. They resolve those
+      # packages from the feed packed above, so they must pin the same version the feed carries.
       - name: Restore optional modules
-        run: dotnet restore DotNetCloud.Modules.slnf
+        run: dotnet restore DotNetCloud.Modules.slnf -p:DotNetCloudSdkVersion=${{ steps.version.outputs.version }}
 
       - name: Build optional modules
-        run: dotnet build DotNetCloud.Modules.slnf --no-restore --configuration Release
+        run: dotnet build DotNetCloud.Modules.slnf --no-restore --configuration Release -p:DotNetCloudSdkVersion=${{ steps.version.outputs.version }}
 
       - name: Test optional modules
-        run: dotnet test DotNetCloud.Modules.slnf --no-build --configuration Release --verbosity normal --settings .runsettings
+        run: dotnet test DotNetCloud.Modules.slnf --no-build --configuration Release --verbosity normal --settings .runsettings -p:DotNetCloudSdkVersion=${{ steps.version.outputs.version }}
 
       # ------------------------------------------------------------------
       # Publish framework-dependent linux-x64 binaries
@@ -141,6 +145,7 @@ jobs:
               --runtime linux-x64 \
               --self-contained false \
               -p:Version=${{ steps.version.outputs.version }} \
+              -p:DotNetCloudSdkVersion=${{ steps.version.outputs.version }} \
               --output "artifacts/publish/modules/${MODULE_NAME}"
           done
 
