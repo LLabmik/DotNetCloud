@@ -3,25 +3,30 @@
 > **Purpose:** Guide for building DotNetCloud modules
 > **Audience:** First-party and third-party module developers
 > **Status:** Current for manifest v2 / the module sandbox
-> **Last Updated:** 2026-11-12 (rewritten around manifest v2, the SDK, packaging and the sandbox model)
+> **Last Updated:** 2026-11-27 (adds the installed-SDK starting point, the development loop, publishing and the compatibility promise)
 
 ---
 
 ## Table of Contents
 
 1. [Overview](#overview)
-2. [The three planes](#the-three-planes)
-3. [Project layout](#project-layout)
-4. [Module manifest (v2)](#module-manifest-v2)
-5. [The host process](#the-host-process)
-6. [Module lifecycle](#module-lifecycle)
-7. [Data store](#data-store)
+2. [Getting started](#getting-started)
+3. [The three planes](#the-three-planes)
+4. [Project layout](#project-layout)
+5. [Module manifest (v2)](#module-manifest-v2)
+6. [The host process](#the-host-process)
+7. [Module lifecycle](#module-lifecycle)
 8. [Core API: capabilities, consent, settings](#core-api-capabilities-consent-settings)
 9. [Event plane](#event-plane)
-10. [UI plane](#ui-plane)
-11. [Packaging and install](#packaging-and-install)
-12. [Testing](#testing)
-13. [Reference implementation](#reference-implementation)
+10. [Data store](#data-store)
+11. [gRPC communication](#grpc-communication)
+12. [UI plane](#ui-plane)
+13. [The development loop](#the-development-loop)
+14. [Packaging and install](#packaging-and-install)
+15. [Publishing to the store](#publishing-to-the-store)
+16. [The compatibility promise](#the-compatibility-promise)
+17. [Testing](#testing)
+18. [Reference implementation](#reference-implementation)
 
 ---
 
@@ -65,6 +70,61 @@ What the sandbox gives a module:
 | `.dncpkg` format and signing           | [`../modules/MODULE_PACKAGING.md`](../modules/MODULE_PACKAGING.md) |
 | Store client, installer, rollback      | [`../modules/MODULE_STORE.md`](../modules/MODULE_STORE.md)       |
 | The design and its decisions           | [`../THIRD_PARTY_MODULE_SANDBOX_AND_STORE_PLAN.md`](../THIRD_PARTY_MODULE_SANDBOX_AND_STORE_PLAN.md) |
+
+---
+
+## Getting started
+
+### The SDK is part of the platform
+
+There is no feed to request access to and no credential to hold. Every release carries the module
+contracts as a folder of `.nupkg` files beside the server:
+
+| What            | Where                                   |
+| --------------- | --------------------------------------- |
+| Server and CLI  | `<install>/`                            |
+| Module contracts | `<install>/sdk-feed/`                  |
+| Module template | `<install>/templates/dotnetcloud-module/` |
+
+Use the official release, and check it against the `.sha256` published next to the tarball. Treat the
+feed as **build input**, not as a package cache: a `.nupkg` can carry MSBuild targets and analyzers
+that run inside your build, so a mirrored or re-hosted feed is a different trust anchor from the
+release you installed. Point `NuGet.config` at the folder and leave it where the platform put it.
+
+`DotNetCloudSdkVersion` is therefore not a shared constant: it is the version of the platform you
+are developing against, and it moves when you upgrade that platform.
+
+### Scaffold from the template
+
+```bash
+dotnet new install <install>/templates/dotnetcloud-module
+dotnet new dotnetcloud-module -n MyModule --sdkFeed <install>/sdk-feed
+```
+
+`--moduleId` sets the identity (`org.example.mymodule` by default): it is the directory name the
+supervisor discovers, the host assembly name, and the `id` in `manifest.json`. Change all three
+together or none. `--sdkVersion` defaults to the platform version the template shipped with.
+
+The template writes the safe configuration as the default one rather than as advice:
+
+- `NuGet.config` lists the SDK feed and nuget.org, and pins `DotNetCloud.*` to the SDK feed alone
+  with `packageSourceMapping`, so a same-name package on a public feed can never win the resolve.
+- `Directory.Packages.props` sets `DotNetCloudSdkVersion` once and every contract package follows it.
+- `manifest.json` declares `dataStore: "none"`, so the skeleton needs no database, and a lifecycle
+  service plus a health check answer the supervisor's calls.
+
+The skeleton is deliberately smaller than the [Example module](#reference-implementation): add a data
+store, events, capabilities or a framed UI from that reference as you need them.
+
+### Build and test it
+
+```bash
+dotnet build        # restores the contracts from the SDK feed
+dotnet publish -c Release
+```
+
+The publish output is already discovery-shaped: `<id>.dll`, `<id>.deps.json` and `manifest.json` in
+one directory. That is what `module dev` deploys.
 
 ---
 
@@ -827,6 +887,109 @@ What to expect on install:
 Details: [`../modules/MODULE_PACKAGING.md`](../modules/MODULE_PACKAGING.md) (format, signing,
 hardening) and [`../modules/MODULE_STORE.md`](../modules/MODULE_STORE.md) (state machine, rollback,
 remote index, air-gapped installs).
+
+---
+
+## The development loop
+
+A module is a separate process, so building it does not put it in front of a user. With a DotNetCloud
+server running in Development from the same shell:
+
+```bash
+dotnetcloud module dev <module-root>            # publish, deploy, health-check once
+dotnetcloud module dev <module-root> --watch    # again on every save
+```
+
+One iteration:
+
+1. `dotnet publish` into `<modules>/.dev/<id>/staging/`, never over the live directory.
+2. The module is stopped through its lifecycle state, the supervisor stops the process, the binaries
+   are swapped, the module is enabled again and the command waits for it to report healthy.
+3. A build whose health check fails is rolled back to the previous dev build automatically.
+
+Things that matter in that loop:
+
+- **Development only, and audited.** The command refuses unless the server's environment is
+  Development. It deploys unsigned code while keeping the module's identity — schema, data directory,
+  Data Protection keys and settings all survive — and writes an audit entry per deploy, naming the
+  source path and the content hash. `dotnetcloud module info` shows the deployed build as local.
+- **The first run installs.** A module that is not installed yet is installed from the build's
+  `manifest.json` (validated by the core's own loader), with an isolated schema when it declares
+  `dataStore: "isolated"`, and a trust tier of `Bundled` — nothing was verified, so it never claims
+  the store tier. A failed first install removes the row again.
+- **Required modules are refused.** Their code runs in the core, so there is no process to stop and
+  nothing to swap.
+- **Migrations are guarded.** A build that carries a *new* migration is refused without
+  `--allow-schema-change`. An edit to an existing migration, or a model change with no migration, is
+  not caught, so the backup step is not optional.
+- **`--restore`** promotes the previous dev build and exits; **`--no-publish`** redeploys the existing
+  build output.
+- **`module rollback` never sees a dev build.** Dev builds live under `<modules>/.dev/<id>/previous/`;
+  the release `.previous/` slot stays reserved for the installer's own rollback.
+
+### Debugging a module
+
+- **Under the supervisor.** The supervisor runs `dotnet <modules>/<id>/<id>.dll`. Attach the debugger
+  to that `dotnet` process by its command line. A rebuild with `--watch` swaps the binaries and
+  detaches the debugger by design; use `--no-publish` when you want the running build held still.
+- **Without the supervisor.** `dotnet run --project DotNetCloud.Modules.MyModule.Host` starts the
+  host with `InMemoryDncModuleApi`, so module code can be stepped through with no platform running
+  and with canned answers from the core API.
+- **Logs.** Module stdout and stderr go to the server's log sink, not to the CLI. A failed health
+  check names the server log instead of printing a tail.
+
+---
+
+## Publishing to the store
+
+The store is the distribution and update path: it holds the catalogue, the review and the signed
+index. A module published there is fetched and installed by `dotnetcloud module install <id>
+--from-store`, and updated the same way.
+
+What a submission carries:
+
+| Item          | Notes                                                                                       |
+| ------------- | ------------------------------------------------------------------------------------------- |
+| `.dncpkg`     | `dotnetcloud module pack`, signed with **your** publisher key                               |
+| `.dncpkg.sig` | the detached signature, uploaded beside the package                                          |
+| source archive | a `.zip` of the source; **required** for the official trust tier                            |
+| description   | Markdown, rendered by the store; the first submission must have one                        |
+| release notes | required for every update after the first                                                    |
+
+Before the first upload, register the publisher and prove ownership of its DNS name or GitHub
+organisation in the store dashboard; the id you pack under (`org.example-2026` above) must belong to
+that publisher. The process, the policy and the review checklist live in the store repository
+(`docs/SUBMISSION.md`, `policy/STORE_POLICY.md`, `policy/REVIEW_CHECKLIST.md`) and on
+`https://modules.dotnetcloud.net`.
+
+The review approves a **hash**, not a version: the package bytes you uploaded are the bytes that are
+signed by CI and served from the catalogue, so a fix is a new version and the old one is yanked.
+Capabilities and consent scopes are reviewed against what the package actually uses, and the
+architecture rules (own schema, no sibling database, no peer module calls) are scanned as well.
+
+A vulnerability in a **published** module is handled by the store, not by this repository: see
+[`../../SECURITY.md`](../../SECURITY.md) and the store's `policy/REVOCATION_RUNBOOK.md`.
+
+---
+
+## The compatibility promise
+
+The promise is short and it is the contract on which a third-party module can depend:
+
+- `moduleApiVersion` has **one** supported value (`1`). The loader refuses anything else, so a bump
+  is a delivery event, not a flag an author can opt into.
+- **Within a `moduleApiVersion`, the seven contract packages change additively only**: new members,
+  no signature change and no semantic change to an existing member. A member is removed or changed
+  only by moving the constant.
+- **Anything outside those seven packages is not contract.** `DotNetCloud.Core.Server`, the supervisor
+  and internals stay off-limits — the package-reference rule already enforces that, because a module
+  only ever sees what it references from the feed.
+- **An author who needs a newer contract raises `minCoreVersion`.** The core enforces that on
+  install and refuses a module built for a later platform; it is the only knob an author needs.
+
+Bumping `moduleApiVersion` is therefore one planned change across everything: the constant, the
+`moduleApiVersion` in every first-party manifest, a repack of the six optional modules, a catalogue
+publishing round and release notes. That is why it does not happen casually.
 
 ---
 
