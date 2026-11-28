@@ -194,7 +194,7 @@
     platform version and must be bumped together with it.
   -->
   <PropertyGroup>
-    <DotNetCloudSdkVersion>0.7.1</DotNetCloudSdkVersion>
+    <DotNetCloudSdkVersion>0.7.2</DotNetCloudSdkVersion>
   </PropertyGroup>
 
   <ItemGroup Label="DotNetCloud module contracts (built into .sdk-feed by pack-module-sdk.ps1)">
